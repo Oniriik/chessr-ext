@@ -3,6 +3,7 @@
   "name": "Chessr",
   "version": "1.0.1",
   "description": "Chessr - Chess assistance, done right.",
+  "update_url": "https://extension.chessr.io/updates.xml",
   "permissions": [
     "storage",
     "activeTab"
