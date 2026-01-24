@@ -6,3 +6,5 @@ dist/
 # Extension build artifacts
 extension/chessr-*/
 extension/*.zip
+extension/*.crx
+extension/key.pem
