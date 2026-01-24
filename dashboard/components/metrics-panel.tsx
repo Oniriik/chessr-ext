@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { Users, Activity, Cpu, Clock } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
 
 interface Metrics {
   connectedClients: number
@@ -43,19 +46,23 @@ export default function MetricsPanel() {
 
   useEffect(() => {
     fetchMetrics()
-    const interval = setInterval(fetchMetrics, 5000) // Auto-refresh every 5s
+    const interval = setInterval(fetchMetrics, 5000)
     return () => clearInterval(interval)
   }, [])
 
   if (loading) {
-    return <div className="text-center py-8">Loading metrics...</div>
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        Loading metrics...
+      </div>
+    )
   }
 
   if (error && !metrics) {
     return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-        Error loading metrics: {error}
-      </div>
+      <Alert variant="destructive">
+        <AlertDescription>Error loading metrics: {error}</AlertDescription>
+      </Alert>
     )
   }
 
@@ -67,7 +74,7 @@ export default function MetricsPanel() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Server Metrics</h2>
-        <span className="text-xs text-gray-500">Auto-refreshing every 5s</span>
+        <span className="text-xs text-muted-foreground">Auto-refreshing every 5s</span>
       </div>
 
       {/* Metrics Grid */}
@@ -89,7 +96,7 @@ export default function MetricsPanel() {
         <MetricCard
           icon={<Cpu className="w-5 h-5" />}
           label="Stockfish Instances"
-          value={`${metrics?.stockfishPool.total || 0} / ${metrics?.stockfishPool.available || 0} available`}
+          value={`${metrics?.stockfishPool.total || 0} / ${metrics?.stockfishPool.available || 0} avail`}
           color="purple"
         />
 
@@ -102,38 +109,45 @@ export default function MetricsPanel() {
       </div>
 
       {/* Pool Utilization */}
-      <div className="bg-white border rounded-lg p-4">
-        <h3 className="text-sm font-semibold mb-2">Stockfish Pool Utilization</h3>
-        <div className="w-full bg-gray-200 rounded-full h-4">
-          <div
-            className="bg-blue-600 h-4 rounded-full transition-all duration-300"
-            style={{ width: `${poolUtilization}%` }}
-          />
-        </div>
-        <p className="text-xs text-gray-600 mt-1">{poolUtilization}% in use</p>
-      </div>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Stockfish Pool Utilization</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Progress value={poolUtilization} className="h-3" />
+          <p className="text-xs text-muted-foreground mt-2">{poolUtilization}% in use</p>
+        </CardContent>
+      </Card>
 
       {/* Authenticated Users List */}
       {metrics && metrics.users.length > 0 && (
-        <div className="bg-white border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3">Authenticated Users ({metrics.users.length})</h3>
-          <div className="space-y-2">
-            {metrics.users.map((user) => (
-              <div key={user.id} className="flex justify-between items-center text-sm border-b pb-2">
-                <span className="font-medium">{user.email}</span>
-                <span className="text-gray-500 text-xs">
-                  Connected: {new Date(user.connectedAt).toLocaleTimeString()}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Authenticated Users ({metrics.users.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {metrics.users.map((user) => (
+                <div key={user.id} className="flex justify-between items-center text-sm border-b border-border pb-2 last:border-0">
+                  <span className="font-medium">{user.email}</span>
+                  <span className="text-muted-foreground text-xs">
+                    Connected: {new Date(user.connectedAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {metrics && metrics.users.length === 0 && (
-        <div className="bg-gray-50 border rounded-lg p-4 text-center text-gray-500 text-sm">
-          No authenticated users connected
-        </div>
+        <Card>
+          <CardContent className="py-4 text-center text-muted-foreground text-sm">
+            No authenticated users connected
+          </CardContent>
+        </Card>
       )}
     </div>
   )
@@ -146,21 +160,23 @@ function MetricCard({ icon, label, value, color }: {
   color: 'blue' | 'green' | 'purple' | 'orange'
 }) {
   const colorClasses = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    purple: 'bg-purple-50 text-purple-600',
-    orange: 'bg-orange-50 text-orange-600',
+    blue: 'bg-blue-500/10 text-blue-500',
+    green: 'bg-green-500/10 text-green-500',
+    purple: 'bg-purple-500/10 text-purple-500',
+    orange: 'bg-orange-500/10 text-orange-500',
   }
 
   return (
-    <div className="bg-white border rounded-lg p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`p-2 rounded ${colorClasses[color]}`}>
-          {icon}
+    <Card>
+      <CardContent className="pt-4">
+        <div className="flex items-center gap-2 mb-2">
+          <div className={`p-2 rounded-md ${colorClasses[color]}`}>
+            {icon}
+          </div>
+          <span className="text-xs text-muted-foreground">{label}</span>
         </div>
-        <span className="text-xs text-gray-600">{label}</span>
-      </div>
-      <div className="text-2xl font-bold">{value}</div>
-    </div>
+        <div className="text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
   )
 }

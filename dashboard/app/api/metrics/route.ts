@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const metricsUrl = process.env.CHESS_METRICS_URL || 'http://135.125.201.246:3001/metrics'
+    // When running in Docker, use internal network name
+    // When running locally for dev, use the public URL
+    const metricsUrl = process.env.METRICS_URL || 'http://chess-server:3001/metrics'
 
     const response = await fetch(metricsUrl, {
       cache: 'no-store',

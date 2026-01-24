@@ -9,13 +9,14 @@ import SSHTerminal from '@/components/ssh-terminal'
 import DockerLogs from '@/components/docker-logs'
 import DockerControls from '@/components/docker-controls'
 import TestPanel from '@/components/test-panel'
-
-type Tab = 'overview' | 'terminal' | 'logs' | 'test'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Card, CardContent } from '@/components/ui/card'
+import { LogOut, LayoutDashboard, Terminal, ScrollText, FlaskConical } from 'lucide-react'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
   const router = useRouter()
 
   useEffect(() => {
@@ -56,75 +57,84 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-muted-foreground">Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white shadow">
+      <header className="border-b bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">Chessr Admin Dashboard</h1>
-            <p className="text-sm text-gray-500">Stockfish Server Management</p>
+            <p className="text-sm text-muted-foreground">Stockfish Server Management</p>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-600">{user?.email}</span>
-            <button
-              onClick={handleSignOut}
-              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
-            >
+            <span className="text-sm text-muted-foreground">{user?.email}</span>
+            <Button variant="destructive" size="sm" onClick={handleSignOut}>
+              <LogOut className="w-4 h-4 mr-2" />
               Sign Out
-            </button>
+            </Button>
           </div>
         </div>
       </header>
 
-      {/* Tabs */}
+      {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
-            {[
-              { id: 'overview', label: 'Overview' },
-              { id: 'terminal', label: 'SSH Terminal' },
-              { id: 'logs', label: 'Docker Logs' },
-              { id: 'test', label: 'Test Analysis' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as Tab)}
-                className={`
-                  py-2 px-1 border-b-2 font-medium text-sm
-                  ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }
-                `}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="overview" className="gap-2">
+              <LayoutDashboard className="w-4 h-4" />
+              <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="terminal" className="gap-2">
+              <Terminal className="w-4 h-4" />
+              <span className="hidden sm:inline">SSH Terminal</span>
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="gap-2">
+              <ScrollText className="w-4 h-4" />
+              <span className="hidden sm:inline">Docker Logs</span>
+            </TabsTrigger>
+            <TabsTrigger value="test" className="gap-2">
+              <FlaskConical className="w-4 h-4" />
+              <span className="hidden sm:inline">Test Analysis</span>
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Content */}
-        <div className="bg-white rounded-lg shadow p-6 min-h-[600px]">
-          {activeTab === 'overview' && (
+          <TabsContent value="overview">
             <div className="space-y-6">
               <MetricsPanel />
               <DockerControls />
             </div>
-          )}
+          </TabsContent>
 
-          {activeTab === 'terminal' && <SSHTerminal />}
+          <TabsContent value="terminal">
+            <Card>
+              <CardContent className="p-6">
+                <SSHTerminal />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          {activeTab === 'logs' && <DockerLogs />}
+          <TabsContent value="logs">
+            <Card>
+              <CardContent className="p-6">
+                <DockerLogs />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          {activeTab === 'test' && <TestPanel />}
-        </div>
+          <TabsContent value="test">
+            <Card>
+              <CardContent className="p-6">
+                <TestPanel />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )

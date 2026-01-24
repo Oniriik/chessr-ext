@@ -1,48 +1,28 @@
 import { NextRequest } from 'next/server'
-import { createSSHConnection } from '@/lib/ssh'
+import { executeCommand } from '@/lib/exec'
+
+const CONTAINER_NAME = process.env.DOCKER_CONTAINER_NAME || 'chess-stockfish-server'
 
 export async function GET(request: NextRequest) {
   try {
     const lines = request.nextUrl.searchParams.get('lines') || '100'
 
-    const sshConfig = {
-      host: process.env.SSH_HOST!,
-      username: process.env.SSH_USER!,
-      password: process.env.SSH_PASSWORD,
+    // Validate lines parameter
+    const linesNum = parseInt(lines, 10)
+    if (isNaN(linesNum) || linesNum < 1 || linesNum > 1000) {
+      return new Response(JSON.stringify({ error: 'Invalid lines parameter (1-1000)' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    const conn = await createSSHConnection(sshConfig)
+    const command = `docker logs --tail ${linesNum} ${CONTAINER_NAME} 2>&1`
+    const result = await executeCommand(command)
 
-    return new Promise<Response>((resolve) => {
-      let logs = ''
+    const logs = result.stdout + result.stderr
 
-      const command = `docker logs --tail ${lines} chess-stockfish-server`
-
-      conn.exec(command, (err, stream) => {
-        if (err) {
-          conn.end()
-          resolve(new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          }))
-          return
-        }
-
-        stream.on('close', () => {
-          conn.end()
-          resolve(new Response(JSON.stringify({ logs }), {
-            headers: { 'Content-Type': 'application/json' },
-          }))
-        })
-
-        stream.on('data', (data: Buffer) => {
-          logs += data.toString()
-        })
-
-        stream.stderr.on('data', (data: Buffer) => {
-          logs += data.toString()
-        })
-      })
+    return new Response(JSON.stringify({ logs: logs || '(no logs)' }), {
+      headers: { 'Content-Type': 'application/json' },
     })
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {

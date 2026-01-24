@@ -2,6 +2,15 @@
 
 import { useState, useEffect } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export default function DockerLogs() {
   const [logs, setLogs] = useState('')
@@ -42,44 +51,44 @@ export default function DockerLogs() {
     <div className="flex flex-col h-full">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Docker Logs</h2>
-        <div className="flex gap-2 items-center">
-          <select
-            value={lines}
-            onChange={(e) => setLines(e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded text-sm"
-          >
-            <option value="50">Last 50 lines</option>
-            <option value="100">Last 100 lines</option>
-            <option value="200">Last 200 lines</option>
-            <option value="500">Last 500 lines</option>
-          </select>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+        <div className="flex gap-3 items-center">
+          <Select value={lines} onValueChange={setLines}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="50">Last 50 lines</SelectItem>
+              <SelectItem value="100">Last 100 lines</SelectItem>
+              <SelectItem value="200">Last 200 lines</SelectItem>
+              <SelectItem value="500">Last 500 lines</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="auto-refresh"
               checked={autoRefresh}
-              onChange={(e) => setAutoRefresh(e.target.checked)}
-              className="rounded"
+              onCheckedChange={(checked) => setAutoRefresh(checked as boolean)}
             />
-            Auto-refresh (5s)
-          </label>
-          <button
-            onClick={fetchLogs}
-            disabled={loading}
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <label htmlFor="auto-refresh" className="text-sm cursor-pointer">
+              Auto-refresh (5s)
+            </label>
+          </div>
+
+          <Button onClick={fetchLogs} disabled={loading} size="sm">
+            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Logs Display */}
-      <div className="flex-1 bg-black text-gray-300 p-4 rounded font-mono text-xs overflow-y-auto min-h-[400px] max-h-[600px]">
+      <div className="flex-1 bg-zinc-950 text-zinc-300 p-4 rounded-lg font-mono text-xs overflow-y-auto min-h-[400px] max-h-[600px] border border-border">
         <pre className="whitespace-pre-wrap break-words">{logs}</pre>
       </div>
 
-      <div className="mt-2 text-xs text-gray-500">
-        Container: <code className="bg-gray-100 px-1 rounded">chess-stockfish-server</code>
+      <div className="mt-2 text-xs text-muted-foreground">
+        Container: <code className="bg-muted px-1.5 py-0.5 rounded">chess-stockfish-server</code>
       </div>
     </div>
   )

@@ -1,67 +1,59 @@
 import { NextRequest } from 'next/server'
-import { createSSHConnection, createShell } from '@/lib/ssh'
+import { executeCommand } from '@/lib/exec'
 
-export async function GET(request: NextRequest) {
-  // Get the upgrade header to check if this is a WebSocket request
-  const upgradeHeader = request.headers.get('upgrade')
+// Whitelist of allowed commands for security
+const ALLOWED_COMMAND_PREFIXES = [
+  'ls',
+  'pwd',
+  'cat',
+  'head',
+  'tail',
+  'grep',
+  'docker ps',
+  'docker logs',
+  'docker stats',
+  'docker inspect',
+  'df',
+  'free',
+  'uptime',
+  'whoami',
+  'date',
+  'uname',
+]
 
-  if (upgradeHeader !== 'websocket') {
-    return new Response('Expected websocket', { status: 426 })
-  }
-
-  // For Next.js, WebSocket upgrade needs to be handled differently
-  // This is a simplified version - in production, consider using a separate WebSocket server
-  // or a library like 'ws' with Next.js API routes
-
-  return new Response('WebSocket endpoint - use separate WebSocket server or upgrade handler', {
-    status: 501,
-    headers: {
-      'Content-Type': 'text/plain',
-    },
-  })
+function isCommandAllowed(command: string): boolean {
+  const trimmed = command.trim().toLowerCase()
+  return ALLOWED_COMMAND_PREFIXES.some(prefix =>
+    trimmed.startsWith(prefix.toLowerCase())
+  )
 }
 
-// Alternative: Use server-sent events for command execution
 export async function POST(request: NextRequest) {
   try {
     const { command } = await request.json()
 
-    const sshConfig = {
-      host: process.env.SSH_HOST!,
-      username: process.env.SSH_USER!,
-      password: process.env.SSH_PASSWORD,
+    if (!command || typeof command !== 'string') {
+      return new Response(JSON.stringify({ error: 'Command is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    const conn = await createSSHConnection(sshConfig)
-
-    return new Promise<Response>((resolve) => {
-      let output = ''
-
-      conn.exec(command, (err, stream) => {
-        if (err) {
-          conn.end()
-          resolve(new Response(JSON.stringify({ error: err.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-          }))
-          return
-        }
-
-        stream.on('close', () => {
-          conn.end()
-          resolve(new Response(JSON.stringify({ output }), {
-            headers: { 'Content-Type': 'application/json' },
-          }))
-        })
-
-        stream.on('data', (data: Buffer) => {
-          output += data.toString()
-        })
-
-        stream.stderr.on('data', (data: Buffer) => {
-          output += data.toString()
-        })
+    // Security: validate command against whitelist
+    if (!isCommandAllowed(command)) {
+      return new Response(JSON.stringify({
+        error: 'Command not allowed. Only read-only and docker commands are permitted.'
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
       })
+    }
+
+    const result = await executeCommand(command)
+    const output = result.stdout + (result.stderr ? `\n${result.stderr}` : '')
+
+    return new Response(JSON.stringify({ output: output || '(no output)' }), {
+      headers: { 'Content-Type': 'application/json' },
     })
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
