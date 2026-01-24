@@ -4,6 +4,7 @@ import { StockfishPool } from './stockfish-pool.js';
 import { ClientMessage, ServerMessage, UserInfo } from './types.js';
 import { validateSupabaseToken } from './auth.js';
 import { MetricsCollector } from './metrics.js';
+import { Logger, globalLogger } from './logger.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -36,21 +37,23 @@ class ChessServer {
   private async init(port: number) {
     try {
       await this.pool.init();
-      console.log(`Chess Stockfish Server running on ws://localhost:${port}`);
-      console.log(`Metrics server running on http://localhost:${METRICS_PORT}`);
-      console.log(`Pool: ${POOL_CONFIG.minEngines}-${POOL_CONFIG.maxEngines} engines (auto-scaling)`);
+      globalLogger.info('server_started', {
+        wsPort: port,
+        metricsPort: METRICS_PORT,
+        poolMin: POOL_CONFIG.minEngines,
+        poolMax: POOL_CONFIG.maxEngines,
+      });
 
       this.wss.on('connection', (ws) => this.handleConnection(ws));
       this.metricsServer.listen(METRICS_PORT);
     } catch (err) {
-      console.error('Failed to initialize server:', err);
+      globalLogger.error('server_init_failed', err instanceof Error ? err : String(err));
       process.exit(1);
     }
   }
 
   private createMetricsServer() {
     const server = createServer((req, res) => {
-      // CORS headers
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -75,67 +78,90 @@ class ChessServer {
   }
 
   private handleConnection(ws: WebSocket) {
-    console.log('Client connected');
+    const connectionId = Logger.createRequestId();
 
-    // Initialize user info (unauthenticated by default)
     this.clients.set(ws, {
-      id: 'anonymous',
+      id: connectionId,
       email: 'anonymous',
       connectedAt: new Date().toISOString(),
       authenticated: false,
     });
 
+    globalLogger.info('client_connected', { connectionId });
     this.send(ws, { type: 'ready' });
 
     ws.on('message', (data) => this.handleMessage(ws, data.toString()));
 
     ws.on('close', () => {
       const userInfo = this.clients.get(ws);
-      console.log(`Client disconnected: ${userInfo?.email || 'anonymous'}`);
+      globalLogger.info('client_disconnected', {
+        connectionId: userInfo?.id,
+        user: userInfo?.email,
+      });
       this.clients.delete(ws);
     });
 
     ws.on('error', (err) => {
-      console.error('WebSocket error:', err);
+      const userInfo = this.clients.get(ws);
+      globalLogger.error('websocket_error', err, {
+        connectionId: userInfo?.id,
+        user: userInfo?.email,
+      });
     });
   }
 
-  private getClientEmail(ws: WebSocket): string {
-    return this.clients.get(ws)?.email || 'anonymous';
+  private getClientInfo(ws: WebSocket): UserInfo {
+    return this.clients.get(ws) || {
+      id: 'unknown',
+      email: 'anonymous',
+      connectedAt: new Date().toISOString(),
+      authenticated: false,
+    };
   }
 
   private async handleMessage(ws: WebSocket, rawData: string) {
-    const clientEmail = this.getClientEmail(ws);
+    const clientInfo = this.getClientInfo(ws);
+    const requestId = Logger.createRequestId();
+    const logger = new Logger(requestId);
+
     let message: ClientMessage;
     try {
       message = JSON.parse(rawData);
-      console.log(`[${clientEmail}] Message received:`, message.type);
     } catch {
+      logger.error('parse_error', clientInfo.email, 'Invalid JSON');
       this.send(ws, { type: 'error', message: 'Invalid JSON' });
       return;
     }
 
     switch (message.type) {
       case 'analyze':
-        await this.handleAnalyze(ws, message);
+        await this.handleAnalyze(ws, message, logger);
         break;
 
       case 'auth':
-        this.handleAuth(ws, message);
+        this.handleAuth(ws, message, logger);
         break;
 
       default:
-        console.log(`[${clientEmail}] Unknown message type:`, (message as any).type);
+        logger.info('unknown_message', clientInfo.email, { type: (message as any).type });
         this.send(ws, { type: 'error', message: 'Unknown message type' });
     }
   }
 
   private async handleAnalyze(
     ws: WebSocket,
-    message: ClientMessage & { type: 'analyze' }
+    message: ClientMessage & { type: 'analyze' },
+    logger: Logger
   ): Promise<void> {
-    const clientEmail = this.getClientEmail(ws);
-    console.log(`[${clientEmail}] Analysis request - depth: ${message.depth}, elo: ${message.elo}`);
+    const clientInfo = this.getClientInfo(ws);
+
+    logger.info('analysis_request', clientInfo.email, {
+      depth: message.depth,
+      elo: message.elo,
+      mode: message.mode,
+      multiPV: message.multiPV,
+    });
+
     try {
       const result = await this.pool.analyze(
         message.fen,
@@ -147,14 +173,18 @@ class ChessServer {
           elo: message.elo,
           mode: message.mode || 'balanced',
         },
-        // Don't send intermediate depth updates, only final result
         () => {}
       );
 
-      console.log(`[${clientEmail}] Analysis complete - bestmove: ${result.bestMove}, eval: ${result.evaluation}`);
+      logger.info('analysis_complete', clientInfo.email, {
+        bestMove: result.bestMove,
+        evaluation: result.evaluation,
+        mate: result.mate,
+      });
+
       this.send(ws, result);
     } catch (err) {
-      console.error(`[${clientEmail}] Analysis error:`, err);
+      logger.error('analysis_error', clientInfo.email, err instanceof Error ? err : String(err));
       this.send(ws, {
         type: 'error',
         message: err instanceof Error ? err.message : 'Analysis failed',
@@ -162,21 +192,27 @@ class ChessServer {
     }
   }
 
-  private handleAuth(ws: WebSocket, message: ClientMessage & { type: 'auth' }) {
-    console.log('[Server] Auth request received');
+  private handleAuth(
+    ws: WebSocket,
+    message: ClientMessage & { type: 'auth' },
+    logger: Logger
+  ) {
+    const clientInfo = this.getClientInfo(ws);
+
+    logger.info('auth_request', clientInfo.email);
 
     const userInfo = validateSupabaseToken(message.token);
 
     if (userInfo) {
-      // Update client info with authenticated user
       this.clients.set(ws, {
-        id: userInfo.id,
+        id: clientInfo.id,
         email: userInfo.email,
-        connectedAt: new Date().toISOString(),
+        connectedAt: clientInfo.connectedAt,
         authenticated: true,
       });
 
-      console.log(`[Server] User authenticated: ${userInfo.email}`);
+      logger.info('auth_success', userInfo.email, { userId: userInfo.id });
+
       this.send(ws, {
         type: 'auth_success',
         user: {
@@ -185,7 +221,7 @@ class ChessServer {
         },
       });
     } else {
-      console.log('[Server] Auth failed: invalid token');
+      logger.error('auth_failed', clientInfo.email, 'Invalid token');
       this.send(ws, {
         type: 'error',
         message: 'Authentication failed',

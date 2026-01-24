@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { globalLogger } from './logger.js';
 
 export interface SupabaseJWTPayload {
   sub: string;  // user id
@@ -20,7 +21,7 @@ export function validateSupabaseToken(token: string): { id: string; email: strin
     const decoded = jwt.decode(token, { complete: true });
 
     if (!decoded || !decoded.payload) {
-      console.error('[Auth] Failed to decode token');
+      globalLogger.error('token_decode_failed', 'Failed to decode token');
       return null;
     }
 
@@ -29,23 +30,22 @@ export function validateSupabaseToken(token: string): { id: string; email: strin
     // Check if token is expired
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      console.error('[Auth] Token expired');
+      globalLogger.error('token_expired', 'Token expired', { email: payload.email });
       return null;
     }
 
     // Verify required fields exist
     if (!payload.sub || !payload.email) {
-      console.error('[Auth] Token missing required fields (sub, email)');
+      globalLogger.error('token_invalid', 'Token missing required fields');
       return null;
     }
 
-    console.log(`[Auth] Token valid for: ${payload.email}`);
     return {
       id: payload.sub,
       email: payload.email,
     };
   } catch (error) {
-    console.error('[Auth] Token validation failed:', error instanceof Error ? error.message : error);
+    globalLogger.error('token_validation_error', error instanceof Error ? error : String(error));
     return null;
   }
 }
