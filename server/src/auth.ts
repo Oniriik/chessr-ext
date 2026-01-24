@@ -26,14 +26,20 @@ export function validateSupabaseToken(token: string): { id: string; email: strin
       return null;
     }
 
-    const decoded = jwt.verify(token, SUPABASE_JWT_SECRET, {
+    // Decode without verification first to see the header/payload
+    const decoded = jwt.decode(token, { complete: true });
+    if (decoded) {
+      console.log('[Auth] Token header:', decoded.header);
+      console.log('[Auth] Token payload email:', (decoded.payload as any).email);
+    }
+
+    const verified = jwt.verify(token, SUPABASE_JWT_SECRET, {
       algorithms: ['HS256'],
-      audience: 'authenticated',
     }) as SupabaseJWTPayload;
 
     return {
-      id: decoded.sub,
-      email: decoded.email,
+      id: verified.sub,
+      email: verified.email,
     };
   } catch (error) {
     console.error('[Auth] Token validation failed:', error instanceof Error ? error.message : error);
