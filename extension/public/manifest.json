@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Chessr",
-  "version": "1.0.0",
-  "description": "Chessr - Assistant IA d'analyse et coaching en temps réel pour chess.com",
+  "version": "1.0.1",
+  "description": "Chessr - Chess assistance, done right.",
   "permissions": [
     "storage",
     "activeTab"
