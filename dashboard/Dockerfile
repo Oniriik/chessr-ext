@@ -13,6 +13,15 @@ RUN npm ci --omit=dev --ignore-scripts
 FROM base AS builder
 WORKDIR /app
 
+# Build arguments for Next.js public env vars (needed at build time)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_CHESS_SERVER_URL=wss://ws.chessr.io
+
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_CHESS_SERVER_URL=$NEXT_PUBLIC_CHESS_SERVER_URL
+
 COPY package.json package-lock.json* ./
 RUN npm ci --ignore-scripts
 
