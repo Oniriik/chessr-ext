@@ -5,6 +5,7 @@ import { ClientMessage, ServerMessage, UserInfo } from './types.js';
 import { validateSupabaseToken } from './auth.js';
 import { MetricsCollector } from './metrics.js';
 import { Logger, globalLogger } from './logger.js';
+import { versionConfig } from './version-config.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -88,7 +89,13 @@ class ChessServer {
     });
 
     globalLogger.info('client_connected', { connectionId });
-    this.send(ws, { type: 'ready' });
+    this.send(ws, {
+      type: 'ready',
+      version: {
+        minVersion: versionConfig.minVersion,
+        downloadUrl: versionConfig.downloadUrl,
+      },
+    });
 
     ws.on('message', (data) => this.handleMessage(ws, data.toString()));
 

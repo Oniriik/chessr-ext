@@ -99,6 +99,15 @@ export interface Translations {
     english: string;
     detected: string;
   };
+
+  // Version check
+  version: {
+    title: string;
+    message: string;
+    current: string;
+    required: string;
+    download: string;
+  };
 }
 
 export type Language = 'fr' | 'en';

@@ -11,6 +11,7 @@ import { ArrowRenderer } from './overlay/arrow-renderer';
 import { EvalBar } from './overlay/eval-bar';
 import { OpeningTracker } from './openings/opening-tracker';
 import { AnalysisResult, BoardConfig, Settings } from '../shared/types';
+import { isUpdateRequired } from '../shared/version';
 
 // Pages where analysis should be disabled
 function isAnalysisDisabledPage(): boolean {
@@ -29,6 +30,7 @@ class Chessr {
   private boardConfig: BoardConfig | null = null;
   private analysisDisabled = false;
   private currentEloOffset = 0;  // Anti-cheat: random offset ±100
+  private versionCheckPassed = false;
 
   async init() {
     // Check if we're on a page where analysis should be disabled
@@ -43,6 +45,14 @@ class Chessr {
     const store = useAppStore.getState();
     await store.loadSettings();
 
+    // Connect to server and check version FIRST before any detection
+    const versionOk = await this.connectAndCheckVersion();
+    if (!versionOk) {
+      // Version check failed - don't start detection, modal will be shown
+      return;
+    }
+
+    this.versionCheckPassed = true;
     waitForBoard((config) => this.onBoardDetected(config));
 
     useAppStore.subscribe((state, prevState) => {
@@ -104,6 +114,58 @@ class Chessr {
     root.render(<App />);
   }
 
+  private async connectAndCheckVersion(): Promise<boolean> {
+    const store = useAppStore.getState();
+    this.wsClient = new WebSocketClient(store.settings.serverUrl);
+
+    return new Promise((resolve) => {
+      let resolved = false;
+
+      // Handle version info from server
+      this.wsClient.onVersionInfo((versionInfo) => {
+        if (resolved) return;
+
+        if (isUpdateRequired(versionInfo.minVersion)) {
+          store.setUpdateRequired(true, versionInfo.minVersion, versionInfo.downloadUrl);
+          resolved = true;
+          resolve(false); // Version check failed
+        } else {
+          resolved = true;
+          resolve(true); // Version OK
+        }
+      });
+
+      // Set up message handler for analysis results
+      this.wsClient.onMessage((message) => {
+        if (message.type === 'result') {
+          this.onAnalysisResult(message as AnalysisResult);
+        }
+      });
+
+      // Set up connection status handler
+      this.wsClient.onConnectionChange((connected) => {
+        useAppStore.getState().setConnected(connected);
+      });
+
+      // Connect to server
+      this.wsClient.connect().catch(() => {
+        // Server not connected - allow to proceed (will retry later)
+        if (!resolved) {
+          resolved = true;
+          resolve(true);
+        }
+      });
+
+      // Timeout after 5 seconds - if no version info, proceed anyway
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          resolve(true);
+        }
+      }, 5000);
+    });
+  }
+
   private async onBoardDetected(config: BoardConfig) {
     this.boardConfig = config;
     const store = useAppStore.getState();
@@ -136,9 +198,6 @@ class Chessr {
       this.evalBar.initialize(config.boardElement);
     }
 
-    // Connect to server
-    await this.connectToServer();
-
     // Start tracking moves with player color
     this.moveTracker.start(config.boardElement, config.playerColor);
     this.moveTracker.onPositionChange((fen) => this.onPositionChange(fen));
@@ -150,26 +209,6 @@ class Chessr {
     this.openingTracker.onMove(move);
   }
 
-  private async connectToServer() {
-    const store = useAppStore.getState();
-    this.wsClient = new WebSocketClient(store.settings.serverUrl);
-
-    this.wsClient.onMessage((message) => {
-      if (message.type === 'result') {
-        this.onAnalysisResult(message as AnalysisResult);
-      }
-    });
-
-    this.wsClient.onConnectionChange((connected) => {
-      useAppStore.getState().setConnected(connected);
-    });
-
-    try {
-      await this.wsClient.connect();
-    } catch {
-      // Server not connected - will retry automatically
-    }
-  }
 
   private onPositionChange(fen: string) {
     const store = useAppStore.getState();
@@ -228,7 +267,15 @@ class Chessr {
     if (this.wsClient && settings.serverUrl !== this.wsClient['serverUrl']) {
       this.wsClient.disconnect();
       this.wsClient = new WebSocketClient(settings.serverUrl);
-      this.connectToServer();
+      this.wsClient.onMessage((message) => {
+        if (message.type === 'result') {
+          this.onAnalysisResult(message as AnalysisResult);
+        }
+      });
+      this.wsClient.onConnectionChange((connected) => {
+        useAppStore.getState().setConnected(connected);
+      });
+      this.wsClient.connect().catch(() => {});
     }
 
     // Toggle overlays

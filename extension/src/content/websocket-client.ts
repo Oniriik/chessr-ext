@@ -1,13 +1,20 @@
 import { AnalysisResult, InfoUpdate, Settings } from '../shared/types';
 
+export interface VersionInfo {
+  minVersion: string;
+  downloadUrl: string;
+}
+
 type MessageHandler = (message: AnalysisResult | InfoUpdate) => void;
 type ConnectionHandler = (connected: boolean) => void;
+type VersionHandler = (version: VersionInfo) => void;
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private serverUrl: string;
   private messageHandlers: MessageHandler[] = [];
   private connectionHandlers: ConnectionHandler[] = [];
+  private versionHandlers: VersionHandler[] = [];
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
@@ -36,6 +43,10 @@ export class WebSocketClient {
 
             // Resolve on ready message and send auth token
             if (message.type === 'ready') {
+              // Notify version handlers if version info is present
+              if (message.version) {
+                this.versionHandlers.forEach(handler => handler(message.version));
+              }
               this.sendAuthToken();
               resolve();
             }
@@ -105,6 +116,10 @@ export class WebSocketClient {
     this.connectionHandlers.push(handler);
     // Immediately notify of current state
     handler(this.isConnected);
+  }
+
+  onVersionInfo(handler: VersionHandler) {
+    this.versionHandlers.push(handler);
   }
 
   getConnectionStatus(): boolean {

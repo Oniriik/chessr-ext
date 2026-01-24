@@ -92,4 +92,12 @@ export const en: Translations = {
     english: 'English',
     detected: 'detected',
   },
+
+  version: {
+    title: 'Update Required',
+    message: 'Your version of Chessr is no longer supported. Please update to continue using the extension.',
+    current: 'Current',
+    required: 'Required',
+    download: 'Download Update',
+  },
 };

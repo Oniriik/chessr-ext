@@ -39,8 +39,14 @@ export interface InfoUpdate {
   mate?: number;
 }
 
+export interface VersionInfo {
+  minVersion: string;
+  downloadUrl: string;
+}
+
 export interface ReadyMessage {
   type: 'ready';
+  version: VersionInfo;
 }
 
 export interface ErrorMessage {

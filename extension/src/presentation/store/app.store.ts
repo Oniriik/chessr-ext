@@ -37,6 +37,14 @@ interface AppState {
   // UI
   sidebarOpen: boolean;
   toggleSidebar: () => void;
+
+  // Version check
+  updateRequired: boolean;
+  updateDismissed: boolean;
+  minVersion: string | null;
+  downloadUrl: string | null;
+  setUpdateRequired: (required: boolean, minVersion: string, downloadUrl: string) => void;
+  dismissUpdate: () => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -114,5 +122,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     const newState = !get().sidebarOpen;
     set({ sidebarOpen: newState });
     settingsRepository.save({ sidebarOpen: newState });
+  },
+
+  // Version check
+  updateRequired: false,
+  updateDismissed: false,
+  minVersion: null,
+  downloadUrl: null,
+  setUpdateRequired: (required, minVersion, downloadUrl) => {
+    set({ updateRequired: required, minVersion, downloadUrl, updateDismissed: false });
+  },
+  dismissUpdate: () => {
+    set({ updateDismissed: true });
   },
 }));

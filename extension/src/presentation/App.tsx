@@ -2,13 +2,15 @@ import React, { useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { AuthForm } from './components/AuthForm';
 import { CounterOpeningPrompt } from './components/CounterOpeningPrompt';
+import { CriticalUpdateModal } from './components/CriticalUpdateModal';
+import { UpdateRequiredView } from './components/UpdateRequiredView';
 import { useAppStore } from './store/app.store';
 import { useAuthStore } from './store/auth.store';
 import { Loader2 } from 'lucide-react';
 import './styles.css';
 
 export function App() {
-  const { loadSettings, syncWithCloud } = useAppStore();
+  const { loadSettings, syncWithCloud, updateRequired, updateDismissed } = useAppStore();
   const { user, loading, initialize } = useAuthStore();
 
   // Initialize auth on mount
@@ -28,6 +30,16 @@ export function App() {
       }
     }
   }, [user, loading, loadSettings, syncWithCloud]);
+
+  // Show critical update modal if update is required and not dismissed
+  if (updateRequired && !updateDismissed) {
+    return <CriticalUpdateModal />;
+  }
+
+  // Show limited view if update dismissed (no settings, just update prompt)
+  if (updateRequired && updateDismissed) {
+    return <UpdateRequiredView />;
+  }
 
   // Show loading while auth is initializing
   if (loading) {
