@@ -1,144 +1,211 @@
-# Scripts de Déploiement VPS
+# Deployment Scripts
 
-Scripts automatisés pour installer et déployer le serveur Chess Stockfish sur un VPS.
+Scripts for initial server setup, deployment, and management.
 
-## Scripts Disponibles
+## Quick Start
 
-### 1. `install-vps.sh`
-Installation initiale du VPS (Node.js, Stockfish, PM2, firewall).
+### For OVH VPS (Ubuntu)
 
-**Usage:**
 ```bash
-# Sur le VPS, en tant que root
-curl -fsSL https://raw.githubusercontent.com/votre-repo/scripts/install-vps.sh | bash
-# ou
-wget -O - https://raw.githubusercontent.com/votre-repo/scripts/install-vps.sh | bash
+# Interactive setup wizard
+bash scripts/ovh-setup.sh
+
+# Or directly install with Docker
+bash scripts/install-docker-ovh.sh
 ```
 
-### 2. `deploy.sh`
-Déploie l'application (install npm, build, démarre avec PM2).
+### For Other VPS Providers
 
-**Usage:**
 ```bash
-# Sur le VPS, dans /opt/chess-server
-bash scripts/deploy.sh
+# Interactive connection and install
+bash scripts/connect-vps.sh
+
+# Or install Docker manually
+bash scripts/install-docker.sh
 ```
 
-### 3. `setup-nginx.sh`
-Configure Nginx comme reverse proxy.
+## Script Categories
 
-**Usage:**
+### Initial Setup
+
+| Script | Purpose | User |
+|--------|---------|------|
+| `ovh-setup.sh` | OVH VPS setup wizard | Local |
+| `connect-vps.sh` | Generic VPS connection wizard | Local |
+| `setup-ssh.sh` | SSH key configuration | Local |
+| `test-ssh.sh` | Test SSH connectivity | Local |
+
+### Docker Installation (Recommended)
+
+| Script | Purpose | User |
+|--------|---------|------|
+| `install-docker.sh` | Install Docker & deploy | root |
+| `install-docker-ovh.sh` | Install Docker & deploy on OVH | ubuntu |
+
+### Classic Installation (PM2)
+
+| Script | Purpose | User |
+|--------|---------|------|
+| `install-vps.sh` | Install Node.js, Stockfish, PM2 | root |
+| `full-install.sh` | Full classic deployment | Local |
+| `deploy.sh` | Application deployment | Server |
+
+### Domain & SSL
+
+| Script | Purpose | User |
+|--------|---------|------|
+| `setup-nginx.sh` | Configure Nginx + SSL | root |
+| `setup-domain.sh` | Configure ws.chessr.io | Local |
+| `setup-domain-v2.sh` | Alternative domain setup | Local |
+
+### Testing
+
+| Script | Purpose | User |
+|--------|---------|------|
+| `test-server.sh` | Test WebSocket connectivity | Local |
+
+## Usage Examples
+
+### Fresh Server Setup (Docker)
+
 ```bash
-# Sur le VPS, en tant que root
-bash scripts/setup-nginx.sh votre-domaine.com
+# 1. Configure SSH and install Docker
+bash scripts/ovh-setup.sh
+
+# 2. Setup domain with SSL
+bash scripts/setup-domain.sh
 ```
 
-## Installation Rapide
-
-### Méthode 1 : Installation Complète en Une Fois
-
-Sur le VPS:
+### Fresh Server Setup (Classic/PM2)
 
 ```bash
-# 1. Installation de base
-curl -fsSL https://votre-url/install-vps.sh | bash
+# 1. Run on VPS as root
+bash scripts/install-vps.sh
 
-# 2. Transfert des fichiers depuis votre machine locale
-rsync -avz --exclude 'node_modules' --exclude 'dist' \
-  /Users/timothe/dev/chess/server/ \
-  root@votre-ip:/opt/chess-server/
-
-# 3. Déploiement
-cd /opt/chess-server
-bash scripts/deploy.sh
-
-# 4. (Optionnel) Configuration Nginx
-bash scripts/setup-nginx.sh votre-domaine.com
-certbot --nginx -d votre-domaine.com
+# 2. Transfer files and deploy
+bash scripts/full-install.sh
 ```
 
-### Méthode 2 : Installation Manuelle Pas à Pas
-
-Suivez le guide détaillé dans [DEPLOYMENT.md](../DEPLOYMENT.md).
-
-## Commandes de Gestion
-
-Après l'installation, utilisez ces commandes:
+### Test WebSocket Connection
 
 ```bash
-# Voir les logs en temps réel
+# Test local server
+bash scripts/test-server.sh localhost 3000
+
+# Test production server
+bash scripts/test-server.sh ws.chessr.io 443
+```
+
+## Server Details
+
+| Property | Value |
+|----------|-------|
+| IP | 135.125.201.246 |
+| User | ubuntu |
+| Project Dir | /home/ubuntu/chess-server |
+| Hostname | vps-8058cb7f.vps.ovh.net |
+
+## Root-Level Utility Scripts
+
+These scripts in the project root handle day-to-day operations:
+
+| Script | Purpose |
+|--------|---------|
+| `ssh-connect.sh` | Connect to server with password |
+| `update-remote-server.sh` | Pull & rebuild from Git |
+| `deploy-server.sh` | Build locally and deploy |
+| `view-remote-logs.sh` | View server logs |
+| `follow-remote-logs.sh` | Follow logs in real-time |
+| `restart-remote-server.sh` | Restart server |
+| `check-server-status.sh` | Check server health |
+| `scp-upload.sh` | Upload file to server |
+| `setup-git-remote.sh` | Configure Git on server |
+| `test-connection.sh` | Test WebSocket connection |
+
+## PM2 Commands (Classic Installation)
+
+After classic installation, manage with PM2:
+
+```bash
+# View logs
 pm2 logs chess-stockfish-server
 
-# Redémarrer l'application
+# Restart
 pm2 restart chess-stockfish-server
 
-# Arrêter l'application
+# Stop
 pm2 stop chess-stockfish-server
 
 # Monitoring
 pm2 monit
 
-# Statut
+# Status
 pm2 status
 ```
 
-## Mise à Jour de l'Application
+## Docker Commands (Docker Installation)
+
+After Docker installation:
 
 ```bash
-# Sur votre machine locale, transférez les nouveaux fichiers
-rsync -avz --exclude 'node_modules' --exclude 'dist' \
-  server/ root@votre-ip:/opt/chess-server/
+# View logs
+docker logs -f chess-stockfish-server
 
-# Sur le VPS
-cd /opt/chess-server
-bash scripts/deploy.sh
+# Restart
+docker compose restart chess-server
+
+# Rebuild
+docker compose up -d --build
+
+# Status
+docker ps
 ```
 
-## Structure Recommandée
+## Troubleshooting
 
-```
-/opt/chess-server/
-├── dist/              # Code compilé
-├── src/               # Code source
-├── scripts/           # Scripts de déploiement
-├── node_modules/      # Dépendances
-├── package.json
-└── tsconfig.json
-```
-
-## Dépannage
-
-### Script échoue avec "permission denied"
+### Permission denied
 
 ```bash
 chmod +x scripts/*.sh
 ```
 
-### Node.js non trouvé après installation
+### SSH connection fails
 
 ```bash
-source ~/.bashrc
-# ou
-export PATH=$PATH:/usr/bin
+# Test connection
+bash scripts/test-ssh.sh
+
+# Setup SSH key
+bash scripts/setup-ssh.sh 135.125.201.246
 ```
 
-### PM2 n'est pas dans le PATH
+### Docker not in PATH
 
 ```bash
-npm install -g pm2
-source ~/.bashrc
+# Reconnect SSH session after Docker install
+exit
+ssh ubuntu@135.125.201.246
 ```
 
-## Sécurité
+## Security Notes
 
-Ces scripts incluent:
-- ✅ Création d'un utilisateur dédié
-- ✅ Configuration du firewall (UFW)
-- ✅ Rate limiting Nginx
-- ✅ Isolation des processus avec PM2
+- Scripts use password authentication for convenience
+- For production, configure SSH key authentication
+- Password stored in scripts: `Chess2026SecurePass!` (change for security)
 
-Recommandations supplémentaires:
-- Utilisez des clés SSH au lieu de mots de passe
-- Désactivez l'accès root SSH
-- Configurez fail2ban
-- Mettez en place une surveillance (monitoring)
+### Enable SSH Key Auth
+
+```bash
+# Generate key
+ssh-keygen -t ed25519 -C "your-email@example.com"
+
+# Copy to server
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@135.125.201.246
+```
+
+## Documentation
+
+- [Full Scripts Reference](../docs/scripts/SCRIPTS-REFERENCE.md)
+- [Docker Deployment Guide](../docs/deployment/DOCKER.md)
+- [Server Management](../docs/operations/SERVER-MANAGEMENT.md)
+- [Architecture Overview](../docs/architecture/ARCHITECTURE.md)
