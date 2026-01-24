@@ -308,4 +308,17 @@ export class StockfishPool {
       this.available.push(engine);
     }
   }
+
+  // Metrics methods
+  getPoolSize(): number {
+    return this.pool.length;
+  }
+
+  getAvailableCount(): number {
+    return this.available.length;
+  }
+
+  getQueueLength(): number {
+    return this.queue.length;
+  }
 }

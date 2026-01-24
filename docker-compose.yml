@@ -9,9 +9,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+      - "3001:3001"
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
     # Limites de ressources
     deploy:
       resources:

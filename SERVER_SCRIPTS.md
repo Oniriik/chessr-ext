@@ -43,7 +43,65 @@ Déploie une nouvelle version du serveur (build + upload + rebuild)
 
 ---
 
-### 3. `./check-server-status.sh`
+### 3. `./setup-git-remote.sh`
+Configure l'accès Git sur le serveur distant (à exécuter une seule fois)
+
+```bash
+./setup-git-remote.sh
+```
+
+**Étapes :**
+1. Installation de Git sur le serveur
+2. Génération d'une clé SSH pour GitHub
+3. Affichage de la clé publique à ajouter sur GitHub
+4. Test de la connexion GitHub
+5. Clone ou configuration du dépôt
+
+**Utilisation :**
+- **À exécuter une seule fois** lors de la première configuration
+- Nécessaire avant d'utiliser `update-remote-server.sh`
+- Reconfigure l'accès Git si les clés ont changé
+
+**Important :**
+- Le script affichera une clé SSH publique
+- Vous devez l'ajouter sur GitHub : https://github.com/settings/keys
+- Appuyer sur ENTRÉE une fois la clé ajoutée
+
+**Durée :** ~2-3 minutes
+
+---
+
+### 4. `./update-remote-server.sh`
+Met à jour le serveur depuis le dépôt Git distant
+
+```bash
+./update-remote-server.sh
+```
+
+**Prérequis :**
+- Avoir exécuté `./setup-git-remote.sh` au moins une fois
+
+**Étapes :**
+1. Vérification du statut Git sur le serveur
+2. Pull des dernières modifications depuis `git@github.com:Oniriik/chessr-ext.git`
+3. Rebuild et redémarrage des conteneurs Docker
+4. Vérification du déploiement
+
+**Utilisation :**
+- Après avoir poussé des modifications sur GitHub
+- Pour déployer depuis le dépôt Git directement
+- Alternative à `deploy-server.sh` (pas de build local)
+
+**Avantages :**
+- Pas besoin de build local
+- Garantit la synchronisation avec le dépôt Git
+- Plus rapide si les modifications sont déjà sur GitHub
+
+**Durée :** ~1-2 minutes
+
+---
+
+### 5. `./check-server-status.sh`
 Vérifie l'état du serveur et teste la connexion
 
 ```bash
@@ -65,7 +123,7 @@ Vérifie l'état du serveur et teste la connexion
 
 ---
 
-### 4. `./view-remote-logs.sh [lignes]`
+### 6. `./view-remote-logs.sh [lignes]`
 Affiche les derniers logs du serveur
 
 ```bash
@@ -80,7 +138,7 @@ Affiche les derniers logs du serveur
 
 ---
 
-### 5. `./follow-remote-logs.sh`
+### 7. `./follow-remote-logs.sh`
 Suit les logs du serveur en temps réel
 
 ```bash
@@ -186,7 +244,18 @@ Exemples :
 
 ## 🎯 Workflow typique
 
+### Configuration initiale (première fois) :
+```bash
+# 1. Configurer l'accès Git sur le serveur
+./setup-git-remote.sh
+
+# Note: Le script vous demandera d'ajouter une clé SSH sur GitHub
+# Suivez les instructions affichées dans le terminal
+```
+
 ### Après modification du code :
+
+**Option A - Déploiement depuis local :**
 ```bash
 # 1. Tester localement
 cd server
@@ -200,6 +269,29 @@ cd ..
 node test-remote-debug.js
 
 # 4. Rebuild l'extension en production
+cd extension
+npm run build:prod
+```
+
+**Option B - Déploiement depuis Git (recommandé) :**
+```bash
+# 1. Tester localement
+cd server
+npm run dev
+
+# 2. Commit et push sur GitHub
+git add .
+git commit -m "Update server"
+git push origin master
+
+# 3. Mettre à jour le serveur depuis Git
+cd ..
+./update-remote-server.sh
+
+# 4. Tester le serveur distant
+node test-remote-debug.js
+
+# 5. Rebuild l'extension en production
 cd extension
 npm run build:prod
 ```

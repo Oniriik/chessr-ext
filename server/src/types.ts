@@ -9,7 +9,12 @@ export interface AnalyzeRequest {
   multiPV: number;
 }
 
-export type ClientMessage = AnalyzeRequest;
+export interface AuthMessage {
+  type: 'auth';
+  token: string;  // Supabase JWT
+}
+
+export type ClientMessage = AnalyzeRequest | AuthMessage;
 
 export interface PVLine {
   moves: string[];
@@ -43,4 +48,36 @@ export interface ErrorMessage {
   message: string;
 }
 
-export type ServerMessage = AnalysisResult | InfoUpdate | ReadyMessage | ErrorMessage;
+export interface AuthSuccessMessage {
+  type: 'auth_success';
+  user: {
+    id: string;
+    email: string;
+  };
+}
+
+export type ServerMessage = AnalysisResult | InfoUpdate | ReadyMessage | ErrorMessage | AuthSuccessMessage;
+
+// User tracking
+export interface UserInfo {
+  id: string;
+  email: string;
+  connectedAt: string;
+  authenticated: boolean;
+}
+
+// Metrics
+export interface MetricsResponse {
+  connectedClients: number;
+  authenticatedUsers: number;
+  stockfishPool: {
+    total: number;
+    available: number;
+    queued: number;
+  };
+  users: Array<{
+    id: string;
+    email: string;
+    connectedAt: string;
+  }>;
+}

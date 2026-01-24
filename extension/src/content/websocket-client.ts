@@ -34,8 +34,9 @@ export class WebSocketClient {
             const message = JSON.parse(event.data);
             this.handleMessage(message);
 
-            // Resolve on ready message
+            // Resolve on ready message and send auth token
             if (message.type === 'ready') {
+              this.sendAuthToken();
               resolve();
             }
           } catch (err) {
@@ -127,6 +128,8 @@ export class WebSocketClient {
     if (message.type === 'result' || message.type === 'info') {
       console.log('[Chessr WS] Dispatching to handlers:', this.messageHandlers.length, 'handlers');
       this.messageHandlers.forEach(handler => handler(message));
+    } else if (message.type === 'auth_success') {
+      console.log('[Chessr WS] Authentication successful:', message.user?.email);
     } else if (message.type === 'error') {
       console.error('Chessr: Server error:', message.message);
     } else {
@@ -136,6 +139,31 @@ export class WebSocketClient {
 
   private notifyConnection(connected: boolean) {
     this.connectionHandlers.forEach(handler => handler(connected));
+  }
+
+  private async sendAuthToken() {
+    try {
+      // Get Supabase session from Chrome storage
+      const result = await chrome.storage.local.get('chessr-auth');
+      const authData = result['chessr-auth'];
+
+      if (authData) {
+        const session = JSON.parse(authData);
+        if (session.access_token) {
+          console.log('[Chessr WS] Sending auth token');
+          this.send({
+            type: 'auth',
+            token: session.access_token,
+          });
+        } else {
+          console.log('[Chessr WS] No access token found in session');
+        }
+      } else {
+        console.log('[Chessr WS] No auth data found (user not logged in)');
+      }
+    } catch (err) {
+      console.error('[Chessr WS] Failed to send auth token:', err);
+    }
   }
 
   private scheduleReconnect() {

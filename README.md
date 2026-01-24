@@ -171,9 +171,14 @@ Voir [server/README.md](server/README.md) pour la documentation complète de l'A
 
 **Voir [SERVER_SCRIPTS.md](SERVER_SCRIPTS.md) pour le guide complet**
 
+### 🚀 Déploiement Git (Recommandé)
+Pour déployer depuis GitHub, voir **[GIT_DEPLOYMENT_SETUP.md](GIT_DEPLOYMENT_SETUP.md)**
+
 | Script | Description | Usage |
 |--------|-------------|-------|
-| `./deploy-server.sh` | Déploie une nouvelle version du serveur | Après modification du code |
+| `./setup-git-remote.sh` | Configure l'accès Git (première fois uniquement) | Configuration initiale |
+| `./deploy-server.sh` | Déploie une nouvelle version du serveur (build local) | Après modification du code |
+| `./update-remote-server.sh` | Met à jour depuis Git et redémarre | Déploiement depuis GitHub |
 | `./restart-remote-server.sh` | Redémarre le serveur Docker | Serveur bloqué |
 | `./check-server-status.sh` | Vérifie l'état complet du serveur | Diagnostic |
 | `./view-remote-logs.sh [lignes]` | Affiche les derniers logs | Debug |
