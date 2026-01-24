@@ -10,13 +10,13 @@ import { versionConfig } from './version-config.js';
 const PORT = 3000;
 const METRICS_PORT = 3001;
 
-// Pool configuration - auto-scales based on demand
+// Pool configuration - optimized for 2 vCPU / 2GB RAM server
 const POOL_CONFIG = {
-  minEngines: 2,      // Always keep at least 2 engines ready
-  maxEngines: 8,      // Never exceed 8 engines
-  scaleUpThreshold: 2, // Scale up when 2+ requests are queued
+  minEngines: 1,      // Keep 1 engine ready at minimum
+  maxEngines: 2,      // Max 2 engines for 2 vCPU
+  scaleUpThreshold: 1, // Scale up when 1+ requests queued
   scaleDownIdleTime: 60000, // Scale down after 1 min of inactivity
-  engineOptions: { threads: 2, hash: 64 },
+  engineOptions: { threads: 1, hash: 32 }, // 1 thread per engine, 32MB hash
 };
 
 class ChessServer {
