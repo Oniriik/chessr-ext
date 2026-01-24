@@ -93,7 +93,6 @@ class ChessServer {
       type: 'ready',
       version: {
         minVersion: versionConfig.minVersion,
-        downloadUrl: versionConfig.downloadUrl,
       },
     });
 

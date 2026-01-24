@@ -93,8 +93,6 @@ services:
       - /etc/letsencrypt:/etc/nginx/ssl:ro
       # Certbot webroot for renewal
       - ./nginx/certbot:/var/www/certbot:ro
-      # Extension hosting
-      - /opt/chess-server/extension:/opt/chess-server/extension:ro
     depends_on:
       - chess-server
       - dashboard

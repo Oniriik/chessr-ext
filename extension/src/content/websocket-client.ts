@@ -2,7 +2,7 @@ import { AnalysisResult, InfoUpdate, Settings } from '../shared/types';
 
 export interface VersionInfo {
   minVersion: string;
-  downloadUrl: string;
+  downloadUrl?: string;
 }
 
 type MessageHandler = (message: AnalysisResult | InfoUpdate) => void;

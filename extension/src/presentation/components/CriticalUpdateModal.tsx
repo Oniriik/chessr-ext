@@ -9,7 +9,7 @@ export function CriticalUpdateModal() {
   const { updateRequired, minVersion, downloadUrl, dismissUpdate } = useAppStore();
 
   // Only show for critical updates
-  if (!updateRequired || !minVersion || !downloadUrl) {
+  if (!updateRequired || !minVersion) {
     return null;
   }
 
@@ -49,17 +49,19 @@ export function CriticalUpdateModal() {
             {t.version.required}: <span className="tw-text-green-400">{minVersion}</span>
           </div>
 
-          <a
-            href={downloadUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="tw-w-full"
-          >
-            <Button className="tw-w-full">
-              <Download className="tw-w-4 tw-h-4 tw-mr-2" />
-              {t.version.download}
-            </Button>
-          </a>
+          {downloadUrl && (
+            <a
+              href={downloadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="tw-w-full"
+            >
+              <Button className="tw-w-full">
+                <Download className="tw-w-4 tw-h-4 tw-mr-2" />
+                {t.version.download}
+              </Button>
+            </a>
+          )}
         </div>
       </div>
     </div>

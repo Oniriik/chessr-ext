@@ -41,7 +41,7 @@ export interface InfoUpdate {
 
 export interface VersionInfo {
   minVersion: string;
-  downloadUrl: string;
+  downloadUrl?: string;
 }
 
 export interface ReadyMessage {

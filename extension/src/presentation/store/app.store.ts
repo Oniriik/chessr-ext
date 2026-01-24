@@ -43,7 +43,7 @@ interface AppState {
   updateDismissed: boolean;
   minVersion: string | null;
   downloadUrl: string | null;
-  setUpdateRequired: (required: boolean, minVersion: string, downloadUrl: string) => void;
+  setUpdateRequired: (required: boolean, minVersion: string, downloadUrl?: string) => void;
   dismissUpdate: () => void;
 }
 
@@ -130,7 +130,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   minVersion: null,
   downloadUrl: null,
   setUpdateRequired: (required, minVersion, downloadUrl) => {
-    set({ updateRequired: required, minVersion, downloadUrl, updateDismissed: false });
+    set({ updateRequired: required, minVersion, downloadUrl: downloadUrl ?? null, updateDismissed: false });
   },
   dismissUpdate: () => {
     set({ updateDismissed: true });
