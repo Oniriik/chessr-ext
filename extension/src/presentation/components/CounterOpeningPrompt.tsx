@@ -61,7 +61,7 @@ export function CounterOpeningPrompt() {
                 <button
                   key={counter.name}
                   onClick={() => handleSelectCounter(counter)}
-                  className="tw-w-full tw-flex tw-flex-col tw-p-2 tw-bg-card hover:tw-bg-gray-700 tw-rounded-lg tw-transition-colors tw-text-left tw-border tw-border-gray-700"
+                  className="tw-w-full tw-flex tw-flex-col tw-p-2 tw-bg-card hover:tw-bg-accent tw-rounded-lg tw-transition-colors tw-text-left tw-border tw-border-border"
                 >
                   <div className="tw-flex tw-items-center tw-justify-between">
                     <span className="tw-text-sm tw-font-medium">{counter.name}</span>

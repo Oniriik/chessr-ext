@@ -14,7 +14,7 @@ export function Switch({ checked, onCheckedChange, className }: SwitchProps) {
       onClick={() => onCheckedChange(!checked)}
       className={cn(
         'tw-relative tw-w-11 tw-h-6 tw-rounded-full tw-transition-colors tw-cursor-pointer tw-border-0',
-        checked ? 'tw-bg-green-500' : 'tw-bg-gray-600',
+        checked ? 'tw-bg-primary' : 'tw-bg-border',
         className
       )}
     >

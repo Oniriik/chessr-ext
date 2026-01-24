@@ -24,7 +24,7 @@ export const en: Translations = {
   elo: {
     title: 'Target ELO',
     display: 'Chess.com Display',
-    antiCheat: 'Anti-cheat: ELO Randomization ±100',
+    antiCheat: 'ELO Randomization ±100',
   },
 
   modes: {
@@ -59,7 +59,7 @@ export const en: Translations = {
     title: 'Engine Settings',
     searchMode: 'Search Mode',
     depth: 'Depth',
-    timePerMove: 'Time per move (ms)',
+    timePerMove: 'Time',
     analysisLines: 'Analysis Lines',
   },
 
@@ -104,5 +104,32 @@ export const en: Translations = {
     current: 'Current',
     required: 'Required',
     download: 'Download Update',
+  },
+
+  auth: {
+    login: 'Login',
+    signup: 'Sign Up',
+    forgotPassword: 'Forgot Password',
+    loginSubtitle: 'Sign in to access Chessr',
+    signupSubtitle: 'Create an account to get started',
+    resetSubtitle: 'Enter your email to reset',
+    email: 'Email',
+    emailPlaceholder: 'email@example.com',
+    password: 'Password',
+    passwordPlaceholder: '••••••••',
+    confirmPassword: 'Confirm Password',
+    loginButton: 'Sign In',
+    signupButton: 'Sign Up',
+    resetButton: 'Send Link',
+    forgotPasswordLink: 'Forgot password?',
+    noAccount: 'No account?',
+    signupLink: 'Sign up',
+    hasAccount: 'Already have an account?',
+    loginLink: 'Sign in',
+    backToLogin: 'Back to login',
+    passwordMismatch: 'Passwords do not match',
+    passwordTooShort: 'Password must be at least 6 characters',
+    accountCreated: 'Account created! Check your email to confirm.',
+    resetEmailSent: 'Reset email sent!',
   },
 };

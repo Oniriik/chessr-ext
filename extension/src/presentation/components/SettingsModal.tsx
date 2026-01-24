@@ -112,7 +112,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             />
           </div>
 
-          <div className="tw-border-t tw-border-gray-700 tw-pt-4">
+          <div className="tw-border-t tw-border-border tw-pt-4">
             {settings.numberOfSuggestions > 1 && (
               <div className="tw-flex tw-items-center tw-justify-between tw-mb-3">
                 <span className="tw-text-sm tw-text-foreground">{t.suggestions.useSameColor}</span>

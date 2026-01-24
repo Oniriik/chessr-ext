@@ -6,9 +6,9 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'tw-bg-purple-600 tw-text-white tw-border-purple-600 hover:tw-bg-purple-700',
-        outline: 'tw-bg-transparent tw-text-gray-400 tw-border-gray-600 hover:tw-bg-gray-700',
-        ghost: 'tw-bg-transparent tw-border-0 tw-text-gray-400 hover:tw-bg-gray-700',
+        default: 'tw-bg-primary tw-text-white tw-border-primary hover:tw-bg-blue-600',
+        outline: 'tw-bg-transparent tw-text-muted tw-border-border hover:tw-bg-accent',
+        ghost: 'tw-bg-transparent tw-border-0 tw-text-muted hover:tw-bg-accent hover:tw-text-foreground',
       },
       size: {
         default: 'tw-py-2.5 tw-px-4',

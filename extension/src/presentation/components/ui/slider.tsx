@@ -19,7 +19,7 @@ export function Slider({ value, onValueChange, min, max, step = 1, className }: 
       value={value}
       onChange={(e) => onValueChange(Number(e.target.value))}
       className={cn(
-        'tw-w-full tw-h-1.5 tw-bg-gray-700 tw-rounded-lg tw-appearance-none tw-cursor-pointer tw-accent-yellow-400',
+        'tw-w-full tw-h-1.5 tw-bg-border tw-rounded-lg tw-appearance-none tw-cursor-pointer tw-accent-primary',
         className
       )}
     />

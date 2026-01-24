@@ -75,7 +75,7 @@ export function OpeningSelector() {
 
       {/* Detected opponent opening */}
       {detectedOpening && !selectedOpening && (
-        <div className="tw-mb-3 tw-p-2 tw-bg-card tw-rounded-lg tw-border tw-border-gray-600">
+        <div className="tw-mb-3 tw-p-2 tw-bg-card tw-rounded-lg tw-border tw-border-border">
           <div className="tw-text-xs tw-text-muted tw-mb-1">{t.openings.detected}</div>
           <div className="tw-text-sm tw-font-medium">{detectedOpening.name}</div>
           <div className="tw-text-xs tw-text-muted">{detectedOpening.eco}</div>
@@ -88,10 +88,10 @@ export function OpeningSelector() {
           {playerColor === 'white' ? (
             // White openings by category
             whiteCategories.map((category) => (
-              <div key={category.name} className="tw-border tw-border-gray-700 tw-rounded-lg tw-overflow-hidden">
+              <div key={category.name} className="tw-border tw-border-border tw-rounded-lg tw-overflow-hidden">
                 <button
                   onClick={() => setExpandedCategory(expandedCategory === category.name ? null : category.name)}
-                  className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-2 tw-bg-card hover:tw-bg-gray-700 tw-transition-colors"
+                  className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-2 tw-bg-card hover:tw-bg-accent tw-transition-colors"
                 >
                   <span className="tw-text-sm tw-font-medium">{category.name}</span>
                   {expandedCategory === category.name ? (
@@ -101,7 +101,7 @@ export function OpeningSelector() {
                   )}
                 </button>
                 {expandedCategory === category.name && (
-                  <div className="tw-border-t tw-border-gray-700">
+                  <div className="tw-border-t tw-border-border">
                     {category.openings.map((opening) => (
                       <OpeningItem
                         key={opening.name}
@@ -116,7 +116,7 @@ export function OpeningSelector() {
           ) : (
             // Black openings (flat list)
             blackOpenings.length > 0 ? (
-              <div className="tw-border tw-border-gray-700 tw-rounded-lg tw-overflow-hidden">
+              <div className="tw-border tw-border-border tw-rounded-lg tw-overflow-hidden">
                 {blackOpenings.map((opening) => (
                   <OpeningItem
                     key={opening.name}
@@ -148,7 +148,7 @@ function OpeningItem({ opening, onSelect }: OpeningItemProps) {
   return (
     <button
       onClick={() => onSelect(opening)}
-      className="tw-w-full tw-flex tw-flex-col tw-p-2 hover:tw-bg-gray-700 tw-transition-colors tw-text-left tw-border-b tw-border-gray-700 last:tw-border-b-0"
+      className="tw-w-full tw-flex tw-flex-col tw-p-2 hover:tw-bg-accent tw-transition-colors tw-text-left tw-border-b tw-border-border last:tw-border-b-0"
     >
       <div className="tw-flex tw-items-center tw-justify-between">
         <span className="tw-text-sm tw-font-medium">{opening.name}</span>

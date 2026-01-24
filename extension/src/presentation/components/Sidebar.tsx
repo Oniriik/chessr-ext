@@ -113,26 +113,26 @@ export function Sidebar() {
     : (analysis?.evaluation ?? 0) >= 0 ? 'tw-text-green-400' : 'tw-text-red-400';
 
   return (
-    <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans">
+    <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none">
       {/* Toggle button - always visible on the left side */}
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
         onClick={toggleSidebar}
-        className="tw-self-center tw-bg-background tw-text-gray-200 tw-p-2 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:tw-bg-card tw-border tw-border-r-0 tw-border-gray-700 tw-h-auto"
+        className="tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-r-0 tw-border-border tw-h-auto"
       >
         {sidebarOpen ? <ChevronRight className="tw-w-5 tw-h-5" /> : <ChevronLeft className="tw-w-5 tw-h-5" />}
       </Button>
 
       {/* Sidebar content - conditionally rendered */}
       {sidebarOpen && (
-        <div className="tw-w-72 tw-bg-background tw-text-foreground tw-shadow-2xl tw-flex tw-flex-col tw-h-full">
+        <div className="tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full" style={{ boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' }}>
           {/* Header */}
-          <div className="tw-p-4 tw-border-b tw-border-gray-700">
+          <div className="tw-p-4 tw-border-b tw-border-border">
             <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
               <div className="tw-flex tw-items-center tw-gap-2">
                 <div className={cn('tw-w-2.5 tw-h-2.5 tw-rounded-full', connected ? 'tw-bg-success' : 'tw-bg-danger')} />
-                <span className="tw-font-semibold tw-text-sm">Chessr</span>
+                <span className="tw-font-semibold tw-text-sm">chessr.io</span>
                 <button
                   onClick={() => setSettingsOpen(true)}
                   className="tw-text-muted hover:tw-text-foreground tw-transition-colors tw-p-1"
@@ -219,11 +219,6 @@ export function Sidebar() {
               {settings.eloRandomization ? effectiveElo : localElo}
             </div>
             <div className="tw-text-sm tw-text-muted">UCI</div>
-            {settings.eloRandomization && eloOffset !== 0 && (
-              <div className="tw-text-xs tw-text-muted">
-                ({localElo} {eloOffset > 0 ? '+' : ''}{eloOffset})
-              </div>
-            )}
           </div>
           <div className="tw-text-sm tw-text-muted tw-mb-3">
             {t.elo.display}: <span className="tw-text-foreground tw-font-semibold">{uciToChesscom(effectiveElo)}</span>
@@ -235,7 +230,7 @@ export function Sidebar() {
             max={3000}
             step={50}
           />
-          <div className="tw-flex tw-items-center tw-justify-between tw-mt-3 tw-pt-3 tw-border-t tw-border-gray-700">
+          <div className="tw-flex tw-items-center tw-justify-between tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
             <div>
               <p className="tw-text-xs tw-text-muted">{t.elo.antiCheat}</p>
             </div>

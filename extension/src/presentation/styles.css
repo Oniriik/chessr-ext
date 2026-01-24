@@ -13,16 +13,16 @@
 }
 
 .chessr-sidebar::-webkit-scrollbar-track {
-  background: #1a1a2e;
+  background: #0a0a0f;
 }
 
 .chessr-sidebar::-webkit-scrollbar-thumb {
-  background: #444;
+  background: #2a2b3d;
   border-radius: 3px;
 }
 
 .chessr-sidebar::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #3a3b4d;
 }
 
 /* Force white text color as default */

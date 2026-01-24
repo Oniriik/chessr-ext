@@ -24,7 +24,7 @@ export const fr: Translations = {
   elo: {
     title: 'ELO Cible',
     display: 'Affichage Chess.com',
-    antiCheat: 'Anti-triche: Randomisation ELO ±100',
+    antiCheat: 'Randomisation ELO ±100',
   },
 
   modes: {
@@ -59,7 +59,7 @@ export const fr: Translations = {
     title: 'Paramètres Moteur',
     searchMode: 'Mode de recherche',
     depth: 'Profondeur',
-    timePerMove: 'Temps par coup (ms)',
+    timePerMove: 'Temps',
     analysisLines: "Lignes d'analyse",
   },
 
@@ -104,5 +104,32 @@ export const fr: Translations = {
     current: 'Actuelle',
     required: 'Requise',
     download: 'Télécharger',
+  },
+
+  auth: {
+    login: 'Connexion',
+    signup: 'Inscription',
+    forgotPassword: 'Mot de passe oublié',
+    loginSubtitle: 'Connectez-vous pour accéder à Chessr',
+    signupSubtitle: 'Créez un compte pour commencer',
+    resetSubtitle: 'Entrez votre email pour réinitialiser',
+    email: 'Email',
+    emailPlaceholder: 'email@exemple.com',
+    password: 'Mot de passe',
+    passwordPlaceholder: '••••••••',
+    confirmPassword: 'Confirmer le mot de passe',
+    loginButton: 'Se connecter',
+    signupButton: "S'inscrire",
+    resetButton: 'Envoyer le lien',
+    forgotPasswordLink: 'Mot de passe oublié ?',
+    noAccount: 'Pas de compte ?',
+    signupLink: "S'inscrire",
+    hasAccount: 'Déjà un compte ?',
+    loginLink: 'Se connecter',
+    backToLogin: 'Retour à la connexion',
+    passwordMismatch: 'Les mots de passe ne correspondent pas',
+    passwordTooShort: 'Le mot de passe doit contenir au moins 6 caractères',
+    accountCreated: 'Compte créé ! Vérifiez votre email pour confirmer.',
+    resetEmailSent: 'Email de réinitialisation envoyé !',
   },
 };

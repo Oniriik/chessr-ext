@@ -114,6 +114,34 @@ export interface Translations {
     required: string;
     download: string;
   };
+
+  // Auth
+  auth: {
+    login: string;
+    signup: string;
+    forgotPassword: string;
+    loginSubtitle: string;
+    signupSubtitle: string;
+    resetSubtitle: string;
+    email: string;
+    emailPlaceholder: string;
+    password: string;
+    passwordPlaceholder: string;
+    confirmPassword: string;
+    loginButton: string;
+    signupButton: string;
+    resetButton: string;
+    forgotPasswordLink: string;
+    noAccount: string;
+    signupLink: string;
+    hasAccount: string;
+    loginLink: string;
+    backToLogin: string;
+    passwordMismatch: string;
+    passwordTooShort: string;
+    accountCreated: string;
+    resetEmailSent: string;
+  };
 }
 
 export type Language = 'fr' | 'en';

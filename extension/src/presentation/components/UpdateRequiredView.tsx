@@ -19,7 +19,7 @@ export function UpdateRequiredView() {
         variant="ghost"
         size="icon"
         onClick={toggleSidebar}
-        className="tw-self-center tw-bg-background tw-text-gray-200 tw-p-2 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:tw-bg-card tw-border tw-border-r-0 tw-border-gray-700 tw-h-auto"
+        className="tw-self-center tw-bg-background tw-text-foreground tw-p-2 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:tw-bg-card tw-border tw-border-r-0 tw-border-border tw-h-auto"
       >
         {sidebarOpen ? <ChevronRight className="tw-w-5 tw-h-5" /> : <ChevronLeft className="tw-w-5 tw-h-5" />}
       </Button>
@@ -28,7 +28,7 @@ export function UpdateRequiredView() {
       {sidebarOpen && (
         <div className="tw-w-72 tw-bg-background tw-text-foreground tw-shadow-2xl tw-flex tw-flex-col tw-h-full">
           {/* Header */}
-          <div className="tw-p-4 tw-border-b tw-border-gray-700">
+          <div className="tw-p-4 tw-border-b tw-border-border">
             <div className="tw-flex tw-items-center tw-gap-2">
               <div className={cn('tw-w-2.5 tw-h-2.5 tw-rounded-full', connected ? 'tw-bg-success' : 'tw-bg-danger')} />
               <span className="tw-font-semibold tw-text-sm">Chessr</span>
