@@ -7,12 +7,32 @@ Day-to-day operations and management commands for Chessr.
 ### Server Access
 
 ```bash
-# SSH to server
+# SSH to server (using default SSH key ~/.ssh/id_ed25519)
 ssh ubuntu@135.125.201.246
 
-# Or use the connection script
+# Or use the connection script (uses password)
 ./ssh-connect.sh
 ```
+
+**Server Details:**
+
+- **IP Address:** 135.125.201.246
+- **User:** ubuntu
+- **SSH Key:** ~/.ssh/id_ed25519 (add to ~/.ssh/config for convenience)
+- **Project Path:** ~/chess-server
+
+**SSH Config Setup (optional):**
+
+Add to `~/.ssh/config` for easier access:
+
+```bash
+Host chessr
+  HostName 135.125.201.246
+  User ubuntu
+  IdentityFile ~/.ssh/id_ed25519
+```
+
+Then connect with: `ssh chessr`
 
 ### Common Commands
 
@@ -109,7 +129,20 @@ top
 
 ## Updating
 
-### From Git Repository
+### One-Liner Deploy (from local machine)
+
+```bash
+# Deploy chess-server only
+ssh ubuntu@135.125.201.246 "cd ~/chess-server && git pull && docker compose up -d --build chess-server"
+
+# Deploy dashboard only
+ssh ubuntu@135.125.201.246 "cd ~/chess-server && git pull && docker compose up -d --build dashboard"
+
+# Deploy all services
+ssh ubuntu@135.125.201.246 "cd ~/chess-server && git pull && docker compose --profile with-nginx up -d --build"
+```
+
+### From Git Repository (on server)
 
 ```bash
 cd /home/ubuntu/chess-server
