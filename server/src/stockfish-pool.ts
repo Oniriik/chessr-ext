@@ -35,6 +35,7 @@ export class StockfishPool {
   private lastActivityTime = Date.now();
   private scaleDownTimer: NodeJS.Timeout | null = null;
   private restartCooldowns: Map<StockfishEngine, number> = new Map(); // Track restart attempts
+  private pendingEngines = 0; // Track engines being created to prevent race conditions
 
   constructor(config: Partial<PoolConfig> = {}) {
     this.config = {
@@ -63,9 +64,12 @@ export class StockfishPool {
   }
 
   private async addEngine(): Promise<StockfishEngine | null> {
-    if (this.pool.length >= this.config.maxEngines) {
+    // Check both actual pool size AND pending engines to prevent race condition
+    if (this.pool.length + this.pendingEngines >= this.config.maxEngines) {
       return null;
     }
+
+    this.pendingEngines++;
 
     try {
       const engine = new StockfishEngine();
@@ -77,6 +81,8 @@ export class StockfishPool {
     } catch (err) {
       globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'add' });
       return null;
+    } finally {
+      this.pendingEngines--;
     }
   }
 
@@ -121,9 +127,13 @@ export class StockfishPool {
       const allIdle = this.available.length === this.pool.length;
 
       if (hasExtraEngines && allIdle && idleTime > this.config.scaleDownIdleTime) {
-        this.removeEngine();
+        // Remove all extra engines at once when idle
+        const enginesToRemove = this.pool.length - this.config.minEngines;
+        for (let i = 0; i < enginesToRemove; i++) {
+          this.removeEngine();
+        }
       }
-    }, 10000); // Check every 10 seconds
+    }, 5000); // Check every 5 seconds
   }
 
   async analyze(
