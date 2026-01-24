@@ -120,7 +120,7 @@ class ChessServer {
         break;
 
       default:
-        console.log('[Server] Unknown message type:', message.type);
+        console.log('[Server] Unknown message type:', (message as any).type);
         this.send(ws, { type: 'error', message: 'Unknown message type' });
     }
   }
