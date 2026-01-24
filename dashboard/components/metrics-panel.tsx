@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Activity, Cpu, Clock } from 'lucide-react'
+import { Users, Activity, Cpu, Clock, Lightbulb, HardDrive, Server } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
@@ -19,6 +19,39 @@ interface Metrics {
     email: string
     connectedAt: string
   }>
+  suggestionsCount: number
+  serverUptime: number
+  systemResources: {
+    cpuUsage: number
+    memoryUsage: {
+      used: number
+      total: number
+      percentage: number
+    }
+  }
+}
+
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h ${minutes % 60}m`
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`
+  }
+  return `${seconds}s`
+}
+
+function formatBytes(bytes: number): string {
+  const gb = bytes / (1024 * 1024 * 1024)
+  return `${gb.toFixed(1)} GB`
 }
 
 export default function MetricsPanel() {
@@ -77,6 +110,16 @@ export default function MetricsPanel() {
         <span className="text-xs text-muted-foreground">Auto-refreshing every 5s</span>
       </div>
 
+      {/* Server Status */}
+      {metrics && (
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Server className="w-4 h-4" />
+            <span>Uptime: {formatUptime(metrics.serverUptime)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
@@ -106,18 +149,63 @@ export default function MetricsPanel() {
           value={metrics?.stockfishPool.queued || 0}
           color="orange"
         />
+
+        <MetricCard
+          icon={<Lightbulb className="w-5 h-5" />}
+          label="Suggestions Served"
+          value={metrics?.suggestionsCount || 0}
+          color="yellow"
+        />
+
+        <MetricCard
+          icon={<Cpu className="w-5 h-5" />}
+          label="CPU Usage"
+          value={`${metrics?.systemResources.cpuUsage || 0}%`}
+          color="red"
+        />
+
+        <MetricCard
+          icon={<HardDrive className="w-5 h-5" />}
+          label="RAM Usage"
+          value={metrics ? `${formatBytes(metrics.systemResources.memoryUsage.used)} / ${formatBytes(metrics.systemResources.memoryUsage.total)}` : '0 GB'}
+          color="cyan"
+        />
       </div>
 
-      {/* Pool Utilization */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Stockfish Pool Utilization</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Progress value={poolUtilization} className="h-3" />
-          <p className="text-xs text-muted-foreground mt-2">{poolUtilization}% in use</p>
-        </CardContent>
-      </Card>
+      {/* Resource Utilization */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Stockfish Pool</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Progress value={poolUtilization} className="h-3" />
+            <p className="text-xs text-muted-foreground mt-2">{poolUtilization}% in use</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">CPU Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Progress value={metrics?.systemResources.cpuUsage || 0} className="h-3" />
+            <p className="text-xs text-muted-foreground mt-2">{metrics?.systemResources.cpuUsage || 0}%</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Progress value={metrics?.systemResources.memoryUsage.percentage || 0} className="h-3" />
+            <p className="text-xs text-muted-foreground mt-2">
+              {metrics ? `${formatBytes(metrics.systemResources.memoryUsage.used)} / ${formatBytes(metrics.systemResources.memoryUsage.total)}` : '0 GB'} ({metrics?.systemResources.memoryUsage.percentage || 0}%)
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Authenticated Users List */}
       {metrics && metrics.users.length > 0 && (
@@ -157,13 +245,16 @@ function MetricCard({ icon, label, value, color }: {
   icon: React.ReactNode
   label: string
   value: number | string
-  color: 'blue' | 'green' | 'purple' | 'orange'
+  color: 'blue' | 'green' | 'purple' | 'orange' | 'yellow' | 'red' | 'cyan'
 }) {
   const colorClasses = {
     blue: 'bg-blue-500/10 text-blue-500',
     green: 'bg-green-500/10 text-green-500',
     purple: 'bg-purple-500/10 text-purple-500',
     orange: 'bg-orange-500/10 text-orange-500',
+    yellow: 'bg-yellow-500/10 text-yellow-500',
+    red: 'bg-red-500/10 text-red-500',
+    cyan: 'bg-cyan-500/10 text-cyan-500',
   }
 
   return (

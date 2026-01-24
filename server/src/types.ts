@@ -86,4 +86,14 @@ export interface MetricsResponse {
     email: string;
     connectedAt: string;
   }>;
+  suggestionsCount: number;
+  serverUptime: number;
+  systemResources: {
+    cpuUsage: number;
+    memoryUsage: {
+      used: number;
+      total: number;
+      percentage: number;
+    };
+  };
 }

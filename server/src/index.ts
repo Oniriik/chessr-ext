@@ -199,6 +199,7 @@ class ChessServer {
         summary: movesSummary,
       });
 
+      this.metrics.incrementSuggestions(result.lines.length);
       this.send(ws, result);
     } catch (err) {
       logger.error('analysis_error', clientInfo.email, err instanceof Error ? err : String(err));
