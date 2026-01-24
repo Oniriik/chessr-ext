@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -11,77 +11,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import AnsiToHtml from 'ansi-to-html'
 
-// ANSI color code to CSS class mapping
-const ansiToClass: Record<string, string> = {
-  '0': '', // reset
-  '1': 'font-bold',
-  '2': 'opacity-60',
-  '30': 'text-zinc-900',
-  '31': 'text-red-400',
-  '32': 'text-green-400',
-  '33': 'text-yellow-400',
-  '34': 'text-blue-400',
-  '35': 'text-purple-400',
-  '36': 'text-cyan-400',
-  '37': 'text-white',
-  '90': 'text-zinc-500',
-}
-
-function parseAnsiToHtml(text: string): string {
-  // Match ANSI escape sequences
-  const ansiRegex = /\x1b\[([0-9;]+)m/g
-
-  let result = ''
-  let lastIndex = 0
-  let currentClasses: string[] = []
-  let match
-
-  while ((match = ansiRegex.exec(text)) !== null) {
-    // Add text before this match
-    if (match.index > lastIndex) {
-      const content = text.slice(lastIndex, match.index)
-      if (currentClasses.length > 0) {
-        result += `<span class="${currentClasses.join(' ')}">${escapeHtml(content)}</span>`
-      } else {
-        result += escapeHtml(content)
-      }
-    }
-
-    // Parse the ANSI codes
-    const codes = match[1].split(';')
-    for (const code of codes) {
-      if (code === '0') {
-        currentClasses = []
-      } else if (ansiToClass[code]) {
-        currentClasses.push(ansiToClass[code])
-      }
-    }
-
-    lastIndex = match.index + match[0].length
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    const content = text.slice(lastIndex)
-    if (currentClasses.length > 0) {
-      result += `<span class="${currentClasses.join(' ')}">${escapeHtml(content)}</span>`
-    } else {
-      result += escapeHtml(content)
-    }
-  }
-
-  return result
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
+// Configure ANSI to HTML converter with dark theme colors
+const ansiConverter = new AnsiToHtml({
+  fg: '#d4d4d8', // zinc-300
+  bg: '#09090b', // zinc-950
+  colors: {
+    0: '#18181b',  // black -> zinc-900
+    1: '#f87171',  // red -> red-400
+    2: '#4ade80',  // green -> green-400
+    3: '#facc15',  // yellow -> yellow-400
+    4: '#60a5fa',  // blue -> blue-400
+    5: '#c084fc',  // magenta -> purple-400
+    6: '#22d3ee',  // cyan -> cyan-400
+    7: '#f4f4f5',  // white -> zinc-100
+    8: '#71717a',  // bright black -> zinc-500
+    9: '#fca5a5',  // bright red -> red-300
+    10: '#86efac', // bright green -> green-300
+    11: '#fde047', // bright yellow -> yellow-300
+    12: '#93c5fd', // bright blue -> blue-300
+    13: '#d8b4fe', // bright magenta -> purple-300
+    14: '#67e8f9', // bright cyan -> cyan-300
+    15: '#ffffff', // bright white
+  },
+})
 
 export default function DockerLogs() {
   const [logs, setLogs] = useState('')
@@ -118,7 +72,13 @@ export default function DockerLogs() {
     }
   }, [autoRefresh, lines])
 
-  const formattedLogs = parseAnsiToHtml(logs)
+  const formattedLogs = useMemo(() => {
+    try {
+      return ansiConverter.toHtml(logs)
+    } catch {
+      return logs
+    }
+  }, [logs])
 
   return (
     <div className="flex flex-col h-full">
