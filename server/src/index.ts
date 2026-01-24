@@ -243,6 +243,7 @@ class ChessServer {
         type: 'error',
         message: 'Authentication failed',
       });
+      ws.close(4001, 'Authentication failed');
     }
   }
 
