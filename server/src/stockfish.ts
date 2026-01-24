@@ -58,11 +58,18 @@ export class StockfishEngine {
 
   private onInfoCallback?: (info: InfoUpdate) => void;
   private resolveAnalysis?: (result: AnalysisResult) => void;
+  private rejectAnalysis?: (error: Error) => void;
 
   private uciOkReceived = false;
   private readyOkReceived = false;
+  private lastOptions: StockfishOptions = {};
 
   async init(options: StockfishOptions = {}): Promise<void> {
+    this.lastOptions = options;
+    this.uciOkReceived = false;
+    this.readyOkReceived = false;
+    this.isReady = false;
+
     return new Promise((resolve, reject) => {
       try {
         this.process = spawn('stockfish');
@@ -77,21 +84,22 @@ export class StockfishEngine {
 
         this.process.on('error', (err) => {
           console.error('[Stockfish] Process error:', err.message);
-          this.isReady = false;
-          if (err) {
-            reject(new Error(`Failed to start Stockfish: ${err.message}`));
-          }
+          this.handleProcessDeath();
+          reject(new Error(`Failed to start Stockfish: ${err.message}`));
         });
 
         this.process.on('close', (code) => {
-          console.log('[Stockfish] Process closed with code:', code);
-          this.isReady = false;
+          // Only log if unexpected (code !== 0 or null means crash)
+          if (code !== 0) {
+            console.log('[Stockfish] Process exited unexpectedly with code:', code);
+          }
+          this.handleProcessDeath();
         });
 
         // Handle stdin errors (EPIPE, etc.)
         this.process.stdin.on('error', (err) => {
           console.error('[Stockfish] stdin error:', err.message);
-          this.isReady = false;
+          this.handleProcessDeath();
         });
 
         // Initialize UCI
@@ -122,6 +130,34 @@ export class StockfishEngine {
         reject(err);
       }
     });
+  }
+
+  /**
+   * Handle process death - reject any pending analysis
+   */
+  private handleProcessDeath(): void {
+    this.isReady = false;
+    this.process = null;
+    if (this.rejectAnalysis) {
+      this.rejectAnalysis(new Error('Stockfish process died'));
+      this.rejectAnalysis = undefined;
+      this.resolveAnalysis = undefined;
+    }
+  }
+
+  /**
+   * Check if engine is alive and ready
+   */
+  isAlive(): boolean {
+    return this.isReady && this.process !== null && !this.process.killed;
+  }
+
+  /**
+   * Restart the engine (call after crash)
+   */
+  async restart(): Promise<void> {
+    this.quit();
+    await this.init(this.lastOptions);
   }
 
   private configure(options: StockfishOptions) {
@@ -169,7 +205,7 @@ export class StockfishEngine {
     },
     onInfo?: (info: InfoUpdate) => void
   ): Promise<AnalysisResult> {
-    if (!this.isReady || !this.process) {
+    if (!this.isAlive()) {
       throw new Error('Stockfish not ready');
     }
 
@@ -182,6 +218,7 @@ export class StockfishEngine {
     if (this.resolveAnalysis) {
       const oldResolve = this.resolveAnalysis;
       this.resolveAnalysis = undefined;
+      this.rejectAnalysis = undefined;
       oldResolve({
         type: 'result',
         bestMove: '',
@@ -198,17 +235,20 @@ export class StockfishEngine {
       this.currentMate = undefined;
       this.onInfoCallback = onInfo;
       this.resolveAnalysis = resolve;
+      this.rejectAnalysis = reject;
 
-      // Set timeout to prevent hanging (add 5 seconds buffer)
+      // Set timeout to prevent hanging
+      // Depth 18 can take a while, use depth * 3 seconds with minimum 30s
       const timeoutDuration = options.searchMode === 'time'
-        ? options.moveTime + 5000
-        : 30000; // 30s for depth-based search
+        ? options.moveTime + 10000
+        : Math.max(30000, options.depth * 3000);
 
       const timeout = setTimeout(() => {
         if (this.resolveAnalysis) {
           console.error('[Stockfish] Analysis timeout - no response from engine');
           this.resolveAnalysis = undefined;
-          this.isReady = false;
+          this.rejectAnalysis = undefined;
+          // Don't mark isReady=false here, let pool handle it
           reject(new Error('Analysis timeout'));
         }
       }, timeoutDuration);
@@ -217,8 +257,19 @@ export class StockfishEngine {
       const originalResolve = this.resolveAnalysis;
       this.resolveAnalysis = (result: AnalysisResult) => {
         clearTimeout(timeout);
+        this.rejectAnalysis = undefined;
         if (originalResolve) {
           originalResolve(result);
+        }
+      };
+
+      // Wrap original reject to clear timeout
+      const originalReject = this.rejectAnalysis;
+      this.rejectAnalysis = (error: Error) => {
+        clearTimeout(timeout);
+        this.resolveAnalysis = undefined;
+        if (originalReject) {
+          originalReject(error);
         }
       };
 
@@ -234,11 +285,17 @@ export class StockfishEngine {
   }
 
   quit() {
+    this.isReady = false;
     if (this.process) {
-      this.send('quit');
-      this.process.kill();
+      try {
+        if (!this.process.killed && this.process.stdin.writable) {
+          this.process.stdin.write('quit\n');
+        }
+        this.process.kill();
+      } catch {
+        // Process already dead, ignore
+      }
       this.process = null;
-      this.isReady = false;
     }
   }
 

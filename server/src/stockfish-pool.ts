@@ -159,7 +159,17 @@ export class StockfishPool {
       };
 
       // Try to get an available engine immediately
-      const engine = this.available.pop();
+      // Prefer healthy engines
+      let engine: StockfishEngine | undefined;
+      while (this.available.length > 0) {
+        engine = this.available.pop();
+        if (engine && engine.isAlive()) {
+          break;
+        }
+        // Dead engine, will be restarted in processRequest
+        if (engine) break;
+      }
+
       if (engine) {
         this.processRequest(engine, request);
       } else {
@@ -178,9 +188,10 @@ export class StockfishPool {
     this.lastActivityTime = Date.now();
 
     try {
-      // Check if engine is still ready before using it
-      if (!engine['isReady']) {
-        throw new Error('Engine not ready');
+      // Check if engine is still alive before using it
+      if (!engine.isAlive()) {
+        console.log('[Pool] Engine dead, restarting before use...');
+        await engine.restart();
       }
 
       engine.setElo(request.options.elo);
@@ -208,27 +219,36 @@ export class StockfishPool {
 
       request.resolve(adjustedResult);
     } catch (err) {
-      // Try to restart the engine
-      console.error('[Pool] Engine error, attempting restart...');
+      // Try to restart the engine and retry once
+      console.error('[Pool] Engine error, attempting restart...', err instanceof Error ? err.message : err);
       try {
-        engine.quit();
-        const newEngine = new StockfishEngine();
-        await newEngine.init(this.config.engineOptions);
+        await engine.restart();
+        console.log('[Pool] Engine restarted successfully, retrying request...');
 
-        // Replace in pool
-        const index = this.pool.indexOf(engine);
-        if (index !== -1) {
-          this.pool[index] = newEngine;
-        }
-
-        // Retry the request with the new engine
-        return this.processRequest(newEngine, request);
+        // Retry the request with the restarted engine
+        return this.processRequest(engine, request);
       } catch (restartErr) {
         console.error('[Pool] Failed to restart engine:', restartErr);
-        request.reject(err instanceof Error ? err : new Error('Analysis failed'));
-        // Return the broken engine to attempt recovery later
-        this.returnEngine(engine);
-        return;
+
+        // Try to create a completely new engine
+        try {
+          const newEngine = new StockfishEngine();
+          await newEngine.init(this.config.engineOptions);
+
+          // Replace in pool
+          const index = this.pool.indexOf(engine);
+          if (index !== -1) {
+            this.pool[index] = newEngine;
+          }
+
+          console.log('[Pool] Created replacement engine, retrying request...');
+          return this.processRequest(newEngine, request);
+        } catch (newEngineErr) {
+          console.error('[Pool] Failed to create replacement engine:', newEngineErr);
+          request.reject(err instanceof Error ? err : new Error('Analysis failed'));
+          this.returnEngine(engine);
+          return;
+        }
       }
     }
 
@@ -300,6 +320,11 @@ export class StockfishPool {
   }
 
   private returnEngine(engine: StockfishEngine): void {
+    // Only return healthy engines to the pool
+    if (!engine.isAlive()) {
+      console.log('[Pool] Discarding dead engine, will restart on next use');
+    }
+
     // Check if there's a pending request
     const nextRequest = this.queue.shift();
     if (nextRequest) {
