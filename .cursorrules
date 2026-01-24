@@ -1,4 +1,27 @@
-# Chess Helper - Clean Architecture Rules
+# Chess Helper - Project Rules
+
+## Documentation
+
+Before making changes to the server infrastructure, deployment, or operations:
+
+1. **Check the documentation** in `docs/` folder:
+   - `docs/README.md` - Main index
+   - `docs/architecture/ARCHITECTURE.md` - Server infrastructure overview
+   - `docs/deployment/` - Setup and deployment guides
+   - `docs/operations/` - Server management and troubleshooting
+   - `docs/scripts/SCRIPTS-REFERENCE.md` - All scripts documented
+
+2. **Update documentation** when making infrastructure changes
+
+3. **Key server details**:
+   - Server IP: 135.125.201.246
+   - User: ubuntu
+   - Project dir: /home/ubuntu/chess-server
+   - Domains: ws.chessr.io, admin.chessr.io
+
+---
+
+# Clean Architecture Rules
 
 ## Principe fondamental
 La Clean Architecture sépare le code en couches concentriques où les dépendances pointent toujours vers l'intérieur (vers le domaine métier).
