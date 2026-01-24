@@ -1,0 +1,57 @@
+🎉 BUILD DE PRODUCTION - Extension Chessr
+=========================================
+
+Date: 23 janvier 2026, 18:54
+Environment: PRODUCTION
+Server URL: wss://ws.chessr.io
+
+📦 Fichiers générés:
+- extension/dist/content.js (447 KB)
+- extension/dist/content.css (25 KB)
+- extension/dist/manifest.json
+- extension/dist/popup.html
+- extension/dist/icons/
+
+✅ Configuration:
+- NODE_ENV=production
+- STOCKFISH_SERVER_URL=wss://ws.chessr.io
+- Mode: minifié et optimisé
+
+🔧 Installation:
+1. Ouvrir Chrome -> chrome://extensions/
+2. Activer "Mode développeur"
+3. Cliquer "Charger l'extension non empaquetée"
+4. Sélectionner: /Users/timothe/dev/chess/extension/dist
+5. Recharger l'extension si déjà installée
+
+🧪 Test:
+1. Aller sur chess.com
+2. Lancer une partie
+3. Ouvrir la console (F12)
+4. Vérifier les logs "[Chessr WS]"
+5. Les flèches et l'évaluation doivent apparaître
+
+📊 Serveur distant:
+- URL: wss://ws.chessr.io
+- IP: 135.125.201.246
+- Status: ✅ Opérationnel (corrigé le 23/01/2026)
+- Container: chess-stockfish-server
+
+🐛 Corrections appliquées:
+- Gestion des erreurs EPIPE dans stockfish.ts
+- Vérification de l'état du moteur avant utilisation
+- Logs de debug ajoutés pour faciliter le diagnostic
+- Gestion des processus stdin/stderr améliorée
+
+📝 Commandes utiles:
+- Vérifier le serveur: ./check-server-status.sh
+- Voir les logs: ./view-remote-logs.sh
+- Redémarrer: ./restart-remote-server.sh
+- Redéployer: ./deploy-server.sh
+
+🔗 URLs:
+- Dev: ws://localhost:3000
+- Prod: wss://ws.chessr.io
+
+=========================================
+Build créé avec succès! 🚀

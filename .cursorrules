@@ -1,0 +1,192 @@
+# Chess Helper - Clean Architecture Rules
+
+## Principe fondamental
+La Clean Architecture sépare le code en couches concentriques où les dépendances pointent toujours vers l'intérieur (vers le domaine métier).
+
+## Structure du projet
+
+```
+extension/src/
+├── @types/                           # Types partagés
+│   └── index.ts
+│
+├── domain/                           # CŒUR MÉTIER (pur, sans dépendances)
+│   ├── chess/
+│   │   ├── fen-parser.ts            # Parsing FEN (fonctions pures)
+│   │   ├── position-validator.ts    # Validation des positions
+│   │   └── move-notation.ts         # Conversion notation UCI/SAN
+│   ├── analysis/
+│   │   ├── evaluation.ts            # Calculs d'évaluation
+│   │   └── arrow-config.ts          # Règles de configuration des flèches
+│   └── settings/
+│       └── settings-validator.ts    # Validation des settings
+│
+├── application/                      # ORCHESTRATION (use-cases)
+│   ├── analyze-position.use-case.ts
+│   ├── update-settings.use-case.ts
+│   └── track-moves.use-case.ts
+│
+├── infrastructure/                   # DÉTAILS TECHNIQUES
+│   ├── repository/
+│   │   └── settings.repository.ts   # Chrome storage
+│   ├── service/
+│   │   ├── stockfish.service.ts     # Communication WebSocket
+│   │   ├── board-detector.service.ts
+│   │   └── overlay.service.ts       # Gestion SVG
+│   └── controller/
+│       └── content-script.controller.ts  # Point d'entrée
+│
+├── presentation/                     # UI React
+│   ├── components/
+│   │   ├── ui/                      # Composants shadcn
+│   │   ├── Sidebar.tsx
+│   │   ├── EloSlider.tsx
+│   │   ├── ColorPicker.tsx
+│   │   └── ...
+│   ├── hooks/
+│   │   ├── useSettings.ts
+│   │   ├── useAnalysis.ts
+│   │   └── useConnection.ts
+│   ├── store/
+│   │   └── app.store.ts             # Zustand store
+│   └── App.tsx
+│
+└── index.tsx                        # Bootstrap React
+```
+
+## Règles par couche
+
+### Domain (domain/)
+- ❌ Pas de dépendances externes (pas de DB, pas d'HTTP, pas d'async)
+- ❌ Pas d'imports depuis application/, infrastructure/, presentation/
+- ✅ Fonctions PURES uniquement
+- ✅ Types et interfaces métier
+- ✅ Calculs, validations, règles métier
+
+```typescript
+// ✅ BON - domain/chess/fen-parser.ts
+export function squareToCoords(square: string): { file: number; rank: number } {
+  return {
+    file: square.charCodeAt(0) - 97,
+    rank: parseInt(square[1]) - 1,
+  };
+}
+
+// ❌ MAUVAIS - pas d'async ni d'effets de bord dans domain
+export async function getPosition() { /* ... */ }
+```
+
+### Application (application/)
+- ✅ Orchestre les Services et Repositories
+- ✅ Contient la logique d'orchestration
+- ✅ Peut être async
+- ❌ Pas d'accès direct au DOM
+- ❌ Pas de logique UI
+
+```typescript
+// ✅ BON - application/analyze-position.use-case.ts
+export class AnalyzePositionUseCase {
+  constructor(
+    private stockfishService: StockfishService,
+    private settingsRepository: SettingsRepository,
+  ) {}
+
+  async execute(fen: string): Promise<AnalysisResult> {
+    const settings = await this.settingsRepository.get();
+    return this.stockfishService.analyze(fen, settings);
+  }
+}
+```
+
+### Infrastructure (infrastructure/)
+- ✅ Implémente les interfaces définies dans domain/application
+- ✅ Accès aux APIs externes (Chrome storage, WebSocket, DOM)
+- ✅ Services techniques réutilisables
+- ❌ Pas de logique métier
+
+```typescript
+// ✅ BON - infrastructure/repository/settings.repository.ts
+export class ChromeSettingsRepository implements SettingsRepository {
+  async get(): Promise<Settings> {
+    const result = await chrome.storage.sync.get('settings');
+    return { ...DEFAULT_SETTINGS, ...result.settings };
+  }
+
+  async save(settings: Partial<Settings>): Promise<void> {
+    const current = await this.get();
+    await chrome.storage.sync.set({ settings: { ...current, ...settings } });
+  }
+}
+```
+
+### Presentation (presentation/)
+- ✅ Composants React
+- ✅ Hooks personnalisés
+- ✅ State management (Zustand)
+- ✅ Styles (Tailwind CSS)
+- ❌ Pas de logique métier complexe
+- ❌ Pas d'accès direct aux repositories
+
+```typescript
+// ✅ BON - presentation/hooks/useSettings.ts
+export function useSettings() {
+  const settings = useAppStore((state) => state.settings);
+  const updateSettings = useAppStore((state) => state.updateSettings);
+
+  return { settings, updateSettings };
+}
+```
+
+## Règles de nommage
+
+| Type | Convention | Exemple |
+|------|------------|---------|
+| Use-Case | `{action}-{entity}.use-case.ts` | `analyze-position.use-case.ts` |
+| Repository | `{entity}.repository.ts` | `settings.repository.ts` |
+| Service | `{entity}.service.ts` | `stockfish.service.ts` |
+| Component | `PascalCase.tsx` | `Sidebar.tsx` |
+| Hook | `use{Name}.ts` | `useSettings.ts` |
+| Domain | `{entity}-{action}.ts` | `fen-parser.ts` |
+
+## Flux des données
+
+```
+User Action (UI)
+      ↓
+Presentation (React Component)
+      ↓
+Application (Use-Case)
+      ↓
+Infrastructure (Service/Repository)
+      ↓
+External (WebSocket/Chrome Storage/DOM)
+```
+
+## Checklist avant commit
+
+- [ ] Les fonctions Domain sont-elles pures (pas d'I/O, pas d'async)?
+- [ ] Les Repository ne contiennent-ils QUE de l'accès données?
+- [ ] Les Use-Cases orchestrent-ils sans accéder directement au DOM/Storage?
+- [ ] Les Components délèguent-ils la logique aux hooks/store?
+- [ ] Les dépendances pointent-elles toujours vers le centre (Domain)?
+
+## Stack technique
+
+- **React 18** - UI
+- **Tailwind CSS** - Styling
+- **shadcn/ui** - Composants
+- **Zustand** - State management
+- **TypeScript** - Typage strict
+- **Webpack** - Bundling
+
+## Conventions de code
+
+```typescript
+// Imports ordonnés
+import { external } from 'external-lib';        // 1. External
+import { domain } from '@/domain/...';          // 2. Domain
+import { useCase } from '@/application/...';    // 3. Application
+import { service } from '@/infrastructure/...'; // 4. Infrastructure
+import { Component } from '@/presentation/...'; // 5. Presentation
+import { local } from './local';                // 6. Local
+```

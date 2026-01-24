@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chessr</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      padding: 16px;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #333;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #dc3545;
+    }
+
+    .status.connected {
+      background: #28a745;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+    }
+
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #444;
+      border-radius: 26px;
+      transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    input:checked + .toggle-slider {
+      background: #28a745;
+    }
+
+    input:checked + .toggle-slider:before {
+      transform: translateX(22px);
+    }
+
+    .section {
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .elo-container {
+      background: #252540;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .elo-display {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .elo-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #ffd700;
+    }
+
+    .elo-label {
+      color: #888;
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      background: #444;
+      border-radius: 3px;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #ffd700;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .presets {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .preset-btn {
+      flex: 1;
+      padding: 6px 8px;
+      background: #333;
+      border: none;
+      border-radius: 4px;
+      color: #ccc;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .preset-btn:hover {
+      background: #444;
+    }
+
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      background: #333;
+      border: none;
+      border-radius: 6px;
+      color: #ccc;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mode-btn.active {
+      background: #4a4a80;
+      color: white;
+    }
+
+    .mode-btn:hover:not(.active) {
+      background: #444;
+    }
+
+    .stats {
+      background: #252540;
+      padding: 12px;
+      border-radius: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: bold;
+    }
+
+    .stat-value.positive {
+      color: #28a745;
+    }
+
+    .stat-value.negative {
+      color: #dc3545;
+    }
+
+    .checkboxes {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .checkbox-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+    }
+
+    .checkbox-row label {
+      font-size: 13px;
+    }
+
+    .mini-toggle {
+      position: relative;
+      width: 40px;
+      height: 22px;
+    }
+
+    .mini-toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .mini-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #444;
+      border-radius: 22px;
+      transition: 0.3s;
+    }
+
+    .mini-slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    .mini-toggle input:checked + .mini-slider {
+      background: #28a745;
+    }
+
+    .mini-toggle input:checked + .mini-slider:before {
+      transform: translateX(18px);
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>
+      <span class="status" id="status"></span>
+      Chessr
+    </h1>
+    <label class="toggle-switch">
+      <input type="checkbox" id="enabled">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <div class="section">
+    <div class="section-title">ELO Cible</div>
+    <div class="elo-container">
+      <div class="elo-display">
+        <span class="elo-value" id="elo-value">1500</span>
+        <span class="elo-label">Force limitée</span>
+      </div>
+      <input type="range" id="elo-slider" min="300" max="3000" step="50" value="1500">
+      <div class="presets">
+        <button class="preset-btn" data-elo="1000">1000</button>
+        <button class="preset-btn" data-elo="1500">1500</button>
+        <button class="preset-btn" data-elo="2000">2000</button>
+        <button class="preset-btn" data-elo="2500">2500</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Mode de jeu</div>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="mode-safe">🛡️ Safe</button>
+      <button class="mode-btn" id="mode-aggressive">⚔️ Agressif</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Position actuelle</div>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Évaluation</div>
+        <div class="stat-value" id="eval-value">--</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Meilleur coup</div>
+        <div class="stat-value" id="best-move">--</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Temps d'analyse</div>
+    <div class="elo-container">
+      <div class="elo-display">
+        <span class="elo-value" id="time-value">1.0s</span>
+        <span class="elo-label" id="search-mode-label">Temps fixe</span>
+      </div>
+      <input type="range" id="time-slider" min="200" max="5000" step="100" value="1000">
+      <div class="mode-toggle" style="margin-top: 10px;">
+        <button class="mode-btn active" id="search-time">⏱️ Temps</button>
+        <button class="mode-btn" id="search-depth">📊 Profondeur</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Ouverture</div>
+    <div class="opening-container" style="background: #252540; padding: 12px; border-radius: 8px;">
+      <div class="current-opening" id="current-opening" style="font-size: 14px; margin-bottom: 8px; color: #ffd700;">
+        Aucune ouverture détectée
+      </div>
+      <select id="opening-select" style="width: 100%; padding: 8px; background: #333; border: none; border-radius: 4px; color: #eee; font-size: 13px;">
+        <option value="">-- Choisir une ouverture --</option>
+        <optgroup label="1.e4 - Sicilienne">
+          <option value="sicilian-najdorf">Sicilienne - Najdorf</option>
+          <option value="sicilian-dragon">Sicilienne - Dragon</option>
+          <option value="sicilian-sveshnikov">Sicilienne - Sveshnikov</option>
+        </optgroup>
+        <optgroup label="1.e4 - Autres">
+          <option value="french">Défense Française</option>
+          <option value="caro-kann">Défense Caro-Kann</option>
+          <option value="italian">Partie Italienne</option>
+          <option value="spanish">Partie Espagnole</option>
+          <option value="petrov">Défense Petrov</option>
+        </optgroup>
+        <optgroup label="1.d4">
+          <option value="queens-gambit">Gambit Dame</option>
+          <option value="kings-indian">Est-Indienne</option>
+          <option value="nimzo-indian">Nimzo-Indienne</option>
+          <option value="grunfeld">Défense Grünfeld</option>
+          <option value="london">Système de Londres</option>
+        </optgroup>
+        <optgroup label="Autres">
+          <option value="english">Ouverture Anglaise</option>
+          <option value="reti">Ouverture Réti</option>
+        </optgroup>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Affichage</div>
+    <div class="checkboxes">
+      <div class="checkbox-row">
+        <label>Flèches sur l'échiquier</label>
+        <label class="mini-toggle">
+          <input type="checkbox" id="show-arrows" checked>
+          <span class="mini-slider"></span>
+        </label>
+      </div>
+      <div class="checkbox-row">
+        <label>Barre d'évaluation</label>
+        <label class="mini-toggle">
+          <input type="checkbox" id="show-eval-bar" checked>
+          <span class="mini-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Couleurs des flèches</div>
+    <div class="color-settings" style="background: #252540; padding: 12px; border-radius: 8px;">
+      <div class="color-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label style="font-size: 13px;">Meilleur coup</label>
+        <input type="color" id="color-best" value="#00c850" style="width: 40px; height: 28px; border: none; border-radius: 4px; cursor: pointer;">
+      </div>
+      <div class="color-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <label style="font-size: 13px;">2ème meilleur</label>
+        <input type="color" id="color-second" value="#ffc800" style="width: 40px; height: 28px; border: none; border-radius: 4px; cursor: pointer;">
+      </div>
+      <div class="color-row" style="display: flex; justify-content: space-between; align-items: center;">
+        <label style="font-size: 13px;">Autres coups</label>
+        <input type="color" id="color-other" value="#0078ff" style="width: 40px; height: 28px; border: none; border-radius: 4px; cursor: pointer;">
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
