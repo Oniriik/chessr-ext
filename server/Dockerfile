@@ -1,7 +1,15 @@
 FROM node:20-alpine
 
-# Installation de Stockfish
-RUN apk add --no-cache stockfish
+# Installation de Stockfish - compiler depuis les sources car pas disponible dans apk
+RUN apk add --no-cache git make g++ && \
+    cd /tmp && \
+    git clone --depth 1 --branch sf_16.1 https://github.com/official-stockfish/Stockfish.git && \
+    cd Stockfish/src && \
+    make -j $(nproc) build ARCH=x86-64-modern && \
+    cp stockfish /usr/local/bin/ && \
+    cd / && \
+    rm -rf /tmp/Stockfish && \
+    apk del git make g++
 
 # Création du répertoire de travail
 WORKDIR /app
