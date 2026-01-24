@@ -141,10 +141,8 @@ class ChessServer {
           elo: message.elo,
           mode: message.mode || 'balanced',
         },
-        (info) => {
-          console.log('[Server] Sending info update:', info);
-          this.send(ws, info);
-        }
+        // Don't send intermediate depth updates, only final result
+        () => {}
       );
 
       console.log('[Server] Analysis complete, sending result:', result);
