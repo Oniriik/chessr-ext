@@ -73,11 +73,17 @@ export interface Translations {
     showArrows: string;
     showEvalBar: string;
     blunderThreshold: string;
-    useMultipleArrowColors: string;
-    bestMove: string;
-    secondMove: string;
-    otherMoves: string;
-    singleArrowColor: string;
+  };
+
+  // Suggestions settings
+  suggestions: {
+    title: string;
+    numberOfSuggestions: string;
+    useSameColor: string;
+    firstSuggestion: string;
+    secondSuggestion: string;
+    thirdSuggestion: string;
+    singleColor: string;
   };
 
   // Openings

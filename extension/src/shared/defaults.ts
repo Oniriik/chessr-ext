@@ -24,4 +24,5 @@ export const DEFAULT_SETTINGS: Settings = {
   singleArrowColor: '#00c850',  // Green
   sidebarOpen: true,
   language: 'auto',  // Auto-detect browser language
+  numberOfSuggestions: 3,  // Show all 3 suggestions by default
 };

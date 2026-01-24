@@ -248,8 +248,9 @@ class Chessr {
     store.setAnalysis(result);
 
     if (store.settings.showArrows) {
-      console.log('[Chessr] Drawing arrows for', result.lines.length, 'lines');
-      this.arrowRenderer.drawBestMoves(result.lines, {
+      const linesToDraw = result.lines.slice(0, store.settings.numberOfSuggestions);
+      console.log('[Chessr] Drawing arrows for', linesToDraw.length, 'lines');
+      this.arrowRenderer.drawBestMoves(linesToDraw, {
         useDifferentColors: store.settings.useDifferentArrowColors,
         colors: store.settings.arrowColors,
         singleColor: store.settings.singleArrowColor,

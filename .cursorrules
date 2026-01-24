@@ -193,6 +193,52 @@ External (WebSocket/Chrome Storage/DOM)
 - [ ] Les Components délèguent-ils la logique aux hooks/store?
 - [ ] Les dépendances pointent-elles toujours vers le centre (Domain)?
 
+---
+
+## Changelog
+
+**IMPORTANT:** When making user-facing changes, update the changelog in `changelog/`.
+
+### When to update the changelog
+
+Update the changelog for any change that users would care about:
+- New features or settings
+- UI changes (new sections, renamed options, layout changes)
+- Bug fixes that affect user experience
+- Performance improvements users would notice
+- Breaking changes or removed features
+
+### Changelog format
+
+Create a file in `changelog/` named `{version}.md` (e.g., `1.1.0.md`). Use the next version number based on:
+- **Major (X.0.0)**: Breaking changes
+- **Minor (x.X.0)**: New features
+- **Patch (x.x.X)**: Bug fixes only
+
+Current version is in `extension/public/manifest.json`.
+
+```markdown
+# v1.1.0
+
+## New Features
+- Description of new feature
+
+## Improvements
+- Description of improvement
+
+## Bug Fixes
+- Description of fix
+
+## Breaking Changes
+- Description of breaking change
+```
+
+### What NOT to include
+- Internal refactoring that doesn't affect users
+- Code cleanup or technical debt
+- Developer tooling changes
+- Test additions
+
 ## Stack technique
 
 - **React 18** - UI

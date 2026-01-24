@@ -91,22 +91,45 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             />
           </div>
 
-          <div className="tw-border-t tw-border-gray-700 tw-pt-4">
-            <div className="tw-flex tw-items-center tw-justify-between tw-mb-3">
-              <span className="tw-text-sm tw-text-foreground">{t.display.useMultipleArrowColors}</span>
-              <Switch
-                checked={settings.useDifferentArrowColors}
-                onCheckedChange={(checked) => setSettings({ useDifferentArrowColors: checked })}
-              />
-            </div>
+        </div>
 
-            {settings.useDifferentArrowColors ? (
+        {/* Suggestions Section */}
+        <div className="tw-space-y-4 tw-mt-6">
+          <h3 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-3">
+            {t.suggestions.title}
+          </h3>
+
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <span className="tw-text-sm tw-text-foreground">{t.suggestions.numberOfSuggestions}</span>
+            <Select
+              value={String(settings.numberOfSuggestions)}
+              onValueChange={(value) => setSettings({ numberOfSuggestions: Number(value) as 1 | 2 | 3 })}
+              options={[
+                { value: '1', label: '1' },
+                { value: '2', label: '2' },
+                { value: '3', label: '3' },
+              ]}
+            />
+          </div>
+
+          <div className="tw-border-t tw-border-gray-700 tw-pt-4">
+            {settings.numberOfSuggestions > 1 && (
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-3">
+                <span className="tw-text-sm tw-text-foreground">{t.suggestions.useSameColor}</span>
+                <Switch
+                  checked={!settings.useDifferentArrowColors}
+                  onCheckedChange={(checked) => setSettings({ useDifferentArrowColors: !checked })}
+                />
+              </div>
+            )}
+
+            {settings.useDifferentArrowColors && settings.numberOfSuggestions > 1 ? (
               <div className="tw-space-y-3">
                 {[
-                  { key: 'best', label: t.display.bestMove },
-                  { key: 'second', label: t.display.secondMove },
-                  { key: 'other', label: t.display.otherMoves },
-                ].map(({ key, label }) => (
+                  { key: 'best', label: t.suggestions.firstSuggestion },
+                  { key: 'second', label: t.suggestions.secondSuggestion },
+                  { key: 'other', label: t.suggestions.thirdSuggestion },
+                ].slice(0, settings.numberOfSuggestions).map(({ key, label }) => (
                   <div key={key} className="tw-flex tw-items-center tw-justify-between">
                     <span className="tw-text-sm tw-text-foreground">{label}</span>
                     <input
@@ -120,7 +143,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               </div>
             ) : (
               <div className="tw-flex tw-items-center tw-justify-between">
-                <span className="tw-text-sm tw-text-foreground">{t.display.singleArrowColor}</span>
+                <span className="tw-text-sm tw-text-foreground">{t.suggestions.singleColor}</span>
                 <input
                   type="color"
                   value={settings.singleArrowColor}

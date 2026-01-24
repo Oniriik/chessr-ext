@@ -68,11 +68,16 @@ export const fr: Translations = {
     showArrows: 'Afficher les flèches',
     showEvalBar: "Afficher la barre d'éval",
     blunderThreshold: 'Seuil de gaffe',
-    useMultipleArrowColors: 'Utiliser plusieurs couleurs de flèches',
-    bestMove: 'Meilleur coup',
-    secondMove: '2e coup',
-    otherMoves: 'Autres coups',
-    singleArrowColor: 'Couleur unique des flèches',
+  },
+
+  suggestions: {
+    title: 'Suggestions',
+    numberOfSuggestions: 'Nombre de suggestions',
+    useSameColor: 'Utiliser la même couleur',
+    firstSuggestion: '1ère Suggestion',
+    secondSuggestion: '2ème Suggestion',
+    thirdSuggestion: '3ème Suggestion',
+    singleColor: 'Couleur des suggestions',
   },
 
   openings: {

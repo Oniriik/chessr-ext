@@ -68,11 +68,16 @@ export const en: Translations = {
     showArrows: 'Show Arrows',
     showEvalBar: 'Show Eval Bar',
     blunderThreshold: 'Blunder Threshold',
-    useMultipleArrowColors: 'Use different arrow colors',
-    bestMove: 'Best Move',
-    secondMove: '2nd Move',
-    otherMoves: 'Other Moves',
-    singleArrowColor: 'Single Arrow Color',
+  },
+
+  suggestions: {
+    title: 'Suggestions',
+    numberOfSuggestions: 'Number of Suggestions',
+    useSameColor: 'Use same color',
+    firstSuggestion: '1st Suggestion',
+    secondSuggestion: '2nd Suggestion',
+    thirdSuggestion: '3rd Suggestion',
+    singleColor: 'Suggestion Color',
   },
 
   openings: {

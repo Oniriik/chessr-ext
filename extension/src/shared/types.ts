@@ -46,6 +46,7 @@ export interface Settings {
   singleArrowColor: string;  // Used when useDifferentArrowColors is false
   sidebarOpen: boolean;
   language: 'fr' | 'en' | 'auto';  // UI language: auto = detect from browser
+  numberOfSuggestions: 1 | 2 | 3;  // Number of suggestions to show (1-3)
 }
 
 // NOTE: DEFAULT_SETTINGS has been moved to ./defaults.ts to use environment config
