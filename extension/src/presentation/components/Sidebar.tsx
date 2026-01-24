@@ -113,7 +113,7 @@ export function Sidebar() {
     : (analysis?.evaluation ?? 0) >= 0 ? 'tw-text-green-400' : 'tw-text-red-400';
 
   return (
-    <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none">
+    <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none" style={sidebarOpen ? { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' } : undefined}>
       {/* Toggle button - always visible on the left side */}
       <Button
         variant="outline"
@@ -126,7 +126,7 @@ export function Sidebar() {
 
       {/* Sidebar content - conditionally rendered */}
       {sidebarOpen && (
-        <div className="tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full" style={{ boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' }}>
+        <div className="tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full">
           {/* Header */}
           <div className="tw-p-4 tw-border-b tw-border-border">
             <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">

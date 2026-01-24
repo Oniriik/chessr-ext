@@ -9,6 +9,27 @@ import { settingsRepository } from '../../infrastructure/repository/settings.rep
 import { cloudSettingsRepository } from '../../infrastructure/repository/cloud-settings.repository';
 import { detectBoard } from '../../content/board-detector';
 
+const SIDEBAR_OPEN_KEY = 'chessr_sidebar_open';
+
+// Load sidebar state from localStorage (default: true)
+const loadSidebarState = (): boolean => {
+  try {
+    const stored = localStorage.getItem(SIDEBAR_OPEN_KEY);
+    return stored === null ? true : stored === 'true';
+  } catch {
+    return true;
+  }
+};
+
+// Save sidebar state to localStorage only
+const saveSidebarState = (isOpen: boolean): void => {
+  try {
+    localStorage.setItem(SIDEBAR_OPEN_KEY, String(isOpen));
+  } catch {
+    // Ignore storage errors
+  }
+};
+
 interface AppState {
   // Settings
   settings: Settings;
@@ -63,12 +84,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadSettings: async (userId) => {
     // First load local settings
     const localSettings = await settingsRepository.get();
-    set({ settings: localSettings, sidebarOpen: localSettings.sidebarOpen });
+    set({ settings: localSettings });
 
     // If user is logged in, sync with cloud
     if (userId) {
       const cloudSettings = await cloudSettingsRepository.sync(userId, localSettings);
-      set({ settings: cloudSettings, sidebarOpen: cloudSettings.sidebarOpen });
+      set({ settings: cloudSettings });
       // Update local storage with cloud settings
       await settingsRepository.save(cloudSettings);
     }
@@ -76,7 +97,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   syncWithCloud: async (userId) => {
     const localSettings = get().settings;
     const cloudSettings = await cloudSettingsRepository.sync(userId, localSettings);
-    set({ settings: cloudSettings, sidebarOpen: cloudSettings.sidebarOpen });
+    set({ settings: cloudSettings });
     // Update local storage with cloud settings
     await settingsRepository.save(cloudSettings);
   },
@@ -116,12 +137,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   eloOffset: 0,
   setEloOffset: (eloOffset) => set({ eloOffset }),
 
-  // UI
-  sidebarOpen: true,
+  // UI - sidebarOpen persists only in localStorage, not in database
+  sidebarOpen: loadSidebarState(),
   toggleSidebar: () => {
     const newState = !get().sidebarOpen;
     set({ sidebarOpen: newState });
-    settingsRepository.save({ sidebarOpen: newState });
+    saveSidebarState(newState);
   },
 
   // Version check

@@ -44,7 +44,6 @@ export interface Settings {
   useDifferentArrowColors: boolean;  // true = different colors per arrow, false = single color
   arrowColors: ArrowColors;
   singleArrowColor: string;  // Used when useDifferentArrowColors is false
-  sidebarOpen: boolean;
   language: 'fr' | 'en' | 'auto';  // UI language: auto = detect from browser
   numberOfSuggestions: 1 | 2 | 3;  // Number of suggestions to show (1-3)
 }
