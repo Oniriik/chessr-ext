@@ -54,6 +54,21 @@ const categories: Record<string, { color: string; icon: string; label: string }>
   // Errors
   parse_error: { color: colors.red, icon: '❌', label: 'ERROR' },
   unknown_message: { color: colors.yellow, icon: '❓', label: 'UNKNOWN' },
+
+  // Pool events
+  pool_init: { color: colors.cyan, icon: '🏊', label: 'POOL' },
+  pool_ready: { color: colors.green, icon: '✅', label: 'POOL' },
+  pool_engine_added: { color: colors.cyan, icon: '➕', label: 'POOL' },
+  pool_engine_removed: { color: colors.yellow, icon: '➖', label: 'POOL' },
+  pool_engine_restart: { color: colors.yellow, icon: '🔄', label: 'POOL' },
+  pool_engine_error: { color: colors.red, icon: '💥', label: 'POOL' },
+  pool_engine_dead: { color: colors.red, icon: '💀', label: 'POOL' },
+  pool_moves: { color: colors.blue, icon: '♟️', label: 'POOL' },
+
+  // Stockfish events
+  stockfish_error: { color: colors.red, icon: '❌', label: 'STOCKFISH' },
+  stockfish_timeout: { color: colors.red, icon: '⏱️', label: 'STOCKFISH' },
+  stockfish_exit: { color: colors.yellow, icon: '🚪', label: 'STOCKFISH' },
 };
 
 const defaultCategory = { color: colors.white, icon: '📝', label: 'LOG' };

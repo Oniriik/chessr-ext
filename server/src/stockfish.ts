@@ -1,5 +1,6 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { PVLine, AnalysisResult, InfoUpdate } from './types.js';
+import { globalLogger } from './logger.js';
 
 function isValidFEN(fen: string): boolean {
   const parts = fen.split(' ');
@@ -83,7 +84,7 @@ export class StockfishEngine {
         });
 
         this.process.on('error', (err) => {
-          console.error('[Stockfish] Process error:', err.message);
+          globalLogger.error('stockfish_error', err, { event: 'process_error' });
           this.handleProcessDeath();
           reject(new Error(`Failed to start Stockfish: ${err.message}`));
         });
@@ -91,14 +92,14 @@ export class StockfishEngine {
         this.process.on('close', (code) => {
           // Only log if unexpected (code !== 0 or null means crash)
           if (code !== 0) {
-            console.log('[Stockfish] Process exited unexpectedly with code:', code);
+            globalLogger.info('stockfish_exit', { code });
           }
           this.handleProcessDeath();
         });
 
         // Handle stdin errors (EPIPE, etc.)
         this.process.stdin.on('error', (err) => {
-          console.error('[Stockfish] stdin error:', err.message);
+          globalLogger.error('stockfish_error', err, { event: 'stdin_error' });
           this.handleProcessDeath();
         });
 
@@ -245,7 +246,7 @@ export class StockfishEngine {
 
       const timeout = setTimeout(() => {
         if (this.resolveAnalysis) {
-          console.error('[Stockfish] Analysis timeout - no response from engine');
+          globalLogger.error('stockfish_timeout', 'No response from engine', { timeoutMs: timeoutDuration });
           this.resolveAnalysis = undefined;
           this.rejectAnalysis = undefined;
           // Don't mark isReady=false here, let pool handle it
@@ -304,11 +305,14 @@ export class StockfishEngine {
       try {
         this.process.stdin.write(command + '\n');
       } catch (err) {
-        console.error('[Stockfish] Failed to write command:', command, err);
+        globalLogger.error('stockfish_error', err instanceof Error ? err : String(err), { event: 'write_failed', command });
         this.isReady = false;
       }
     } else {
-      console.warn('[Stockfish] Cannot send command, process not available:', command);
+      // Don't log for 'quit' commands on dead processes
+      if (command !== 'quit') {
+        globalLogger.error('stockfish_error', 'Process not available', { event: 'send_failed', command });
+      }
       this.isReady = false;
     }
   }

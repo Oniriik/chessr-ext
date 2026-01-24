@@ -1,6 +1,7 @@
 import { StockfishEngine, StockfishOptions } from './stockfish.js';
 import { AnalysisResult, InfoUpdate } from './types.js';
 import { selectMoveByElo, shouldBlunder, getMultiPVForElo } from './move-selector.js';
+import { globalLogger } from './logger.js';
 
 interface AnalysisRequest {
   fen: string;
@@ -47,7 +48,7 @@ export class StockfishPool {
   async init(): Promise<void> {
     if (this.initialized) return;
 
-    console.log(`[Pool] Initializing with ${this.config.minEngines}-${this.config.maxEngines} engines...`);
+    globalLogger.info('pool_init', { min: this.config.minEngines, max: this.config.maxEngines });
 
     // Start with minimum engines
     for (let i = 0; i < this.config.minEngines; i++) {
@@ -57,7 +58,7 @@ export class StockfishPool {
     this.initialized = true;
     this.startScaleDownMonitor();
 
-    console.log(`[Pool] Ready with ${this.pool.length} engines`);
+    globalLogger.info('pool_ready', { engines: this.pool.length });
   }
 
   private async addEngine(): Promise<StockfishEngine | null> {
@@ -70,10 +71,10 @@ export class StockfishPool {
       await engine.init(this.config.engineOptions);
       this.pool.push(engine);
       this.available.push(engine);
-      console.log(`[Pool] Engine added (${this.pool.length}/${this.config.maxEngines})`);
+      globalLogger.info('pool_engine_added', { current: this.pool.length, max: this.config.maxEngines });
       return engine;
     } catch (err) {
-      console.error('[Pool] Failed to add engine:', err);
+      globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'add' });
       return null;
     }
   }
@@ -90,7 +91,7 @@ export class StockfishPool {
       if (index !== -1) {
         this.pool.splice(index, 1);
         engine.quit();
-        console.log(`[Pool] Engine removed (${this.pool.length}/${this.config.maxEngines})`);
+        globalLogger.info('pool_engine_removed', { current: this.pool.length, max: this.config.maxEngines });
       }
     }
   }
@@ -190,7 +191,7 @@ export class StockfishPool {
     try {
       // Check if engine is still alive before using it
       if (!engine.isAlive()) {
-        console.log('[Pool] Engine dead, restarting before use...');
+        globalLogger.info('pool_engine_restart', { reason: 'dead_before_use' });
         await engine.restart();
       }
 
@@ -220,15 +221,15 @@ export class StockfishPool {
       request.resolve(adjustedResult);
     } catch (err) {
       // Try to restart the engine and retry once
-      console.error('[Pool] Engine error, attempting restart...', err instanceof Error ? err.message : err);
+      globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'restart' });
       try {
         await engine.restart();
-        console.log('[Pool] Engine restarted successfully, retrying request...');
+        globalLogger.info('pool_engine_restart', { reason: 'error_recovery', status: 'success' });
 
         // Retry the request with the restarted engine
         return this.processRequest(engine, request);
       } catch (restartErr) {
-        console.error('[Pool] Failed to restart engine:', restartErr);
+        globalLogger.error('pool_engine_error', restartErr instanceof Error ? restartErr : String(restartErr), { action: 'restart_failed' });
 
         // Try to create a completely new engine
         try {
@@ -241,10 +242,10 @@ export class StockfishPool {
             this.pool[index] = newEngine;
           }
 
-          console.log('[Pool] Created replacement engine, retrying request...');
+          globalLogger.info('pool_engine_added', { reason: 'replacement', status: 'success' });
           return this.processRequest(newEngine, request);
         } catch (newEngineErr) {
-          console.error('[Pool] Failed to create replacement engine:', newEngineErr);
+          globalLogger.error('pool_engine_error', newEngineErr instanceof Error ? newEngineErr : String(newEngineErr), { action: 'replacement_failed' });
           request.reject(err instanceof Error ? err : new Error('Analysis failed'));
           this.returnEngine(engine);
           return;
@@ -308,7 +309,7 @@ export class StockfishPool {
       const realPosition = result.lines.findIndex(l => l.moves[0] === line.moves[0]) + 1;
       return `${idx + 1}. ${line.moves[0]} (réel: ${realPosition}${realPosition === 1 ? 'er' : 'e'}, eval: ${line.mate ? `M${line.mate}` : line.evaluation.toFixed(2)})`;
     });
-    console.log(`[Pool] ELO ${elo} | Coups proposés: ${proposedMoves.join(' | ')}`);
+    globalLogger.info('pool_moves', { elo, moves: proposedMoves.join(' | ') });
 
     return {
       ...result,
@@ -322,7 +323,7 @@ export class StockfishPool {
   private returnEngine(engine: StockfishEngine): void {
     // Only return healthy engines to the pool
     if (!engine.isAlive()) {
-      console.log('[Pool] Discarding dead engine, will restart on next use');
+      globalLogger.info('pool_engine_dead', { action: 'discarding' });
     }
 
     // Check if there's a pending request
