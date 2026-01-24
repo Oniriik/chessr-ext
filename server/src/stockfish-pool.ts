@@ -34,11 +34,12 @@ export class StockfishPool {
   private initialized = false;
   private lastActivityTime = Date.now();
   private scaleDownTimer: NodeJS.Timeout | null = null;
+  private restartCooldowns: Map<StockfishEngine, number> = new Map(); // Track restart attempts
 
   constructor(config: Partial<PoolConfig> = {}) {
     this.config = {
-      minEngines: config.minEngines ?? 2,
-      maxEngines: config.maxEngines ?? 8,
+      minEngines: config.minEngines ?? 1,  // Reduced from 2 to 1
+      maxEngines: config.maxEngines ?? 4,  // Reduced from 8 to 4
       scaleUpThreshold: config.scaleUpThreshold ?? 2,
       scaleDownIdleTime: config.scaleDownIdleTime ?? 60000, // 1 minute
       engineOptions: { threads: 2, hash: 64, ...config.engineOptions },
@@ -185,13 +186,26 @@ export class StockfishPool {
     });
   }
 
-  private async processRequest(engine: StockfishEngine, request: AnalysisRequest): Promise<void> {
+  private async processRequest(engine: StockfishEngine, request: AnalysisRequest, retryCount = 0): Promise<void> {
+    const MAX_RETRIES = 1; // Only retry once
     this.lastActivityTime = Date.now();
 
     try {
       // Check if engine is still alive before using it
       if (!engine.isAlive()) {
+        // Check cooldown to prevent rapid restart loops
+        const lastRestart = this.restartCooldowns.get(engine) || 0;
+        const now = Date.now();
+        if (now - lastRestart < 5000) {
+          // Too soon to restart, reject and remove engine
+          globalLogger.info('pool_engine_cooldown', { waitMs: 5000 - (now - lastRestart) });
+          this.removeDeadEngine(engine);
+          request.reject(new Error('Engine unavailable, please retry'));
+          return;
+        }
+
         globalLogger.info('pool_engine_restart', { reason: 'dead_before_use' });
+        this.restartCooldowns.set(engine, now);
         await engine.restart();
       }
 
@@ -218,43 +232,66 @@ export class StockfishPool {
       // Apply ELO-based move selection (humanize the play)
       const adjustedResult = this.applyMoveSelection(result, request.options.elo);
 
+      // Clear cooldown on success
+      this.restartCooldowns.delete(engine);
       request.resolve(adjustedResult);
     } catch (err) {
-      // Try to restart the engine and retry once
-      globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'restart' });
-      try {
-        await engine.restart();
-        globalLogger.info('pool_engine_restart', { reason: 'error_recovery', status: 'success' });
+      globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'analyze', retryCount });
 
-        // Retry the request with the restarted engine
-        return this.processRequest(engine, request);
-      } catch (restartErr) {
-        globalLogger.error('pool_engine_error', restartErr instanceof Error ? restartErr : String(restartErr), { action: 'restart_failed' });
-
-        // Try to create a completely new engine
+      // Only retry once
+      if (retryCount < MAX_RETRIES) {
         try {
-          const newEngine = new StockfishEngine();
-          await newEngine.init(this.config.engineOptions);
+          this.restartCooldowns.set(engine, Date.now());
+          await engine.restart();
+          globalLogger.info('pool_engine_restart', { reason: 'error_recovery', status: 'success' });
 
-          // Replace in pool
-          const index = this.pool.indexOf(engine);
-          if (index !== -1) {
-            this.pool[index] = newEngine;
-          }
-
-          globalLogger.info('pool_engine_added', { reason: 'replacement', status: 'success' });
-          return this.processRequest(newEngine, request);
-        } catch (newEngineErr) {
-          globalLogger.error('pool_engine_error', newEngineErr instanceof Error ? newEngineErr : String(newEngineErr), { action: 'replacement_failed' });
-          request.reject(err instanceof Error ? err : new Error('Analysis failed'));
-          this.returnEngine(engine);
-          return;
+          // Retry the request with the restarted engine
+          return this.processRequest(engine, request, retryCount + 1);
+        } catch (restartErr) {
+          globalLogger.error('pool_engine_error', restartErr instanceof Error ? restartErr : String(restartErr), { action: 'restart_failed' });
         }
       }
+
+      // Failed after retries - remove dead engine and reject
+      this.removeDeadEngine(engine);
+      request.reject(err instanceof Error ? err : new Error('Analysis failed'));
+      return;
     }
 
     // Return engine to pool and process next request
     this.returnEngine(engine);
+  }
+
+  /**
+   * Remove a dead engine from the pool entirely
+   */
+  private removeDeadEngine(engine: StockfishEngine): void {
+    const poolIndex = this.pool.indexOf(engine);
+    if (poolIndex !== -1) {
+      this.pool.splice(poolIndex, 1);
+    }
+
+    const availIndex = this.available.indexOf(engine);
+    if (availIndex !== -1) {
+      this.available.splice(availIndex, 1);
+    }
+
+    this.restartCooldowns.delete(engine);
+
+    try {
+      engine.quit();
+    } catch {
+      // Ignore quit errors on dead engine
+    }
+
+    globalLogger.info('pool_engine_removed', { reason: 'dead', current: this.pool.length });
+
+    // Ensure minimum engines (async, don't wait)
+    if (this.pool.length < this.config.minEngines) {
+      this.addEngine().catch(() => {
+        globalLogger.error('pool_engine_error', 'Failed to maintain minimum engines', { action: 'add_minimum' });
+      });
+    }
   }
 
   /**
@@ -324,6 +361,8 @@ export class StockfishPool {
     // Only return healthy engines to the pool
     if (!engine.isAlive()) {
       globalLogger.info('pool_engine_dead', { action: 'discarding' });
+      this.removeDeadEngine(engine);
+      return;
     }
 
     // Check if there's a pending request
@@ -331,7 +370,10 @@ export class StockfishPool {
     if (nextRequest) {
       this.processRequest(engine, nextRequest);
     } else {
-      this.available.push(engine);
+      // Only add to available if not already there
+      if (!this.available.includes(engine)) {
+        this.available.push(engine);
+      }
     }
   }
 
