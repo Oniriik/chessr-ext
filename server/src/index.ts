@@ -176,10 +176,20 @@ class ChessServer {
         () => {}
       );
 
+      // Format moves summary: "1. e2e4 (+0.3) 2. d2d4 (+0.2) 3. g1f3 (+0.1)"
+      const movesSummary = result.lines
+        .map((line, i) => {
+          const evalStr = line.mate
+            ? `#${line.mate}`
+            : (line.evaluation >= 0 ? `+${line.evaluation.toFixed(1)}` : line.evaluation.toFixed(1));
+          return `${i + 1}. ${line.moves[0]} (${evalStr})`;
+        })
+        .join(' ');
+
       logger.info('analysis_complete', clientInfo.email, {
-        bestMove: result.bestMove,
-        evaluation: result.evaluation,
-        mate: result.mate,
+        lines: result.lines.length,
+        depth: result.depth,
+        summary: movesSummary,
       });
 
       this.send(ws, result);
