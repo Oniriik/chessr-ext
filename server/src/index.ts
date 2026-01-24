@@ -100,11 +100,16 @@ class ChessServer {
     });
   }
 
+  private getClientEmail(ws: WebSocket): string {
+    return this.clients.get(ws)?.email || 'anonymous';
+  }
+
   private async handleMessage(ws: WebSocket, rawData: string) {
+    const clientEmail = this.getClientEmail(ws);
     let message: ClientMessage;
     try {
       message = JSON.parse(rawData);
-      console.log('[Server] Message received:', message.type, message);
+      console.log(`[${clientEmail}] Message received:`, message.type);
     } catch {
       this.send(ws, { type: 'error', message: 'Invalid JSON' });
       return;
@@ -120,7 +125,7 @@ class ChessServer {
         break;
 
       default:
-        console.log('[Server] Unknown message type:', (message as any).type);
+        console.log(`[${clientEmail}] Unknown message type:`, (message as any).type);
         this.send(ws, { type: 'error', message: 'Unknown message type' });
     }
   }
@@ -129,7 +134,8 @@ class ChessServer {
     ws: WebSocket,
     message: ClientMessage & { type: 'analyze' }
   ): Promise<void> {
-    console.log('[Server] Starting analysis for FEN:', message.fen);
+    const clientEmail = this.getClientEmail(ws);
+    console.log(`[${clientEmail}] Analysis request - depth: ${message.depth}, elo: ${message.elo}`);
     try {
       const result = await this.pool.analyze(
         message.fen,
@@ -145,10 +151,10 @@ class ChessServer {
         () => {}
       );
 
-      console.log('[Server] Analysis complete, sending result:', result);
+      console.log(`[${clientEmail}] Analysis complete - bestmove: ${result.bestMove}, eval: ${result.evaluation}`);
       this.send(ws, result);
     } catch (err) {
-      console.error('[Server] Analysis error:', err);
+      console.error(`[${clientEmail}] Analysis error:`, err);
       this.send(ws, {
         type: 'error',
         message: err instanceof Error ? err.message : 'Analysis failed',
@@ -189,10 +195,7 @@ class ChessServer {
 
   private send(ws: WebSocket, message: ServerMessage) {
     if (ws.readyState === WebSocket.OPEN) {
-      console.log('[Server] Sending message:', message.type);
       ws.send(JSON.stringify(message));
-    } else {
-      console.log('[Server] Cannot send message, WebSocket not open:', ws.readyState);
     }
   }
 }
