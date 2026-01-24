@@ -41,9 +41,12 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Install Docker CLI for container management
 RUN apk add --no-cache docker-cli
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user with docker socket access
+# GID 987 matches the docker group on the host for socket access
+RUN addgroup --system --gid 1001 nodejs && \
+    addgroup --system --gid 987 docker && \
+    adduser --system --uid 1001 nextjs && \
+    adduser nextjs docker
 
 # Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
