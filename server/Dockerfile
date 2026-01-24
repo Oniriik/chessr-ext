@@ -17,14 +17,17 @@ WORKDIR /app
 # Copie des fichiers de dépendances
 COPY package*.json ./
 
-# Installation des dépendances
-RUN npm ci --only=production && npm cache clean --force
+# Installation de toutes les dépendances (dev incluses pour le build)
+RUN npm ci && npm cache clean --force
 
 # Copie des fichiers source
 COPY . .
 
 # Build du projet TypeScript
 RUN npm run build
+
+# Nettoyage des devDependencies après le build
+RUN npm prune --production
 
 # Exposition du port
 EXPOSE 3000
