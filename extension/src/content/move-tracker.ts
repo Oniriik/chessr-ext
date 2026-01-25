@@ -1,14 +1,14 @@
-import { positionsToFEN } from './position-parser';
-import { PlatformAdapter } from './platforms/types';
+import { positionsToFEN } from "./position-parser";
+import { PlatformAdapter } from "./platforms/types";
 
 export class MoveTracker {
   private adapter: PlatformAdapter;
   private observer: MutationObserver | null = null;
   private boardElement: HTMLElement | null = null;
-  private lastFEN = '';
+  private lastFEN = "";
   private lastPiecePositions: Map<string, string> = new Map(); // square -> piece (e.g., 'e2' -> 'wp')
-  private currentSideToMove: 'w' | 'b' = 'w';
-  private playerColor: 'white' | 'black' = 'white';
+  private currentSideToMove: "w" | "b" = "w";
+  private playerColor: "white" | "black" = "white";
   private callbacks: ((fen: string) => void)[] = [];
   private moveCallbacks: ((move: string) => void)[] = [];
   private debounceTimer: number | null = null;
@@ -18,10 +18,15 @@ export class MoveTracker {
     this.adapter = adapter;
   }
 
-  start(boardElement: HTMLElement, playerColor: 'white' | 'black' = 'white') {
+  start(boardElement: HTMLElement, playerColor: "white" | "black" = "white") {
     this.boardElement = boardElement;
     this.playerColor = playerColor;
-    console.log('[Chessr:MoveTracker] start() called with playerColor:', playerColor, 'platform:', this.adapter.platform);
+    console.log(
+      "[Chessr:MoveTracker] start() called with playerColor:",
+      playerColor,
+      "platform:",
+      this.adapter.platform,
+    );
 
     this.observer = new MutationObserver(() => {
       this.onMutation();
@@ -31,9 +36,9 @@ export class MoveTracker {
     let observeTarget: HTMLElement = boardElement;
 
     // Platform-specific observation targets
-    if (this.adapter.platform === 'lichess') {
+    if (this.adapter.platform === "lichess") {
       // Lichess: observe cg-container which contains cg-board with piece elements
-      const cgContainer = boardElement.closest('cg-container');
+      const cgContainer = boardElement.closest("cg-container");
       if (cgContainer) {
         observeTarget = cgContainer as HTMLElement;
       }
@@ -41,14 +46,16 @@ export class MoveTracker {
       // Chess.com: Check for pieces container as sibling
       const parent = boardElement.parentElement;
       if (parent) {
-        const piecesContainer = parent.querySelector('.pieces');
+        const piecesContainer = parent.querySelector(".pieces");
         if (piecesContainer) {
           observeTarget = parent as HTMLElement;
         }
       }
 
       // Also check for board-layout ancestor
-      const boardLayout = boardElement.closest('.board-layout-main, .board-layout-component, [class*="board-layout"]');
+      const boardLayout = boardElement.closest(
+        '.board-layout-main, .board-layout-component, [class*="board-layout"]',
+      );
       if (boardLayout) {
         observeTarget = boardLayout as HTMLElement;
       }
@@ -58,14 +65,14 @@ export class MoveTracker {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style'],
+      attributeFilter: ["class", "style"],
     });
 
     // Wait for board to fully load before parsing initial position
     // This helps when resuming a game where pieces may still be loading
     setTimeout(() => {
       this.checkForChange();
-    }, 2000);
+    }, 500);
   }
 
   stop() {
@@ -95,7 +102,7 @@ export class MoveTracker {
 
   private checkForChange() {
     if (!this.boardElement) {
-      console.log('[Chessr:MoveTracker] checkForChange - no boardElement');
+      console.log("[Chessr:MoveTracker] checkForChange - no boardElement");
       return;
     }
 
@@ -104,53 +111,92 @@ export class MoveTracker {
     const currentPosString = this.positionsToString(currentPositions);
     const lastPosString = this.positionsToString(this.lastPiecePositions);
 
-    console.log('[Chessr:MoveTracker] checkForChange - positions count:', currentPositions.size);
+    console.log(
+      "[Chessr:MoveTracker] checkForChange - positions count:",
+      currentPositions.size,
+    );
 
     let detectedMove: string | null = null;
 
     if (!this.initialized) {
-      console.log('[Chessr:MoveTracker] initializing...');
+      console.log("[Chessr:MoveTracker] initializing...");
       this.lastPiecePositions = currentPositions;
       this.currentSideToMove = this.detectSideToMoveFromClock();
       this.initialized = true;
     } else if (currentPosString !== lastPosString) {
       // Detect the move in UCI format and which color moved
-      const moveInfo = this.detectMoveInfo(this.lastPiecePositions, currentPositions);
+      const moveInfo = this.detectMoveInfo(
+        this.lastPiecePositions,
+        currentPositions,
+      );
       detectedMove = moveInfo.move;
+      console.log(
+        "[Chessr:MoveTracker] Move detected:",
+        moveInfo.move,
+        "movedColor:",
+        moveInfo.movedColor,
+      );
 
       // Determine next turn: if we know which color moved, opposite is next
       if (moveInfo.movedColor) {
-        this.currentSideToMove = moveInfo.movedColor === 'w' ? 'b' : 'w';
+        this.currentSideToMove = moveInfo.movedColor === "w" ? "b" : "w";
+        console.log(
+          "[Chessr:MoveTracker] Turn from piece color:",
+          this.currentSideToMove,
+        );
       } else {
         // Fallback to clock/DOM detection
         this.currentSideToMove = this.detectSideToMoveFromClock();
+        console.log(
+          "[Chessr:MoveTracker] Turn from clock fallback:",
+          this.currentSideToMove,
+        );
       }
 
       this.lastPiecePositions = currentPositions;
     }
 
     const fen = positionsToFEN(currentPositions, this.currentSideToMove);
-    console.log('[Chessr:MoveTracker] FEN generated:', fen.substring(0, 50) + '...');
-    console.log('[Chessr:MoveTracker] lastFEN:', this.lastFEN.substring(0, 50) + '...');
-    console.log('[Chessr:MoveTracker] callbacks registered:', this.callbacks.length);
+    console.log(
+      "[Chessr:MoveTracker] FEN generated:",
+      fen.substring(0, 50) + "...",
+    );
+    console.log(
+      "[Chessr:MoveTracker] lastFEN:",
+      this.lastFEN.substring(0, 50) + "...",
+    );
+    console.log(
+      "[Chessr:MoveTracker] callbacks registered:",
+      this.callbacks.length,
+    );
 
     if (fen !== this.lastFEN) {
-      console.log('[Chessr:MoveTracker] FEN changed! Calling', this.callbacks.length, 'callbacks');
+      console.log(
+        "[Chessr:MoveTracker] FEN changed! Calling",
+        this.callbacks.length,
+        "callbacks",
+      );
       this.lastFEN = fen;
-      this.callbacks.forEach(cb => cb(fen));
+      this.callbacks.forEach((cb) => cb(fen));
     }
 
     // Notify move callbacks if a move was detected
     if (detectedMove) {
-      this.moveCallbacks.forEach(cb => cb(detectedMove!));
+      this.moveCallbacks.forEach((cb) => cb(detectedMove!));
     }
   }
 
-  private detectSideToMoveFromClock(): 'w' | 'b' {
-    return this.adapter.detectSideToMoveFromClock(this.playerColor, this.currentSideToMove);
+  private detectSideToMoveFromClock(): "w" | "b" {
+    return this.adapter.detectSideToMoveFromClock(
+      this.playerColor,
+      this.currentSideToMove,
+    );
   }
 
-  private detectMoveInfo(oldPos: Map<string, string>, newPos: Map<string, string>): { move: string | null; movedColor: 'w' | 'b' | null } {
+  private detectMoveInfo(
+    oldPos: Map<string, string>,
+    newPos: Map<string, string>,
+  ): { move: string | null; movedColor: "w" | "b" | null } {
     // Find the "from" square (piece disappeared)
     let fromSquare: string | null = null;
     let movedPiece: string | null = null;
@@ -197,9 +243,9 @@ export class MoveTracker {
       }
     }
 
-    const move = (fromSquare && toSquare) ? fromSquare + toSquare : null;
+    const move = fromSquare && toSquare ? fromSquare + toSquare : null;
     // Extract color from piece string (e.g., 'wp' -> 'w', 'bk' -> 'b')
-    const movedColor = movedPiece ? (movedPiece[0] as 'w' | 'b') : null;
+    const movedColor = movedPiece ? (movedPiece[0] as "w" | "b") : null;
 
     return { move, movedColor };
   }
@@ -210,8 +256,10 @@ export class MoveTracker {
   }
 
   private positionsToString(positions: Map<string, string>): string {
-    const entries = Array.from(positions.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-    return entries.map(([sq, pc]) => `${sq}:${pc}`).join(',');
+    const entries = Array.from(positions.entries()).sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+    return entries.map(([sq, pc]) => `${sq}:${pc}`).join(",");
   }
 
   getCurrentFEN(): string {
@@ -219,7 +267,7 @@ export class MoveTracker {
   }
 
   // Allow external sync of side to move (useful when joining mid-game)
-  setSideToMove(side: 'w' | 'b') {
+  setSideToMove(side: "w" | "b") {
     this.currentSideToMove = side;
     // Re-check with the new side
     if (this.boardElement) {
@@ -227,16 +275,16 @@ export class MoveTracker {
       const fen = positionsToFEN(positions, this.currentSideToMove);
       if (fen !== this.lastFEN) {
         this.lastFEN = fen;
-        this.callbacks.forEach(cb => cb(fen));
+        this.callbacks.forEach((cb) => cb(fen));
       }
     }
   }
 
-  getCurrentSideToMove(): 'w' | 'b' {
+  getCurrentSideToMove(): "w" | "b" {
     return this.currentSideToMove;
   }
 
-  setPlayerColor(color: 'white' | 'black') {
+  setPlayerColor(color: "white" | "black") {
     // [MoveTracker] Player color updated to:', color);
     this.playerColor = color;
   }

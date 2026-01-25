@@ -5,6 +5,7 @@ All notable changes to Chessr will be documented in this file.
 ## [1.1.4] - 2026-01-25
 
 ### Added
+- **Move list detection**: Detect current turn from move list for bot games without clocks
 - **Lichess support**: Full support for Lichess.org live games
   - Player color detection via board orientation classes
   - Turn detection for both timed and correspondence games
@@ -16,6 +17,8 @@ All notable changes to Chessr will be documented in this file.
 - **Sidebar on all pages**: Sidebar now appears on all supported pages with a "Start a game" message when not in a game
 
 ### Changed
+- **Faster initial load**: Reduced initial board detection delay from 5s to 500ms
+- **Faster position tracking**: Reduced position tracking delay from 2s to 500ms
 - **Architecture**: Extracted platform-specific code into adapter classes (`ChesscomAdapter`, `LichessAdapter`)
 - **Board detection**: Moved board detection logic into platform adapters
 - **Move tracking**: Delegated piece position detection to platform adapters
