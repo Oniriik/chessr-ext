@@ -212,7 +212,6 @@ export class ChesscomAdapter implements PlatformAdapter {
   }
 
   detectSideToMoveFromClock(playerColor: 'white' | 'black', currentSide: 'w' | 'b'): 'w' | 'b' {
-    // Method 1: Clock-based detection (live/blitz games)
     const activeClock = document.querySelector('.clock-component.clock-player-turn');
 
     if (activeClock) {
@@ -224,19 +223,6 @@ export class ChesscomAdapter implements PlatformAdapter {
       } else if (isOpponentClock) {
         return playerColor === 'white' ? 'b' : 'w';
       }
-    }
-
-    // Method 2: Check move list (bot games without clock)
-    // Count moves to determine turn - odd ply = black's turn, even ply = white's turn
-    const moves = document.querySelectorAll('.move-node, [data-ply]');
-    if (moves.length > 0) {
-      const lastMove = moves[moves.length - 1];
-      const ply = lastMove.getAttribute('data-ply');
-      if (ply) {
-        const plyNum = parseInt(ply, 10);
-        return plyNum % 2 === 0 ? 'w' : 'b';
-      }
-      return moves.length % 2 === 0 ? 'w' : 'b';
     }
 
     return currentSide;

@@ -114,12 +114,17 @@ export class MoveTracker {
       this.currentSideToMove = this.detectSideToMoveFromClock();
       this.initialized = true;
     } else if (currentPosString !== lastPosString) {
-      // Detect the move in UCI format
-      detectedMove = this.detectMoveUCI(this.lastPiecePositions, currentPositions);
+      // Detect the move in UCI format and which color moved
+      const moveInfo = this.detectMoveInfo(this.lastPiecePositions, currentPositions);
+      detectedMove = moveInfo.move;
 
-      // Use clock to detect current turn (most reliable)
-      const clockTurn = this.detectSideToMoveFromClock();
-      this.currentSideToMove = clockTurn;
+      // Determine next turn: if we know which color moved, opposite is next
+      if (moveInfo.movedColor) {
+        this.currentSideToMove = moveInfo.movedColor === 'w' ? 'b' : 'w';
+      } else {
+        // Fallback to clock/DOM detection
+        this.currentSideToMove = this.detectSideToMoveFromClock();
+      }
 
       this.lastPiecePositions = currentPositions;
     }
@@ -145,7 +150,7 @@ export class MoveTracker {
     return this.adapter.detectSideToMoveFromClock(this.playerColor, this.currentSideToMove);
   }
 
-  private detectMoveUCI(oldPos: Map<string, string>, newPos: Map<string, string>): string | null {
+  private detectMoveInfo(oldPos: Map<string, string>, newPos: Map<string, string>): { move: string | null; movedColor: 'w' | 'b' | null } {
     // Find the "from" square (piece disappeared)
     let fromSquare: string | null = null;
     let movedPiece: string | null = null;
@@ -173,17 +178,13 @@ export class MoveTracker {
       }
     }
 
-    // Handle castling (king moves 2 squares)
-    if (fromSquare && toSquare) {
-      return fromSquare + toSquare;
-    }
-
     // Fallback: look for any piece that appeared on a new square
     if (!toSquare) {
       for (const [square, piece] of newPos) {
         const oldPiece = oldPos.get(square);
         if (!oldPiece && piece) {
           toSquare = square;
+          movedPiece = piece;
           // Find where this piece came from
           for (const [oldSq, oldP] of oldPos) {
             if (oldP === piece && !newPos.has(oldSq)) {
@@ -196,11 +197,11 @@ export class MoveTracker {
       }
     }
 
-    if (fromSquare && toSquare) {
-      return fromSquare + toSquare;
-    }
+    const move = (fromSquare && toSquare) ? fromSquare + toSquare : null;
+    // Extract color from piece string (e.g., 'wp' -> 'w', 'bk' -> 'b')
+    const movedColor = movedPiece ? (movedPiece[0] as 'w' | 'b') : null;
 
-    return null;
+    return { move, movedColor };
   }
 
   private getPiecePositions(): Map<string, string> {
@@ -212,27 +213,6 @@ export class MoveTracker {
     const entries = Array.from(positions.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     return entries.map(([sq, pc]) => `${sq}:${pc}`).join(',');
   }
-
-  private detectMovedPieceColor(oldPos: Map<string, string>, newPos: Map<string, string>): 'w' | 'b' | null {
-    // Find squares where a piece appeared (the "to" square of a move)
-    for (const [square, piece] of newPos) {
-      const oldPiece = oldPos.get(square);
-      if (oldPiece !== piece) {
-        return piece[0] as 'w' | 'b';
-      }
-    }
-
-    // Fallback: check if a piece disappeared (en passant edge case)
-    for (const [square, piece] of oldPos) {
-      if (!newPos.has(square)) {
-        const capturedColor = piece[0] as 'w' | 'b';
-        return capturedColor === 'w' ? 'b' : 'w';
-      }
-    }
-
-    return null;
-  }
-
 
   getCurrentFEN(): string {
     return this.lastFEN;
