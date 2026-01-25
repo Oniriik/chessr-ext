@@ -50,6 +50,7 @@ export function Sidebar() {
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
+  const isChesscom = window.location.hostname.includes('chess.com');
 
   // Wrapper to include userId for cloud sync
   const setSettings = (partial: Partial<typeof settings>) => {
@@ -271,9 +272,11 @@ export function Sidebar() {
             </div>
             <div className="tw-text-sm tw-text-muted">UCI</div>
           </div>
-          <div className="tw-text-sm tw-text-muted tw-mb-3">
-            {t.elo.display}: <span className="tw-text-foreground tw-font-semibold">{uciToChesscom(effectiveElo)}</span>
-          </div>
+          {isChesscom && (
+            <div className="tw-text-sm tw-text-muted tw-mb-3">
+              {t.elo.display}: <span className="tw-text-foreground tw-font-semibold">{uciToChesscom(effectiveElo)}</span>
+            </div>
+          )}
           <Slider
             value={localElo}
             onValueChange={handleEloChange}
