@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from '../presentation/App';
 import { useAppStore } from '../presentation/store/app.store';
 import { useOpeningStore } from '../presentation/store/opening.store';
-import { waitForBoard } from './board-detector';
+import { createPlatformAdapter, PlatformAdapter } from './platforms';
 import { MoveTracker } from './move-tracker';
 import { WebSocketClient } from './websocket-client';
 import { OverlayManager } from './overlay/overlay-manager';
@@ -12,20 +12,6 @@ import { EvalBar } from './overlay/eval-bar';
 import { OpeningTracker } from './openings/opening-tracker';
 import { AnalysisResult, BoardConfig, Settings } from '../shared/types';
 import { isUpdateRequired } from '../shared/version';
-
-// Pages where the extension should be active
-function isAllowedPage(): boolean {
-  const path = window.location.pathname;
-  // Only allow on game pages and play/computer
-  return /^\/game\/\d+/.test(path) || path === '/play/computer';
-}
-
-// Pages where analysis should be disabled (within allowed pages)
-function isAnalysisDisabledPage(): boolean {
-  const url = window.location.href;
-  // Disable on review pages and analysis pages
-  return url.includes('/review') || url.includes('/analysis');
-}
 
 // Convert WebSocket URL to HTTP URL for version endpoint
 function getHttpVersionUrl(wsUrl: string): string {
@@ -38,8 +24,9 @@ function getHttpVersionUrl(wsUrl: string): string {
 }
 
 class Chessr {
+  private adapter: PlatformAdapter | null = null;
   private wsClient!: WebSocketClient;
-  private moveTracker = new MoveTracker();
+  private moveTracker!: MoveTracker;
   private overlay = new OverlayManager();
   private arrowRenderer!: ArrowRenderer;
   private evalBar = new EvalBar();
@@ -50,38 +37,45 @@ class Chessr {
   private versionCheckPassed = false;
 
   async init() {
+    // Create platform adapter
+    this.adapter = createPlatformAdapter();
+    if (!this.adapter) {
+      return; // Unsupported platform
+    }
+
     const store = useAppStore.getState();
     await store.loadSettings();
+
+    // Determine if we're on a game page
+    const isGamePage = this.adapter.isAllowedPage() && !this.adapter.isAnalysisDisabledPage();
+    store.setIsGamePage(isGamePage);
 
     // Always check version via HTTP (lightweight, no WebSocket connection)
     const versionOk = await this.checkVersionViaHttp();
     if (!versionOk) {
-      // Version check failed - show update modal if on allowed page
-      if (isAllowedPage()) {
-        this.mountReactApp();
-      }
+      // Version check failed - show update modal
+      this.mountReactApp();
       return;
     }
 
-    // Only run full initialization on allowed pages
-    if (!isAllowedPage()) {
-      return;
-    }
-
-    // Check if we're on a page where analysis should be disabled
-    this.analysisDisabled = isAnalysisDisabledPage();
-    if (this.analysisDisabled) {
-      return;
-    }
-
-    this.setupOpeningCallbacks();
+    // Always mount React app (sidebar will show appropriate content)
     this.mountReactApp();
 
-    // Connect to WebSocket for analysis (only on allowed pages)
+    // Only initialize game features on game pages
+    if (!isGamePage) {
+      return;
+    }
+
+    // Initialize move tracker with adapter
+    this.moveTracker = new MoveTracker(this.adapter);
+
+    this.setupOpeningCallbacks();
+
+    // Connect to WebSocket for analysis (only on game pages)
     await this.connectToWebSocket();
 
     this.versionCheckPassed = true;
-    waitForBoard((config) => this.onBoardDetected(config));
+    this.adapter.waitForBoard((config) => this.onBoardDetected(config));
 
     useAppStore.subscribe((state, prevState) => {
       if (state.settings !== prevState.settings) {
@@ -216,7 +210,7 @@ class Chessr {
     store.setEloOffset(this.currentEloOffset);
 
     // Initialize overlay
-    this.overlay.initialize(config.boardElement, config.isFlipped);
+    this.overlay.initialize(config.boardElement, config.isFlipped, this.adapter!);
     this.arrowRenderer = new ArrowRenderer(this.overlay);
 
     // Initialize eval bar
@@ -335,5 +329,20 @@ class Chessr {
 }
 
 // Start the extension
-const helper = new Chessr();
-helper.init();
+const chessr = new Chessr();
+chessr.init();
+
+// Watch for URL changes (SPA navigation)
+let lastUrl = window.location.href;
+const urlObserver = new MutationObserver(() => {
+  if (window.location.href !== lastUrl) {
+    lastUrl = window.location.href;
+    // Re-initialize on URL change
+    chessr.init();
+  }
+});
+
+urlObserver.observe(document.body, {
+  childList: true,
+  subtree: true,
+});

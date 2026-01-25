@@ -46,7 +46,7 @@ function uciToChesscom(uciElo: number): number {
 }
 
 export function Sidebar() {
-  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, togglePlayerColor, redetectPlayerColor, eloOffset } = useAppStore();
+  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, togglePlayerColor, redetectPlayerColor, eloOffset, isGamePage } = useAppStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -184,55 +184,71 @@ export function Sidebar() {
 
       {/* Content */}
       <div className="tw-flex-1 tw-overflow-y-auto tw-p-4 tw-space-y-4">
-        {/* Player Color */}
-        <Card>
-          <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-            <div>
-              <div className="tw-text-xs tw-text-muted tw-mb-1">{t.player.title}</div>
-              <div className="tw-text-lg tw-font-bold">
-                {boardConfig?.playerColor === 'white' ? t.player.white : t.player.black}
+        {!isGamePage ? (
+          /* Message when not on a game page */
+          <Card>
+            <div className="tw-text-center tw-py-4">
+              <img
+                src={chrome.runtime.getURL('icons/chessr-logo.png')}
+                alt="Chessr"
+                className="tw-w-16 tw-h-16 tw-mx-auto tw-mb-3 tw-opacity-50"
+              />
+              <div className="tw-text-sm tw-text-muted">
+                Start a game to use Chessr
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={togglePlayerColor}>
-              <RefreshCw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.switch}
-            </Button>
-          </div>
-          <Button variant="ghost" size="sm" className="tw-w-full" onClick={redetectPlayerColor}>
-            <RotateCcw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.redetect}
-          </Button>
-        </Card>
-
-        {/* Analysis */}
-        <Card>
-          <div className="tw-grid tw-grid-cols-3 tw-gap-3">
-            <div className="tw-text-center">
-              <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.eval}</div>
-              <div className={cn('tw-text-lg tw-font-bold', evalColor)}>{evalValue}</div>
-            </div>
-            <div className="tw-text-center">
-              <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.centipawns}</div>
-              <div className={cn('tw-text-lg tw-font-bold', evalColor)}>
-                {analysis?.mate !== undefined
-                  ? `${t.analysis.mateIn} ${Math.abs(analysis.mate)}`
-                  : analysis?.evaluation !== undefined
-                    ? `${analysis.evaluation >= 0 ? '+' : ''}${Math.round(analysis.evaluation * 100)}`
-                    : '--'}
+          </Card>
+        ) : (
+          <>
+            {/* Player Color */}
+            <Card>
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
+                <div>
+                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.player.title}</div>
+                  <div className="tw-text-lg tw-font-bold">
+                    {boardConfig?.playerColor === 'white' ? t.player.white : t.player.black}
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={togglePlayerColor}>
+                  <RefreshCw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.switch}
+                </Button>
               </div>
-            </div>
-            <div className="tw-text-center">
-              <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.move}</div>
-              <div className="tw-text-lg tw-font-bold tw-text-primary">{analysis?.bestMove || '--'}</div>
-            </div>
-          </div>
-          {analysis?.depth && (
-            <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
-              {t.analysis.depth}: {analysis.depth}
-            </div>
-          )}
-        </Card>
+              <Button variant="ghost" size="sm" className="tw-w-full" onClick={redetectPlayerColor}>
+                <RotateCcw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.redetect}
+              </Button>
+            </Card>
 
-        {/* Opening Selector */}
-        <OpeningSelector />
+            {/* Analysis */}
+            <Card>
+              <div className="tw-grid tw-grid-cols-3 tw-gap-3">
+                <div className="tw-text-center">
+                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.eval}</div>
+                  <div className={cn('tw-text-lg tw-font-bold', evalColor)}>{evalValue}</div>
+                </div>
+                <div className="tw-text-center">
+                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.centipawns}</div>
+                  <div className={cn('tw-text-lg tw-font-bold', evalColor)}>
+                    {analysis?.mate !== undefined
+                      ? `${t.analysis.mateIn} ${Math.abs(analysis.mate)}`
+                      : analysis?.evaluation !== undefined
+                        ? `${analysis.evaluation >= 0 ? '+' : ''}${Math.round(analysis.evaluation * 100)}`
+                        : '--'}
+                  </div>
+                </div>
+                <div className="tw-text-center">
+                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.move}</div>
+                  <div className="tw-text-lg tw-font-bold tw-text-primary">{analysis?.bestMove || '--'}</div>
+                </div>
+              </div>
+              {analysis?.depth && (
+                <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
+                  {t.analysis.depth}: {analysis.depth}
+                </div>
+              )}
+            </Card>
+
+            {/* Opening Selector */}
+            <OpeningSelector />
 
         {/* ELO */}
         <Card>
@@ -314,6 +330,8 @@ export function Sidebar() {
             </Button>
           </div>
         </Accordion>
+          </>
+        )}
         </div>
       </div>
       )}

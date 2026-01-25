@@ -1,6 +1,8 @@
 import { parseBoardToFEN } from './position-parser';
+import { PlatformAdapter } from './platforms/types';
 
 export class MoveTracker {
+  private adapter: PlatformAdapter;
   private observer: MutationObserver | null = null;
   private boardElement: HTMLElement | null = null;
   private lastFEN = '';
@@ -11,6 +13,10 @@ export class MoveTracker {
   private moveCallbacks: ((move: string) => void)[] = [];
   private debounceTimer: number | null = null;
   private initialized = false;
+
+  constructor(adapter: PlatformAdapter) {
+    this.adapter = adapter;
+  }
 
   start(boardElement: HTMLElement, playerColor: 'white' | 'black' = 'white') {
     this.boardElement = boardElement;
@@ -117,32 +123,7 @@ export class MoveTracker {
   }
 
   private detectSideToMoveFromClock(): 'w' | 'b' {
-    // Find which clock is active (running)
-    const activeClock = document.querySelector('.clock-component.clock-player-turn');
-
-    if (activeClock) {
-      // Check if it's the bottom clock (player's clock) or top clock (opponent's clock)
-      const isPlayerClock = activeClock.classList.contains('clock-bottom');
-      const isOpponentClock = activeClock.classList.contains('clock-top');
-
-      // [MoveTracker] Active clock - isPlayer:', isPlayerClock, 'isOpponent:', isOpponentClock, 'playerColor:', this.playerColor);
-
-      if (isPlayerClock) {
-        // Active clock is player's clock = it's player's turn
-        const turn = this.playerColor === 'white' ? 'w' : 'b';
-        // [MoveTracker] Player clock active, turn:', turn);
-        return turn;
-      } else if (isOpponentClock) {
-        // Active clock is opponent's clock = it's opponent's turn
-        const turn = this.playerColor === 'white' ? 'b' : 'w';
-        // [MoveTracker] Opponent clock active, turn:', turn);
-        return turn;
-      }
-    }
-
-    // Fallback: return current side
-    // [MoveTracker] Fallback to current side:', this.currentSideToMove);
-    return this.currentSideToMove;
+    return this.adapter.detectSideToMoveFromClock(this.playerColor, this.currentSideToMove);
   }
 
   private detectMoveUCI(oldPos: Map<string, string>, newPos: Map<string, string>): string | null {
@@ -204,38 +185,8 @@ export class MoveTracker {
   }
 
   private getPiecePositions(): Map<string, string> {
-    const positions = new Map<string, string>();
-
-    // Find all piece elements on the board
-    let pieceElements: Element[] = [];
-
-    if (this.boardElement?.tagName.toLowerCase() === 'wc-chess-board') {
-      const shadowRoot = (this.boardElement as any).shadowRoot;
-      if (shadowRoot) {
-        pieceElements = Array.from(shadowRoot.querySelectorAll('.piece'));
-      }
-    }
-
-    if (pieceElements.length === 0) {
-      pieceElements = Array.from(document.querySelectorAll('.piece'));
-    }
-
-    pieceElements.forEach((el) => {
-      const classList = Array.from(el.classList);
-      const pieceClass = classList.find(c => /^[wb][prnbqk]$/.test(c));
-      const squareClass = classList.find(c => c.startsWith('square-'));
-
-      if (pieceClass && squareClass) {
-        const squareNum = parseInt(squareClass.replace('square-', ''));
-        const file = Math.floor(squareNum / 10) - 1;
-        const rank = (squareNum % 10) - 1;
-        const square = String.fromCharCode(97 + file) + (rank + 1);
-
-        positions.set(square, pieceClass); // e.g., 'e2' -> 'wp'
-      }
-    });
-
-    return positions;
+    if (!this.boardElement) return new Map();
+    return this.adapter.getPiecePositions(this.boardElement);
   }
 
   private positionsToString(positions: Map<string, string>): string {

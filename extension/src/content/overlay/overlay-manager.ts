@@ -1,12 +1,18 @@
+import { PlatformAdapter } from '../platforms/types';
+
 export class OverlayManager {
+  private adapter: PlatformAdapter | null = null;
   private svg: SVGSVGElement | null = null;
   private boardElement: HTMLElement | null = null;
   private isFlipped = false;
   private squareSize = 0;
 
-  initialize(boardElement: HTMLElement, isFlipped: boolean) {
+  initialize(boardElement: HTMLElement, isFlipped: boolean, adapter?: PlatformAdapter) {
     this.boardElement = boardElement;
     this.isFlipped = isFlipped;
+    if (adapter) {
+      this.adapter = adapter;
+    }
     this.createSVG();
     this.setupResizeObserver();
   }
@@ -18,35 +24,25 @@ export class OverlayManager {
     this.svg?.remove();
     document.querySelector('.chessr-overlay')?.remove();
 
-    // Find the actual playing area by locating a piece
+    // Use adapter if available, otherwise fall back to direct DOM queries
+    if (this.adapter) {
+      this.squareSize = this.adapter.getSquareSize(this.boardElement);
+      if (this.squareSize === 0) return;
+
+      const origin = this.adapter.getBoardOrigin(this.boardElement, this.squareSize, this.isFlipped);
+      this.createSVGElement(origin.x, origin.y);
+      return;
+    }
+
+    // Fallback: direct DOM queries (for backwards compatibility)
     const pieces = document.querySelectorAll('.piece');
     if (pieces.length === 0) return;
 
-    // Find bounds of all pieces to determine actual board area
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const boardRect = this.boardElement.getBoundingClientRect();
-
-    for (const piece of pieces) {
-      const rect = piece.getBoundingClientRect();
-      const x = rect.left - boardRect.left;
-      const y = rect.top - boardRect.top;
-      minX = Math.min(minX, x);
-      minY = Math.min(minY, y);
-      maxX = Math.max(maxX, x + rect.width);
-      maxY = Math.max(maxY, y + rect.height);
-    }
-
-    // Calculate square size from piece positions
     const firstPiece = pieces[0] as HTMLElement;
     const pieceRect = firstPiece.getBoundingClientRect();
-    this.squareSize = pieceRect.width;  // Pieces are square-sized
+    this.squareSize = pieceRect.width;
 
-    // Calculate board dimensions (8 squares)
-    const boardWidth = this.squareSize * 8;
-    const boardHeight = this.squareSize * 8;
-
-    // Find top-left corner of actual board
-    // Get position of a known piece to calculate origin
     let originX = 0, originY = 0;
     for (const piece of pieces) {
       const classList = Array.from(piece.classList);
@@ -54,14 +50,13 @@ export class OverlayManager {
       if (!squareClass) continue;
 
       const squareNum = parseInt(squareClass.replace('square-', ''));
-      const fileNum = Math.floor(squareNum / 10) - 1;  // tens digit = file (0-7)
-      const rankNum = (squareNum % 10) - 1;            // ones digit = rank (0-7)
+      const fileNum = Math.floor(squareNum / 10) - 1;
+      const rankNum = (squareNum % 10) - 1;
 
       const pRect = piece.getBoundingClientRect();
       const pieceX = pRect.left - boardRect.left;
       const pieceY = pRect.top - boardRect.top;
 
-      // Calculate origin based on this piece's position
       if (this.isFlipped) {
         originX = pieceX - (7 - fileNum) * this.squareSize;
         originY = pieceY - rankNum * this.squareSize;
@@ -72,6 +67,15 @@ export class OverlayManager {
 
       break;
     }
+
+    this.createSVGElement(originX, originY);
+  }
+
+  private createSVGElement(originX: number, originY: number) {
+    if (!this.boardElement) return;
+
+    const boardWidth = this.squareSize * 8;
+    const boardHeight = this.squareSize * 8;
 
     // Create SVG with board dimensions positioned at origin
     this.svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

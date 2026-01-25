@@ -59,6 +59,10 @@ interface AppState {
   sidebarOpen: boolean;
   toggleSidebar: () => void;
 
+  // Page state
+  isGamePage: boolean;
+  setIsGamePage: (isGamePage: boolean) => void;
+
   // Version check
   updateRequired: boolean;
   updateDismissed: boolean;
@@ -144,6 +148,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ sidebarOpen: newState });
     saveSidebarState(newState);
   },
+
+  // Page state
+  isGamePage: false,
+  setIsGamePage: (isGamePage) => set({ isGamePage }),
 
   // Version check
   updateRequired: false,
