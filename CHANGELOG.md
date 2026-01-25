@@ -2,6 +2,19 @@
 
 All notable changes to Chessr will be documented in this file.
 
+## [1.1.4] - 2026-01-25
+
+### Added
+- **Platform adapter pattern**: Refactored codebase to support multiple chess platforms (preparation for Lichess)
+- **SPA navigation support**: Extension now detects URL changes without requiring page refresh
+- **Daily games support**: Added support for Chess.com daily/correspondence games (`/game/daily/*`)
+- **Sidebar on all pages**: Sidebar now appears on all Chess.com pages with a "Start a game" message when not in a game
+
+### Changed
+- **Architecture**: Extracted Chess.com specific code into `ChesscomAdapter` class
+- **Board detection**: Moved board detection logic into platform adapters
+- **Move tracking**: Delegated piece position detection to platform adapters
+
 ## [1.1.1] - 2026-01-25
 
 ### Added
