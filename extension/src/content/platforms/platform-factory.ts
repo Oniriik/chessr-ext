@@ -1,5 +1,6 @@
 import { PlatformAdapter } from './types';
 import { ChesscomAdapter } from './chesscom-adapter';
+import { LichessAdapter } from './lichess-adapter';
 
 export function createPlatformAdapter(): PlatformAdapter | null {
   const hostname = window.location.hostname;
@@ -8,10 +9,9 @@ export function createPlatformAdapter(): PlatformAdapter | null {
     return new ChesscomAdapter();
   }
 
-  // Lichess adapter will be added here later
-  // if (hostname === 'lichess.org') {
-  //   return new LichessAdapter();
-  // }
+  if (hostname === 'lichess.org') {
+    return new LichessAdapter();
+  }
 
   return null;
 }

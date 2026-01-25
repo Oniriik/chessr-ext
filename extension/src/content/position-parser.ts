@@ -9,6 +9,24 @@ export function parseBoardToFEN(boardElement: HTMLElement, sideToMove: 'w' | 'b'
   return toFEN(pieces, sideToMove);
 }
 
+/**
+ * Generate FEN from a piece positions map (platform-agnostic).
+ * Map format: square -> piece class (e.g., 'e2' -> 'wp', 'e7' -> 'bp')
+ */
+export function positionsToFEN(positions: Map<string, string>, sideToMove: 'w' | 'b' = 'w'): string {
+  const pieces: PieceInfo[] = [];
+
+  for (const [square, pieceClass] of positions) {
+    if (pieceClass.length >= 2) {
+      const color = pieceClass[0] as 'w' | 'b';
+      const type = pieceClass[1];
+      pieces.push({ type, color, square });
+    }
+  }
+
+  return toFEN(pieces, sideToMove);
+}
+
 function parsePieces(boardElement: HTMLElement): PieceInfo[] {
   const pieces: PieceInfo[] = [];
   let pieceElements: NodeListOf<Element> | Element[] = [];

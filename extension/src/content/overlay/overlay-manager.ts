@@ -113,9 +113,23 @@ export class OverlayManager {
       <g id="highlights"></g>
     `;
 
-    // Attach SVG to board element
-    this.boardElement.style.position = 'relative';
-    this.boardElement.appendChild(this.svg);
+    // Find the appropriate container for the overlay
+    // For Lichess, use the parent cg-container which already has position:relative
+    // For Chess.com, use the board element itself
+    let overlayContainer = this.boardElement;
+
+    if (this.adapter?.platform === 'lichess') {
+      // Lichess: attach to cg-container parent (already has position:relative)
+      const cgContainer = this.boardElement.closest('cg-container');
+      if (cgContainer) {
+        overlayContainer = cgContainer as HTMLElement;
+      }
+    } else {
+      // Chess.com and fallback: ensure board has position:relative
+      this.boardElement.style.position = 'relative';
+    }
+
+    overlayContainer.appendChild(this.svg);
   }
 
   private setupResizeObserver() {

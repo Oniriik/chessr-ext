@@ -187,6 +187,7 @@ class Chessr {
   }
 
   private async onBoardDetected(config: BoardConfig) {
+    console.log('[Chessr] onBoardDetected called:', config);
     this.boardConfig = config;
     const store = useAppStore.getState();
     const openingStore = useOpeningStore.getState();
@@ -231,20 +232,33 @@ class Chessr {
 
 
   private onPositionChange(fen: string) {
+    console.log('[Chessr] onPositionChange called with FEN:', fen.substring(0, 50) + '...');
     const store = useAppStore.getState();
     const { settings, boardConfig } = store;
-    if (!settings.enabled) return;
-    if (!this.wsClient?.getConnectionStatus()) return;
+
+    if (!settings.enabled) {
+      console.log('[Chessr] Analysis disabled in settings');
+      return;
+    }
+    if (!this.wsClient?.getConnectionStatus()) {
+      console.log('[Chessr] WebSocket not connected');
+      return;
+    }
 
     // Use boardConfig from store (can be updated by user via UI)
     const currentBoardConfig = boardConfig || this.boardConfig;
-    if (!currentBoardConfig) return;
+    if (!currentBoardConfig) {
+      console.log('[Chessr] No board config');
+      return;
+    }
 
     const sideToMove = fen.split(' ')[1] as 'w' | 'b';
     const playerColor = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
+    console.log('[Chessr] sideToMove:', sideToMove, 'playerColor:', playerColor);
 
     // Only analyze when it's the player's turn
     if (sideToMove !== playerColor) {
+      console.log('[Chessr] Not player turn, skipping analysis');
       this.overlay.clearArrows();
       store.setAnalysis(null);
       return;
@@ -253,6 +267,7 @@ class Chessr {
     const effectiveElo = settings.eloRandomization
       ? settings.targetElo + this.currentEloOffset
       : settings.targetElo;
+    console.log('[Chessr] Sending analysis request with ELO:', effectiveElo);
     this.wsClient.analyze(fen, settings, effectiveElo);
   }
 

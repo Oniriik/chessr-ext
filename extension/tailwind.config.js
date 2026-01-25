@@ -3,6 +3,9 @@ module.exports = {
   prefix: 'tw-',
   content: ['./src/**/*.{ts,tsx}'],
   important: true,
+  corePlugins: {
+    preflight: false, // Disable Tailwind's reset styles to avoid breaking host page
+  },
   theme: {
     extend: {
       colors: {

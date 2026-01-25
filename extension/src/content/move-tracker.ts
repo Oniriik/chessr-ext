@@ -1,4 +1,4 @@
-import { parseBoardToFEN } from './position-parser';
+import { positionsToFEN } from './position-parser';
 import { PlatformAdapter } from './platforms/types';
 
 export class MoveTracker {
@@ -21,7 +21,7 @@ export class MoveTracker {
   start(boardElement: HTMLElement, playerColor: 'white' | 'black' = 'white') {
     this.boardElement = boardElement;
     this.playerColor = playerColor;
-    // [MoveTracker] Started with player color:', playerColor);
+    console.log('[Chessr:MoveTracker] start() called with playerColor:', playerColor, 'platform:', this.adapter.platform);
 
     this.observer = new MutationObserver(() => {
       this.onMutation();
@@ -30,19 +30,28 @@ export class MoveTracker {
     // Find the container to observe - pieces might be in a sibling container
     let observeTarget: HTMLElement = boardElement;
 
-    // Check for pieces container as sibling
-    const parent = boardElement.parentElement;
-    if (parent) {
-      const piecesContainer = parent.querySelector('.pieces');
-      if (piecesContainer) {
-        observeTarget = parent as HTMLElement;
+    // Platform-specific observation targets
+    if (this.adapter.platform === 'lichess') {
+      // Lichess: observe cg-container which contains cg-board with piece elements
+      const cgContainer = boardElement.closest('cg-container');
+      if (cgContainer) {
+        observeTarget = cgContainer as HTMLElement;
       }
-    }
+    } else {
+      // Chess.com: Check for pieces container as sibling
+      const parent = boardElement.parentElement;
+      if (parent) {
+        const piecesContainer = parent.querySelector('.pieces');
+        if (piecesContainer) {
+          observeTarget = parent as HTMLElement;
+        }
+      }
 
-    // Also check for board-layout ancestor
-    const boardLayout = boardElement.closest('.board-layout-main, .board-layout-component, [class*="board-layout"]');
-    if (boardLayout) {
-      observeTarget = boardLayout as HTMLElement;
+      // Also check for board-layout ancestor
+      const boardLayout = boardElement.closest('.board-layout-main, .board-layout-component, [class*="board-layout"]');
+      if (boardLayout) {
+        observeTarget = boardLayout as HTMLElement;
+      }
     }
 
     this.observer.observe(observeTarget, {
@@ -85,16 +94,22 @@ export class MoveTracker {
   }
 
   private checkForChange() {
-    if (!this.boardElement) return;
+    if (!this.boardElement) {
+      console.log('[Chessr:MoveTracker] checkForChange - no boardElement');
+      return;
+    }
 
     // Get current piece positions from the board
     const currentPositions = this.getPiecePositions();
     const currentPosString = this.positionsToString(currentPositions);
     const lastPosString = this.positionsToString(this.lastPiecePositions);
 
+    console.log('[Chessr:MoveTracker] checkForChange - positions count:', currentPositions.size);
+
     let detectedMove: string | null = null;
 
     if (!this.initialized) {
+      console.log('[Chessr:MoveTracker] initializing...');
       this.lastPiecePositions = currentPositions;
       this.currentSideToMove = this.detectSideToMoveFromClock();
       this.initialized = true;
@@ -109,9 +124,13 @@ export class MoveTracker {
       this.lastPiecePositions = currentPositions;
     }
 
-    const fen = parseBoardToFEN(this.boardElement, this.currentSideToMove);
+    const fen = positionsToFEN(currentPositions, this.currentSideToMove);
+    console.log('[Chessr:MoveTracker] FEN generated:', fen.substring(0, 50) + '...');
+    console.log('[Chessr:MoveTracker] lastFEN:', this.lastFEN.substring(0, 50) + '...');
+    console.log('[Chessr:MoveTracker] callbacks registered:', this.callbacks.length);
 
     if (fen !== this.lastFEN) {
+      console.log('[Chessr:MoveTracker] FEN changed! Calling', this.callbacks.length, 'callbacks');
       this.lastFEN = fen;
       this.callbacks.forEach(cb => cb(fen));
     }
@@ -224,7 +243,8 @@ export class MoveTracker {
     this.currentSideToMove = side;
     // Re-check with the new side
     if (this.boardElement) {
-      const fen = parseBoardToFEN(this.boardElement, this.currentSideToMove);
+      const positions = this.getPiecePositions();
+      const fen = positionsToFEN(positions, this.currentSideToMove);
       if (fen !== this.lastFEN) {
         this.lastFEN = fen;
         this.callbacks.forEach(cb => cb(fen));
