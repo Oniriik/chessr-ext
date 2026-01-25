@@ -23,6 +23,7 @@ export class WebSocketClient {
   private reconnectDelay = 1000;
   private isConnected = false;
   private versionErrorOccurred = false;
+  private authErrorOccurred = false;
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
@@ -63,6 +64,14 @@ export class WebSocketClient {
           console.log('[Chessr WS] Connection closed. Code:', event.code, 'Reason:', event.reason);
           this.isConnected = false;
           this.notifyConnection(false);
+
+          // Don't reconnect on auth errors (token expired/invalid)
+          if (event.code === 4001) {
+            console.log('[Chessr WS] Auth error - not reconnecting. Please re-login.');
+            this.authErrorOccurred = true;
+            return;
+          }
+
           this.scheduleReconnect();
         };
 
@@ -208,10 +217,20 @@ export class WebSocketClient {
     }
   }
 
+  resetAuthError() {
+    this.authErrorOccurred = false;
+  }
+
   private scheduleReconnect() {
     // Don't reconnect if version error occurred
     if (this.versionErrorOccurred) {
       console.log('[Chessr WS] Not reconnecting due to version error');
+      return;
+    }
+
+    // Don't reconnect if auth error occurred
+    if (this.authErrorOccurred) {
+      console.log('[Chessr WS] Not reconnecting due to auth error');
       return;
     }
 
