@@ -140,6 +140,10 @@ export interface Translations {
     passwordMismatch: string;
     passwordTooShort: string;
     accountCreated: string;
+    verifyYourEmail: string;
+    emailSentTo: string;
+    resendEmail: string;
+    emailResent: string;
     resetEmailSent: string;
   };
 }

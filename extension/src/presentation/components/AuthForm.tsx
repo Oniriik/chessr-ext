@@ -8,7 +8,7 @@ import { Card } from './ui/card';
 type AuthMode = 'login' | 'signup' | 'reset';
 
 export function AuthForm() {
-  const { signIn, signUp, resetPassword, loading, error, clearError } = useAuthStore();
+  const { signIn, signUp, resetPassword, resendConfirmationEmail, loading, error, clearError } = useAuthStore();
   const { t } = useTranslation();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -16,11 +16,16 @@ export function AuthForm() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmedEmail, setConfirmedEmail] = useState<string | null>(null);
+  const [needsEmailConfirmation, setNeedsEmailConfirmation] = useState(false);
+  const [resendingEmail, setResendingEmail] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
     setSuccessMessage(null);
+    setConfirmedEmail(null);
+    setNeedsEmailConfirmation(false);
     clearError();
 
     if (mode === 'signup' && password !== confirmPassword) {
@@ -34,11 +39,18 @@ export function AuthForm() {
     }
 
     if (mode === 'login') {
-      await signIn(email, password);
+      const result = await signIn(email, password);
+      // Check if error is about email not confirmed
+      if (!result.success && result.error?.toLowerCase().includes('email not confirmed')) {
+        setNeedsEmailConfirmation(true);
+        setConfirmedEmail(email);
+        clearError();
+      }
     } else if (mode === 'signup') {
       const result = await signUp(email, password);
       if (result.success) {
         setSuccessMessage(t.auth.accountCreated);
+        setConfirmedEmail(email);
       }
     } else if (mode === 'reset') {
       const result = await resetPassword(email);
@@ -48,10 +60,24 @@ export function AuthForm() {
     }
   };
 
+  const handleResendEmail = async () => {
+    if (!confirmedEmail || resendingEmail) return;
+    setResendingEmail(true);
+    const result = await resendConfirmationEmail(confirmedEmail);
+    setResendingEmail(false);
+    if (result.success) {
+      setNeedsEmailConfirmation(false);
+      setSuccessMessage(t.auth.emailResent);
+    }
+  };
+
   const switchMode = (newMode: AuthMode) => {
     setMode(newMode);
     setLocalError(null);
     setSuccessMessage(null);
+    setConfirmedEmail(null);
+    setNeedsEmailConfirmation(false);
+    setResendingEmail(false);
     clearError();
   };
 
@@ -131,16 +157,42 @@ export function AuthForm() {
           )}
 
           {/* Error message */}
-          {displayError && (
+          {displayError && !needsEmailConfirmation && (
             <div className="tw-bg-danger/20 tw-border tw-border-danger/50 tw-text-danger tw-text-xs tw-rounded-lg tw-p-2">
               {displayError}
             </div>
           )}
 
+          {/* Email confirmation needed */}
+          {needsEmailConfirmation && confirmedEmail && (
+            <div className="tw-bg-warning/20 tw-border tw-border-warning/50 tw-text-warning tw-text-xs tw-rounded-lg tw-p-3">
+              <div className="tw-font-semibold tw-mb-1">{t.auth.verifyYourEmail}</div>
+              <div className="tw-opacity-80">{t.auth.emailSentTo}</div>
+              <div className="tw-font-medium tw-mt-0.5 tw-mb-2">{confirmedEmail}</div>
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={resendingEmail}
+                className="tw-text-xs tw-text-primary hover:tw-underline tw-inline-flex tw-items-center tw-gap-1"
+              >
+                {resendingEmail && <Loader2 className="tw-w-3 tw-h-3 tw-animate-spin" />}
+                {t.auth.resendEmail}
+              </button>
+            </div>
+          )}
+
           {/* Success message */}
           {successMessage && (
-            <div className="tw-bg-success/20 tw-border tw-border-success/50 tw-text-success tw-text-xs tw-rounded-lg tw-p-2">
-              {successMessage}
+            <div className="tw-bg-success/20 tw-border tw-border-success/50 tw-text-success tw-text-xs tw-rounded-lg tw-p-3">
+              {confirmedEmail && !needsEmailConfirmation ? (
+                <>
+                  <div className="tw-font-semibold tw-mb-1">{t.auth.verifyYourEmail}</div>
+                  <div className="tw-text-success/80">{t.auth.emailSentTo}</div>
+                  <div className="tw-font-medium tw-mt-0.5">{confirmedEmail}</div>
+                </>
+              ) : (
+                successMessage
+              )}
             </div>
           )}
 

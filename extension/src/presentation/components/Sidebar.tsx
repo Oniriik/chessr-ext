@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Clock, Layers, RefreshCw, RotateCcw, LogOut,
 import { useAppStore } from '../store/app.store';
 import { useAuthStore } from '../store/auth.store';
 import { useTranslation } from '../../i18n';
+import { useIsRTL } from '../hooks/useIsRTL';
 import { cn } from '../lib/utils';
 import { Card, CardTitle } from './ui/card';
 import { Accordion } from './ui/accordion';
@@ -48,6 +49,7 @@ export function Sidebar() {
   const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, togglePlayerColor, redetectPlayerColor, eloOffset } = useAppStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
+  const isRTL = useIsRTL();
 
   // Wrapper to include userId for cloud sync
   const setSettings = (partial: Partial<typeof settings>) => {
@@ -112,21 +114,42 @@ export function Sidebar() {
     ? (analysis.mate > 0 ? 'tw-text-green-400' : 'tw-text-red-400')
     : (analysis?.evaluation ?? 0) >= 0 ? 'tw-text-green-400' : 'tw-text-red-400';
 
+  // RTL-aware styles
+  const OpenIcon = isRTL ? ChevronRight : ChevronLeft;
+  const CloseIcon = isRTL ? ChevronLeft : ChevronRight;
+  const shadowStyle = isRTL
+    ? { boxShadow: '8px 0 30px rgba(0, 0, 0, 0.5), 2px 0 10px rgba(59, 130, 246, 0.1)' }
+    : { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' };
+
   return (
-    <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none" style={sidebarOpen ? { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' } : undefined}>
-      {/* Toggle button - always visible on the left side */}
+    <div className={cn(
+      'tw-fixed tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none',
+      isRTL ? 'tw-left-0' : 'tw-right-0'
+    )}>
+      {/* Toggle button */}
       <Button
         variant="outline"
         size="icon"
         onClick={toggleSidebar}
-        className="tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-r-0 tw-border-border tw-h-auto"
+        className={cn(
+          'tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-border tw-h-auto tw-z-10',
+          isRTL
+            ? 'tw-rounded-r-lg tw-rounded-l-none tw-border-l-0 tw-order-2'
+            : 'tw-rounded-l-lg tw-rounded-r-none tw-border-r-0'
+        )}
       >
-        {sidebarOpen ? <ChevronRight className="tw-w-5 tw-h-5" /> : <ChevronLeft className="tw-w-5 tw-h-5" />}
+        {sidebarOpen ? <CloseIcon className="tw-w-5 tw-h-5" /> : <OpenIcon className="tw-w-5 tw-h-5" />}
       </Button>
 
       {/* Sidebar content - conditionally rendered */}
       {sidebarOpen && (
-        <div className="tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full">
+        <div
+          className={cn(
+            'tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full',
+            isRTL && 'tw-order-1'
+          )}
+          style={shadowStyle}
+        >
           {/* Header */}
           <div className="tw-p-4 tw-border-b tw-border-border">
             <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">

@@ -129,7 +129,11 @@ export const en: Translations = {
     backToLogin: 'Back to login',
     passwordMismatch: 'Passwords do not match',
     passwordTooShort: 'Password must be at least 6 characters',
-    accountCreated: 'Account created! Check your email to confirm.',
+    accountCreated: 'Account created!',
+    verifyYourEmail: 'Verify your email',
+    emailSentTo: 'An email has been sent to:',
+    resendEmail: 'Resend email',
+    emailResent: 'Email sent!',
     resetEmailSent: 'Reset email sent!',
   },
 };

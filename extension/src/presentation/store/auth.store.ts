@@ -10,7 +10,8 @@ interface AuthState {
   // User state
   user: User | null;
   session: Session | null;
-  loading: boolean;
+  initializing: boolean; // true only during initial auth check
+  loading: boolean; // true during actions (login, signup, etc.)
   error: string | null;
 
   // Actions
@@ -19,13 +20,15 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  resendConfirmationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
-  loading: true,
+  initializing: true,
+  loading: false,
   error: null,
 
   initialize: async () => {
@@ -39,12 +42,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const hasStoredSession = !!stored[storageKey];
 
       // Listen for auth changes first (important for session restoration)
-      supabase.auth.onAuthStateChange((_event, session) => {
-        set({
-          session,
-          user: session?.user ?? null,
-          loading: false,
-        });
+      supabase.auth.onAuthStateChange((event, session) => {
+        // Only update user/session on actual sign in/out events, not during signup
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          set({
+            session,
+            user: session?.user ?? null,
+          });
+        }
       });
 
       // Get current session
@@ -73,11 +78,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         session,
         user: session?.user ?? null,
-        loading: false,
+        initializing: false,
       });
 
     } catch {
-      set({ loading: false, error: 'Failed to initialize auth' });
+      set({ initializing: false, error: 'Failed to initialize auth' });
     }
   },
 
@@ -85,18 +90,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
       });
 
       if (error) throw error;
 
-      set({
-        user: data.user,
-        session: data.session,
-        loading: false,
-      });
+      // Don't set user/session - wait for email confirmation
+      set({ loading: false });
 
       return { success: true };
     } catch (error: any) {
@@ -150,7 +152,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://chessr.io/reset-password',
+      });
 
       if (error) throw error;
 
@@ -158,6 +162,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: true };
     } catch (error: any) {
       const message = error.message || 'Password reset failed';
+      set({ loading: false, error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  resendConfirmationEmail: async (email) => {
+    set({ loading: true, error: null });
+
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+      });
+
+      if (error) throw error;
+
+      set({ loading: false });
+      return { success: true };
+    } catch (error: any) {
+      const message = error.message || 'Failed to resend email';
       set({ loading: false, error: message });
       return { success: false, error: message };
     }

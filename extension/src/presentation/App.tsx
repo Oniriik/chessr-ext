@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { AuthForm } from './components/AuthForm';
 import { CounterOpeningPrompt } from './components/CounterOpeningPrompt';
@@ -6,13 +6,23 @@ import { CriticalUpdateModal } from './components/CriticalUpdateModal';
 import { UpdateRequiredView } from './components/UpdateRequiredView';
 import { useAppStore } from './store/app.store';
 import { useAuthStore } from './store/auth.store';
+import { useIsRTL } from './hooks/useIsRTL';
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './components/ui/button';
+import { cn } from './lib/utils';
 import './styles.css';
 
 export function App() {
   const { loadSettings, syncWithCloud, updateRequired, updateDismissed, sidebarOpen, toggleSidebar } = useAppStore();
-  const { user, loading, initialize } = useAuthStore();
+  const { user, initializing, initialize } = useAuthStore();
+  const isRTL = useIsRTL();
+
+  // RTL-aware styles
+  const OpenIcon = isRTL ? ChevronRight : ChevronLeft;
+  const CloseIcon = isRTL ? ChevronLeft : ChevronRight;
+  const shadowStyle = isRTL
+    ? { boxShadow: '8px 0 30px rgba(0, 0, 0, 0.5), 2px 0 10px rgba(59, 130, 246, 0.1)' }
+    : { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' };
 
   // Initialize auth on mount
   useEffect(() => {
@@ -21,7 +31,7 @@ export function App() {
 
   // Load and sync settings when auth state changes
   useEffect(() => {
-    if (!loading) {
+    if (!initializing) {
       if (user) {
         // User logged in - sync with cloud
         syncWithCloud(user.id);
@@ -30,7 +40,7 @@ export function App() {
         loadSettings();
       }
     }
-  }, [user, loading, loadSettings, syncWithCloud]);
+  }, [user, initializing, loadSettings, syncWithCloud]);
 
   // Show critical update modal if update is required and not dismissed
   if (updateRequired && !updateDismissed) {
@@ -43,22 +53,36 @@ export function App() {
   }
 
   // Show loading while auth is initializing
-  if (loading) {
+  if (initializing) {
     return (
-      <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none" style={sidebarOpen ? { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' } : undefined}>
+      <div className={cn(
+        'tw-fixed tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none',
+        isRTL ? 'tw-left-0' : 'tw-right-0'
+      )}>
         {/* Toggle button */}
         <Button
           variant="outline"
           size="icon"
           onClick={toggleSidebar}
-          className="tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-r-0 tw-border-border tw-h-auto"
+          className={cn(
+            'tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-border tw-h-auto tw-z-10',
+            isRTL
+              ? 'tw-rounded-r-lg tw-rounded-l-none tw-border-l-0 tw-order-2'
+              : 'tw-rounded-l-lg tw-rounded-r-none tw-border-r-0'
+          )}
         >
-          {sidebarOpen ? <ChevronRight className="tw-w-5 tw-h-5" /> : <ChevronLeft className="tw-w-5 tw-h-5" />}
+          {sidebarOpen ? <CloseIcon className="tw-w-5 tw-h-5" /> : <OpenIcon className="tw-w-5 tw-h-5" />}
         </Button>
 
         {/* Loading content */}
         {sidebarOpen && (
-          <div className="tw-w-72 tw-bg-background tw-flex tw-items-center tw-justify-center">
+          <div
+            className={cn(
+              'tw-w-72 tw-bg-background tw-flex tw-items-center tw-justify-center',
+              isRTL && 'tw-order-1'
+            )}
+            style={shadowStyle}
+          >
             <Loader2 className="tw-w-8 tw-h-8 tw-text-primary tw-animate-spin" />
           </div>
         )}
@@ -69,20 +93,34 @@ export function App() {
   // Show auth form if not logged in
   if (!user) {
     return (
-      <div className="tw-fixed tw-right-0 tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none" style={sidebarOpen ? { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' } : undefined}>
+      <div className={cn(
+        'tw-fixed tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none',
+        isRTL ? 'tw-left-0' : 'tw-right-0'
+      )}>
         {/* Toggle button */}
         <Button
           variant="outline"
           size="icon"
           onClick={toggleSidebar}
-          className="tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-rounded-l-lg tw-rounded-r-none tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-r-0 tw-border-border tw-h-auto"
+          className={cn(
+            'tw-self-start tw-mt-4 !tw-bg-card tw-text-foreground tw-p-3 tw-shadow-lg hover:!tw-bg-accent tw-border tw-border-border tw-h-auto tw-z-10',
+            isRTL
+              ? 'tw-rounded-r-lg tw-rounded-l-none tw-border-l-0 tw-order-2'
+              : 'tw-rounded-l-lg tw-rounded-r-none tw-border-r-0'
+          )}
         >
-          {sidebarOpen ? <ChevronRight className="tw-w-5 tw-h-5" /> : <ChevronLeft className="tw-w-5 tw-h-5" />}
+          {sidebarOpen ? <CloseIcon className="tw-w-5 tw-h-5" /> : <OpenIcon className="tw-w-5 tw-h-5" />}
         </Button>
 
         {/* Auth form content */}
         {sidebarOpen && (
-          <div className="tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full">
+          <div
+            className={cn(
+              'tw-w-72 tw-bg-background tw-text-foreground tw-flex tw-flex-col tw-h-full',
+              isRTL && 'tw-order-1'
+            )}
+            style={shadowStyle}
+          >
             <div className="tw-flex-1">
               <AuthForm />
             </div>

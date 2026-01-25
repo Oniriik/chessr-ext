@@ -129,7 +129,11 @@ export const fr: Translations = {
     backToLogin: 'Retour à la connexion',
     passwordMismatch: 'Les mots de passe ne correspondent pas',
     passwordTooShort: 'Le mot de passe doit contenir au moins 6 caractères',
-    accountCreated: 'Compte créé ! Vérifiez votre email pour confirmer.',
+    accountCreated: 'Compte créé !',
+    verifyYourEmail: 'Vérifiez votre email',
+    emailSentTo: 'Un email a été envoyé à :',
+    resendEmail: 'Renvoyer l\'email',
+    emailResent: 'Email envoyé !',
     resetEmailSent: 'Email de réinitialisation envoyé !',
   },
 };
