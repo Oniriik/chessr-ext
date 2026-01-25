@@ -51,6 +51,19 @@ export class Telemetry {
       },
     });
 
+    // Add error handling for the exporter
+    const originalExport = exporter.export.bind(exporter);
+    exporter.export = (metrics, resultCallback) => {
+      return originalExport(metrics, (result) => {
+        if (result.code !== 0) {
+          console.error('[Telemetry] Export failed:', result.error?.message || 'Unknown error');
+        } else {
+          console.log('[Telemetry] Metrics exported successfully');
+        }
+        resultCallback(result);
+      });
+    };
+
     const metricReader = new PeriodicExportingMetricReader({
       exporter,
       exportIntervalMillis: 60000, // Export every 60 seconds
