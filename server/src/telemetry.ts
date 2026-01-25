@@ -10,6 +10,7 @@ export class Telemetry {
   private meterProvider: MeterProvider | null = null;
   private connectionsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private disconnectionsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
+  private authenticationsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private suggestionsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private activeConnectionsGauge: ReturnType<ReturnType<typeof metrics.getMeter>['createUpDownCounter']> | null = null;
   private enabled = false;
@@ -93,6 +94,11 @@ export class Telemetry {
       valueType: ValueType.INT,
     });
 
+    this.authenticationsCounter = meter.createCounter('chessr_authentications_total', {
+      description: 'Total number of successful authentications',
+      valueType: ValueType.INT,
+    });
+
     this.activeConnectionsGauge = meter.createUpDownCounter('chessr_active_connections', {
       description: 'Number of active WebSocket connections',
       valueType: ValueType.INT,
@@ -105,19 +111,27 @@ export class Telemetry {
   /**
    * Record a new connection
    */
-  recordConnection(authenticated: boolean = false): void {
+  recordConnection(): void {
     if (!this.enabled) return;
-    this.connectionsCounter?.add(1, { authenticated: String(authenticated) });
+    this.connectionsCounter?.add(1);
     this.activeConnectionsGauge?.add(1);
   }
 
   /**
    * Record a disconnection
    */
-  recordDisconnection(authenticated: boolean = false): void {
+  recordDisconnection(): void {
     if (!this.enabled) return;
-    this.disconnectionsCounter?.add(1, { authenticated: String(authenticated) });
+    this.disconnectionsCounter?.add(1);
     this.activeConnectionsGauge?.add(-1);
+  }
+
+  /**
+   * Record a successful authentication
+   */
+  recordAuthentication(): void {
+    if (!this.enabled) return;
+    this.authenticationsCounter?.add(1);
   }
 
   /**

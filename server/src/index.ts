@@ -97,7 +97,7 @@ class ChessServer {
     });
 
     globalLogger.info('client_connected', { connectionId });
-    telemetry.recordConnection(false);
+    telemetry.recordConnection();
     this.send(ws, {
       type: 'ready',
       version: {
@@ -114,7 +114,7 @@ class ChessServer {
         connectionId: userInfo?.id,
         user: userInfo?.email,
       });
-      telemetry.recordDisconnection(userInfo?.authenticated || false);
+      telemetry.recordDisconnection();
       this.clients.delete(ws);
     });
 
@@ -253,6 +253,7 @@ class ChessServer {
       });
 
       logger.info('auth_success', userInfo.email, { userId: userInfo.id });
+      telemetry.recordAuthentication();
 
       this.send(ws, {
         type: 'auth_success',
