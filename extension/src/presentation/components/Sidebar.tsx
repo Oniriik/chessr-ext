@@ -76,6 +76,17 @@ export function Sidebar() {
   const [localElo, setLocalElo] = useState(settings.targetElo);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Store last complete analysis (with bestMove) to keep eval visible during processing
+  const lastCompleteAnalysisRef = useRef(analysis);
+  useEffect(() => {
+    if (analysis?.bestMove) {
+      lastCompleteAnalysisRef.current = analysis;
+    }
+  }, [analysis]);
+
+  // Use last complete analysis for eval display, current for move
+  const displayAnalysis = lastCompleteAnalysisRef.current;
+
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -104,15 +115,22 @@ export function Sidebar() {
 
   const effectiveElo = settings.eloRandomization ? localElo + eloOffset : localElo;
 
-  const evalValue = analysis?.mate !== undefined
-    ? `M${Math.abs(analysis.mate)}`
-    : analysis?.evaluation !== undefined
-      ? (analysis.evaluation >= 0 ? '+' : '') + analysis.evaluation.toFixed(1)
+  // Use displayAnalysis for eval (persists during processing), analysis for move
+  const evalValue = displayAnalysis?.mate !== undefined
+    ? `M${Math.abs(displayAnalysis.mate)}`
+    : displayAnalysis?.evaluation !== undefined
+      ? (displayAnalysis.evaluation >= 0 ? '+' : '') + displayAnalysis.evaluation.toFixed(1)
       : '--';
 
-  const evalColor = analysis?.mate !== undefined
-    ? (analysis.mate > 0 ? 'tw-text-green-400' : 'tw-text-red-400')
-    : (analysis?.evaluation ?? 0) >= 0 ? 'tw-text-green-400' : 'tw-text-red-400';
+  const evalColor = displayAnalysis?.mate !== undefined
+    ? (displayAnalysis.mate > 0 ? 'tw-text-green-400' : 'tw-text-red-400')
+    : (displayAnalysis?.evaluation ?? 0) >= 0 ? 'tw-text-green-400' : 'tw-text-red-400';
+
+  const centipawnsValue = displayAnalysis?.mate !== undefined
+    ? `M${Math.abs(displayAnalysis.mate)}`
+    : displayAnalysis?.evaluation !== undefined
+      ? `${displayAnalysis.evaluation >= 0 ? '+' : ''}${Math.round(displayAnalysis.evaluation * 100)}`
+      : '--';
 
   // RTL-aware styles
   const OpenIcon = isRTL ? ChevronRight : ChevronLeft;
@@ -227,22 +245,16 @@ export function Sidebar() {
                 </div>
                 <div className="tw-text-center">
                   <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.centipawns}</div>
-                  <div className={cn('tw-text-lg tw-font-bold', evalColor)}>
-                    {analysis?.mate !== undefined
-                      ? `M${Math.abs(analysis.mate)}`
-                      : analysis?.evaluation !== undefined
-                        ? `${analysis.evaluation >= 0 ? '+' : ''}${Math.round(analysis.evaluation * 100)}`
-                        : '--'}
-                  </div>
+                  <div className={cn('tw-text-lg tw-font-bold', evalColor)}>{centipawnsValue}</div>
                 </div>
                 <div className="tw-text-center">
                   <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.move}</div>
                   <div className="tw-text-lg tw-font-bold tw-text-primary">{analysis?.bestMove || '--'}</div>
                 </div>
               </div>
-              {analysis?.depth && (
+              {displayAnalysis?.depth && (
                 <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
-                  {t.analysis.depth}: {analysis.depth}
+                  {t.analysis.depth}: {displayAnalysis.depth}
                 </div>
               )}
             </Card>
