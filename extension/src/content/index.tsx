@@ -13,11 +13,28 @@ import { OpeningTracker } from './openings/opening-tracker';
 import { AnalysisResult, BoardConfig, Settings } from '../shared/types';
 import { isUpdateRequired } from '../shared/version';
 
-// Pages where analysis should be disabled
+// Pages where the extension should be active
+function isAllowedPage(): boolean {
+  const path = window.location.pathname;
+  // Only allow on game pages and play/computer
+  return /^\/game\/\d+/.test(path) || path === '/play/computer';
+}
+
+// Pages where analysis should be disabled (within allowed pages)
 function isAnalysisDisabledPage(): boolean {
   const url = window.location.href;
   // Disable on review pages and analysis pages
   return url.includes('/review') || url.includes('/analysis');
+}
+
+// Convert WebSocket URL to HTTP URL for version endpoint
+function getHttpVersionUrl(wsUrl: string): string {
+  const httpUrl = wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
+  // Use port 3001 for HTTP endpoints (metrics server)
+  const url = new URL(httpUrl);
+  url.port = '3001';
+  url.pathname = '/version';
+  return url.toString();
 }
 
 class Chessr {
@@ -33,24 +50,35 @@ class Chessr {
   private versionCheckPassed = false;
 
   async init() {
+    const store = useAppStore.getState();
+    await store.loadSettings();
+
+    // Always check version via HTTP (lightweight, no WebSocket connection)
+    const versionOk = await this.checkVersionViaHttp();
+    if (!versionOk) {
+      // Version check failed - show update modal if on allowed page
+      if (isAllowedPage()) {
+        this.mountReactApp();
+      }
+      return;
+    }
+
+    // Only run full initialization on allowed pages
+    if (!isAllowedPage()) {
+      return;
+    }
+
     // Check if we're on a page where analysis should be disabled
     this.analysisDisabled = isAnalysisDisabledPage();
     if (this.analysisDisabled) {
-      return; // Don't initialize anything on these pages
+      return;
     }
 
     this.setupOpeningCallbacks();
     this.mountReactApp();
 
-    const store = useAppStore.getState();
-    await store.loadSettings();
-
-    // Connect to server and check version FIRST before any detection
-    const versionOk = await this.connectAndCheckVersion();
-    if (!versionOk) {
-      // Version check failed - don't start detection, modal will be shown
-      return;
-    }
+    // Connect to WebSocket for analysis (only on allowed pages)
+    await this.connectToWebSocket();
 
     this.versionCheckPassed = true;
     waitForBoard((config) => this.onBoardDetected(config));
@@ -114,55 +142,53 @@ class Chessr {
     root.render(<App />);
   }
 
-  private async connectAndCheckVersion(): Promise<boolean> {
+  private async checkVersionViaHttp(): Promise<boolean> {
+    const store = useAppStore.getState();
+    const versionUrl = getHttpVersionUrl(store.settings.serverUrl);
+
+    try {
+      const response = await fetch(versionUrl, { signal: AbortSignal.timeout(5000) });
+      if (!response.ok) {
+        return true; // Server error - allow to proceed
+      }
+
+      const versionInfo = await response.json();
+      if (isUpdateRequired(versionInfo.minVersion)) {
+        store.setUpdateRequired(true, versionInfo.minVersion, versionInfo.downloadUrl);
+        return false; // Version check failed
+      }
+
+      return true; // Version OK
+    } catch {
+      // Network error or timeout - allow to proceed
+      return true;
+    }
+  }
+
+  private async connectToWebSocket(): Promise<void> {
     const store = useAppStore.getState();
     this.wsClient = new WebSocketClient(store.settings.serverUrl);
 
-    return new Promise((resolve) => {
-      let resolved = false;
+    // Set up message handler for analysis results
+    this.wsClient.onMessage((message) => {
+      if (message.type === 'result') {
+        this.onAnalysisResult(message as AnalysisResult);
+      }
+    });
 
-      // Handle version info from server
-      this.wsClient.onVersionInfo((versionInfo) => {
-        if (resolved) return;
+    // Set up connection status handler
+    this.wsClient.onConnectionChange((connected) => {
+      useAppStore.getState().setConnected(connected);
+    });
 
-        if (isUpdateRequired(versionInfo.minVersion)) {
-          store.setUpdateRequired(true, versionInfo.minVersion, versionInfo.downloadUrl);
-          resolved = true;
-          resolve(false); // Version check failed
-        } else {
-          resolved = true;
-          resolve(true); // Version OK
-        }
-      });
+    // Set up version error handler (server-side version check)
+    this.wsClient.onVersionError((versionInfo) => {
+      useAppStore.getState().setUpdateRequired(true, versionInfo.minVersion, versionInfo.downloadUrl);
+    });
 
-      // Set up message handler for analysis results
-      this.wsClient.onMessage((message) => {
-        if (message.type === 'result') {
-          this.onAnalysisResult(message as AnalysisResult);
-        }
-      });
-
-      // Set up connection status handler
-      this.wsClient.onConnectionChange((connected) => {
-        useAppStore.getState().setConnected(connected);
-      });
-
-      // Connect to server
-      this.wsClient.connect().catch(() => {
-        // Server not connected - allow to proceed (will retry later)
-        if (!resolved) {
-          resolved = true;
-          resolve(true);
-        }
-      });
-
-      // Timeout after 5 seconds - if no version info, proceed anyway
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          resolve(true);
-        }
-      }, 5000);
+    // Connect to server
+    this.wsClient.connect().catch(() => {
+      // Server not connected - will retry via reconnection logic
     });
   }
 

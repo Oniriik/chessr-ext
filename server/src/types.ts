@@ -12,6 +12,7 @@ export interface AnalyzeRequest {
 export interface AuthMessage {
   type: 'auth';
   token: string;  // Supabase JWT
+  version?: string;  // Client extension version
 }
 
 export type ClientMessage = AnalyzeRequest | AuthMessage;
@@ -54,6 +55,12 @@ export interface ErrorMessage {
   message: string;
 }
 
+export interface VersionErrorMessage {
+  type: 'version_error';
+  minVersion: string;
+  downloadUrl?: string;
+}
+
 export interface AuthSuccessMessage {
   type: 'auth_success';
   user: {
@@ -62,7 +69,7 @@ export interface AuthSuccessMessage {
   };
 }
 
-export type ServerMessage = AnalysisResult | InfoUpdate | ReadyMessage | ErrorMessage | AuthSuccessMessage;
+export type ServerMessage = AnalysisResult | InfoUpdate | ReadyMessage | ErrorMessage | VersionErrorMessage | AuthSuccessMessage;
 
 // User tracking
 export interface UserInfo {

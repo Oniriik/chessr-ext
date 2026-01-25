@@ -5,7 +5,7 @@ import { ClientMessage, ServerMessage, UserInfo } from './types.js';
 import { validateSupabaseToken } from './auth.js';
 import { MetricsCollector } from './metrics.js';
 import { Logger, globalLogger } from './logger.js';
-import { versionConfig } from './version-config.js';
+import { versionConfig, isVersionOutdated } from './version-config.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -69,6 +69,12 @@ class ChessServer {
         const metrics = this.metrics.getMetrics();
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(metrics, null, 2));
+      } else if (req.url === '/version' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          minVersion: versionConfig.minVersion,
+          downloadUrl: versionConfig.downloadUrl,
+        }));
       } else {
         res.writeHead(404);
         res.end('Not found');
@@ -216,6 +222,18 @@ class ChessServer {
     logger: Logger
   ) {
     const clientInfo = this.getClientInfo(ws);
+
+    // Check version if provided
+    if (message.version && isVersionOutdated(message.version)) {
+      logger.info('version_outdated', clientInfo.email, { clientVersion: message.version, minVersion: versionConfig.minVersion });
+      this.send(ws, {
+        type: 'version_error',
+        minVersion: versionConfig.minVersion,
+        downloadUrl: versionConfig.downloadUrl,
+      });
+      ws.close(4002, 'Version outdated');
+      return;
+    }
 
     logger.info('auth_request', clientInfo.email);
 

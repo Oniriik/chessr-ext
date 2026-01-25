@@ -1,4 +1,5 @@
 import { AnalysisResult, InfoUpdate, Settings } from '../shared/types';
+import { getCurrentVersion } from '../shared/version';
 
 export interface VersionInfo {
   minVersion: string;
@@ -8,6 +9,7 @@ export interface VersionInfo {
 type MessageHandler = (message: AnalysisResult | InfoUpdate) => void;
 type ConnectionHandler = (connected: boolean) => void;
 type VersionHandler = (version: VersionInfo) => void;
+type VersionErrorHandler = (version: VersionInfo) => void;
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
@@ -15,10 +17,12 @@ export class WebSocketClient {
   private messageHandlers: MessageHandler[] = [];
   private connectionHandlers: ConnectionHandler[] = [];
   private versionHandlers: VersionHandler[] = [];
+  private versionErrorHandlers: VersionErrorHandler[] = [];
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   private isConnected = false;
+  private versionErrorOccurred = false;
 
   constructor(serverUrl: string) {
     this.serverUrl = serverUrl;
@@ -122,6 +126,10 @@ export class WebSocketClient {
     this.versionHandlers.push(handler);
   }
 
+  onVersionError(handler: VersionErrorHandler) {
+    this.versionErrorHandlers.push(handler);
+  }
+
   getConnectionStatus(): boolean {
     return this.isConnected;
   }
@@ -145,6 +153,13 @@ export class WebSocketClient {
       this.messageHandlers.forEach(handler => handler(message));
     } else if (message.type === 'auth_success') {
       console.log('[Chessr WS] Authentication successful:', message.user?.email);
+    } else if (message.type === 'version_error') {
+      console.log('[Chessr WS] Version error - update required:', message.minVersion);
+      this.versionErrorOccurred = true;
+      this.versionErrorHandlers.forEach(handler => handler({
+        minVersion: message.minVersion,
+        downloadUrl: message.downloadUrl,
+      }));
     } else if (message.type === 'error') {
       console.error('Chessr: Server error:', message.message);
     } else {
@@ -161,20 +176,32 @@ export class WebSocketClient {
       // Get Supabase session from Chrome storage
       const result = await chrome.storage.local.get('chessr-auth');
       const authData = result['chessr-auth'];
+      const version = getCurrentVersion();
 
       if (authData) {
         const session = JSON.parse(authData);
         if (session.access_token) {
-          console.log('[Chessr WS] Sending auth token');
+          console.log('[Chessr WS] Sending auth token with version:', version);
           this.send({
             type: 'auth',
             token: session.access_token,
+            version,
           });
         } else {
-          console.log('[Chessr WS] No access token found in session');
+          console.log('[Chessr WS] No access token found in session, sending version only');
+          this.send({
+            type: 'auth',
+            token: '',
+            version,
+          });
         }
       } else {
-        console.log('[Chessr WS] No auth data found (user not logged in)');
+        console.log('[Chessr WS] No auth data found, sending version only');
+        this.send({
+          type: 'auth',
+          token: '',
+          version,
+        });
       }
     } catch (err) {
       console.error('[Chessr WS] Failed to send auth token:', err);
@@ -182,6 +209,12 @@ export class WebSocketClient {
   }
 
   private scheduleReconnect() {
+    // Don't reconnect if version error occurred
+    if (this.versionErrorOccurred) {
+      console.log('[Chessr WS] Not reconnecting due to version error');
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       return;
     }
