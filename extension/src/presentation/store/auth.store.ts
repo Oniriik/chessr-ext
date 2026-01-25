@@ -93,6 +93,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: 'https://chessr.io/email-confirmed',
+        },
       });
 
       if (error) throw error;
