@@ -15,7 +15,7 @@ export const en: Translations = {
 
   analysis: {
     eval: 'Eval',
-    centipawns: 'CP',
+    centipawns: 'Centipawns',
     move: 'Move',
     mateIn: 'Mate in',
     depth: 'Depth',

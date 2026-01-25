@@ -105,7 +105,7 @@ export function Sidebar() {
   const effectiveElo = settings.eloRandomization ? localElo + eloOffset : localElo;
 
   const evalValue = analysis?.mate !== undefined
-    ? `${t.analysis.mateIn} ${Math.abs(analysis.mate)}`
+    ? `M${Math.abs(analysis.mate)}`
     : analysis?.evaluation !== undefined
       ? (analysis.evaluation >= 0 ? '+' : '') + analysis.evaluation.toFixed(1)
       : '--';
@@ -220,23 +220,23 @@ export function Sidebar() {
 
             {/* Analysis */}
             <Card>
-              <div className="tw-grid tw-grid-cols-3 tw-gap-3">
+              <div className="tw-grid tw-grid-cols-3 tw-gap-2">
                 <div className="tw-text-center">
-                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.eval}</div>
+                  <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.eval}</div>
                   <div className={cn('tw-text-lg tw-font-bold', evalColor)}>{evalValue}</div>
                 </div>
                 <div className="tw-text-center">
-                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.centipawns}</div>
+                  <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.centipawns}</div>
                   <div className={cn('tw-text-lg tw-font-bold', evalColor)}>
                     {analysis?.mate !== undefined
-                      ? `${t.analysis.mateIn} ${Math.abs(analysis.mate)}`
+                      ? `M${Math.abs(analysis.mate)}`
                       : analysis?.evaluation !== undefined
                         ? `${analysis.evaluation >= 0 ? '+' : ''}${Math.round(analysis.evaluation * 100)}`
                         : '--'}
                   </div>
                 </div>
                 <div className="tw-text-center">
-                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.analysis.move}</div>
+                  <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.move}</div>
                   <div className="tw-text-lg tw-font-bold tw-text-primary">{analysis?.bestMove || '--'}</div>
                 </div>
               </div>
