@@ -8,3 +8,9 @@ extension/chessr-*/
 extension/*.zip
 extension/*.crx
 extension/key.pem
+
+# Environment files
+.env
+.env.*
+*.env
+!.env.example

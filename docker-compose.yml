@@ -14,6 +14,9 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
+      - GRAFANA_INSTANCE_ID=${GRAFANA_INSTANCE_ID}
+      - GRAFANA_API_KEY=${GRAFANA_API_KEY}
+      - GRAFANA_REMOTE_WRITE_URL=${GRAFANA_REMOTE_WRITE_URL}
     # Limites de ressources
     deploy:
       resources:

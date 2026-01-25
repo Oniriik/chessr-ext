@@ -6,6 +6,7 @@ import { validateSupabaseToken } from './auth.js';
 import { MetricsCollector } from './metrics.js';
 import { Logger, globalLogger } from './logger.js';
 import { versionConfig, isVersionOutdated } from './version-config.js';
+import { telemetry } from './telemetry.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -38,6 +39,7 @@ class ChessServer {
   private async init(port: number) {
     try {
       await this.pool.init();
+      telemetry.init();
       globalLogger.info('server_started', {
         wsPort: port,
         metricsPort: METRICS_PORT,
@@ -95,6 +97,7 @@ class ChessServer {
     });
 
     globalLogger.info('client_connected', { connectionId });
+    telemetry.recordConnection(false);
     this.send(ws, {
       type: 'ready',
       version: {
@@ -111,6 +114,7 @@ class ChessServer {
         connectionId: userInfo?.id,
         user: userInfo?.email,
       });
+      telemetry.recordDisconnection(userInfo?.authenticated || false);
       this.clients.delete(ws);
     });
 
@@ -206,6 +210,7 @@ class ChessServer {
       });
 
       this.metrics.incrementSuggestions(result.lines.length);
+      telemetry.recordSuggestion(result.depth);
       this.send(ws, result);
     } catch (err) {
       logger.error('analysis_error', clientInfo.email, err instanceof Error ? err : String(err));
