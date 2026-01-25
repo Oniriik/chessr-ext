@@ -98,6 +98,13 @@ class Chessr {
           this.onPositionChange(currentFEN);
         }
       }
+      // Re-analyze when user requests it via button
+      if (state.reanalyzeCount !== prevState.reanalyzeCount) {
+        const currentFEN = this.moveTracker.getCurrentFEN();
+        if (currentFEN) {
+          this.onPositionChange(currentFEN);
+        }
+      }
     });
   }
 

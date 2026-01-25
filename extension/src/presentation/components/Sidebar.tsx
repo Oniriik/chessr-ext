@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Clock, Layers, RefreshCw, RotateCcw, LogOut, Settings2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Layers, RotateCcw, LogOut, Settings2, Zap } from 'lucide-react';
 import { useAppStore } from '../store/app.store';
 import { useAuthStore } from '../store/auth.store';
 import { useTranslation } from '../../i18n';
@@ -46,7 +46,7 @@ function uciToChesscom(uciElo: number): number {
 }
 
 export function Sidebar() {
-  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, togglePlayerColor, redetectPlayerColor, eloOffset, isGamePage } = useAppStore();
+  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestReanalyze, eloOffset, isGamePage } = useAppStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -209,12 +209,12 @@ export function Sidebar() {
                     {boardConfig?.playerColor === 'white' ? t.player.white : t.player.black}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={togglePlayerColor}>
-                  <RefreshCw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.switch}
+                <Button variant="outline" size="sm" onClick={redetectPlayerColor}>
+                  <RotateCcw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.redetect}
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" className="tw-w-full" onClick={redetectPlayerColor}>
-                <RotateCcw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.redetect}
+              <Button variant="ghost" size="sm" className="tw-w-full" onClick={requestReanalyze}>
+                <Zap className="tw-w-4 tw-h-4 tw-mr-1" /> {t.analysis.reanalyze}
               </Button>
             </Card>
 

@@ -20,6 +20,7 @@ export interface Translations {
     move: string;
     mateIn: string;
     depth: string;
+    reanalyze: string;
   };
 
   // ELO

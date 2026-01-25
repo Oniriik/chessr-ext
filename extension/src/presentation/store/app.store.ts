@@ -63,6 +63,10 @@ interface AppState {
   isGamePage: boolean;
   setIsGamePage: (isGamePage: boolean) => void;
 
+  // Re-analyze trigger
+  reanalyzeCount: number;
+  requestReanalyze: () => void;
+
   // Version check
   updateRequired: boolean;
   updateDismissed: boolean;
@@ -152,6 +156,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Page state
   isGamePage: false,
   setIsGamePage: (isGamePage) => set({ isGamePage }),
+
+  // Re-analyze trigger
+  reanalyzeCount: 0,
+  requestReanalyze: () => set((state) => ({ reanalyzeCount: state.reanalyzeCount + 1 })),
 
   // Version check
   updateRequired: false,
