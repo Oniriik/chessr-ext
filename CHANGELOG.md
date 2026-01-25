@@ -5,15 +5,24 @@ All notable changes to Chessr will be documented in this file.
 ## [1.1.4] - 2026-01-25
 
 ### Added
-- **Platform adapter pattern**: Refactored codebase to support multiple chess platforms (preparation for Lichess)
+- **Lichess support**: Full support for Lichess.org live games
+  - Player color detection via board orientation classes
+  - Turn detection for both timed and correspondence games
+  - Piece position parsing via CSS transforms
+  - Arrow overlay rendering on Lichess board
+- **Platform adapter pattern**: Refactored codebase to support multiple chess platforms
 - **SPA navigation support**: Extension now detects URL changes without requiring page refresh
 - **Daily games support**: Added support for Chess.com daily/correspondence games (`/game/daily/*`)
-- **Sidebar on all pages**: Sidebar now appears on all Chess.com pages with a "Start a game" message when not in a game
+- **Sidebar on all pages**: Sidebar now appears on all supported pages with a "Start a game" message when not in a game
 
 ### Changed
-- **Architecture**: Extracted Chess.com specific code into `ChesscomAdapter` class
+- **Architecture**: Extracted platform-specific code into adapter classes (`ChesscomAdapter`, `LichessAdapter`)
 - **Board detection**: Moved board detection logic into platform adapters
 - **Move tracking**: Delegated piece position detection to platform adapters
+- **Tailwind CSS**: Disabled preflight to prevent breaking host page styles
+
+### Fixed
+- Fixed icons and buttons appearing gray after disabling Tailwind preflight (added base styles for `#chessr-root`)
 
 ## [1.1.1] - 2026-01-25
 
