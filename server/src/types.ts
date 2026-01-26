@@ -92,6 +92,7 @@ export interface MetricsResponse {
     id: string;
     email: string;
     connectedAt: string;
+    connections?: number;  // Number of active connections for this user
   }>;
   suggestionsCount: number;
   serverUptime: number;

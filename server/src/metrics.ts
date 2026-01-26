@@ -81,18 +81,41 @@ export class MetricsCollector {
     const allUsers = Array.from(this.clients.values());
     const authenticatedUsers = allUsers.filter(u => u.authenticated);
 
+    // Count unique users by email
+    const uniqueEmails = new Set(authenticatedUsers.map(u => u.email));
+
+    // Group connections by email for the user list
+    const usersByEmail = new Map<string, { email: string; connections: number; firstConnectedAt: string }>();
+    for (const user of authenticatedUsers) {
+      const existing = usersByEmail.get(user.email);
+      if (existing) {
+        existing.connections++;
+        // Keep the earliest connection time
+        if (user.connectedAt < existing.firstConnectedAt) {
+          existing.firstConnectedAt = user.connectedAt;
+        }
+      } else {
+        usersByEmail.set(user.email, {
+          email: user.email,
+          connections: 1,
+          firstConnectedAt: user.connectedAt,
+        });
+      }
+    }
+
     return {
       connectedClients: this.clients.size,
-      authenticatedUsers: authenticatedUsers.length,
+      authenticatedUsers: uniqueEmails.size,
       stockfishPool: {
         total: this.pool.getPoolSize(),
         available: this.pool.getAvailableCount(),
         queued: this.pool.getQueueLength(),
       },
-      users: authenticatedUsers.map(u => ({
-        id: u.id,
+      users: Array.from(usersByEmail.values()).map(u => ({
+        id: u.email, // Use email as ID for unique users
         email: u.email,
-        connectedAt: u.connectedAt,
+        connectedAt: u.firstConnectedAt,
+        connections: u.connections,
       })),
       suggestionsCount: this.suggestionsCount,
       serverUptime: Date.now() - this.serverStartTime,

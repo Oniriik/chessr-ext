@@ -18,6 +18,7 @@ interface Metrics {
     id: string
     email: string
     connectedAt: string
+    connections?: number
   }>
   suggestionsCount: number
   serverUptime: number
@@ -219,7 +220,14 @@ export default function MetricsPanel() {
             <div className="space-y-2">
               {metrics.users.map((user) => (
                 <div key={user.id} className="flex justify-between items-center text-sm border-b border-border pb-2 last:border-0">
-                  <span className="font-medium">{user.email}</span>
+                  <span className="font-medium">
+                    {user.email}
+                    {user.connections && user.connections > 1 && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        ({user.connections} connections)
+                      </span>
+                    )}
+                  </span>
                   <span className="text-muted-foreground text-xs">
                     Connected: {new Date(user.connectedAt).toLocaleTimeString()}
                   </span>

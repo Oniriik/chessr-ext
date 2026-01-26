@@ -115,7 +115,17 @@ class ChessServer {
         user: userInfo?.email,
       });
       telemetry.recordDisconnection();
-      this.clients.delete(ws);
+
+      // Check if this authenticated user has other connections before removing
+      if (userInfo?.authenticated && userInfo.email !== 'anonymous') {
+        this.clients.delete(ws);
+        const hasMoreConnections = Array.from(this.clients.values()).some(
+          u => u.authenticated && u.email === userInfo.email
+        );
+        telemetry.recordAuthenticatedDisconnect(userInfo.email, hasMoreConnections);
+      } else {
+        this.clients.delete(ws);
+      }
     });
 
     ws.on('error', (err) => {
@@ -253,7 +263,7 @@ class ChessServer {
       });
 
       logger.info('auth_success', userInfo.email, { userId: userInfo.id });
-      telemetry.recordAuthentication();
+      telemetry.recordAuthentication(userInfo.email);
 
       this.send(ws, {
         type: 'auth_success',

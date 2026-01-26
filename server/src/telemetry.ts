@@ -13,6 +13,8 @@ export class Telemetry {
   private authenticationsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private suggestionsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private activeConnectionsGauge: ReturnType<ReturnType<typeof metrics.getMeter>['createUpDownCounter']> | null = null;
+  private authenticatedUsersGauge: ReturnType<ReturnType<typeof metrics.getMeter>['createUpDownCounter']> | null = null;
+  private authenticatedEmails = new Set<string>();
   private enabled = false;
 
   private constructor() {}
@@ -90,6 +92,11 @@ export class Telemetry {
       valueType: ValueType.INT,
     });
 
+    this.authenticatedUsersGauge = meter.createUpDownCounter('chessr_authenticated_users', {
+      description: 'Number of unique authenticated users',
+      valueType: ValueType.INT,
+    });
+
     this.enabled = true;
   }
 
@@ -113,10 +120,32 @@ export class Telemetry {
 
   /**
    * Record a successful authentication
+   * @param email - User email to track unique users
    */
-  recordAuthentication(): void {
+  recordAuthentication(email?: string): void {
     if (!this.enabled) return;
     this.authenticationsCounter?.add(1);
+
+    // Track unique authenticated users
+    if (email && !this.authenticatedEmails.has(email)) {
+      this.authenticatedEmails.add(email);
+      this.authenticatedUsersGauge?.add(1);
+    }
+  }
+
+  /**
+   * Record when an authenticated user disconnects
+   * @param email - User email
+   * @param hasMoreConnections - Whether the user has other active connections
+   */
+  recordAuthenticatedDisconnect(email: string, hasMoreConnections: boolean): void {
+    if (!this.enabled) return;
+
+    // Only decrement gauge when last connection for this email disconnects
+    if (!hasMoreConnections && this.authenticatedEmails.has(email)) {
+      this.authenticatedEmails.delete(email);
+      this.authenticatedUsersGauge?.add(-1);
+    }
   }
 
   /**
