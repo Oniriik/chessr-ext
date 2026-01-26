@@ -1,6 +1,6 @@
 import { WebSocket } from 'ws';
 import os from 'os';
-import { StockfishPool } from './stockfish-pool.js';
+import { EnginePool } from './engine-pool.js';
 import { UserInfo, MetricsResponse } from './types.js';
 
 /**
@@ -8,13 +8,13 @@ import { UserInfo, MetricsResponse } from './types.js';
  */
 export class MetricsCollector {
   private clients: Map<WebSocket, UserInfo>;
-  private pool: StockfishPool;
+  private pool: EnginePool;
   private suggestionsCount = 0;
   private serverStartTime: number;
   private lastCpuInfo: { idle: number; total: number } | null = null;
   private cpuUsage = 0;
 
-  constructor(clients: Map<WebSocket, UserInfo>, pool: StockfishPool) {
+  constructor(clients: Map<WebSocket, UserInfo>, pool: EnginePool) {
     this.clients = clients;
     this.pool = pool;
     this.serverStartTime = Date.now();
@@ -106,7 +106,7 @@ export class MetricsCollector {
     return {
       connectedClients: this.clients.size,
       authenticatedUsers: uniqueEmails.size,
-      stockfishPool: {
+      enginePool: {
         total: this.pool.getPoolSize(),
         available: this.pool.getAvailableCount(),
         queued: this.pool.getQueueLength(),

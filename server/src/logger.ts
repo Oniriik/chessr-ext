@@ -65,10 +65,10 @@ const categories: Record<string, { color: string; icon: string; label: string }>
   pool_engine_dead: { color: colors.red, icon: '💀', label: 'POOL' },
   pool_moves: { color: colors.blue, icon: '♟️', label: 'POOL' },
 
-  // Stockfish events
-  stockfish_error: { color: colors.red, icon: '❌', label: 'STOCKFISH' },
-  stockfish_timeout: { color: colors.red, icon: '⏱️', label: 'STOCKFISH' },
-  stockfish_exit: { color: colors.yellow, icon: '🚪', label: 'STOCKFISH' },
+  // Engine events
+  engine_error: { color: colors.red, icon: '❌', label: 'ENGINE' },
+  engine_timeout: { color: colors.red, icon: '⏱️', label: 'ENGINE' },
+  engine_exit: { color: colors.yellow, icon: '🚪', label: 'ENGINE' },
 };
 
 const defaultCategory = { color: colors.white, icon: '📝', label: 'LOG' };

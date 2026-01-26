@@ -13,92 +13,111 @@ interface MoveSelectionConfig {
 }
 
 // Configuration based on ELO ranges
-// Low ELOs use more lines (up to 8) for more variety in mistakes
-// Even high ELOs have some chance of inaccuracies for realism
+// Calibrated to match real chess.com accuracy levels
+// Real 1400 player: ~75-80% accuracy, real 1800: ~85% accuracy
 const ELO_CONFIGS: { maxElo: number; config: MoveSelectionConfig }[] = [
   {
     maxElo: 400,
     config: {
-      // 8 lines - very chaotic play, often picks bad moves
-      weights: [0.15, 0.18, 0.18, 0.16, 0.14, 0.10, 0.06, 0.03],
-      maxEvalLoss: 5.0, // Can lose up to 5 pawns
+      // Beginner - very chaotic, often picks terrible moves
+      weights: [0.08, 0.12, 0.16, 0.18, 0.16, 0.14, 0.10, 0.06],
+      maxEvalLoss: 6.0,
     },
   },
   {
     maxElo: 600,
     config: {
-      // 8 lines - still very inconsistent
-      weights: [0.20, 0.20, 0.18, 0.15, 0.12, 0.08, 0.05, 0.02],
-      maxEvalLoss: 4.0,
+      // Novice - still very inconsistent
+      weights: [0.10, 0.14, 0.18, 0.18, 0.16, 0.12, 0.08, 0.04],
+      maxEvalLoss: 5.0,
     },
   },
   {
     maxElo: 800,
     config: {
-      // 6 lines - frequent mistakes
-      weights: [0.28, 0.25, 0.20, 0.14, 0.08, 0.05],
-      maxEvalLoss: 3.0,
+      // Casual - frequent mistakes
+      weights: [0.14, 0.18, 0.22, 0.18, 0.14, 0.10, 0.04],
+      maxEvalLoss: 4.0,
     },
   },
   {
     maxElo: 1000,
     config: {
-      // 5 lines - regular mistakes
-      weights: [0.38, 0.26, 0.18, 0.12, 0.06],
-      maxEvalLoss: 2.5,
+      // Beginner club - regular mistakes
+      weights: [0.18, 0.22, 0.22, 0.18, 0.12, 0.08],
+      maxEvalLoss: 3.5,
     },
   },
   {
     maxElo: 1200,
     config: {
-      // 5 lines - occasional mistakes
-      weights: [0.48, 0.25, 0.14, 0.09, 0.04],
-      maxEvalLoss: 2.0,
+      // Club player - common inaccuracies
+      weights: [0.24, 0.24, 0.20, 0.16, 0.10, 0.06],
+      maxEvalLoss: 3.0,
     },
   },
   {
-    maxElo: 1500,
+    maxElo: 1400,
     config: {
-      // 4 lines - some inaccuracies
-      weights: [0.58, 0.24, 0.12, 0.06],
-      maxEvalLoss: 1.5,
+      // Intermediate - ~70-75% accuracy target
+      weights: [0.30, 0.26, 0.20, 0.14, 0.07, 0.03],
+      maxEvalLoss: 2.5,
+    },
+  },
+  {
+    maxElo: 1600,
+    config: {
+      // Advanced club - ~73-78% accuracy target
+      weights: [0.35, 0.26, 0.18, 0.13, 0.08],
+      maxEvalLoss: 2.5,
     },
   },
   {
     maxElo: 1800,
     config: {
-      weights: [0.70, 0.18, 0.08, 0.04],
-      maxEvalLoss: 1.0,
+      // Strong club - ~78-82% accuracy target
+      weights: [0.45, 0.25, 0.15, 0.10, 0.05],
+      maxEvalLoss: 2.0,
     },
   },
   {
     maxElo: 2000,
     config: {
-      weights: [0.78, 0.14, 0.06, 0.02],
-      maxEvalLoss: 0.7,
+      // Expert - ~83-87% accuracy target
+      weights: [0.60, 0.22, 0.10, 0.05, 0.03],
+      maxEvalLoss: 1.2,
     },
   },
   {
     maxElo: 2200,
     config: {
-      weights: [0.85, 0.10, 0.04, 0.01],
+      // Master - ~87-90% accuracy target
+      weights: [0.70, 0.18, 0.08, 0.04],
+      maxEvalLoss: 0.8,
+    },
+  },
+  {
+    maxElo: 2400,
+    config: {
+      // IM level - ~90-93% accuracy target
+      weights: [0.78, 0.14, 0.05, 0.03],
       maxEvalLoss: 0.5,
     },
   },
   {
-    maxElo: 2500,
+    maxElo: 2600,
     config: {
-      // Super GM - still occasionally inaccurate
-      weights: [0.90, 0.07, 0.02, 0.01],
+      // GM level - ~93-95% accuracy target
+      weights: [0.85, 0.10, 0.03, 0.02],
       maxEvalLoss: 0.35,
     },
   },
   {
     maxElo: Infinity,
     config: {
-      // Engine level - rare mistakes
-      weights: [0.94, 0.04, 0.015, 0.005],
-      maxEvalLoss: 0.2,
+      // Super GM / Engine - ~95%+ accuracy
+      weights: [0.92, 0.05, 0.02, 0.01],
+      maxEvalLoss: 0.25,
     },
   },
 ];
@@ -114,7 +133,7 @@ function getConfigForElo(elo: number): MoveSelectionConfig {
 
 /**
  * Select a move from the available lines based on ELO
- * @param lines - Array of PV lines from Stockfish (sorted by quality, best first)
+ * @param lines - Array of PV lines from engine (sorted by quality, best first)
  * @param elo - Target ELO level
  * @returns Selected line index and whether it was a "mistake"
  */
@@ -133,6 +152,35 @@ export function selectMoveByElo(
 
   const config = getConfigForElo(elo);
   const bestEval = lines[0].evaluation;
+
+  // Detect "brilliant" moves - eval advantage that lower ELOs would miss
+  // If best move is significantly better than 2nd best, lower ELOs should miss it more often
+  const evalGap = lines.length > 1 ? Math.abs(bestEval - lines[1].evaluation) : 0;
+  const isBrilliantMove = evalGap > 1.0 && !lines[0].mate; // >1.0 pawn advantage = tactical shot
+
+  // Lower ELOs miss brilliant/tactical moves very often
+  if (isBrilliantMove && elo < 2200) {
+    const missBrilliantChance =
+      elo < 1000 ? 0.97 :
+      elo < 1200 ? 0.94 :
+      elo < 1400 ? 0.90 :
+      elo < 1600 ? 0.85 :
+      elo < 1800 ? 0.60 :
+      elo < 2000 ? 0.45 :
+      0.25;
+
+    if (Math.random() < missBrilliantChance) {
+      // Skip the brilliant move, pick from remaining lines
+      const remainingLines = lines.slice(1);
+      if (remainingLines.length > 0) {
+        const subSelection = selectMoveByElo(remainingLines, elo + 200);
+        return {
+          selectedIndex: subSelection.selectedIndex + 1,
+          isMistake: true,
+        };
+      }
+    }
+  }
 
   // Filter lines that are within acceptable evaluation loss
   const acceptableLines: number[] = [];
@@ -189,24 +237,30 @@ export function selectMoveByElo(
 }
 
 /**
- * Occasionally inject a "blunder" at very low ELOs
+ * Occasionally inject a "blunder" at lower ELOs
  * This makes the engine hang pieces or miss obvious tactics
  */
 export function shouldBlunder(elo: number): boolean {
-  if (elo > 800) return false;
+  if (elo > 1400) return false;
 
-  // Blunder probability based on ELO
-  const blunderChance = elo <= 400 ? 0.18 : elo <= 600 ? 0.10 : 0.04;
-  return Math.random() < blunderChance;
+  // Blunder probability based on ELO - extended to 1400
+  if (elo <= 400) return Math.random() < 0.20;
+  if (elo <= 600) return Math.random() < 0.15;
+  if (elo <= 800) return Math.random() < 0.10;
+  if (elo <= 1000) return Math.random() < 0.06;
+  if (elo <= 1200) return Math.random() < 0.04;
+  if (elo <= 1400) return Math.random() < 0.02;
+  return false;
 }
 
 /**
  * Get the recommended number of lines (MultiPV) based on ELO
- * All ELOs need multiple lines for move selection variety
+ * Lower ELOs need more lines for move selection variety
  */
 export function getMultiPVForElo(elo: number): number {
   if (elo <= 600) return 8;
   if (elo <= 1000) return 6;
-  if (elo <= 1200) return 5;
-  return 4; // Even GMs use 4 lines for occasional inaccuracies
+  if (elo <= 1400) return 6;
+  if (elo <= 1800) return 5;
+  return 4;
 }
