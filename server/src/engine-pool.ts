@@ -1,6 +1,5 @@
 import { ChessEngine, EngineOptions, PlayMode } from './engine.js';
 import { AnalysisResult, InfoUpdate } from './types.js';
-import { selectMoveByElo, shouldBlunder, getMultiPVForElo } from './move-selector.js';
 import { globalLogger } from './logger.js';
 
 interface AnalysisRequest {
@@ -225,12 +224,6 @@ export class EnginePool {
       engine.setElo(request.options.elo);
       engine.setMode(request.options.mode);
 
-      // Use dynamic multiPV based on ELO for better move variety at low levels
-      const effectiveMultiPV = Math.max(
-        request.options.multiPV,
-        getMultiPVForElo(request.options.elo)
-      );
-
       const result = await engine.analyze(
         request.fen,
         {
@@ -238,17 +231,14 @@ export class EnginePool {
           searchMode: request.options.searchMode,
           depth: request.options.depth,
           moveTime: request.options.moveTime,
-          multiPV: effectiveMultiPV,
+          multiPV: request.options.multiPV,
         },
         request.onInfo
       );
 
-      // Apply ELO-based move selection (humanize the play)
-      const adjustedResult = this.applyMoveSelection(result, request.options.elo);
-
       // Clear cooldown on success
       this.restartCooldowns.delete(engine);
-      request.resolve(adjustedResult);
+      request.resolve(result);
     } catch (err) {
       globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'analyze', retryCount });
 
@@ -306,69 +296,6 @@ export class EnginePool {
         globalLogger.error('pool_engine_error', 'Failed to maintain minimum engines', { action: 'add_minimum' });
       });
     }
-  }
-
-  /**
-   * Apply ELO-based move selection to make the engine play more human-like
-   * At lower ELOs, sometimes select suboptimal moves
-   * Always returns exactly 3 lines, with the selected move as "best"
-   */
-  private applyMoveSelection(result: AnalysisResult, elo: number): AnalysisResult {
-    const MAX_LINES = 3;
-
-    // Need at least 2 lines to consider alternatives
-    if (result.lines.length < 2) {
-      return {
-        ...result,
-        lines: result.lines.slice(0, MAX_LINES),
-      };
-    }
-
-    let selectedIndex = 0;
-
-    // Check for blunder at very low ELOs
-    if (shouldBlunder(elo) && result.lines.length >= 2) {
-      // Pick a random worse move from available lines
-      // At very low ELO, can pick from all 8 lines
-      const maxBlunderIndex = Math.min(result.lines.length - 1, 7);
-      selectedIndex = Math.floor(Math.random() * maxBlunderIndex) + 1; // Pick 2nd to 8th best
-    } else {
-      // Apply weighted move selection
-      const selection = selectMoveByElo(result.lines, elo);
-      selectedIndex = selection.selectedIndex;
-    }
-
-    // Build reordered lines: selected move first, then others
-    const selectedLine = result.lines[selectedIndex];
-    if (!selectedLine || selectedLine.moves.length === 0) {
-      return {
-        ...result,
-        lines: result.lines.slice(0, MAX_LINES),
-      };
-    }
-
-    // Create new lines array with selected move first
-    const reorderedLines = [selectedLine];
-    for (let i = 0; i < result.lines.length && reorderedLines.length < MAX_LINES; i++) {
-      if (i !== selectedIndex && result.lines[i].moves.length > 0) {
-        reorderedLines.push(result.lines[i]);
-      }
-    }
-
-    // Log the 3 proposed moves with their real positions
-    const proposedMoves = reorderedLines.map((line, idx) => {
-      const realPosition = result.lines.findIndex(l => l.moves[0] === line.moves[0]) + 1;
-      return `${idx + 1}. ${line.moves[0]} (réel: ${realPosition}${realPosition === 1 ? 'er' : 'e'}, eval: ${line.mate ? `M${line.mate}` : line.evaluation.toFixed(2)})`;
-    });
-    globalLogger.info('pool_moves', { elo, moves: proposedMoves.join(' | ') });
-
-    return {
-      ...result,
-      bestMove: selectedLine.moves[0],
-      evaluation: selectedLine.evaluation,
-      mate: selectedLine.mate,
-      lines: reorderedLines,
-    };
   }
 
   private returnEngine(engine: ChessEngine): void {

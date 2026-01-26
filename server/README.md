@@ -186,9 +186,8 @@ Envoyé à la fin de l'analyse :
 server/
 ├── src/
 │   ├── index.ts              # Serveur WebSocket principal
-│   ├── stockfish-pool.ts     # Pool de moteurs avec auto-scaling
-│   ├── stockfish.ts          # Wrapper Stockfish
-│   ├── move-selector.ts      # Sélection de coups basée sur le mode
+│   ├── engine-pool.ts        # Pool de moteurs avec auto-scaling
+│   ├── engine.ts             # Wrapper Komodo Dragon
 │   └── types.ts              # Types TypeScript
 ├── dist/                     # Code compilé
 ├── package.json
