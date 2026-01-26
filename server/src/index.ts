@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
-import { StockfishPool } from './stockfish-pool.js';
+import { EnginePool } from './engine-pool.js';
 import { ClientMessage, ServerMessage, UserInfo } from './types.js';
 import { validateSupabaseToken } from './auth.js';
 import { MetricsCollector } from './metrics.js';
@@ -22,13 +22,13 @@ const POOL_CONFIG = {
 
 class ChessServer {
   private wss: WebSocketServer;
-  private pool: StockfishPool;
+  private pool: EnginePool;
   private clients = new Map<WebSocket, UserInfo>();
   private metricsServer: ReturnType<typeof createServer>;
   private metrics: MetricsCollector;
 
   constructor(port: number) {
-    this.pool = new StockfishPool(POOL_CONFIG);
+    this.pool = new EnginePool(POOL_CONFIG);
     this.wss = new WebSocketServer({ port });
     this.metrics = new MetricsCollector(this.clients, this.pool);
     this.metricsServer = this.createMetricsServer();
@@ -187,12 +187,15 @@ class ChessServer {
       elo: message.elo,
       mode: message.mode,
       multiPV: message.multiPV,
+      movesCount: message.moves?.length || 0,
+      moves: message.moves?.length > 0 ? message.moves.join(' ') : '(empty)',
     });
 
     try {
       const result = await this.pool.analyze(
         message.fen,
         {
+          moves: message.moves,
           searchMode: message.searchMode || 'depth',
           depth: message.depth,
           moveTime: message.moveTime || 1000,

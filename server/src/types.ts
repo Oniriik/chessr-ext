@@ -1,11 +1,12 @@
 export interface AnalyzeRequest {
   type: 'analyze';
   fen: string;
+  moves: string[];  // UCI move history (e.g., ["e2e4", "e7e5", "g1f3"])
   searchMode: 'depth' | 'time';
   depth: number;
   moveTime: number;  // milliseconds
   elo: number;
-  mode: 'safe' | 'balanced' | 'aggressive' | 'blitz' | 'positional' | 'tactical';
+  mode: 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
   multiPV: number;
 }
 
@@ -83,7 +84,7 @@ export interface UserInfo {
 export interface MetricsResponse {
   connectedClients: number;
   authenticatedUsers: number;
-  stockfishPool: {
+  enginePool: {
     total: number;
     available: number;
     queued: number;

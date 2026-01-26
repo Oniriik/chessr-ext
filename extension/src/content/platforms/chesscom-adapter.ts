@@ -1,3 +1,4 @@
+import { Chess } from "chess.js";
 import { BoardConfig } from "../../shared/types";
 import { Platform, PlatformAdapter } from "./types";
 
@@ -13,6 +14,9 @@ const BOARD_SELECTORS = [
 export class ChesscomAdapter implements PlatformAdapter {
   readonly platform: Platform = "chesscom";
   private isInitial = true;
+  private lastMoveCount = 0;
+  private moveListObserver: MutationObserver | null = null;
+  private onMoveCallback: (() => void) | null = null;
 
   detectBoard(): BoardConfig | null {
     for (const selector of BOARD_SELECTORS) {
@@ -167,6 +171,119 @@ export class ChesscomAdapter implements PlatformAdapter {
 
   markCurrentPlayerMoved(): void {
     this.isInitial = false;
+  }
+
+  /**
+   * Start observing the move list for new moves
+   * Calls the callback whenever a new move is detected
+   */
+  startMoveListObserver(onMove: () => void): void {
+    this.onMoveCallback = onMove;
+
+    // Find the move list element
+    const moveList = document.querySelector(
+      '.play-controller-moves, .move-list, [class*="vertical-move-list"]',
+    );
+
+    if (!moveList) {
+      console.log("[ChesscomAdapter] Move list not found, will retry");
+      // Retry after a delay
+      setTimeout(() => this.startMoveListObserver(onMove), 1000);
+      return;
+    }
+
+    // Get initial move count
+    const moves = moveList.querySelectorAll(".main-line-ply");
+    this.lastMoveCount = moves.length;
+    console.log("[ChesscomAdapter] Initial move count:", this.lastMoveCount);
+
+    // Set up observer
+    this.moveListObserver = new MutationObserver(() => {
+      const currentMoves = moveList.querySelectorAll(".main-line-ply");
+      if (currentMoves.length !== this.lastMoveCount) {
+        this.lastMoveCount = currentMoves.length;
+        this.onMoveCallback?.();
+      }
+    });
+
+    this.moveListObserver.observe(moveList, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  /**
+   * Stop observing the move list
+   */
+  stopMoveListObserver(): void {
+    if (this.moveListObserver) {
+      this.moveListObserver.disconnect();
+      this.moveListObserver = null;
+    }
+    this.onMoveCallback = null;
+  }
+
+  /**
+   * Get the current number of moves from the move list
+   */
+  getMoveCount(): number {
+    const moveList = document.querySelector(
+      '.play-controller-moves, .move-list, [class*="vertical-move-list"]',
+    );
+    if (!moveList) return 0;
+    return moveList.querySelectorAll(".main-line-ply").length;
+  }
+
+  /**
+   * Get move history in UCI format by parsing DOM and converting SAN to UCI
+   */
+  getMoveHistory(): string[] {
+    const chess = new Chess();
+    const uciMoves: string[] = [];
+
+    const moveList = document.querySelector(
+      '.play-controller-moves, .move-list, [class*="vertical-move-list"]',
+    );
+    if (!moveList) return [];
+
+    const plyElements = moveList.querySelectorAll(".main-line-ply");
+    for (const ply of plyElements) {
+      const san = this.extractSanFromPly(ply);
+      if (!san) continue;
+
+      try {
+        const move = chess.move(san);
+        if (move) {
+          uciMoves.push(move.from + move.to + (move.promotion || ""));
+        }
+      } catch {
+        // Invalid move, stop parsing
+        break;
+      }
+    }
+
+    return uciMoves;
+  }
+
+  /**
+   * Extract SAN notation from a ply element
+   * Handles figurine notation (icons for pieces)
+   */
+  private extractSanFromPly(ply: Element): string | null {
+    // Get text content
+    let text = ply.textContent?.trim() || "";
+
+    // Handle figurine notation: icon + destination (e.g., [N]f3 → Nf3)
+    const figurine = ply.querySelector("[data-figurine]");
+    if (figurine) {
+      const piece = figurine.getAttribute("data-figurine"); // N, B, R, Q, K
+      // Remove any whitespace and get just the move part
+      text = text.replace(/\s+/g, "");
+      return piece + text;
+    }
+
+    // Remove whitespace for regular moves
+    return text.replace(/\s+/g, "") || null;
   }
 
   isAllowedPage(): boolean {

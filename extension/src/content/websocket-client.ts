@@ -90,10 +90,11 @@ export class WebSocketClient {
     }
   }
 
-  analyze(fen: string, settings: Settings, effectiveElo?: number) {
+  analyze(fen: string, settings: Settings, effectiveElo?: number, moves: string[] = []) {
     this.send({
       type: 'analyze',
       fen,
+      moves,
       searchMode: settings.searchMode,
       depth: settings.depth,
       moveTime: settings.moveTime,

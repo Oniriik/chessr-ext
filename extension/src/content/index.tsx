@@ -267,8 +267,9 @@ class Chessr {
     const effectiveElo = settings.eloRandomization
       ? settings.targetElo + this.currentEloOffset
       : settings.targetElo;
-    console.log('[Chessr] Sending suggestion - side to move:', sideToMove);
-    this.wsClient.analyze(fen, settings, effectiveElo);
+    const moveHistory = this.adapter?.getMoveHistory?.() || [];
+    console.log('[Chessr] Sending suggestion - side to move:', sideToMove, 'moves:', moveHistory.length);
+    this.wsClient.analyze(fen, settings, effectiveElo, moveHistory);
   }
 
   private onAnalysisResult(result: AnalysisResult) {

@@ -15,6 +15,12 @@ export interface PlatformAdapter {
   // Turn detection
   detectSideToMoveFromClock(playerColor: 'white' | 'black', currentSide: 'w' | 'b'): Promise<'w' | 'b'>;
 
+  // Move list observation (optional - for platforms that support it)
+  startMoveListObserver?(onMove: () => void): void;
+  stopMoveListObserver?(): void;
+  getMoveCount?(): number;
+  getMoveHistory?(): string[];  // Returns UCI moves from DOM
+
   // Page validation
   isAllowedPage(): boolean;
   isAnalysisDisabledPage(): boolean;
