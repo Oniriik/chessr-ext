@@ -30,29 +30,37 @@ export const en: Translations = {
 
   modes: {
     title: 'Play Mode',
+    default: {
+      label: 'Default',
+      description: 'Komodo defaults. Pure engine play without personality tweaks.',
+    },
     safe: {
       label: 'Safe',
-      description: 'Solid and positional play. Accepts draws, avoids unnecessary risks.',
+      description: 'Cautious play. Accepts draws, protects king, solid structure.',
     },
     balanced: {
       label: 'Balanced',
-      description: 'Neutral play style. Neither too cautious nor too risky.',
-    },
-    blitz: {
-      label: 'Blitz',
-      description: 'Quick decisions, slightly aggressive. Optimized for fast games.',
+      description: 'Human-like neutral play. Neither too cautious nor too risky.',
     },
     positional: {
       label: 'Positional',
-      description: 'Very solid and patient. Favors lasting positional advantages.',
+      description: 'Strategic play. Solid structure, long-term planning.',
     },
     aggressive: {
       label: 'Aggressive',
-      description: 'Seeks quick checkmate. Avoids draws, takes risks to complicate.',
+      description: 'Attacking play. Avoids draws, sacrifices for initiative.',
     },
     tactical: {
       label: 'Tactical',
-      description: 'Seeks combinations and sacrifices. Sharp and calculating style.',
+      description: 'Seeks complications and combinations. Sharp calculating style.',
+    },
+    creative: {
+      label: 'Creative',
+      description: 'Unpredictable play with surprising moves.',
+    },
+    inhuman: {
+      label: 'Inhuman',
+      description: 'Pure engine strength. Maximum power, no human patterns.',
     },
   },
 

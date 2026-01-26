@@ -6,7 +6,7 @@ export interface AnalyzeRequest {
   depth: number;
   moveTime: number;  // milliseconds
   elo: number;
-  mode: 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
+  mode: 'default' | 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
   multiPV: number;
 }
 

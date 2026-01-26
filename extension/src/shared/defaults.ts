@@ -5,8 +5,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   serverUrl: config.stockfishServerUrl, // Uses environment variable
   targetElo: 1500,
-  eloRandomization: false,
-  mode: 'balanced',
+  mode: 'default',
   searchMode: 'time',
   depth: 18,
   moveTime: 1000,  // 1 second default

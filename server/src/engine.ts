@@ -51,6 +51,7 @@ export interface EngineOptions {
 }
 
 // Play modes with their descriptions:
+// - default: Komodo defaults, no tweaks, no LimitStrength
 // - safe: Human-like cautious play, accepts draws, protects king
 // - balanced: Human-like balanced play, neutral style
 // - aggressive: Optimal attacking play, avoids draws, sacrifices for initiative
@@ -58,7 +59,7 @@ export interface EngineOptions {
 // - tactical: Optimal tactical play, seeks complications and combinations
 // - creative: Unpredictable play with surprising moves
 // - inhuman: Pure engine play, maximum strength, no human patterns
-export type PlayMode = 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
+export type PlayMode = 'default' | 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
 
 interface ModeConfig {
   personality: string;
@@ -204,9 +205,14 @@ export class ChessEngine {
   }
 
   setMode(mode: PlayMode) {
+    // Default mode: use Komodo's factory settings, no tweaks
+    if (mode === 'default') {
+      return;
+    }
+
     // Mode configurations for Komodo Dragon
     // Each mode adjusts: Personality, Contempt, King Safety, Dynamism, Selectivity, Variety
-    const modeConfigs: Record<PlayMode, ModeConfig> = {
+    const modeConfigs: Record<Exclude<PlayMode, 'default'>, ModeConfig> = {
       // Human-like modes (use Human personality + variety for realistic play)
       safe: {
         personality: 'Human',

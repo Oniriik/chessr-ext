@@ -30,29 +30,37 @@ export const fr: Translations = {
 
   modes: {
     title: 'Mode de Jeu',
+    default: {
+      label: 'Par défaut',
+      description: 'Paramètres Komodo par défaut. Jeu moteur pur sans ajustements.',
+    },
     safe: {
-      label: 'Safe',
-      description: 'Jeu solide et positionnel. Accepte les nulles, évite les risques inutiles.',
+      label: 'Prudent',
+      description: 'Jeu prudent. Accepte les nulles, protège le roi, structure solide.',
     },
     balanced: {
       label: 'Équilibré',
-      description: 'Style de jeu neutre. Ni trop prudent, ni trop risqué.',
-    },
-    blitz: {
-      label: 'Blitz',
-      description: 'Décisions rapides, légèrement agressif. Optimisé pour les parties rapides.',
+      description: 'Jeu neutre humain. Ni trop prudent, ni trop risqué.',
     },
     positional: {
       label: 'Positionnel',
-      description: 'Très solide et patient. Privilégie les avantages positionnels durables.',
+      description: 'Jeu stratégique. Structure solide, planification à long terme.',
     },
     aggressive: {
       label: 'Agressif',
-      description: 'Cherche le mat rapidement. Évite les nulles, prend des risques pour compliquer.',
+      description: 'Jeu offensif. Évite les nulles, sacrifie pour l\'initiative.',
     },
     tactical: {
       label: 'Tactique',
-      description: 'Cherche les combinaisons et sacrifices. Style tranchant et calculateur.',
+      description: 'Cherche les complications et combinaisons. Style tranchant.',
+    },
+    creative: {
+      label: 'Créatif',
+      description: 'Jeu imprévisible avec des coups surprenants.',
+    },
+    inhuman: {
+      label: 'Inhumain',
+      description: 'Force moteur pure. Puissance maximale, sans patterns humains.',
     },
   },
 

@@ -51,10 +51,6 @@ interface AppState {
   togglePlayerColor: () => void;
   redetectPlayerColor: () => void;
 
-  // Anti-cheat ELO offset
-  eloOffset: number;
-  setEloOffset: (offset: number) => void;
-
   // UI
   sidebarOpen: boolean;
   toggleSidebar: () => void;
@@ -140,10 +136,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ boardConfig: detected });
     }
   },
-
-  // Anti-cheat ELO offset
-  eloOffset: 0,
-  setEloOffset: (eloOffset) => set({ eloOffset }),
 
   // UI - sidebarOpen persists only in localStorage, not in database
   sidebarOpen: loadSidebarState(),

@@ -31,8 +31,7 @@ export interface Settings {
   enabled: boolean;
   serverUrl: string;
   targetElo: number;
-  eloRandomization: boolean;  // Anti-cheat: randomize ELO ±100 each game
-  mode: 'safe' | 'balanced' | 'aggressive' | 'blitz' | 'positional' | 'tactical';
+  mode: 'default' | 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
   searchMode: 'depth' | 'time';
   depth: number;
   moveTime: number;  // in milliseconds

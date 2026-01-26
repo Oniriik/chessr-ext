@@ -16,12 +16,14 @@ import { SettingsModal } from './SettingsModal';
 
 // Mode configurations with minimum ELO requirements only
 const PLAY_MODES_CONFIG = {
+  default: { minElo: 0 },
   safe: { minElo: 0 },
   balanced: { minElo: 0 },
-  blitz: { minElo: 800 },
   positional: { minElo: 1000 },
-  aggressive: { minElo: 2000 },
-  tactical: { minElo: 2200 },
+  aggressive: { minElo: 1500 },
+  tactical: { minElo: 1800 },
+  creative: { minElo: 2000 },
+  inhuman: { minElo: 2400 },
 } as const;
 
 type PlayMode = keyof typeof PLAY_MODES_CONFIG;
@@ -46,7 +48,7 @@ function uciToChesscom(uciElo: number): number {
 }
 
 export function Sidebar() {
-  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestReanalyze, eloOffset, isGamePage } = useAppStore();
+  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestReanalyze, isGamePage } = useAppStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -60,12 +62,14 @@ export function Sidebar() {
   // Get play modes with translations
   const getPlayModeInfo = (mode: PlayMode) => {
     const modeTranslations = {
+      default: t.modes.default,
       safe: t.modes.safe,
       balanced: t.modes.balanced,
-      blitz: t.modes.blitz,
       positional: t.modes.positional,
       aggressive: t.modes.aggressive,
       tactical: t.modes.tactical,
+      creative: t.modes.creative,
+      inhuman: t.modes.inhuman,
     };
     return {
       ...modeTranslations[mode],
@@ -113,8 +117,6 @@ export function Sidebar() {
       setSettings({ targetElo: value });
     }, 300);
   };
-
-  const effectiveElo = settings.eloRandomization ? localElo + eloOffset : localElo;
 
   // Use displayAnalysis for eval (persists during processing), analysis for move
   const evalValue = displayAnalysis?.mate !== undefined
@@ -268,13 +270,13 @@ export function Sidebar() {
           <CardTitle>{t.elo.title}</CardTitle>
           <div className="tw-flex tw-items-baseline tw-gap-2 tw-mb-1">
             <div className="tw-text-3xl tw-font-bold tw-text-primary">
-              {settings.eloRandomization ? effectiveElo : localElo}
+              {localElo}
             </div>
             <div className="tw-text-sm tw-text-muted">UCI</div>
           </div>
           {isChesscom && (
             <div className="tw-text-sm tw-text-muted tw-mb-3">
-              {t.elo.display}: <span className="tw-text-foreground tw-font-semibold">{uciToChesscom(effectiveElo)}</span>
+              {t.elo.display}: <span className="tw-text-foreground tw-font-semibold">{uciToChesscom(localElo)}</span>
             </div>
           )}
           <Slider
@@ -284,15 +286,6 @@ export function Sidebar() {
             max={3000}
             step={50}
           />
-          <div className="tw-flex tw-items-center tw-justify-between tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
-            <div>
-              <p className="tw-text-xs tw-text-muted">{t.elo.antiCheat}</p>
-            </div>
-            <Switch
-              checked={settings.eloRandomization}
-              onCheckedChange={(checked) => setSettings({ eloRandomization: checked })}
-            />
-          </div>
         </Card>
 
         {/* Mode */}

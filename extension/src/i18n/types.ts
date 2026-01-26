@@ -33,15 +33,15 @@ export interface Translations {
   // Play modes
   modes: {
     title: string;
+    default: {
+      label: string;
+      description: string;
+    };
     safe: {
       label: string;
       description: string;
     };
     balanced: {
-      label: string;
-      description: string;
-    };
-    blitz: {
       label: string;
       description: string;
     };
@@ -54,6 +54,14 @@ export interface Translations {
       description: string;
     };
     tactical: {
+      label: string;
+      description: string;
+    };
+    creative: {
+      label: string;
+      description: string;
+    };
+    inhuman: {
       label: string;
       description: string;
     };

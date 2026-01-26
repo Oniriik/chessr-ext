@@ -201,7 +201,7 @@ class ChessServer {
           moveTime: message.moveTime || 1000,
           multiPV: message.multiPV,
           elo: message.elo,
-          mode: message.mode || 'balanced',
+          mode: message.mode || 'default',
         },
         () => {}
       );

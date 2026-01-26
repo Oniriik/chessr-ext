@@ -33,7 +33,6 @@ class Chessr {
   private openingTracker = new OpeningTracker();
   private boardConfig: BoardConfig | null = null;
   private analysisDisabled = false;
-  private currentEloOffset = 0;  // Anti-cheat: random offset ±100
   private versionCheckPassed = false;
 
   async init() {
@@ -208,14 +207,6 @@ class Chessr {
       return;
     }
 
-    // Generate random ELO offset for anti-cheat (new game = new offset)
-    if (store.settings.eloRandomization) {
-      this.currentEloOffset = Math.floor(Math.random() * 201) - 100;  // -100 to +100
-    } else {
-      this.currentEloOffset = 0;
-    }
-    store.setEloOffset(this.currentEloOffset);
-
     // Initialize overlay
     this.overlay.initialize(config.boardElement, config.isFlipped, this.adapter!);
     this.arrowRenderer = new ArrowRenderer(this.overlay);
@@ -264,12 +255,9 @@ class Chessr {
       return;
     }
 
-    const effectiveElo = settings.eloRandomization
-      ? settings.targetElo + this.currentEloOffset
-      : settings.targetElo;
     const moveHistory = this.adapter?.getMoveHistory?.() || [];
     console.log('[Chessr] Sending suggestion - side to move:', sideToMove, 'moves:', moveHistory.length);
-    this.wsClient.analyze(fen, settings, effectiveElo, moveHistory);
+    this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory);
   }
 
   private onAnalysisResult(result: AnalysisResult) {

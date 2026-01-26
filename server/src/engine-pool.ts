@@ -166,7 +166,7 @@ export class EnginePool {
           moveTime: options.moveTime || 1000,
           multiPV: options.multiPV,
           elo: options.elo,
-          mode: options.mode || 'balanced',
+          mode: options.mode || 'default',
         },
         onInfo,
         resolve,
