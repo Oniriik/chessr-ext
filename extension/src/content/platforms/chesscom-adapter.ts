@@ -12,6 +12,7 @@ const BOARD_SELECTORS = [
 
 export class ChesscomAdapter implements PlatformAdapter {
   readonly platform: Platform = "chesscom";
+  private isInitial = true;
 
   detectBoard(): BoardConfig | null {
     for (const selector of BOARD_SELECTORS) {
@@ -51,7 +52,7 @@ export class ChesscomAdapter implements PlatformAdapter {
     };
 
     // Wait 500ms before first detection to let pieces fully load
-    setTimeout(check, 500);
+    setTimeout(check, 3000);
   }
 
   private detectPlayerColor(): "white" | "black" | null {
@@ -59,147 +60,25 @@ export class ChesscomAdapter implements PlatformAdapter {
       "wc-chess-board, chess-board, .chessboard",
     );
 
-    if (board) {
-      // Check for flipped class on board or parent
-      const isFlipped =
-        board.classList.contains("flipped") ||
-        board.closest(".flipped") !== null ||
-        (board as HTMLElement).getAttribute("flipped") === "true";
+    if (!board) return null;
 
-      if (isFlipped) {
-        return "black";
-      }
+    // Method 1: Check if board is flipped
+    const isFlipped =
+      board.classList.contains("flipped") ||
+      board.closest(".flipped") !== null ||
+      (board as HTMLElement).getAttribute("flipped") === "true";
 
-      // Check coordinate positions
-      const fileCoords = document.querySelectorAll(
-        '.coordinate-light, .coordinate-dark, [class*="coords-"]',
-      );
-      for (const coord of fileCoords) {
-        const text = coord.textContent?.trim();
-        if (text === "1") {
-          const rect = coord.getBoundingClientRect();
-          const boardRect = board.getBoundingClientRect();
-          const isAtBottom = rect.top > boardRect.top + boardRect.height / 2;
-          return isAtBottom ? "white" : "black";
-        }
-        if (text === "8") {
-          const rect = coord.getBoundingClientRect();
-          const boardRect = board.getBoundingClientRect();
-          const isAtBottom = rect.top > boardRect.top + boardRect.height / 2;
-          return isAtBottom ? "black" : "white";
-        }
-      }
+    if (isFlipped) {
+      return "black";
     }
 
-    // Check clock color at bottom
-    const bottomClock = document.querySelector(
-      ".clock-bottom, .clock-component.clock-bottom",
-    );
+    // Method 2: Check bottom clock color
+    const bottomClock = document.querySelector(".clock-bottom");
     if (bottomClock) {
       if (bottomClock.classList.contains("clock-black")) {
         return "black";
       }
       if (bottomClock.classList.contains("clock-white")) {
-        return "white";
-      }
-    }
-
-    // Check player component
-    const bottomPlayer = document.querySelector(
-      ".player-component.player-bottom",
-    );
-    if (bottomPlayer) {
-      const blackIndicator = bottomPlayer.querySelector(
-        '.player-black, [class*="piece-black"], .clock-black',
-      );
-      const whiteIndicator = bottomPlayer.querySelector(
-        '.player-white, [class*="piece-white"], .clock-white',
-      );
-
-      if (blackIndicator && !whiteIndicator) {
-        return "black";
-      }
-      if (whiteIndicator && !blackIndicator) {
-        return "white";
-      }
-    }
-
-    // Check daily game specific elements
-    const boardPlayers = document.querySelectorAll(
-      '[class*="board-player"], .daily-game-player',
-    );
-    for (const player of boardPlayers) {
-      const rect = player.getBoundingClientRect();
-      const isAtBottom = rect.top > window.innerHeight / 2;
-      const className = player.className;
-
-      if (isAtBottom) {
-        if (className.includes("black")) {
-          return "black";
-        }
-        if (className.includes("white")) {
-          return "white";
-        }
-      }
-    }
-
-    // Check king positions
-    if (board) {
-      const boardRect = board.getBoundingClientRect();
-      const whiteKing = board.querySelector(
-        '.piece.wk, [class*="piece"][class*="wk"]',
-      );
-      const blackKing = board.querySelector(
-        '.piece.bk, [class*="piece"][class*="bk"]',
-      );
-
-      if (whiteKing && blackKing) {
-        const whiteKingRect = whiteKing.getBoundingClientRect();
-        const blackKingRect = blackKing.getBoundingClientRect();
-        const whiteKingY = whiteKingRect.top + whiteKingRect.height / 2;
-        const blackKingY = blackKingRect.top + blackKingRect.height / 2;
-
-        return blackKingY > whiteKingY ? "black" : "white";
-      }
-
-      if (!whiteKing && !blackKing) {
-        return null;
-      }
-
-      // Fallback: analyze all pieces
-      const pieces = board.querySelectorAll('[class*="piece"]');
-      const boardMiddleY = boardRect.top + boardRect.height / 2;
-      let blackPiecesBottomCount = 0;
-      let whitePiecesBottomCount = 0;
-
-      for (const piece of pieces) {
-        const className = piece.className;
-        const pieceRect = piece.getBoundingClientRect();
-        const pieceY = pieceRect.top + pieceRect.height / 2;
-        const isOnBottom = pieceY > boardMiddleY;
-
-        if (
-          /\bb[prnbqk]\b/.test(className) ||
-          (className.includes(" b") && /[prnbqk]/.test(className))
-        ) {
-          if (isOnBottom) blackPiecesBottomCount++;
-        }
-        if (
-          /\bw[prnbqk]\b/.test(className) ||
-          (className.includes(" w") && /[prnbqk]/.test(className))
-        ) {
-          if (isOnBottom) whitePiecesBottomCount++;
-        }
-      }
-
-      if (blackPiecesBottomCount === 0 && whitePiecesBottomCount === 0) {
-        return null;
-      }
-
-      if (blackPiecesBottomCount > whitePiecesBottomCount) {
-        return "black";
-      }
-      if (whitePiecesBottomCount > blackPiecesBottomCount) {
         return "white";
       }
     }
@@ -239,40 +118,55 @@ export class ChesscomAdapter implements PlatformAdapter {
     return positions;
   }
 
-  detectSideToMoveFromClock(
+  async detectSideToMoveFromClock(
     playerColor: "white" | "black",
     currentSide: "w" | "b",
-  ): "w" | "b" {
-    // Method 1: Clock-based detection (live/blitz games)
-    const activeClock = document.querySelector(
-      ".clock-component.clock-player-turn",
-    );
+  ): Promise<"w" | "b"> {
+    // Method 1: Check clocks (for timed games)
+    const clocks = document.querySelectorAll(".clock-component");
 
-    if (activeClock) {
-      const isPlayerClock = activeClock.classList.contains("clock-bottom");
-      const isOpponentClock = activeClock.classList.contains("clock-top");
-
-      if (isPlayerClock) {
-        return playerColor === "white" ? "w" : "b";
-      } else if (isOpponentClock) {
-        return playerColor === "white" ? "b" : "w";
+    for (const clock of clocks) {
+      if (clock.classList.contains("clock-player-turn")) {
+        if (clock.classList.contains("clock-black")) {
+          console.log("detected from clock black");
+          return "b";
+        }
+        if (clock.classList.contains("clock-white")) {
+          console.log("detected from clock white");
+          return "w";
+        }
       }
     }
 
-    // Method 2: Move list detection (bot games - useful for initialization)
+    // Method 2: Check move list (for bot games / untimed games)
+    // Wait 5s on initial load for DOM to update
+    if (this.isInitial) {
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
+
     const moveList = document.querySelector(
       '.play-controller-moves, .move-list, [class*="vertical-move-list"]',
     );
     if (moveList) {
-      // Find all move nodes - each represents a half-move (ply)
-      const moves = moveList.querySelectorAll(".node, .move-node, [data-ply]");
+      const moves = moveList.querySelectorAll(".main-line-ply");
       if (moves.length > 0) {
-        // Odd number of moves = black's turn, even = white's turn
-        return moves.length % 2 === 1 ? "b" : "w";
+        // Odd number of half-moves = black's turn, even = white's turn
+        const side = moves.length % 2 === 1 ? "b" : "w";
+        console.log(
+          "detected from move list - moves:",
+          moves.length,
+          "side:",
+          side,
+        );
+        return side;
       }
     }
 
     return currentSide;
+  }
+
+  markCurrentPlayerMoved(): void {
+    this.isInitial = false;
   }
 
   isAllowedPage(): boolean {

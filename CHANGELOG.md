@@ -2,7 +2,7 @@
 
 All notable changes to Chessr will be documented in this file.
 
-## [1.1.4] - 2026-01-25
+## [1.1.3] - 2026-01-25
 
 ### Added
 - **Move list detection**: Detect current turn from move list for bot games without clocks

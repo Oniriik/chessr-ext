@@ -13,7 +13,7 @@ export interface PlatformAdapter {
   getPiecePositions(boardElement: HTMLElement): Map<string, string>;
 
   // Turn detection
-  detectSideToMoveFromClock(playerColor: 'white' | 'black', currentSide: 'w' | 'b'): 'w' | 'b';
+  detectSideToMoveFromClock(playerColor: 'white' | 'black', currentSide: 'w' | 'b'): Promise<'w' | 'b'>;
 
   // Page validation
   isAllowedPage(): boolean;

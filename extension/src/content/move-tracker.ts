@@ -4,6 +4,7 @@ import { PlatformAdapter } from "./platforms/types";
 export class MoveTracker {
   private adapter: PlatformAdapter;
   private observer: MutationObserver | null = null;
+  private clockObserver: MutationObserver | null = null;
   private boardElement: HTMLElement | null = null;
   private lastFEN = "";
   private lastPiecePositions: Map<string, string> = new Map(); // square -> piece (e.g., 'e2' -> 'wp')
@@ -21,14 +22,9 @@ export class MoveTracker {
   start(boardElement: HTMLElement, playerColor: "white" | "black" = "white") {
     this.boardElement = boardElement;
     this.playerColor = playerColor;
-    console.log(
-      "[Chessr:MoveTracker] start() called with playerColor:",
-      playerColor,
-      "platform:",
-      this.adapter.platform,
-    );
 
     this.observer = new MutationObserver(() => {
+      console.log("mutation pieces");
       this.onMutation();
     });
 
@@ -68,6 +64,9 @@ export class MoveTracker {
       attributeFilter: ["class", "style"],
     });
 
+    // Set up clock observer to detect turn changes quickly
+    this.setupClockObserver();
+
     // Wait for board to fully load before parsing initial position
     // This helps when resuming a game where pieces may still be loading
     setTimeout(() => {
@@ -80,6 +79,28 @@ export class MoveTracker {
       this.observer.disconnect();
       this.observer = null;
     }
+    if (this.clockObserver) {
+      this.clockObserver.disconnect();
+      this.clockObserver = null;
+    }
+  }
+
+  private setupClockObserver() {
+    // Watch for clock changes to detect turn switches
+    const clocks = document.querySelectorAll(".clock-component, .rclock");
+    if (clocks.length === 0) return;
+
+    this.clockObserver = new MutationObserver(() => {
+      console.log("clock mutation");
+      this.onMutation();
+    });
+
+    clocks.forEach((clock) => {
+      this.clockObserver!.observe(clock, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    });
   }
 
   onPositionChange(callback: (fen: string) => void) {
@@ -96,13 +117,27 @@ export class MoveTracker {
       window.clearTimeout(this.debounceTimer);
     }
     this.debounceTimer = window.setTimeout(() => {
+      // Don't check if a piece is being dragged
+      if (this.isPieceDragging()) {
+        return;
+      }
+      console.log("check for change timer");
       this.checkForChange();
-    }, 100);
+    }, 200);
   }
 
-  private checkForChange() {
+  private isPieceDragging(): boolean {
+    // Check for common dragging class names
+    const draggingPiece = document.querySelector(
+      ".piece.dragging, .piece.drag, .dragging, .drag, .moving",
+    );
+    console.log("draggingPiece", draggingPiece);
+    return draggingPiece !== null;
+  }
+
+  private async checkForChange() {
+    console.log("check for change");
     if (!this.boardElement) {
-      console.log("[Chessr:MoveTracker] checkForChange - no boardElement");
       return;
     }
 
@@ -111,71 +146,50 @@ export class MoveTracker {
     const currentPosString = this.positionsToString(currentPositions);
     const lastPosString = this.positionsToString(this.lastPiecePositions);
 
-    console.log(
-      "[Chessr:MoveTracker] checkForChange - positions count:",
-      currentPositions.size,
-    );
-
     let detectedMove: string | null = null;
+    let positionsChanged = currentPosString !== lastPosString;
 
     if (!this.initialized) {
-      console.log("[Chessr:MoveTracker] initializing...");
       this.lastPiecePositions = currentPositions;
-      this.currentSideToMove = this.detectSideToMoveFromClock();
+      this.currentSideToMove = await this.detectSideToMoveFromClock();
       this.initialized = true;
-    } else if (currentPosString !== lastPosString) {
+    } else if (positionsChanged) {
       // Detect the move in UCI format and which color moved
       const moveInfo = this.detectMoveInfo(
         this.lastPiecePositions,
         currentPositions,
       );
       detectedMove = moveInfo.move;
-      console.log(
-        "[Chessr:MoveTracker] Move detected:",
-        moveInfo.move,
-        "movedColor:",
-        moveInfo.movedColor,
-      );
-
       // Determine next turn: if we know which color moved, opposite is next
       if (moveInfo.movedColor) {
         this.currentSideToMove = moveInfo.movedColor === "w" ? "b" : "w";
-        console.log(
-          "[Chessr:MoveTracker] Turn from piece color:",
-          this.currentSideToMove,
-        );
+
+        // If current player moved, mark it (for Chess.com initial detection)
+        const playerColorCode = this.playerColor === "white" ? "w" : "b";
+        if (
+          moveInfo.movedColor === playerColorCode &&
+          this.adapter.platform === "chesscom"
+        ) {
+          (this.adapter as any).markCurrentPlayerMoved?.();
+        }
       } else {
         // Fallback to clock/DOM detection
-        this.currentSideToMove = this.detectSideToMoveFromClock();
-        console.log(
-          "[Chessr:MoveTracker] Turn from clock fallback:",
-          this.currentSideToMove,
-        );
+        this.currentSideToMove = await this.detectSideToMoveFromClock();
       }
 
       this.lastPiecePositions = currentPositions;
+    } else {
+      // No position change detected, but check if turn changed via clock
+      const clockSide = await this.detectSideToMoveFromClock();
+      if (clockSide !== this.currentSideToMove) {
+        console.log("Turn changed via clock without position change");
+        this.currentSideToMove = clockSide;
+      }
     }
 
     const fen = positionsToFEN(currentPositions, this.currentSideToMove);
-    console.log(
-      "[Chessr:MoveTracker] FEN generated:",
-      fen.substring(0, 50) + "...",
-    );
-    console.log(
-      "[Chessr:MoveTracker] lastFEN:",
-      this.lastFEN.substring(0, 50) + "...",
-    );
-    console.log(
-      "[Chessr:MoveTracker] callbacks registered:",
-      this.callbacks.length,
-    );
 
     if (fen !== this.lastFEN) {
-      console.log(
-        "[Chessr:MoveTracker] FEN changed! Calling",
-        this.callbacks.length,
-        "callbacks",
-      );
       this.lastFEN = fen;
       this.callbacks.forEach((cb) => cb(fen));
     }
@@ -186,8 +200,8 @@ export class MoveTracker {
     }
   }
 
-  private detectSideToMoveFromClock(): "w" | "b" {
-    return this.adapter.detectSideToMoveFromClock(
+  private async detectSideToMoveFromClock(): Promise<"w" | "b"> {
+    return await this.adapter.detectSideToMoveFromClock(
       this.playerColor,
       this.currentSideToMove,
     );

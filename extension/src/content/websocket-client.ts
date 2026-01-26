@@ -35,7 +35,6 @@ export class WebSocketClient {
         this.ws = new WebSocket(this.serverUrl);
 
         this.ws.onopen = () => {
-          console.log('[Chessr WS] Connection opened');
           this.isConnected = true;
           this.reconnectAttempts = 0;
           this.notifyConnection(true);
@@ -61,13 +60,11 @@ export class WebSocketClient {
         };
 
         this.ws.onclose = (event) => {
-          console.log('[Chessr WS] Connection closed. Code:', event.code, 'Reason:', event.reason);
           this.isConnected = false;
           this.notifyConnection(false);
 
           // Don't reconnect on auth errors (token expired/invalid)
           if (event.code === 4001) {
-            console.log('[Chessr WS] Auth error - not reconnecting. Please re-login.');
             this.authErrorOccurred = true;
             return;
           }
@@ -94,7 +91,6 @@ export class WebSocketClient {
   }
 
   analyze(fen: string, settings: Settings, effectiveElo?: number) {
-    console.log('[Chessr WS] Sending analyze request:', fen);
     this.send({
       type: 'analyze',
       fen,
@@ -144,24 +140,18 @@ export class WebSocketClient {
   }
 
   private send(message: object) {
-    console.log('[Chessr WS] send() called, ws exists:', !!this.ws, 'readyState:', this.ws?.readyState);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      const data = JSON.stringify(message);
-      console.log('[Chessr WS] Sending data:', data);
-      this.ws.send(data);
-      console.log('[Chessr WS] Data sent successfully');
+      this.ws.send(JSON.stringify(message));
     } else {
-      console.error('[Chessr WS] Cannot send - WebSocket not open. ReadyState:', this.ws?.readyState);
+      console.error('[Chessr WS] Cannot send - WebSocket not open');
     }
   }
 
   private handleMessage(message: any) {
-    console.log('[Chessr WS] Message received:', message.type, message);
     if (message.type === 'result' || message.type === 'info') {
-      console.log('[Chessr WS] Dispatching to handlers:', this.messageHandlers.length, 'handlers');
       this.messageHandlers.forEach(handler => handler(message));
     } else if (message.type === 'auth_success') {
-      console.log('[Chessr WS] Authentication successful:', message.user?.email);
+      // Auth successful
     } else if (message.type === 'version_error') {
       console.log('[Chessr WS] Version error - update required:', message.minVersion);
       this.versionErrorOccurred = true;
@@ -171,8 +161,6 @@ export class WebSocketClient {
       }));
     } else if (message.type === 'error') {
       console.error('Chessr: Server error:', message.message);
-    } else {
-      console.log('[Chessr WS] Unknown message type:', message.type);
     }
   }
 
@@ -182,30 +170,18 @@ export class WebSocketClient {
 
   private async sendAuthToken() {
     try {
-      // Get Supabase session from Chrome storage
       const result = await chrome.storage.local.get('chessr-auth');
       const authData = result['chessr-auth'];
       const version = getCurrentVersion();
 
       if (authData) {
         const session = JSON.parse(authData);
-        if (session.access_token) {
-          console.log('[Chessr WS] Sending auth token with version:', version);
-          this.send({
-            type: 'auth',
-            token: session.access_token,
-            version,
-          });
-        } else {
-          console.log('[Chessr WS] No access token found in session, sending version only');
-          this.send({
-            type: 'auth',
-            token: '',
-            version,
-          });
-        }
+        this.send({
+          type: 'auth',
+          token: session.access_token || '',
+          version,
+        });
       } else {
-        console.log('[Chessr WS] No auth data found, sending version only');
         this.send({
           type: 'auth',
           token: '',
@@ -222,15 +198,7 @@ export class WebSocketClient {
   }
 
   private scheduleReconnect() {
-    // Don't reconnect if version error occurred
-    if (this.versionErrorOccurred) {
-      console.log('[Chessr WS] Not reconnecting due to version error');
-      return;
-    }
-
-    // Don't reconnect if auth error occurred
-    if (this.authErrorOccurred) {
-      console.log('[Chessr WS] Not reconnecting due to auth error');
+    if (this.versionErrorOccurred || this.authErrorOccurred) {
       return;
     }
 

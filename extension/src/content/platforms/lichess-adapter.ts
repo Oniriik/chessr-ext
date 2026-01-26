@@ -145,7 +145,7 @@ export class LichessAdapter implements PlatformAdapter {
     return positions;
   }
 
-  detectSideToMoveFromClock(playerColor: 'white' | 'black', currentSide: 'w' | 'b'): 'w' | 'b' {
+  async detectSideToMoveFromClock(playerColor: 'white' | 'black', currentSide: 'w' | 'b'): Promise<'w' | 'b'> {
     // Method 1: Check for running clock (timed games - Lichess uses "running" class)
     const runningClock = document.querySelector('.rclock.running');
     if (runningClock) {
