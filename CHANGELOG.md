@@ -2,6 +2,31 @@
 
 All notable changes to Chessr will be documented in this file.
 
+## [1.2.0] - 2026-01-27
+
+### Added
+- **Move history tracking**: Engine now receives full game history for better strategic continuity
+  - Parses move list from DOM and converts SAN to UCI using chess.js
+  - Enables repetition detection and consistent opening play
+- **Komodo Dragon engine**: Replaced Stockfish with Komodo Dragon 3.3
+  - UCI Elo support for accurate strength limiting
+  - Personality system (Human, Aggressive, Positional, Active)
+  - Advanced parameters: Contempt, King Safety, Dynamism, Selectivity, Variety
+- **Play modes**: New style presets for different play patterns
+  - Safe: Cautious, accepts draws, protects king
+  - Balanced: Human-like neutral play
+  - Aggressive: Attacking play, avoids draws
+  - Positional: Strategic, solid structure
+  - Tactical: Seeks complications and combinations
+  - Creative: Unpredictable with surprising moves
+  - Inhuman: Pure engine strength
+- **Brilliant move detection**: Lower ELOs now miss tactical shots more realistically
+- **Depth mode**: Full engine strength analysis (no ELO limit) when using depth search
+
+### Changed
+- **Move selection**: Improved ELO calibration to match real chess.com accuracy levels
+- **MultiPV scaling**: Dynamic line count based on ELO (up to 8 lines for beginners)
+
 ## [1.1.3] - 2026-01-25
 
 ### Added
