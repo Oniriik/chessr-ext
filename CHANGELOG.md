@@ -12,10 +12,11 @@ All notable changes to Chessr will be documented in this file.
 - **Komodo Dragon engine**: Replaced Stockfish with Komodo Dragon 3.3
   - UCI Elo support for accurate strength limiting
   - Native personality system (Default, Aggressive, Defensive, Active, Positional, Endgame, Beginner, Human)
-- **Rate-based stats calculation**: Stats now use per-move error rates instead of flat counts
-  - Properly normalizes accuracy across different game lengths
-  - Formula: `ACPL + (blunderRate*40*20) + (mistakeRate*40*10) + (inaccRate*40*5) + (mateRate*40*40)`
-- **Stats window**: Performance stats calculated only on last 10 moves for recent performance snapshot
+- **Lichess-style accuracy calculation**: Replaced Chess.com exponential ACPL formula with Lichess per-move accuracy
+  - Converts centipawns to win percentage: `50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)`
+  - Per-move accuracy: `103.1668 * exp(-0.04354 * winDiff) - 3.1669 + 1`
+  - Calculates accuracy on all moves (not just last 10) for complete game analysis
+  - Based on Lichess open source implementation in `modules/analyse/src/main/AccuracyPercent.scala`
 - **Timing metrics**: Analysis results now include warmup/analysis/total timing breakdown
 - **Eval helpers module**: Centralized mate score conversion and eval normalization utilities
   - Mate-to-CP conversion: `sign * (100000 - abs(mateIn) * 1000)`
@@ -28,14 +29,15 @@ All notable changes to Chessr will be documented in this file.
 - **Depth mode behavior**: Full-strength suggestions when using depth search mode
   - Depth mode: Analyzes at full strength (no ELO limit)
   - Time mode: Uses user's ELO and personality settings
-- **Stats display**: Temporarily disabled ACPL/accuracy/ELO display in UI (code preserved)
+- **Stats display**: Re-enabled player performance stats with Lichess-style accuracy calculation
 - **Warmup optimization**: Changed from 50ms time search to depth 1 for faster hash building
 - **Move selection**: Improved ELO calibration to match real chess.com accuracy levels
 
 ### Technical
 
 - Created `server/src/eval-helpers.ts` for evaluation utilities
-- Created `server/src/stats-calculator.ts` for rate-based stats calculation
+- Updated `server/src/stats-calculator.ts` with Lichess accuracy formulas (`cpToWinPercent`, `calculateMoveAccuracy`)
+- Updated `server/src/engine.ts` to calculate per-move accuracies in both `warmupHash` and `analyzeGame`
 - Updated `docker-compose.yml` to mount Komodo Dragon engine as read-only volume
 - Added `server/engine/` to `.gitignore` for proprietary engine binaries
 
