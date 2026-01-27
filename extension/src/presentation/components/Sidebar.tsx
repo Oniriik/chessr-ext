@@ -19,24 +19,12 @@ import { Personality } from '../../shared/types';
 // Komodo personalities - all available at any ELO
 const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Active', 'Positional', 'Endgame', 'Beginner', 'Human'];
 
-// Convert UCI Elo to approximate Chess.com Elo
-// More linear at low ELOs, gradually inflating at higher levels
-function uciToChesscom(uciElo: number): number {
-  if (uciElo <= 400) return Math.round(uciElo * 1.1);         // 300 UCI ≈ 330 Chess.com
-  if (uciElo <= 800) return Math.round(uciElo * 1.15 + 20);   // 800 UCI ≈ 940 Chess.com
-  if (uciElo <= 1200) return Math.round(uciElo * 1.2 + 50);   // 1200 UCI ≈ 1490 Chess.com
-  if (uciElo <= 1600) return Math.round(uciElo * 1.15 + 100); // 1600 UCI ≈ 1940 Chess.com
-  if (uciElo <= 2000) return Math.round(uciElo * 1.1 + 100);  // 2000 UCI ≈ 2300 Chess.com
-  if (uciElo <= 2400) return Math.round(uciElo * 1.05 + 50);  // 2400 UCI ≈ 2570 Chess.com
-  return Math.round(uciElo + 50); // 2800+ UCI ≈ 2850 Chess.com
-}
 
 export function Sidebar() {
   const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, isGamePage, sideToMove } = useAppStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
-  const isChesscom = window.location.hostname.includes('chess.com');
 
   // Wrapper to include userId for cloud sync
   const setSettings = (partial: Partial<typeof settings>) => {
@@ -257,7 +245,7 @@ export function Sidebar() {
             </Card>
 
             {/* Player Performance - DISABLED (set to false && to hide) */}
-            {false && displayAnalysis?.playerPerformance && displayAnalysis.playerPerformance.movesAnalyzed > 0 && (
+            {displayAnalysis?.playerPerformance && displayAnalysis.playerPerformance.movesAnalyzed > 0 && (
               <Card>
                 <div className="tw-grid tw-grid-cols-3 tw-gap-2">
                   <div className="tw-text-center">
@@ -285,17 +273,12 @@ export function Sidebar() {
         {/* ELO */}
         <Card>
           <CardTitle>{t.elo.title}</CardTitle>
-          <div className="tw-flex tw-items-baseline tw-gap-2 tw-mb-1">
+          <div className="tw-flex tw-items-baseline tw-gap-2 tw-mb-3">
             <div className="tw-text-3xl tw-font-bold tw-text-primary">
               {localElo}
             </div>
             <div className="tw-text-sm tw-text-muted">UCI</div>
           </div>
-          {isChesscom && (
-            <div className="tw-text-sm tw-text-muted tw-mb-3">
-              {t.elo.display}: <span className="tw-text-foreground tw-font-semibold">{uciToChesscom(localElo)}</span>
-            </div>
-          )}
           <Slider
             value={localElo}
             onValueChange={handleEloChange}
