@@ -2,7 +2,7 @@ import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { PVLine, AnalysisResult, InfoUpdate, GameAnalysisResult, MoveAnalysis, MoveClassification } from './types.js';
 import { globalLogger } from './logger.js';
 import { getComparableCp } from './eval-helpers.js';
-import { calculateCPL, classifyMove, isMatemiss, calculateAdjustedAcpl, acplToElo, acplToAccuracy } from './stats-calculator.js';
+import { calculateCPL, classifyMove, isMatemiss, acplToElo, cpToWinPercent, calculateMoveAccuracy } from './stats-calculator.js';
 
 // Engine path from environment or default
 const ENGINE_PATH = process.env.ENGINE_PATH || 'dragon-3.3';
@@ -228,6 +228,7 @@ export class ChessEngine {
     mistakes: number;
     inaccuracies: number;
     mateMisses: number;
+    accuracy: number;
   }> {
     const WARMUP_DEPTH = 1; // Quick depth 1 for hash building
 
@@ -256,8 +257,12 @@ export class ChessEngine {
     let inaccuracies = 0;
     let mateMisses = 0;
 
-    // Only analyze last 10 moves for stats (but warmup all positions for hash table)
-    const statsStartIndex = Math.max(0, moves.length - 10);
+    // Lichess-style per-move accuracy tracking
+    let totalAccuracy = 0;
+    let accuracyMoveCount = 0;
+
+    // Analyze all moves for stats (warmup all positions for hash table)
+    const statsStartIndex = 0;
 
     for (let i = 0; i <= moves.length; i++) {
       const movesUpTo = moves.slice(0, i);
@@ -317,6 +322,13 @@ export class ChessEngine {
             mateMisses++;
           }
 
+          // Calculate Lichess-style per-move accuracy
+          const winPercentBefore = cpToWinPercent(lastEval);
+          const winPercentAfter = cpToWinPercent(currentEvalCp);
+          const moveAccuracy = calculateMoveAccuracy(winPercentBefore, winPercentAfter);
+          totalAccuracy += moveAccuracy;
+          accuracyMoveCount++;
+
           totalCPL += cpl; // Already capped at 1000 in calculateCPL
           playerMoveCount++;
         }
@@ -327,7 +339,8 @@ export class ChessEngine {
     }
 
     const acpl = playerMoveCount > 0 ? Math.round(totalCPL / playerMoveCount) : 0;
-    return { acpl, movesAnalyzed: playerMoveCount, blunders, mistakes, inaccuracies, mateMisses };
+    const accuracy = accuracyMoveCount > 0 ? Math.round(totalAccuracy / accuracyMoveCount) : 0;
+    return { acpl, movesAnalyzed: playerMoveCount, blunders, mistakes, inaccuracies, mateMisses, accuracy };
   }
 
   async analyze(
@@ -385,21 +398,12 @@ export class ChessEngine {
         });
       }
 
-      // Calculate player performance from warmup - DISABLED
-      if (false && warmupResult.movesAnalyzed > 0) {
-        const adjustedAcpl = calculateAdjustedAcpl(
-          warmupResult.acpl,
-          warmupResult.blunders,
-          warmupResult.mistakes,
-          warmupResult.inaccuracies,
-          warmupResult.mateMisses,
-          warmupResult.movesAnalyzed
-        );
-
+      // Calculate player performance from warmup using Lichess-style accuracy
+      if (warmupResult.movesAnalyzed > 0) {
         playerPerformance = {
           acpl: warmupResult.acpl,
           estimatedElo: acplToElo(warmupResult.acpl),
-          accuracy: acplToAccuracy(adjustedAcpl),
+          accuracy: warmupResult.accuracy,
           movesAnalyzed: warmupResult.movesAnalyzed,
         };
       }
@@ -461,8 +465,8 @@ export class ChessEngine {
           total: totalCompute,
         };
 
-        // Add player performance from warmup - DISABLED
-        if (false && playerPerformance) {
+        // Add player performance from warmup
+        if (playerPerformance) {
           result.playerPerformance = playerPerformance;
         }
 
@@ -669,6 +673,10 @@ export class ChessEngine {
     let inaccuracies = 0;
     let mateMisses = 0;
 
+    // Lichess-style per-move accuracy tracking
+    let totalAccuracy = 0;
+    let accuracyMoveCount = 0;
+
     for (let i = 0; i < moves.length; i++) {
       const isPlayerMove = (i % 2 === 0) === (playerColor === 'w');
 
@@ -728,6 +736,13 @@ export class ChessEngine {
           mateMisses++;
         }
 
+        // Calculate Lichess-style per-move accuracy
+        const winPercentBefore = cpToWinPercent(evalBeforePlayer);
+        const winPercentAfter = cpToWinPercent(evalAfterPlayer);
+        const moveAccuracy = calculateMoveAccuracy(winPercentBefore, winPercentAfter);
+        totalAccuracy += moveAccuracy;
+        accuracyMoveCount++;
+
         moveAnalysis.push({
           moveNumber: Math.floor(i / 2) + 1,
           move: moves[i],
@@ -743,7 +758,7 @@ export class ChessEngine {
 
     const acpl = playerMoveCount > 0 ? Math.round(totalCPL / playerMoveCount) : 0;
     const estimatedElo = acplToElo(acpl);
-    const adjustedAcpl = calculateAdjustedAcpl(acpl, blunders, mistakes, inaccuracies, mateMisses, playerMoveCount);
+    const accuracy = accuracyMoveCount > 0 ? Math.round(totalAccuracy / accuracyMoveCount) : 0;
 
     return {
       type: 'game_analysis',
@@ -751,7 +766,7 @@ export class ChessEngine {
       estimatedElo,
       totalMoves: playerMoveCount,
       moveAnalysis,
-      accuracy: acplToAccuracy(adjustedAcpl),
+      accuracy,
     };
   }
 

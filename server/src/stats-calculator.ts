@@ -151,3 +151,43 @@ export function acplToAccuracy(adjustedAcpl: number): number {
   const accuracy = 100 * Math.exp(-adjustedAcpl / 40);
   return Math.round(Math.max(0, Math.min(100, accuracy)));
 }
+
+/**
+ * Convert centipawns to win percentage (Lichess formula).
+ *
+ * Formula: 50 + 50 * (2 / (1 + exp(-0.00368208 * cp)) - 1)
+ *
+ * This transforms Stockfish centipawn evaluations into a win probability
+ * percentage (0-100%), based on empirical data from 2300-rated player games.
+ *
+ * @param cp - Centipawn evaluation
+ * @returns Win percentage (0-100)
+ */
+export function cpToWinPercent(cp: number): number {
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+}
+
+/**
+ * Calculate move accuracy percentage using Lichess formula.
+ *
+ * Formula: 103.1668 * exp(-0.04354 * winDiff) - 3.1669 + 1
+ *
+ * This determines how much a single move decreased winning chances.
+ * The +1 is an "uncertainty bonus" due to imperfect analysis.
+ *
+ * @param winPercentBefore - Win percentage before the move
+ * @param winPercentAfter - Win percentage after the move
+ * @returns Move accuracy percentage (0-100)
+ */
+export function calculateMoveAccuracy(winPercentBefore: number, winPercentAfter: number): number {
+  // If position improved or stayed the same, accuracy is 100%
+  if (winPercentAfter >= winPercentBefore) {
+    return 100;
+  }
+
+  const winDiff = winPercentBefore - winPercentAfter;
+  const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) + -3.166924740191411;
+  const accuracy = raw + 1; // uncertainty bonus
+
+  return Math.round(Math.max(0, Math.min(100, accuracy)));
+}
