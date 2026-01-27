@@ -195,7 +195,6 @@ export class ChessEngine {
   setElo(elo: number) {
     // Always use UCI LimitStrength for ELO-based play
     // Komodo will naturally play at the target ELO level
-    // Move-selector adds additional variation on top
     if (elo < 3500) {
       this.send('setoption name UCI LimitStrength value true');
       this.send(`setoption name UCI Elo value ${elo}`);
@@ -302,6 +301,10 @@ export class ChessEngine {
     if (!isValidFEN(fen)) {
       throw new Error('Invalid FEN position');
     }
+
+    // Clear hash tables before each analysis
+    // Engine pool shares engines between users, so we need fresh state
+    this.send('ucinewgame');
 
     // Cancel any pending analysis
     if (this.resolveAnalysis) {
