@@ -106,6 +106,14 @@ export const fr: Translations = {
     detected: 'détecté',
   },
 
+  advanced: {
+    title: 'Avancé',
+    showAlwaysBestMoveFirst: 'Toujours afficher le meilleur coup en premier',
+    showAlwaysBestMoveFirstDesc: 'La première suggestion est toujours le meilleur coup moteur.',
+    allowBrilliant: 'Autoriser les coups brillants',
+    allowBrilliantDesc: 'Affiche les coups qui sacrifient du matériel pour des positions fortes.',
+  },
+
   version: {
     title: 'Mise à jour requise',
     message: "Votre version de Chessr n'est plus supportée. Veuillez mettre à jour pour continuer à utiliser l'extension.",

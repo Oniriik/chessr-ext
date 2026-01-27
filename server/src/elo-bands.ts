@@ -19,20 +19,34 @@ export interface EloBand {
     mistake: number;
     blunder: number;
   };
+  // Quality bucket thresholds (lossCp from best move)
+  qualityLossCp: {
+    excellent: number;
+    good: number;
+    ok: number;
+    inaccuracy: number;
+  };
+  // Target distribution for quality sampling (must sum to 1.0)
+  qualityTargets: {
+    excellent: number;
+    good: number;
+    ok: number;
+    inaccuracy: number;
+  };
 }
 
 export function getEloBand(elo: number): EloBand {
-  // nodesMain: reference evaluation depth
+  // nodesMain: reference evaluation depth (optimized ~30% reduction)
   let nodesMain: number;
-  if (elo < 800) nodesMain = 45_000;
-  else if (elo < 1100) nodesMain = 110_000;
-  else if (elo < 1400) nodesMain = 275_000;
-  else if (elo < 1700) nodesMain = 700_000;
-  else if (elo < 2000) nodesMain = 1_500_000;
-  else nodesMain = 4_000_000;
+  if (elo < 800) nodesMain = 30_000;
+  else if (elo < 1100) nodesMain = 75_000;
+  else if (elo < 1400) nodesMain = 180_000;
+  else if (elo < 1700) nodesMain = 450_000;
+  else if (elo < 2000) nodesMain = 1_000_000;
+  else nodesMain = 2_500_000;
 
-  // nodesCand: quick eval for candidates = max(5000, floor(nodesMain/40))
-  const nodesCand = Math.max(5_000, Math.floor(nodesMain / 40));
+  // nodesCand: quick eval for candidates = max(3000, floor(nodesMain/50))
+  const nodesCand = Math.max(3_000, Math.floor(nodesMain / 50));
 
   // windowCp: acceptance window (centipawns)
   let windowCp: number;
@@ -59,7 +73,25 @@ export function getEloBand(elo: number): EloBand {
   else if (elo < 2000) cplThresholds = { inaccuracy: 30, mistake: 90, blunder: 180 };
   else cplThresholds = { inaccuracy: 20, mistake: 60, blunder: 120 };
 
-  return { nodesMain, nodesCand, windowCp, tempCp, cplThresholds };
+  // qualityLossCp: thresholds for move quality buckets (lossCp from best)
+  let qualityLossCp: { excellent: number; good: number; ok: number; inaccuracy: number };
+  if (elo < 800) qualityLossCp = { excellent: 25, good: 60, ok: 110, inaccuracy: 200 };
+  else if (elo < 1100) qualityLossCp = { excellent: 20, good: 50, ok: 90, inaccuracy: 160 };
+  else if (elo < 1400) qualityLossCp = { excellent: 18, good: 40, ok: 75, inaccuracy: 130 };
+  else if (elo < 1700) qualityLossCp = { excellent: 15, good: 35, ok: 65, inaccuracy: 110 };
+  else if (elo < 2000) qualityLossCp = { excellent: 12, good: 30, ok: 55, inaccuracy: 95 };
+  else qualityLossCp = { excellent: 10, good: 24, ok: 45, inaccuracy: 80 };
+
+  // qualityTargets: target distribution for quality sampling (sum = 1.0)
+  let qualityTargets: { excellent: number; good: number; ok: number; inaccuracy: number };
+  if (elo < 800) qualityTargets = { excellent: 0.08, good: 0.30, ok: 0.42, inaccuracy: 0.20 };
+  else if (elo < 1100) qualityTargets = { excellent: 0.12, good: 0.35, ok: 0.38, inaccuracy: 0.15 };
+  else if (elo < 1400) qualityTargets = { excellent: 0.16, good: 0.44, ok: 0.32, inaccuracy: 0.08 };
+  else if (elo < 1700) qualityTargets = { excellent: 0.22, good: 0.48, ok: 0.26, inaccuracy: 0.04 };
+  else if (elo < 2000) qualityTargets = { excellent: 0.26, good: 0.52, ok: 0.20, inaccuracy: 0.02 };
+  else qualityTargets = { excellent: 0.32, good: 0.52, ok: 0.15, inaccuracy: 0.01 };
+
+  return { nodesMain, nodesCand, windowCp, tempCp, cplThresholds, qualityLossCp, qualityTargets };
 }
 
 /**

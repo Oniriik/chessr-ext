@@ -98,6 +98,8 @@ export class WebSocketClient {
       elo: effectiveElo ?? settings.targetElo,
       personality: settings.personality,
       playerColor,
+      allowBrilliant: settings.allowBrilliant,
+      showAlwaysBestMoveFirst: settings.showAlwaysBestMoveFirst,
     });
   }
 

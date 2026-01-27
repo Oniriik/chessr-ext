@@ -154,6 +154,35 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             )}
           </div>
         </div>
+
+        {/* Advanced Section */}
+        <div className="tw-space-y-4 tw-mt-6">
+          <h3 className="tw-text-base tw-font-semibold tw-text-foreground tw-mb-3">
+            {t.advanced.title}
+          </h3>
+
+          <div className="tw-space-y-1">
+            <div className="tw-flex tw-items-center tw-justify-between">
+              <span className="tw-text-sm tw-text-foreground">{t.advanced.showAlwaysBestMoveFirst}</span>
+              <Switch
+                checked={settings.showAlwaysBestMoveFirst}
+                onCheckedChange={(checked) => setSettings({ showAlwaysBestMoveFirst: checked })}
+              />
+            </div>
+            <p className="tw-text-xs tw-text-muted">{t.advanced.showAlwaysBestMoveFirstDesc}</p>
+          </div>
+
+          <div className="tw-space-y-1">
+            <div className="tw-flex tw-items-center tw-justify-between">
+              <span className="tw-text-sm tw-text-foreground">{t.advanced.allowBrilliant}</span>
+              <Switch
+                checked={settings.allowBrilliant}
+                onCheckedChange={(checked) => setSettings({ allowBrilliant: checked })}
+              />
+            </div>
+            <p className="tw-text-xs tw-text-muted">{t.advanced.allowBrilliantDesc}</p>
+          </div>
+        </div>
       </div>
     </div>
   );

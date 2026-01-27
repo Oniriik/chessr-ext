@@ -10,6 +10,8 @@ interface AnalysisRequest {
     elo: number;
     personality: Personality;
     playerColor: 'w' | 'b';
+    allowBrilliant: boolean;
+    showAlwaysBestMoveFirst: boolean;
   };
   resolve: (result: AnalysisResult) => void;
   reject: (error: Error) => void;
@@ -140,6 +142,8 @@ export class EnginePool {
       elo: number;
       personality?: Personality;
       playerColor: 'w' | 'b';
+      allowBrilliant?: boolean;
+      showAlwaysBestMoveFirst?: boolean;
     }
   ): Promise<AnalysisResult> {
     if (!this.initialized) {
@@ -156,6 +160,8 @@ export class EnginePool {
           elo: options.elo,
           personality: options.personality || 'Default',
           playerColor: options.playerColor,
+          allowBrilliant: options.allowBrilliant ?? false,
+          showAlwaysBestMoveFirst: options.showAlwaysBestMoveFirst ?? false,
         },
         resolve,
         reject,
@@ -216,7 +222,9 @@ export class EnginePool {
         request.fen,
         request.options.moves,
         request.options.elo,
-        request.options.playerColor
+        request.options.playerColor,
+        request.options.allowBrilliant,
+        request.options.showAlwaysBestMoveFirst
       );
 
       // Build AnalysisResult from CandidateSelector result
@@ -226,6 +234,7 @@ export class EnginePool {
         evaluation: selectResult.evaluation,
         lines: selectResult.lines,
         depth: 0, // Not applicable with node-based search
+        timing: selectResult.timing,
         playerPerformance: selectResult.playerPerformance ? {
           acpl: 0, // Not calculated in warmup
           estimatedElo: 0, // Not calculated in warmup

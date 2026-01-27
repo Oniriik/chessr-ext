@@ -23,4 +23,6 @@ export const DEFAULT_SETTINGS: Settings = {
   singleArrowColor: '#00c850',  // Green
   language: 'auto',  // Auto-detect browser language
   numberOfSuggestions: 3,  // Show all 3 suggestions by default
+  allowBrilliant: false,           // Disabled by default
+  showAlwaysBestMoveFirst: false,  // Disabled by default
 };

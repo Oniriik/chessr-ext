@@ -114,6 +114,15 @@ export interface Translations {
     detected: string;
   };
 
+  // Advanced settings
+  advanced: {
+    title: string;
+    showAlwaysBestMoveFirst: string;
+    showAlwaysBestMoveFirstDesc: string;
+    allowBrilliant: string;
+    allowBrilliantDesc: string;
+  };
+
   // Version check
   version: {
     title: string;

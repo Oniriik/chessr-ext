@@ -8,6 +8,8 @@ export interface AnalyzeRequest {
   elo: number;
   personality: Personality;
   playerColor: 'w' | 'b';  // Player's color (detected by extension)
+  allowBrilliant?: boolean;           // Enable brilliant move detection (default: false)
+  showAlwaysBestMoveFirst?: boolean;  // Always show best move as first suggestion (default: false)
   // Deprecated fields (kept for backwards compatibility but ignored):
   searchMode?: 'depth' | 'time';
   depth?: number;

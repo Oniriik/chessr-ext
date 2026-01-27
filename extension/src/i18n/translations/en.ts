@@ -106,6 +106,14 @@ export const en: Translations = {
     detected: 'detected',
   },
 
+  advanced: {
+    title: 'Advanced',
+    showAlwaysBestMoveFirst: 'Always show best move first',
+    showAlwaysBestMoveFirstDesc: 'The first suggestion is always the best engine move.',
+    allowBrilliant: 'Allow brilliant moves',
+    allowBrilliantDesc: 'Show moves that sacrifice material for strong positions.',
+  },
+
   version: {
     title: 'Update Required',
     message: 'Your version of Chessr is no longer supported. Please update to continue using the extension.',

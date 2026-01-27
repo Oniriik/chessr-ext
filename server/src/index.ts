@@ -198,6 +198,8 @@ class ChessServer {
           elo: message.elo,
           personality: message.personality || 'Default',
           playerColor: message.playerColor,
+          allowBrilliant: message.allowBrilliant,
+          showAlwaysBestMoveFirst: message.showAlwaysBestMoveFirst,
         }
       );
 
