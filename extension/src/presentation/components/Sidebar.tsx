@@ -245,24 +245,24 @@ export function Sidebar() {
             </Card>
 
             {/* Player Performance - DISABLED (set to false && to hide) */}
-            {displayAnalysis?.playerPerformance && displayAnalysis.playerPerformance.movesAnalyzed > 0 && (
+            {false && displayAnalysis?.playerPerformance && (displayAnalysis?.playerPerformance?.movesAnalyzed ?? 0) > 0 && (
               <Card>
                 <div className="tw-grid tw-grid-cols-3 tw-gap-2">
                   <div className="tw-text-center">
                     <div className="tw-text-[10px] tw-text-muted tw-mb-1">ACPL</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-foreground">{displayAnalysis.playerPerformance.acpl}</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-foreground">{displayAnalysis?.playerPerformance?.acpl}</div>
                   </div>
                   <div className="tw-text-center">
                     <div className="tw-text-[10px] tw-text-muted tw-mb-1">Est. ELO</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-primary">{displayAnalysis.playerPerformance.estimatedElo}</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-primary">{displayAnalysis?.playerPerformance?.estimatedElo}</div>
                   </div>
                   <div className="tw-text-center">
                     <div className="tw-text-[10px] tw-text-muted tw-mb-1">Accuracy</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-green-400">{displayAnalysis.playerPerformance.accuracy}%</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-green-400">{displayAnalysis?.playerPerformance?.accuracy}%</div>
                   </div>
                 </div>
                 <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
-                  Based on {displayAnalysis.playerPerformance.movesAnalyzed} moves
+                  Based on {displayAnalysis?.playerPerformance?.movesAnalyzed} moves
                 </div>
               </Card>
             )}
