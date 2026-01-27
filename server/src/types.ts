@@ -1,3 +1,6 @@
+// Komodo Dragon Personalities
+export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
+
 export interface AnalyzeRequest {
   type: 'analyze';
   fen: string;
@@ -6,7 +9,7 @@ export interface AnalyzeRequest {
   depth: number;
   moveTime: number;  // milliseconds
   elo: number;
-  mode: 'default' | 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
+  personality: Personality;
   multiPV: number;
 }
 
@@ -32,6 +35,19 @@ export interface AnalysisResult {
   mate?: number;
   lines: PVLine[];
   depth: number;
+  // Timing info (ms)
+  timing?: {
+    warmup: number;
+    analysis: number;
+    total: number;
+  };
+  // Player performance estimate (calculated during warmup)
+  playerPerformance?: {
+    acpl: number;           // Average centipawn loss
+    estimatedElo: number;   // Estimated ELO based on ACPL
+    accuracy: number;       // Accuracy percentage (0-100)
+    movesAnalyzed: number;  // Number of player moves analyzed
+  };
 }
 
 export interface InfoUpdate {
@@ -105,4 +121,27 @@ export interface MetricsResponse {
       percentage: number;
     };
   };
+}
+
+// Game analysis types
+export type MoveClassification = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
+
+export interface MoveAnalysis {
+  moveNumber: number;
+  move: string;
+  isPlayerMove: boolean;
+  evalBefore: number;
+  evalAfter: number;
+  bestMove: string;
+  cpl: number;
+  classification: MoveClassification;
+}
+
+export interface GameAnalysisResult {
+  type: 'game_analysis';
+  acpl: number;
+  estimatedElo: number;
+  totalMoves: number;
+  moveAnalysis: MoveAnalysis[];
+  accuracy: number;
 }

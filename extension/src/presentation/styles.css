@@ -48,3 +48,16 @@
 .chessr-sidebar::-webkit-scrollbar-thumb:hover {
   background: #3a3b4d;
 }
+
+/* Tilt animation for refresh buttons */
+@keyframes tilt {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(45deg); }
+  50% { transform: rotate(0deg); }
+  75% { transform: rotate(-45deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.animate-tilt {
+  animation: tilt 0.4s ease-in-out;
+}

@@ -6,11 +6,10 @@ export interface Translations {
 
   // Player color
   player: {
-    title: string;
+    myColor: string;
+    turn: string;
     white: string;
     black: string;
-    switch: string;
-    redetect: string;
   };
 
   // Analysis
@@ -30,38 +29,38 @@ export interface Translations {
     antiCheat: string;
   };
 
-  // Play modes
-  modes: {
+  // Komodo Personalities
+  personalities: {
     title: string;
-    default: {
+    Default: {
       label: string;
       description: string;
     };
-    safe: {
+    Aggressive: {
       label: string;
       description: string;
     };
-    balanced: {
+    Defensive: {
       label: string;
       description: string;
     };
-    positional: {
+    Active: {
       label: string;
       description: string;
     };
-    aggressive: {
+    Positional: {
       label: string;
       description: string;
     };
-    tactical: {
+    Endgame: {
       label: string;
       description: string;
     };
-    creative: {
+    Beginner: {
       label: string;
       description: string;
     };
-    inhuman: {
+    Human: {
       label: string;
       description: string;
     };

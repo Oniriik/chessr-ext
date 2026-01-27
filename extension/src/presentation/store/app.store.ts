@@ -59,6 +59,14 @@ interface AppState {
   isGamePage: boolean;
   setIsGamePage: (isGamePage: boolean) => void;
 
+  // Side to move
+  sideToMove: 'w' | 'b' | null;
+  setSideToMove: (side: 'w' | 'b' | null) => void;
+
+  // Re-detect turn trigger (only analyzes if turn changed)
+  redetectTurnCount: number;
+  requestTurnRedetect: () => void;
+
   // Re-analyze trigger
   reanalyzeCount: number;
   requestReanalyze: () => void;
@@ -132,7 +140,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
   redetectPlayerColor: () => {
     const detected = detectBoard();
-    if (detected) {
+    const current = get().boardConfig;
+    // Only update if color actually changed
+    if (detected && detected.playerColor !== current?.playerColor) {
       set({ boardConfig: detected });
     }
   },
@@ -148,6 +158,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Page state
   isGamePage: false,
   setIsGamePage: (isGamePage) => set({ isGamePage }),
+
+  // Side to move
+  sideToMove: null,
+  setSideToMove: (side) => set({ sideToMove: side }),
+
+  // Re-detect turn trigger (only analyzes if turn changed)
+  redetectTurnCount: 0,
+  requestTurnRedetect: () => set((state) => ({ redetectTurnCount: state.redetectTurnCount + 1 })),
 
   // Re-analyze trigger
   reanalyzeCount: 0,

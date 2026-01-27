@@ -185,7 +185,7 @@ class ChessServer {
     logger.info('analysis_request', clientInfo.email, {
       depth: message.depth,
       elo: message.elo,
-      mode: message.mode,
+      personality: message.personality,
       multiPV: message.multiPV,
       movesCount: message.moves?.length || 0,
       moves: message.moves?.length > 0 ? message.moves.join(' ') : '(empty)',
@@ -201,7 +201,7 @@ class ChessServer {
           moveTime: message.moveTime || 1000,
           multiPV: message.multiPV,
           elo: message.elo,
-          mode: message.mode || 'default',
+          personality: message.personality || 'Default',
         },
         () => {}
       );
@@ -216,9 +216,15 @@ class ChessServer {
         })
         .join(' ');
 
+      // Format timing: ms if < 1s, otherwise seconds
+      const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+
       logger.info('analysis_complete', clientInfo.email, {
         lines: result.lines.length,
         depth: result.depth,
+        warmup: result.timing ? formatTime(result.timing.warmup) : '0ms',
+        analysis: result.timing ? formatTime(result.timing.analysis) : 'N/A',
+        total: result.timing ? formatTime(result.timing.total) : 'N/A',
         summary: movesSummary,
       });
 

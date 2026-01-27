@@ -12,6 +12,19 @@ export interface AnalysisResult {
   mate?: number;
   lines: PVLine[];
   depth: number;
+  // Timing info (ms)
+  timing?: {
+    warmup: number;
+    analysis: number;
+    total: number;
+  };
+  // Player performance estimate (calculated during warmup)
+  playerPerformance?: {
+    acpl: number;           // Average centipawn loss
+    estimatedElo: number;   // Estimated ELO based on ACPL
+    accuracy: number;       // Accuracy percentage (0-100)
+    movesAnalyzed: number;  // Number of player moves analyzed
+  };
 }
 
 export interface InfoUpdate {
@@ -27,11 +40,14 @@ export interface ArrowColors {
   other: string;     // Color for other moves
 }
 
+// Komodo Dragon Personalities
+export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
+
 export interface Settings {
   enabled: boolean;
   serverUrl: string;
   targetElo: number;
-  mode: 'default' | 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
+  personality: Personality;
   searchMode: 'depth' | 'time';
   depth: number;
   moveTime: number;  // in milliseconds

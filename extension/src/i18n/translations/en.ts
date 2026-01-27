@@ -6,11 +6,10 @@ export const en: Translations = {
   },
 
   player: {
-    title: 'I play',
-    white: '⬜ White',
-    black: '⬛ Black',
-    switch: 'Switch',
-    redetect: 'Re-detect',
+    myColor: 'My color',
+    turn: 'Turn',
+    white: 'White',
+    black: 'Black',
   },
 
   analysis: {
@@ -28,39 +27,39 @@ export const en: Translations = {
     antiCheat: 'ELO Randomization ±100',
   },
 
-  modes: {
-    title: 'Play Mode',
-    default: {
+  personalities: {
+    title: 'Personality',
+    Default: {
       label: 'Default',
-      description: 'Komodo defaults. Pure engine play without personality tweaks.',
+      description: 'Strongest personality with full control over Contempt setting.',
     },
-    safe: {
-      label: 'Safe',
-      description: 'Cautious play. Accepts draws, protects king, solid structure.',
-    },
-    balanced: {
-      label: 'Balanced',
-      description: 'Human-like neutral play. Neither too cautious nor too risky.',
-    },
-    positional: {
-      label: 'Positional',
-      description: 'Strategic play. Solid structure, long-term planning.',
-    },
-    aggressive: {
+    Aggressive: {
       label: 'Aggressive',
-      description: 'Attacking play. Avoids draws, sacrifices for initiative.',
+      description: 'Attacks relentlessly, prefers active pieces, biased toward Queen play.',
     },
-    tactical: {
-      label: 'Tactical',
-      description: 'Seeks complications and combinations. Sharp calculating style.',
+    Defensive: {
+      label: 'Defensive',
+      description: 'Emphasizes king safety and solid position above all.',
     },
-    creative: {
-      label: 'Creative',
-      description: 'Unpredictable play with surprising moves.',
+    Active: {
+      label: 'Active',
+      description: 'Tends toward open positions and well-placed pieces.',
     },
-    inhuman: {
-      label: 'Inhuman',
-      description: 'Pure engine strength. Maximum power, no human patterns.',
+    Positional: {
+      label: 'Positional',
+      description: 'Solid play, maneuvering, more closed positions.',
+    },
+    Endgame: {
+      label: 'Endgame',
+      description: 'Prefers playing through to win by promoting a pawn.',
+    },
+    Beginner: {
+      label: 'Beginner',
+      description: "Doesn't understand fundamentals, looks to check and capture.",
+    },
+    Human: {
+      label: 'Human',
+      description: 'Optimized to play like strong human players.',
     },
   },
 

@@ -1,4 +1,4 @@
-import { ChessEngine, EngineOptions, PlayMode } from './engine.js';
+import { ChessEngine, EngineOptions, Personality } from './engine.js';
 import { AnalysisResult, InfoUpdate } from './types.js';
 import { globalLogger } from './logger.js';
 
@@ -11,7 +11,7 @@ interface AnalysisRequest {
     moveTime: number;
     multiPV: number;
     elo: number;
-    mode: PlayMode;
+    personality: Personality;
   };
   onInfo?: (info: InfoUpdate) => void;
   resolve: (result: AnalysisResult) => void;
@@ -145,7 +145,7 @@ export class EnginePool {
       moveTime?: number;
       multiPV: number;
       elo: number;
-      mode?: PlayMode;
+      personality?: Personality;
     },
     onInfo?: (info: InfoUpdate) => void
   ): Promise<AnalysisResult> {
@@ -165,7 +165,7 @@ export class EnginePool {
           moveTime: options.moveTime || 1000,
           multiPV: options.multiPV,
           elo: options.elo,
-          mode: options.mode || 'default',
+          personality: options.personality || 'Default',
         },
         onInfo,
         resolve,
@@ -222,7 +222,7 @@ export class EnginePool {
       }
 
       engine.setElo(request.options.elo);
-      engine.setMode(request.options.mode);
+      engine.setPersonality(request.options.personality);
 
       const result = await engine.analyze(
         request.fen,

@@ -104,6 +104,21 @@ class Chessr {
           this.onPositionChange(currentFEN);
         }
       }
+      // Re-detect turn from move list - only analyze if turn actually changed
+      if (state.redetectTurnCount !== prevState.redetectTurnCount) {
+        const moveCount = this.adapter?.getMoveCount?.() ?? 0;
+        const newSideToMove = moveCount % 2 === 0 ? 'w' : 'b';
+        // Only trigger analysis if turn changed
+        if (newSideToMove !== prevState.sideToMove) {
+          // Update store with new turn
+          store.setSideToMove(newSideToMove);
+          // Trigger analysis if it's now player's turn
+          const currentFEN = this.moveTracker.getCurrentFEN();
+          if (currentFEN) {
+            this.onPositionChange(currentFEN);
+          }
+        }
+      }
     });
   }
 
@@ -232,6 +247,9 @@ class Chessr {
     const store = useAppStore.getState();
     const { settings, boardConfig } = store;
 
+    const sideToMove = fen.split(' ')[1] as 'w' | 'b';
+    store.setSideToMove(sideToMove);
+
     if (!settings.enabled) {
       return;
     }
@@ -245,18 +263,20 @@ class Chessr {
       return;
     }
 
-    const sideToMove = fen.split(' ')[1] as 'w' | 'b';
     const playerColor = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
+
+    console.log('[Chessr] Position change - Player:', currentBoardConfig.playerColor, '(' + playerColor + ')', 'Side to move:', sideToMove);
 
     // Only analyze when it's the player's turn
     if (sideToMove !== playerColor) {
+      console.log('[Chessr] Not player turn - skipping analysis');
       this.overlay.clearArrows();
       store.setAnalysis(null);
       return;
     }
 
     const moveHistory = this.adapter?.getMoveHistory?.() || [];
-    console.log('[Chessr] Sending suggestion - side to move:', sideToMove, 'moves:', moveHistory.length);
+    console.log('[Chessr] ✓ Player turn - sending suggestion request, moves:', moveHistory.length);
     this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory);
   }
 
@@ -314,7 +334,7 @@ class Chessr {
     // Re-analyze if analysis-related settings changed
     const analysisSettingsChanged =
       settings.targetElo !== prevSettings.targetElo ||
-      settings.mode !== prevSettings.mode ||
+      settings.personality !== prevSettings.personality ||
       settings.depth !== prevSettings.depth ||
       settings.moveTime !== prevSettings.moveTime ||
       settings.searchMode !== prevSettings.searchMode ||

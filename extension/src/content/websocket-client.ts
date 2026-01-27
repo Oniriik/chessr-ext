@@ -99,7 +99,7 @@ export class WebSocketClient {
       depth: settings.depth,
       moveTime: settings.moveTime,
       elo: effectiveElo ?? settings.targetElo,
-      mode: settings.mode,
+      personality: settings.personality,
       multiPV: settings.multiPV,
     });
   }
@@ -109,11 +109,11 @@ export class WebSocketClient {
   }
 
   updateSettings(settings: Partial<Settings>) {
-    if (settings.targetElo !== undefined || settings.mode !== undefined) {
+    if (settings.targetElo !== undefined || settings.personality !== undefined) {
       this.send({
         type: 'settings',
         elo: settings.targetElo,
-        mode: settings.mode,
+        personality: settings.personality,
       });
     }
   }

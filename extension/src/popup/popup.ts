@@ -32,11 +32,11 @@ class PopupController {
     eloSlider.value = this.settings.targetElo.toString();
     eloValue.textContent = this.settings.targetElo.toString();
 
-    // Mode buttons
-    const safeModeBtn = document.getElementById('mode-safe')!;
-    const aggressiveModeBtn = document.getElementById('mode-aggressive')!;
-    safeModeBtn.classList.toggle('active', this.settings.mode === 'safe');
-    aggressiveModeBtn.classList.toggle('active', this.settings.mode === 'aggressive');
+    // Personality buttons
+    const defensiveBtn = document.getElementById('mode-safe')!;
+    const aggressiveBtn = document.getElementById('mode-aggressive')!;
+    defensiveBtn.classList.toggle('active', this.settings.personality === 'Defensive');
+    aggressiveBtn.classList.toggle('active', this.settings.personality === 'Aggressive');
 
     // Time/Depth slider
     const timeSlider = document.getElementById('time-slider') as HTMLInputElement;
@@ -55,7 +55,7 @@ class PopupController {
       searchTimeBtn.classList.add('active');
       searchDepthBtn.classList.remove('active');
     } else {
-      timeSlider.min = '8';
+      timeSlider.min = '1';
       timeSlider.max = '30';
       timeSlider.step = '1';
       timeSlider.value = this.settings.depth.toString();
@@ -109,13 +109,13 @@ class PopupController {
       });
     });
 
-    // Mode buttons
+    // Personality buttons
     document.getElementById('mode-safe')?.addEventListener('click', () => {
-      this.setMode('safe');
+      this.setPersonality('Defensive');
     });
 
     document.getElementById('mode-aggressive')?.addEventListener('click', () => {
-      this.setMode('aggressive');
+      this.setPersonality('Aggressive');
     });
 
     // Time/Depth slider
@@ -197,7 +197,7 @@ class PopupController {
       searchTimeBtn.classList.add('active');
       searchDepthBtn.classList.remove('active');
     } else {
-      timeSlider.min = '8';
+      timeSlider.min = '1';
       timeSlider.max = '30';
       timeSlider.step = '1';
       timeSlider.value = this.settings.depth.toString();
@@ -210,14 +210,14 @@ class PopupController {
     this.saveSettings({ searchMode: mode });
   }
 
-  private setMode(mode: 'safe' | 'aggressive') {
-    const safeModeBtn = document.getElementById('mode-safe')!;
-    const aggressiveModeBtn = document.getElementById('mode-aggressive')!;
+  private setPersonality(personality: 'Defensive' | 'Aggressive') {
+    const defensiveBtn = document.getElementById('mode-safe')!;
+    const aggressiveBtn = document.getElementById('mode-aggressive')!;
 
-    safeModeBtn.classList.toggle('active', mode === 'safe');
-    aggressiveModeBtn.classList.toggle('active', mode === 'aggressive');
+    defensiveBtn.classList.toggle('active', personality === 'Defensive');
+    aggressiveBtn.classList.toggle('active', personality === 'Aggressive');
 
-    this.saveSettings({ mode });
+    this.saveSettings({ personality });
   }
 
   private listenForUpdates() {

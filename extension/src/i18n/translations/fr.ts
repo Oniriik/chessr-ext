@@ -6,11 +6,10 @@ export const fr: Translations = {
   },
 
   player: {
-    title: 'Je joue',
-    white: '⬜ Blancs',
-    black: '⬛ Noirs',
-    switch: 'Changer',
-    redetect: 'Re-détecter',
+    myColor: 'Ma couleur',
+    turn: 'Tour',
+    white: 'Blancs',
+    black: 'Noirs',
   },
 
   analysis: {
@@ -28,39 +27,39 @@ export const fr: Translations = {
     antiCheat: 'Randomisation ELO ±100',
   },
 
-  modes: {
-    title: 'Mode de Jeu',
-    default: {
+  personalities: {
+    title: 'Personnalité',
+    Default: {
       label: 'Par défaut',
-      description: 'Paramètres Komodo par défaut. Jeu moteur pur sans ajustements.',
+      description: 'Personnalité la plus forte avec contrôle total sur le Contempt.',
     },
-    safe: {
-      label: 'Prudent',
-      description: 'Jeu prudent. Accepte les nulles, protège le roi, structure solide.',
-    },
-    balanced: {
-      label: 'Équilibré',
-      description: 'Jeu neutre humain. Ni trop prudent, ni trop risqué.',
-    },
-    positional: {
-      label: 'Positionnel',
-      description: 'Jeu stratégique. Structure solide, planification à long terme.',
-    },
-    aggressive: {
+    Aggressive: {
       label: 'Agressif',
-      description: 'Jeu offensif. Évite les nulles, sacrifie pour l\'initiative.',
+      description: 'Attaque sans relâche, préfère les pièces actives, privilégie la Dame.',
     },
-    tactical: {
-      label: 'Tactique',
-      description: 'Cherche les complications et combinaisons. Style tranchant.',
+    Defensive: {
+      label: 'Défensif',
+      description: 'Privilégie la sécurité du roi et une position solide avant tout.',
     },
-    creative: {
-      label: 'Créatif',
-      description: 'Jeu imprévisible avec des coups surprenants.',
+    Active: {
+      label: 'Actif',
+      description: 'Tend vers les positions ouvertes et les pièces bien placées.',
     },
-    inhuman: {
-      label: 'Inhumain',
-      description: 'Force moteur pure. Puissance maximale, sans patterns humains.',
+    Positional: {
+      label: 'Positionnel',
+      description: 'Jeu solide, manœuvres, positions plus fermées.',
+    },
+    Endgame: {
+      label: 'Finale',
+      description: 'Préfère gagner en promouvant un pion.',
+    },
+    Beginner: {
+      label: 'Débutant',
+      description: 'Ne comprend pas les fondamentaux, cherche à échecs et captures.',
+    },
+    Human: {
+      label: 'Humain',
+      description: 'Optimisé pour jouer comme un humain fort.',
     },
   },
 

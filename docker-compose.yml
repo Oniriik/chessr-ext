@@ -3,14 +3,17 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: chess-stockfish-server
+    container_name: chess-dragon-server
     restart: unless-stopped
     ports:
       - "3000:3000"
       - "3001:3001"
+    volumes:
+      - ./server/engine/Linux:/engine:ro
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - ENGINE_PATH=/engine/dragon-3.3-linux
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
       - GRAFANA_INSTANCE_ID=${GRAFANA_INSTANCE_ID}
       - GRAFANA_API_KEY=${GRAFANA_API_KEY}
@@ -56,7 +59,7 @@ services:
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
       - METRICS_URL=http://chess-server:3001/metrics
-      - DOCKER_CONTAINER_NAME=chess-stockfish-server
+      - DOCKER_CONTAINER_NAME=chess-dragon-server
     volumes:
       # Mount Docker socket to control containers
       - /var/run/docker.sock:/var/run/docker.sock:ro
