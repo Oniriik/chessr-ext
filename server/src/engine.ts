@@ -1,6 +1,8 @@
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
-import { PVLine, AnalysisResult, InfoUpdate } from './types.js';
+import { PVLine, AnalysisResult, InfoUpdate, GameAnalysisResult, MoveAnalysis, MoveClassification } from './types.js';
 import { globalLogger } from './logger.js';
+import { getComparableCp } from './eval-helpers.js';
+import { calculateCPL, classifyMove, isMatemiss, calculateAdjustedAcpl, acplToElo, acplToAccuracy } from './stats-calculator.js';
 
 // Engine path from environment or default
 const ENGINE_PATH = process.env.ENGINE_PATH || 'dragon-3.3';
@@ -50,25 +52,16 @@ export interface EngineOptions {
   hash?: number;
 }
 
-// Play modes with their descriptions:
-// - default: Komodo defaults, no tweaks, no LimitStrength
-// - safe: Human-like cautious play, accepts draws, protects king
-// - balanced: Human-like balanced play, neutral style
-// - aggressive: Optimal attacking play, avoids draws, sacrifices for initiative
-// - positional: Optimal strategic play, solid structure, long-term plans
-// - tactical: Optimal tactical play, seeks complications and combinations
-// - creative: Unpredictable play with surprising moves
-// - inhuman: Pure engine play, maximum strength, no human patterns
-export type PlayMode = 'default' | 'safe' | 'balanced' | 'aggressive' | 'positional' | 'tactical' | 'creative' | 'inhuman';
-
-interface ModeConfig {
-  personality: string;
-  contempt: number;
-  kingSafety: number;
-  dynamism: number;
-  selectivity: number;
-  variety: number;
-}
+// Komodo Dragon Personalities (from official documentation):
+// - Default: Strongest personality, full control over Contempt settings
+// - Aggressive: Attacks relentlessly, prefers active pieces, biased toward Queen play
+// - Defensive: Emphasizes king safety and solid position above all
+// - Active: Tends toward open positions and well-placed pieces
+// - Positional: Solid play, maneuvering, more closed positions
+// - Endgame: Prefers playing through to win by promoting a pawn
+// - Beginner: Doesn't understand fundamentals, looks to check and capture
+// - Human: Optimized to play like strong human players, aggressive, avoids simplification
+export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 
 export class ChessEngine {
   private process: ChildProcessWithoutNullStreams | null = null;
@@ -87,6 +80,8 @@ export class ChessEngine {
   private uciOkReceived = false;
   private readyOkReceived = false;
   private lastOptions: EngineOptions = {};
+  private currentElo: number = 3500;  // Track current ELO setting
+  private currentPersonality: Personality = 'Default';  // Track current personality
 
   async init(options: EngineOptions = {}): Promise<void> {
     this.lastOptions = options;
@@ -193,93 +188,146 @@ export class ChessEngine {
   }
 
   setElo(elo: number) {
-    // Always use UCI LimitStrength for ELO-based play
-    // Komodo will naturally play at the target ELO level
+    this.currentElo = elo;  // Track current setting
+    // Use both Skill and UCI Elo for better chess.com calibration
+    // Skill formula: (Level + 1) * 125 ≈ chess.com Elo
+    // Skill 1 = ~250, Skill 23 = ~3000, Skill 25 = full strength
+    const skill = Math.max(1, Math.min(25, Math.round(elo / 125) - 1));
+
     if (elo < 3500) {
+      this.send(`setoption name Skill value ${skill}`);
       this.send('setoption name UCI LimitStrength value true');
       this.send(`setoption name UCI Elo value ${elo}`);
     } else {
+      this.send('setoption name Skill value 25');
       this.send('setoption name UCI LimitStrength value false');
     }
   }
 
-  setMode(mode: PlayMode) {
-    // Default mode: use Komodo's factory settings, no tweaks
-    if (mode === 'default') {
-      return;
+  setPersonality(personality: Personality) {
+    this.currentPersonality = personality;  // Track current setting
+    // Set the Komodo Personality option directly
+    // Komodo handles all internal adjustments for each personality
+    this.send(`setoption name Personality value ${personality}`);
+  }
+
+  /**
+   * Warm up hash tables by replaying game history with quick analyses
+   * This builds transposition table entries for better final analysis
+   * Also calculates player's ACPL for performance estimation
+   */
+  private warmupBestMoveReceived: boolean = false;
+
+  private async warmupHash(
+    moves: string[],
+    playerColor: 'w' | 'b'
+  ): Promise<{
+    acpl: number;
+    movesAnalyzed: number;
+    blunders: number;
+    mistakes: number;
+    inaccuracies: number;
+    mateMisses: number;
+  }> {
+    const WARMUP_DEPTH = 1; // Quick depth 1 for hash building
+
+    // Temporarily disable strength limiting for accurate ACPL calculation
+    this.send('setoption name UCI LimitStrength value false');
+    this.send('setoption name Skill value 25');  // Max skill for Komodo
+    this.send('isready');
+    await new Promise<void>((resolve) => {
+      const checkReady = setInterval(() => {
+        if (this.readyOkReceived) {
+          this.readyOkReceived = false;
+          clearInterval(checkReady);
+          resolve();
+        }
+      }, 5);
+    });
+
+    let totalCPL = 0;
+    let playerMoveCount = 0;
+    let lastEval = 0;
+    let lastMate: number | undefined;
+
+    // Mistake classification counters
+    let blunders = 0;
+    let mistakes = 0;
+    let inaccuracies = 0;
+    let mateMisses = 0;
+
+    // Only analyze last 10 moves for stats (but warmup all positions for hash table)
+    const statsStartIndex = Math.max(0, moves.length - 10);
+
+    for (let i = 0; i <= moves.length; i++) {
+      const movesUpTo = moves.slice(0, i);
+      const positionCmd = movesUpTo.length > 0
+        ? `position startpos moves ${movesUpTo.join(' ')}`
+        : 'position startpos';
+
+      // Determine whose turn it is at this position (before move i is played)
+      const isWhiteTurn = i % 2 === 0;
+
+      this.send(positionCmd);
+      this.send(`go depth ${WARMUP_DEPTH}`);
+
+      // Wait for bestmove response using dedicated flag
+      this.warmupBestMoveReceived = false;
+      await new Promise<void>((resolve) => {
+        const checkBestMove = setInterval(() => {
+          if (this.warmupBestMoveReceived) {
+            this.warmupBestMoveReceived = false;
+            clearInterval(checkBestMove);
+            resolve();
+          }
+        }, 5);
+      });
+
+      // Get current eval using proper mate-to-CP conversion and perspective normalization
+      const currentEvalCp = getComparableCp(
+        this.currentEval,
+        this.currentMate,
+        isWhiteTurn
+      );
+      const currentMate = this.currentMate;
+
+      // Calculate CPL for player moves (comparing eval before and after their move)
+      // Only count stats for last 10 moves (but warmup all positions for hash table)
+      if (i > 0 && i > statsStartIndex) {
+        // Move i-1 was just played, check if it was the player's move
+        const wasWhiteMove = (i - 1) % 2 === 0;
+        const wasPlayerMove = (playerColor === 'w') === wasWhiteMove;
+
+        if (wasPlayerMove) {
+          // Use new helpers for consistent CPL calculation
+          const cpl = calculateCPL(lastEval, currentEvalCp);
+          const classification = classifyMove(cpl);
+
+          // Update counters based on classification
+          if (classification === 'blunder') {
+            blunders++;
+          } else if (classification === 'mistake') {
+            mistakes++;
+          } else if (classification === 'inaccuracy') {
+            inaccuracies++;
+          }
+
+          // Check for mate misses
+          if (isMatemiss(lastMate, currentMate)) {
+            mateMisses++;
+          }
+
+          totalCPL += cpl; // Already capped at 1000 in calculateCPL
+          playerMoveCount++;
+        }
+      }
+
+      lastEval = currentEvalCp;
+      lastMate = currentMate;
     }
 
-    // Mode configurations for Komodo Dragon
-    // Each mode adjusts: Personality, Contempt, King Safety, Dynamism, Selectivity, Variety
-    const modeConfigs: Record<Exclude<PlayMode, 'default'>, ModeConfig> = {
-      // Human-like modes (use Human personality + variety for realistic play)
-      safe: {
-        personality: 'Human',
-        contempt: -100,      // Accepts draws easily
-        kingSafety: 120,     // Very protective of king
-        dynamism: 50,        // Prefers solid structure
-        selectivity: 180,    // High selectivity = more human errors
-        variety: 35,         // Good randomization for human feel
-      },
-      balanced: {
-        personality: 'Human',
-        contempt: 0,         // Neutral on draws
-        kingSafety: 83,      // Default king safety
-        dynamism: 100,       // Balanced play
-        selectivity: 170,    // Higher selectivity = more errors
-        variety: 30,         // More randomization for human feel
-      },
-      // Precise modes (optimal play in their style)
-      aggressive: {
-        personality: 'Aggressive',
-        contempt: 150,       // Avoids draws, fights for win
-        kingSafety: 50,      // Willing to expose king for attack
-        dynamism: 180,       // Very active piece play
-        selectivity: 130,    // Good calculation
-        variety: 0,          // Always best attacking move
-      },
-      positional: {
-        personality: 'Positional',
-        contempt: -50,       // Accepts draws if position is equal
-        kingSafety: 100,     // Solid king position
-        dynamism: 60,        // Prefers structure over activity
-        selectivity: 110,    // Deep positional calculation
-        variety: 0,          // Always best positional move
-      },
-      tactical: {
-        personality: 'Active',
-        contempt: 100,       // Prefers to fight
-        kingSafety: 60,      // Some risk tolerance
-        dynamism: 200,       // Maximum piece activity
-        selectivity: 140,    // Good tactical vision
-        variety: 5,          // Tiny randomization
-      },
-      creative: {
-        personality: 'Default',
-        contempt: 50,        // Slight fight preference
-        kingSafety: 70,      // Moderate risk
-        dynamism: 150,       // Active play
-        selectivity: 140,    // Normal calculation
-        variety: 50,         // High randomization for surprises
-      },
-      inhuman: {
-        personality: 'Default',
-        contempt: 250,       // Never accepts draws
-        kingSafety: 30,      // King exposed if advantageous
-        dynamism: 300,       // Maximum activity
-        selectivity: 80,     // Deep calculation
-        variety: 0,          // Always absolute best move
-      },
-    };
-
-    const config = modeConfigs[mode];
-
-    this.send(`setoption name Personality value ${config.personality}`);
-    this.send(`setoption name Contempt value ${config.contempt}`);
-    this.send(`setoption name King Safety value ${config.kingSafety}`);
-    this.send(`setoption name Dynamism value ${config.dynamism}`);
-    this.send(`setoption name Selectivity value ${config.selectivity}`);
-    this.send(`setoption name Variety value ${config.variety}`);
+    const acpl = playerMoveCount > 0 ? Math.round(totalCPL / playerMoveCount) : 0;
+    return { acpl, movesAnalyzed: playerMoveCount, blunders, mistakes, inaccuracies, mateMisses };
   }
 
   async analyze(
@@ -305,6 +353,59 @@ export class ChessEngine {
     // Clear hash tables before each analysis
     // Engine pool shares engines between users, so we need fresh state
     this.send('ucinewgame');
+
+    const computeStart = Date.now();
+    let warmupTime = 0;
+    let playerPerformance: AnalysisResult['playerPerformance'] | undefined;
+
+    // Build hash progressively by replaying game history
+    if (options.moves.length > 0) {
+      const warmupStart = Date.now();
+      // Player color is the side to move (we only analyze on player's turn)
+      const playerColor = fen.split(' ')[1] as 'w' | 'b';
+      const warmupResult = await this.warmupHash(options.moves, playerColor);
+      warmupTime = Date.now() - warmupStart;
+
+      // For time mode: Restore ELO and personality settings (warmup uses full strength)
+      // For depth mode: Keep full strength (don't apply ELO limits)
+      if (options.searchMode === 'time') {
+        this.setElo(this.currentElo);
+        this.setPersonality(this.currentPersonality);
+
+        // Wait for settings to be applied
+        this.send('isready');
+        await new Promise<void>((resolve) => {
+          const checkReady = setInterval(() => {
+            if (this.readyOkReceived) {
+              this.readyOkReceived = false;
+              clearInterval(checkReady);
+              resolve();
+            }
+          }, 5);
+        });
+      }
+
+      // Calculate player performance from warmup - DISABLED
+      if (false && warmupResult.movesAnalyzed > 0) {
+        const adjustedAcpl = calculateAdjustedAcpl(
+          warmupResult.acpl,
+          warmupResult.blunders,
+          warmupResult.mistakes,
+          warmupResult.inaccuracies,
+          warmupResult.mateMisses,
+          warmupResult.movesAnalyzed
+        );
+
+        playerPerformance = {
+          acpl: warmupResult.acpl,
+          estimatedElo: acplToElo(warmupResult.acpl),
+          accuracy: acplToAccuracy(adjustedAcpl),
+          movesAnalyzed: warmupResult.movesAnalyzed,
+        };
+      }
+    }
+
+    const analysisStart = Date.now();
 
     // Cancel any pending analysis
     if (this.resolveAnalysis) {
@@ -345,11 +446,26 @@ export class ChessEngine {
         }
       }, timeoutDuration);
 
-      // Wrap original resolve to clear timeout
+      // Wrap original resolve to clear timeout and add timing
       const originalResolve = this.resolveAnalysis;
       this.resolveAnalysis = (result: AnalysisResult) => {
         clearTimeout(timeout);
         this.rejectAnalysis = undefined;
+
+        // Add timing info to result
+        const analysisTime = Date.now() - analysisStart;
+        const totalCompute = Date.now() - computeStart;
+        result.timing = {
+          warmup: warmupTime,
+          analysis: analysisTime,
+          total: totalCompute,
+        };
+
+        // Add player performance from warmup - DISABLED
+        if (false && playerPerformance) {
+          result.playerPerformance = playerPerformance;
+        }
+
         if (originalResolve) {
           originalResolve(result);
         }
@@ -365,24 +481,32 @@ export class ChessEngine {
         }
       };
 
-      // Disable LimitStrength for depth mode (full engine strength for analysis)
-      // For time mode, LimitStrength is already set by setElo() called before analyze()
-      if (options.searchMode === 'depth') {
-        this.send('setoption name UCI LimitStrength value false');
-      }
-
+      // MultiPV setting
+      // Note: ELO and personality are already set before analyze() is called (by engine-pool)
+      // and restored after warmup above, so we don't need to set them again here
       this.send(`setoption name MultiPV value ${options.multiPV}`);
 
       // Use move history if available, otherwise FEN
+      const sideToMove = fen.split(' ')[1];
       if (options.moves.length > 0) {
+        globalLogger.info('engine_analyze_position', {
+          method: 'moves',
+          movesCount: options.moves.length,
+          lastMove: options.moves[options.moves.length - 1],
+          sideToMove,
+          elo: this.currentElo
+        });
         this.send(`position startpos moves ${options.moves.join(' ')}`);
       } else {
+        globalLogger.info('engine_analyze_position', { method: 'fen', fen, sideToMove, elo: this.currentElo });
         this.send(`position fen ${fen}`);
       }
 
       if (options.searchMode === 'time') {
+        globalLogger.info('engine_search_command', { mode: 'time', moveTime: options.moveTime, elo: this.currentElo, personality: this.currentPersonality });
         this.send(`go movetime ${options.moveTime}`);
       } else {
+        globalLogger.info('engine_search_command', { mode: 'depth', depth: options.depth, elo: this.currentElo, personality: this.currentPersonality });
         this.send(`go depth ${options.depth}`);
       }
     });
@@ -488,6 +612,9 @@ export class ChessEngine {
     const bestMove = parts[1];
     const ponder = parts[3];
 
+    // Set warmup flag (used during warmup phase)
+    this.warmupBestMoveReceived = true;
+
     if (this.resolveAnalysis) {
       this.resolveAnalysis({
         type: 'result',
@@ -501,4 +628,168 @@ export class ChessEngine {
       this.resolveAnalysis = undefined;
     }
   }
+
+  /**
+   * Analyze a full game to calculate ACPL (Average Centipawn Loss)
+   * Uses a single engine without resetting hash between moves for efficiency
+   */
+  async analyzeGame(
+    moves: string[],
+    playerColor: 'w' | 'b',
+    depth: number = 12
+  ): Promise<GameAnalysisResult> {
+    if (!this.isAlive()) {
+      throw new Error('Engine not ready');
+    }
+
+    // Configure for full strength analysis
+    this.send('ucinewgame'); // Reset once at start
+    this.send('setoption name UCI LimitStrength value false');
+    this.send('setoption name MultiPV value 1');
+    this.send('isready');
+
+    // Wait for readyok
+    await new Promise<void>((resolve) => {
+      const checkReady = setInterval(() => {
+        if (this.readyOkReceived) {
+          this.readyOkReceived = false;
+          clearInterval(checkReady);
+          resolve();
+        }
+      }, 10);
+    });
+
+    const moveAnalysis: MoveAnalysis[] = [];
+    let totalCPL = 0;
+    let playerMoveCount = 0;
+
+    // Mistake classification counters
+    let blunders = 0;
+    let mistakes = 0;
+    let inaccuracies = 0;
+    let mateMisses = 0;
+
+    for (let i = 0; i < moves.length; i++) {
+      const isPlayerMove = (i % 2 === 0) === (playerColor === 'w');
+
+      // Analyze position BEFORE this move (to get best move recommendation)
+      const movesBefore = moves.slice(0, i);
+      const positionCmd = movesBefore.length > 0
+        ? `position startpos moves ${movesBefore.join(' ')}`
+        : 'position startpos';
+
+      // Get evaluation of position before the move
+      const evalBefore = await this.analyzePosition(positionCmd, depth);
+
+      if (isPlayerMove) {
+        // Get evaluation after the player's move
+        const movesAfter = moves.slice(0, i + 1);
+        const positionAfterCmd = `position startpos moves ${movesAfter.join(' ')}`;
+        const evalAfter = await this.analyzePosition(positionAfterCmd, depth);
+
+        // Calculate CPL (centipawn loss)
+        // Engine always returns eval from white's perspective (UCI standard)
+        // Convert to centipawns first
+        const evalBeforeCp = evalBefore.mate !== undefined
+          ? (evalBefore.mate > 0 ? 10000 : -10000)
+          : evalBefore.evaluation * 100;
+        const evalAfterCp = evalAfter.mate !== undefined
+          ? (evalAfter.mate > 0 ? 10000 : -10000)
+          : evalAfter.evaluation * 100;
+
+        // Convert to player's perspective
+        const evalBeforePlayer = playerColor === 'w' ? evalBeforeCp : -evalBeforeCp;
+        const evalAfterPlayer = playerColor === 'w' ? evalAfterCp : -evalAfterCp;
+
+        const cpl = Math.max(0, evalBeforePlayer - evalAfterPlayer);
+        totalCPL += Math.min(cpl, 1000); // Cap at 1000 to avoid mate scores
+        playerMoveCount++;
+
+        // Classify the move using consistent thresholds
+        let classification: MoveClassification;
+        if (cpl >= 300) {
+          classification = 'blunder';
+          blunders++;
+        } else if (cpl >= 100) {
+          classification = 'mistake';
+          mistakes++;
+        } else if (cpl >= 50) {
+          classification = 'inaccuracy';
+          inaccuracies++;
+        } else if (cpl < 10) {
+          classification = cpl === 0 ? 'best' : 'excellent';
+        } else {
+          classification = 'good';
+        }
+
+        // Check for mate misses
+        if (evalBefore.mate !== undefined && evalBefore.mate > 0 &&
+            (evalAfter.mate === undefined || evalAfter.mate <= 0)) {
+          mateMisses++;
+        }
+
+        moveAnalysis.push({
+          moveNumber: Math.floor(i / 2) + 1,
+          move: moves[i],
+          isPlayerMove: true,
+          evalBefore: evalBefore.evaluation,
+          evalAfter: -evalAfter.evaluation,
+          bestMove: evalBefore.bestMove,
+          cpl,
+          classification,
+        });
+      }
+    }
+
+    const acpl = playerMoveCount > 0 ? Math.round(totalCPL / playerMoveCount) : 0;
+    const estimatedElo = acplToElo(acpl);
+    const adjustedAcpl = calculateAdjustedAcpl(acpl, blunders, mistakes, inaccuracies, mateMisses, playerMoveCount);
+
+    return {
+      type: 'game_analysis',
+      acpl,
+      estimatedElo,
+      totalMoves: playerMoveCount,
+      moveAnalysis,
+      accuracy: acplToAccuracy(adjustedAcpl),
+    };
+  }
+
+  /**
+   * Analyze a single position (helper for analyzeGame)
+   * Does NOT reset hash tables
+   */
+  private async analyzePosition(
+    positionCmd: string,
+    depth: number
+  ): Promise<{ evaluation: number; mate?: number; bestMove: string }> {
+    return new Promise((resolve, reject) => {
+      this.lines = [];
+      this.currentDepth = 0;
+      this.currentEval = 0;
+      this.currentMate = undefined;
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Position analysis timeout'));
+      }, 30000);
+
+      this.resolveAnalysis = (result) => {
+        clearTimeout(timeout);
+        resolve({
+          evaluation: result.evaluation,
+          mate: result.mate,
+          bestMove: result.bestMove,
+        });
+      };
+
+      this.rejectAnalysis = (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      };
+
+      this.send(positionCmd);
+      this.send(`go depth ${depth}`);
+    });
+  }
+
 }

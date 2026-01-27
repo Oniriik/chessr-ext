@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Clock, Layers, RotateCcw, LogOut, Settings2, Zap } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Layers, LogOut, Settings2, RotateCw } from 'lucide-react';
 import { useAppStore } from '../store/app.store';
 import { useAuthStore } from '../store/auth.store';
 import { useTranslation } from '../../i18n';
@@ -14,26 +14,10 @@ import { Select } from './ui/select';
 import { OpeningSelector } from './OpeningSelector';
 import { SettingsModal } from './SettingsModal';
 
-// Mode configurations with minimum ELO requirements only
-const PLAY_MODES_CONFIG = {
-  default: { minElo: 0 },
-  safe: { minElo: 0 },
-  balanced: { minElo: 0 },
-  positional: { minElo: 1000 },
-  aggressive: { minElo: 1500 },
-  tactical: { minElo: 1800 },
-  creative: { minElo: 2000 },
-  inhuman: { minElo: 2400 },
-} as const;
+import { Personality } from '../../shared/types';
 
-type PlayMode = keyof typeof PLAY_MODES_CONFIG;
-
-// Get available modes based on current ELO
-function getAvailableModes(elo: number): PlayMode[] {
-  return (Object.entries(PLAY_MODES_CONFIG) as [PlayMode, typeof PLAY_MODES_CONFIG[PlayMode]][])
-    .filter(([_, config]) => elo >= config.minElo)
-    .map(([key]) => key);
-}
+// Komodo personalities - all available at any ELO
+const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Active', 'Positional', 'Endgame', 'Beginner', 'Human'];
 
 // Convert UCI Elo to approximate Chess.com Elo
 // More linear at low ELOs, gradually inflating at higher levels
@@ -48,7 +32,7 @@ function uciToChesscom(uciElo: number): number {
 }
 
 export function Sidebar() {
-  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestReanalyze, isGamePage } = useAppStore();
+  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, isGamePage, sideToMove } = useAppStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -59,22 +43,9 @@ export function Sidebar() {
     setSettingsBase(partial, user?.id);
   };
 
-  // Get play modes with translations
-  const getPlayModeInfo = (mode: PlayMode) => {
-    const modeTranslations = {
-      default: t.modes.default,
-      safe: t.modes.safe,
-      balanced: t.modes.balanced,
-      positional: t.modes.positional,
-      aggressive: t.modes.aggressive,
-      tactical: t.modes.tactical,
-      creative: t.modes.creative,
-      inhuman: t.modes.inhuman,
-    };
-    return {
-      ...modeTranslations[mode],
-      minElo: PLAY_MODES_CONFIG[mode].minElo,
-    };
+  // Get personality info with translations
+  const getPersonalityInfo = (personality: Personality) => {
+    return t.personalities[personality];
   };
 
   // Local state for ELO slider with debounce
@@ -95,20 +66,15 @@ export function Sidebar() {
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // Animation states for refresh buttons
+  const [colorSpinning, setColorSpinning] = useState(false);
+  const [turnSpinning, setTurnSpinning] = useState(false);
+
   // Sync local ELO when settings change externally
   useEffect(() => {
     setLocalElo(settings.targetElo);
   }, [settings.targetElo]);
 
-  // Reset mode to valid one if current mode is no longer available at this ELO
-  useEffect(() => {
-    const availableModes = getAvailableModes(localElo);
-    if (!availableModes.includes(settings.mode as PlayMode)) {
-      // Switch to the highest available mode
-      const newMode = availableModes[availableModes.length - 1] || 'balanced';
-      setSettings({ mode: newMode });
-    }
-  }, [localElo, settings.mode]);
 
   const handleEloChange = (value: number) => {
     setLocalElo(value);
@@ -221,22 +187,50 @@ export function Sidebar() {
           </Card>
         ) : (
           <>
-            {/* Player Color */}
+            {/* Player Info - Two Columns */}
             <Card>
-              <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
-                <div>
-                  <div className="tw-text-xs tw-text-muted tw-mb-1">{t.player.title}</div>
-                  <div className="tw-text-lg tw-font-bold">
-                    {boardConfig?.playerColor === 'white' ? t.player.white : t.player.black}
+              <div className="tw-grid tw-grid-cols-2 tw-gap-2">
+                {/* My color column */}
+                <div className="tw-text-center">
+                  <div className="tw-text-[10px] tw-text-muted tw-mb-1">{t.player.myColor}</div>
+                  <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
+                    <span className="tw-font-semibold">
+                      {boardConfig?.playerColor === 'white' ? `⬜ ${t.player.white}` : `⬛ ${t.player.black}`}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setColorSpinning(true);
+                        redetectPlayerColor();
+                        setTimeout(() => setColorSpinning(false), 400);
+                      }}
+                      className="tw-text-muted hover:tw-text-foreground tw-transition-colors tw-p-0.5"
+                      title="Re-detect color"
+                    >
+                      <RotateCw className={cn('tw-w-3 tw-h-3', colorSpinning && 'animate-tilt')} />
+                    </button>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={redetectPlayerColor}>
-                  <RotateCcw className="tw-w-4 tw-h-4 tw-mr-1" /> {t.player.redetect}
-                </Button>
+                {/* Turn column */}
+                <div className="tw-text-center">
+                  <div className="tw-text-[10px] tw-text-muted tw-mb-1">{t.player.turn}</div>
+                  <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
+                    <span className="tw-font-semibold">
+                      {sideToMove === 'w' ? `⬜ ${t.player.white}` : sideToMove === 'b' ? `⬛ ${t.player.black}` : '--'}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setTurnSpinning(true);
+                        requestTurnRedetect();
+                        setTimeout(() => setTurnSpinning(false), 400);
+                      }}
+                      className="tw-text-muted hover:tw-text-foreground tw-transition-colors tw-p-0.5"
+                      title="Refresh turn"
+                    >
+                      <RotateCw className={cn('tw-w-3 tw-h-3', turnSpinning && 'animate-tilt')} />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <Button variant="ghost" size="sm" className="tw-w-full" onClick={requestReanalyze}>
-                <Zap className="tw-w-4 tw-h-4 tw-mr-1" /> {t.analysis.reanalyze}
-              </Button>
             </Card>
 
             {/* Analysis */}
@@ -261,6 +255,29 @@ export function Sidebar() {
                 </div>
               )}
             </Card>
+
+            {/* Player Performance - DISABLED (set to false && to hide) */}
+            {false && displayAnalysis?.playerPerformance && displayAnalysis.playerPerformance.movesAnalyzed > 0 && (
+              <Card>
+                <div className="tw-grid tw-grid-cols-3 tw-gap-2">
+                  <div className="tw-text-center">
+                    <div className="tw-text-[10px] tw-text-muted tw-mb-1">ACPL</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-foreground">{displayAnalysis.playerPerformance.acpl}</div>
+                  </div>
+                  <div className="tw-text-center">
+                    <div className="tw-text-[10px] tw-text-muted tw-mb-1">Est. ELO</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-primary">{displayAnalysis.playerPerformance.estimatedElo}</div>
+                  </div>
+                  <div className="tw-text-center">
+                    <div className="tw-text-[10px] tw-text-muted tw-mb-1">Accuracy</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-green-400">{displayAnalysis.playerPerformance.accuracy}%</div>
+                  </div>
+                </div>
+                <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
+                  Based on {displayAnalysis.playerPerformance.movesAnalyzed} moves
+                </div>
+              </Card>
+            )}
 
             {/* Opening Selector */}
             <OpeningSelector />
@@ -288,19 +305,19 @@ export function Sidebar() {
           />
         </Card>
 
-        {/* Mode */}
+        {/* Personality */}
         <Card>
-          <CardTitle>{t.modes.title}</CardTitle>
+          <CardTitle>{t.personalities.title}</CardTitle>
           <Select
-            value={settings.mode}
-            onValueChange={(value) => setSettings({ mode: value as PlayMode })}
-            options={getAvailableModes(localElo).map((mode) => ({
-              value: mode,
-              label: getPlayModeInfo(mode).label,
+            value={settings.personality}
+            onValueChange={(value) => setSettings({ personality: value as Personality })}
+            options={PERSONALITIES.map((personality) => ({
+              value: personality,
+              label: getPersonalityInfo(personality).label,
             }))}
           />
           <p className="tw-text-xs tw-text-muted tw-mt-2">
-            {getPlayModeInfo(settings.mode as PlayMode).description}
+            {getPersonalityInfo(settings.personality).description}
           </p>
         </Card>
 
@@ -319,7 +336,7 @@ export function Sidebar() {
             onValueChange={(value) => {
               setSettings(settings.searchMode === 'time' ? { moveTime: value } : { depth: value });
             }}
-            min={settings.searchMode === 'time' ? 200 : 8}
+            min={settings.searchMode === 'time' ? 200 : 1}
             max={settings.searchMode === 'time' ? 5000 : 30}
             step={settings.searchMode === 'time' ? 100 : 1}
           />
