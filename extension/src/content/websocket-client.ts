@@ -90,17 +90,14 @@ export class WebSocketClient {
     }
   }
 
-  analyze(fen: string, settings: Settings, effectiveElo?: number, moves: string[] = []) {
+  analyze(fen: string, settings: Settings, effectiveElo?: number, moves: string[] = [], playerColor: 'w' | 'b' = 'w') {
     this.send({
       type: 'analyze',
       fen,
       moves,
-      searchMode: settings.searchMode,
-      depth: settings.depth,
-      moveTime: settings.moveTime,
       elo: effectiveElo ?? settings.targetElo,
       personality: settings.personality,
-      multiPV: settings.multiPV,
+      playerColor,
     });
   }
 

@@ -5,12 +5,14 @@ export interface AnalyzeRequest {
   type: 'analyze';
   fen: string;
   moves: string[];  // UCI move history (e.g., ["e2e4", "e7e5", "g1f3"])
-  searchMode: 'depth' | 'time';
-  depth: number;
-  moveTime: number;  // milliseconds
   elo: number;
   personality: Personality;
-  multiPV: number;
+  playerColor: 'w' | 'b';  // Player's color (detected by extension)
+  // Deprecated fields (kept for backwards compatibility but ignored):
+  searchMode?: 'depth' | 'time';
+  depth?: number;
+  moveTime?: number;
+  multiPV?: number;
 }
 
 export interface AuthMessage {

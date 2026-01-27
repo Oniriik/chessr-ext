@@ -71,6 +71,7 @@ export class ChessEngine {
   private lines: PVLine[] = [];
   private currentDepth = 0;
   private currentEval = 0;
+  private currentEvalCp = 0;  // Evaluation in centipawns (no division)
   private currentMate: number | undefined;
 
   private onInfoCallback?: (info: InfoUpdate) => void;
@@ -516,6 +517,76 @@ export class ChessEngine {
     });
   }
 
+  /**
+   * Analyze a position with node-limited search
+   * Used by CandidateSelector for quick evaluations
+   * @param positionCmd - UCI position command (e.g., "position fen ..." or "position startpos moves ...")
+   * @param nodes - Number of nodes to search
+   * @returns Evaluation in centipawns (side-to-move perspective), mate info, and best move
+   */
+  async analyzeNodes(
+    positionCmd: string,
+    nodes: number
+  ): Promise<{ evalCp: number; mate?: number; bestMove: string }> {
+    if (!this.isAlive()) {
+      throw new Error('Engine not ready');
+    }
+
+    return new Promise((resolve, reject) => {
+      this.lines = [];
+      this.currentDepth = 0;
+      this.currentEval = 0;
+      this.currentEvalCp = 0;
+      this.currentMate = undefined;
+
+      const timeout = setTimeout(() => {
+        reject(new Error('Node analysis timeout'));
+      }, 30000);
+
+      this.resolveAnalysis = (result) => {
+        clearTimeout(timeout);
+        resolve({
+          evalCp: this.currentEvalCp,
+          mate: result.mate,
+          bestMove: result.bestMove,
+        });
+      };
+
+      this.rejectAnalysis = (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      };
+
+      this.send(positionCmd);
+      this.send(`go nodes ${nodes}`);
+    });
+  }
+
+  /**
+   * Send a raw UCI command to the engine
+   * Used by CandidateSelector for setup commands
+   */
+  sendCommand(command: string): void {
+    this.send(command);
+  }
+
+  /**
+   * Wait for engine to be ready after configuration changes
+   */
+  async waitReady(): Promise<void> {
+    this.readyOkReceived = false;
+    this.send('isready');
+    await new Promise<void>((resolve) => {
+      const checkReady = setInterval(() => {
+        if (this.readyOkReceived) {
+          this.readyOkReceived = false;
+          clearInterval(checkReady);
+          resolve();
+        }
+      }, 5);
+    });
+  }
+
   quit() {
     this.isReady = false;
     if (this.process) {
@@ -585,10 +656,13 @@ export class ChessEngine {
     let evaluation = 0;
     let mate: number | undefined;
 
+    let evalCp = 0;
     if (cpMatch) {
-      evaluation = parseInt(cpMatch[1]) / 100;
+      evalCp = parseInt(cpMatch[1]);
+      evaluation = evalCp / 100;
     } else if (mateMatch) {
       mate = parseInt(mateMatch[1]);
+      evalCp = Math.sign(mate) * (100000 - Math.abs(mate) * 1000);
       evaluation = mate > 0 ? 100 : -100;
     }
 
@@ -598,6 +672,7 @@ export class ChessEngine {
     this.lines[multipv - 1] = { moves, evaluation, mate };
     this.currentDepth = depth;
     this.currentEval = evaluation;
+    this.currentEvalCp = evalCp;  // Store in centipawns
     this.currentMate = mate;
 
     // Send info update for multipv 1

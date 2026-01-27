@@ -1,19 +1,16 @@
 import { ChessEngine, EngineOptions, Personality } from './engine.js';
 import { AnalysisResult, InfoUpdate } from './types.js';
+import { CandidateSelector } from './candidate-selector.js';
 import { globalLogger } from './logger.js';
 
 interface AnalysisRequest {
   fen: string;
   options: {
     moves: string[];
-    searchMode: 'depth' | 'time';
-    depth: number;
-    moveTime: number;
-    multiPV: number;
     elo: number;
     personality: Personality;
+    playerColor: 'w' | 'b';
   };
-  onInfo?: (info: InfoUpdate) => void;
   resolve: (result: AnalysisResult) => void;
   reject: (error: Error) => void;
 }
@@ -140,14 +137,10 @@ export class EnginePool {
     fen: string,
     options: {
       moves: string[];
-      searchMode?: 'depth' | 'time';
-      depth: number;
-      moveTime?: number;
-      multiPV: number;
       elo: number;
       personality?: Personality;
-    },
-    onInfo?: (info: InfoUpdate) => void
+      playerColor: 'w' | 'b';
+    }
   ): Promise<AnalysisResult> {
     if (!this.initialized) {
       throw new Error('Pool not initialized');
@@ -160,14 +153,10 @@ export class EnginePool {
         fen,
         options: {
           moves: options.moves,
-          searchMode: options.searchMode || 'depth',
-          depth: options.depth,
-          moveTime: options.moveTime || 1000,
-          multiPV: options.multiPV,
           elo: options.elo,
           personality: options.personality || 'Default',
+          playerColor: options.playerColor,
         },
-        onInfo,
         resolve,
         reject,
       };
@@ -221,20 +210,29 @@ export class EnginePool {
         await engine.restart();
       }
 
-      engine.setElo(request.options.elo);
-      engine.setPersonality(request.options.personality);
-
-      const result = await engine.analyze(
+      // Use CandidateSelector for ELO-tuned 3-move selection
+      const selector = new CandidateSelector(engine);
+      const selectResult = await selector.selectMoves(
         request.fen,
-        {
-          moves: request.options.moves,
-          searchMode: request.options.searchMode,
-          depth: request.options.depth,
-          moveTime: request.options.moveTime,
-          multiPV: request.options.multiPV,
-        },
-        request.onInfo
+        request.options.moves,
+        request.options.elo,
+        request.options.playerColor
       );
+
+      // Build AnalysisResult from CandidateSelector result
+      const result: AnalysisResult = {
+        type: 'result',
+        bestMove: selectResult.bestMove,
+        evaluation: selectResult.evaluation,
+        lines: selectResult.lines,
+        depth: 0, // Not applicable with node-based search
+        playerPerformance: selectResult.playerPerformance ? {
+          acpl: 0, // Not calculated in warmup
+          estimatedElo: 0, // Not calculated in warmup
+          accuracy: selectResult.playerPerformance.accuracy,
+          movesAnalyzed: selectResult.playerPerformance.movesAnalyzed,
+        } : undefined,
+      };
 
       // Clear cooldown on success
       this.restartCooldowns.delete(engine);

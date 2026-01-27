@@ -183,10 +183,9 @@ class ChessServer {
     const clientInfo = this.getClientInfo(ws);
 
     logger.info('analysis_request', clientInfo.email, {
-      depth: message.depth,
       elo: message.elo,
       personality: message.personality,
-      multiPV: message.multiPV,
+      playerColor: message.playerColor,
       movesCount: message.moves?.length || 0,
       moves: message.moves?.length > 0 ? message.moves.join(' ') : '(empty)',
     });
@@ -196,14 +195,10 @@ class ChessServer {
         message.fen,
         {
           moves: message.moves,
-          searchMode: message.searchMode || 'depth',
-          depth: message.depth,
-          moveTime: message.moveTime || 1000,
-          multiPV: message.multiPV,
           elo: message.elo,
           personality: message.personality || 'Default',
-        },
-        () => {}
+          playerColor: message.playerColor,
+        }
       );
 
       // Format moves summary: "1. e2e4 (+0.3) 2. d2d4 (+0.2) 3. g1f3 (+0.1)"

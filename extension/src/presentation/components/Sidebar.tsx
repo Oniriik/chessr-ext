@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Clock, Layers, LogOut, Settings2, RotateCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Settings2, RotateCw } from 'lucide-react';
 import { useAppStore } from '../store/app.store';
 import { useAuthStore } from '../store/auth.store';
 import { useTranslation } from '../../i18n';
 import { useIsRTL } from '../hooks/useIsRTL';
 import { cn } from '../lib/utils';
 import { Card, CardTitle } from './ui/card';
-import { Accordion } from './ui/accordion';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 import { Slider } from './ui/slider';
@@ -244,8 +243,8 @@ export function Sidebar() {
               )}
             </Card>
 
-            {/* Player Performance - DISABLED (set to false && to hide) */}
-            {false && displayAnalysis?.playerPerformance && (displayAnalysis?.playerPerformance?.movesAnalyzed ?? 0) > 0 && (
+            {/* Player Performance */}
+            {displayAnalysis?.playerPerformance && (displayAnalysis?.playerPerformance?.movesAnalyzed ?? 0) > 0 && (
               <Card>
                 <div className="tw-grid tw-grid-cols-3 tw-gap-2">
                   <div className="tw-text-center">
@@ -304,40 +303,6 @@ export function Sidebar() {
           </p>
         </Card>
 
-        {/* Analyse Accordion */}
-        <Accordion title={t.engine.title}>
-          <div className="tw-flex tw-items-center tw-justify-between tw-mb-3">
-            <span className="tw-text-2xl tw-font-bold tw-text-primary">
-              {settings.searchMode === 'time' ? `${(settings.moveTime / 1000).toFixed(1)}s` : `D${settings.depth}`}
-            </span>
-            <span className="tw-text-xs tw-text-muted">
-              {settings.searchMode === 'time' ? t.engine.timePerMove : t.engine.depth}
-            </span>
-          </div>
-          <Slider
-            value={settings.searchMode === 'time' ? settings.moveTime : settings.depth}
-            onValueChange={(value) => {
-              setSettings(settings.searchMode === 'time' ? { moveTime: value } : { depth: value });
-            }}
-            min={settings.searchMode === 'time' ? 200 : 1}
-            max={settings.searchMode === 'time' ? 5000 : 30}
-            step={settings.searchMode === 'time' ? 100 : 1}
-          />
-          <div className="tw-grid tw-grid-cols-2 tw-gap-2 tw-mt-3">
-            <Button
-              variant={settings.searchMode === 'time' ? 'default' : 'outline'}
-              onClick={() => setSettings({ searchMode: 'time' })}
-            >
-              <Clock className="tw-w-4 tw-h-4" /> {t.engine.timePerMove}
-            </Button>
-            <Button
-              variant={settings.searchMode === 'depth' ? 'default' : 'outline'}
-              onClick={() => setSettings({ searchMode: 'depth' })}
-            >
-              <Layers className="tw-w-4 tw-h-4" /> {t.engine.depth}
-            </Button>
-          </div>
-        </Accordion>
           </>
         )}
         </div>

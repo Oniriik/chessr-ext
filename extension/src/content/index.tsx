@@ -277,7 +277,7 @@ class Chessr {
 
     const moveHistory = this.adapter?.getMoveHistory?.() || [];
     console.log('[Chessr] ✓ Player turn - sending suggestion request, moves:', moveHistory.length);
-    this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory);
+    this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory, playerColor);
   }
 
   private onAnalysisResult(result: AnalysisResult) {
