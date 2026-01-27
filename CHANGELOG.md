@@ -5,27 +5,39 @@ All notable changes to Chessr will be documented in this file.
 ## [1.2.0] - 2026-01-27
 
 ### Added
+
 - **Move history tracking**: Engine now receives full game history for better strategic continuity
   - Parses move list from DOM and converts SAN to UCI using chess.js
   - Enables repetition detection and consistent opening play
 - **Komodo Dragon engine**: Replaced Stockfish with Komodo Dragon 3.3
   - UCI Elo support for accurate strength limiting
-  - Personality system (Human, Aggressive, Positional, Active)
-  - Advanced parameters: Contempt, King Safety, Dynamism, Selectivity, Variety
-- **Play modes**: New style presets for different play patterns
-  - Safe: Cautious, accepts draws, protects king
-  - Balanced: Human-like neutral play
-  - Aggressive: Attacking play, avoids draws
-  - Positional: Strategic, solid structure
-  - Tactical: Seeks complications and combinations
-  - Creative: Unpredictable with surprising moves
-  - Inhuman: Pure engine strength
-- **Brilliant move detection**: Lower ELOs now miss tactical shots more realistically
-- **Depth mode**: Full engine strength analysis (no ELO limit) when using depth search
+  - Native personality system (Default, Aggressive, Defensive, Active, Positional, Endgame, Beginner, Human)
+- **Rate-based stats calculation**: Stats now use per-move error rates instead of flat counts
+  - Properly normalizes accuracy across different game lengths
+  - Formula: `ACPL + (blunderRate*40*20) + (mistakeRate*40*10) + (inaccRate*40*5) + (mateRate*40*40)`
+- **Stats window**: Performance stats calculated only on last 10 moves for recent performance snapshot
+- **Timing metrics**: Analysis results now include warmup/analysis/total timing breakdown
+- **Eval helpers module**: Centralized mate score conversion and eval normalization utilities
+  - Mate-to-CP conversion: `sign * (100000 - abs(mateIn) * 1000)`
+  - Side-to-move perspective normalization
 
 ### Changed
+
+- **Komodo personalities**: Refactored from custom play modes to native Komodo Dragon personalities
+  - Leverages engine's built-in personality system instead of custom parameter tweaks
+- **Depth mode behavior**: Full-strength suggestions when using depth search mode
+  - Depth mode: Analyzes at full strength (no ELO limit)
+  - Time mode: Uses user's ELO and personality settings
+- **Stats display**: Temporarily disabled ACPL/accuracy/ELO display in UI (code preserved)
+- **Warmup optimization**: Changed from 50ms time search to depth 1 for faster hash building
 - **Move selection**: Improved ELO calibration to match real chess.com accuracy levels
-- **MultiPV scaling**: Dynamic line count based on ELO (up to 8 lines for beginners)
+
+### Technical
+
+- Created `server/src/eval-helpers.ts` for evaluation utilities
+- Created `server/src/stats-calculator.ts` for rate-based stats calculation
+- Updated `docker-compose.yml` to mount Komodo Dragon engine as read-only volume
+- Added `server/engine/` to `.gitignore` for proprietary engine binaries
 
 ## [1.1.3] - 2026-01-25
 
