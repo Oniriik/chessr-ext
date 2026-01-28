@@ -6,9 +6,9 @@
 set -e
 
 # Configuration
-SERVER_USER="ubuntu"
-SERVER_HOST="135.125.201.246"
-EXTENSION_DIR="/opt/chess-server/extension"
+SERVER_USER="root"
+SERVER_HOST="91.99.78.172"
+EXTENSION_DIR="/opt/chessr/extension"
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -56,25 +56,25 @@ echo -e "${YELLOW}[4/4] Deploying on server...${NC}"
 ssh "${SERVER_USER}@${SERVER_HOST}" << REMOTE_SCRIPT
 set -e
 
-EXTENSION_DIR="/opt/chess-server/extension"
+EXTENSION_DIR="/opt/chessr/extension"
 VERSION="${VERSION}"
 ZIP_NAME="${ZIP_NAME}"
 
 # Ensure extension directory exists
-sudo mkdir -p "\$EXTENSION_DIR"
+mkdir -p "\$EXTENSION_DIR"
 
 # Remove old zip files
-sudo rm -f \${EXTENSION_DIR}/chessr-*.zip
+rm -f \${EXTENSION_DIR}/chessr-*.zip
 
 # Copy new files
-sudo mv "/tmp/\${ZIP_NAME}" "\$EXTENSION_DIR/"
-sudo mv "/tmp/index.html" "\$EXTENSION_DIR/"
+mv "/tmp/\${ZIP_NAME}" "\$EXTENSION_DIR/"
+mv "/tmp/index.html" "\$EXTENSION_DIR/"
 
 # Create version.json
-echo "{\"version\": \"\${VERSION}\", \"file\": \"\${ZIP_NAME}\"}" | sudo tee "\$EXTENSION_DIR/version.json" > /dev/null
+echo "{\"version\": \"\${VERSION}\", \"file\": \"\${ZIP_NAME}\"}" > "\$EXTENSION_DIR/version.json"
 
 # Set permissions
-sudo chmod 644 \${EXTENSION_DIR}/*
+chmod 644 \${EXTENSION_DIR}/*
 
 echo "Deployed successfully!"
 REMOTE_SCRIPT
@@ -88,5 +88,5 @@ echo -e "${GREEN}║   Extension Published Successfully!    ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "Version: ${GREEN}${VERSION}${NC}"
-echo -e "URL: ${GREEN}https://extension.chessr.io${NC}"
+echo -e "URL: ${GREEN}https://download.chessr.io${NC}"
 echo ""
