@@ -1,6 +1,6 @@
 export const versionConfig = {
-  minVersion: '1.2.0',
-  downloadUrl: 'https://extension.chessr.io',
+  minVersion: "1.2.0",
+  downloadUrl: "https://download.chessr.io",
 };
 
 /**
@@ -8,8 +8,8 @@ export const versionConfig = {
  * Returns -1 if a < b, 0 if equal, 1 if a > b
  */
 export function compareVersions(a: string, b: string): number {
-  const partsA = a.split('.').map(Number);
-  const partsB = b.split('.').map(Number);
+  const partsA = a.split(".").map(Number);
+  const partsB = b.split(".").map(Number);
 
   for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
     const numA = partsA[i] || 0;

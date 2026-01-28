@@ -236,32 +236,21 @@ export function Sidebar() {
                   <div className="tw-text-lg tw-font-bold tw-text-primary">{analysis?.bestMove || '--'}</div>
                 </div>
               </div>
-              {displayAnalysis?.depth && (
-                <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
-                  {t.analysis.depth}: {displayAnalysis.depth}
-                </div>
-              )}
             </Card>
 
             {/* Player Performance */}
-            {displayAnalysis?.playerPerformance && (displayAnalysis?.playerPerformance?.movesAnalyzed ?? 0) > 0 && (
+            {displayAnalysis?.playerPerformance && (displayAnalysis.playerPerformance.movesAnalyzed ?? 0) > 0 && (
               <Card>
-                <div className="tw-grid tw-grid-cols-3 tw-gap-2">
-                  <div className="tw-text-center">
-                    <div className="tw-text-[10px] tw-text-muted tw-mb-1">ACPL</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-foreground">{displayAnalysis?.playerPerformance?.acpl}</div>
-                  </div>
-                  <div className="tw-text-center">
-                    <div className="tw-text-[10px] tw-text-muted tw-mb-1">Est. ELO</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-primary">{displayAnalysis?.playerPerformance?.estimatedElo}</div>
-                  </div>
+                <div className="tw-grid tw-grid-cols-1 tw-gap-2">
                   <div className="tw-text-center">
                     <div className="tw-text-[10px] tw-text-muted tw-mb-1">Accuracy</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-green-400">{displayAnalysis?.playerPerformance?.accuracy}%</div>
+                    <div className="tw-text-lg tw-font-bold tw-text-green-400">
+                      {displayAnalysis.playerPerformance.accuracy}%
+                    </div>
                   </div>
                 </div>
                 <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
-                  Based on {displayAnalysis?.playerPerformance?.movesAnalyzed} moves
+                  Based on {displayAnalysis.playerPerformance.movesAnalyzed} moves
                 </div>
               </Card>
             )}
@@ -305,37 +294,6 @@ export function Sidebar() {
 
           </>
         )}
-
-        {/* TEMP: Pool stress test button */}
-        <Card>
-          <CardTitle>Pool Test (TEMP)</CardTitle>
-          <div className="tw-flex tw-gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => useAppStore.getState().requestTestPool(4)}
-            >
-              Send 4
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => useAppStore.getState().requestTestPool(8)}
-            >
-              Send 8
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => useAppStore.getState().requestTestPool(12)}
-            >
-              Send 12
-            </Button>
-          </div>
-          <p className="tw-text-xs tw-text-muted tw-mt-2">
-            Check server logs for pool scaling
-          </p>
-        </Card>
         </div>
       </div>
       )}
