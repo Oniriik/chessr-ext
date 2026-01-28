@@ -42,9 +42,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN apk add --no-cache docker-cli
 
 # Create non-root user with docker socket access
-# GID 987 matches the docker group on the host for socket access
+# GID 988 matches the docker group on the host for socket access
 RUN addgroup --system --gid 1001 nodejs && \
-    addgroup --system --gid 987 docker && \
+    addgroup --system --gid 988 docker && \
     adduser --system --uid 1001 nextjs && \
     adduser nextjs docker
 
