@@ -1,9 +1,9 @@
 services:
-  chess-server:
+  chess-engine:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: chess-dragon-server
+    container_name: chess-engine
     restart: unless-stopped
     ports:
       - "8080:3000"
@@ -13,7 +13,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - ENGINE_PATH=/engine/dragon-3.3-linux
+      - ENGINE_PATH=/engine/dragon-3.3-linux-avx2
       - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
       - GRAFANA_INSTANCE_ID=${GRAFANA_INSTANCE_ID}
       - GRAFANA_API_KEY=${GRAFANA_API_KEY}
@@ -49,6 +49,7 @@ services:
       args:
         - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
         - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        - NEXT_PUBLIC_CHESS_SERVER_URL=wss://engine.chessr.io
     container_name: chess-dashboard
     restart: unless-stopped
     ports:
@@ -58,13 +59,13 @@ services:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - ADMIN_EMAILS=${ADMIN_EMAILS}
-      - METRICS_URL=http://chess-server:3001/metrics
-      - DOCKER_CONTAINER_NAME=chess-dragon-server
+      - METRICS_URL=http://chess-engine:3001/metrics
+      - DOCKER_CONTAINER_NAME=chess-engine
     volumes:
       # Mount Docker socket to control containers
       - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
-      - chess-server
+      - chess-engine
     deploy:
       resources:
         limits:
@@ -81,29 +82,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
-
-  # Nginx reverse proxy
-  nginx:
-    image: nginx:alpine
-    container_name: chess-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/logs:/var/log/nginx
-      # Let's Encrypt certificates
-      - /etc/letsencrypt:/etc/nginx/ssl:ro
-      # Certbot webroot for renewal
-      - ./nginx/certbot:/var/www/certbot:ro
-      # Extension download page
-      - /opt/chess-server/extension:/opt/chess-server/extension:ro
-    depends_on:
-      - chess-server
-      - dashboard
-    profiles:
-      - with-nginx
 
 networks:
   default:

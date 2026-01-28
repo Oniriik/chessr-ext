@@ -6,9 +6,9 @@
 set -e
 
 # Configuration
-SERVER_USER="ubuntu"
-SERVER_HOST="135.125.201.246"
-APP_DIR="\$HOME/chess-server"
+SERVER_USER="root"
+SERVER_HOST="91.99.78.172"
+APP_DIR="/root/chessr"
 CONTAINER_NAME="chess-dashboard"
 IMAGE_NAME="chess-dashboard"
 
@@ -26,10 +26,10 @@ echo -e "\n${YELLOW}📡 Connexion au serveur...${NC}"
 ssh "${SERVER_USER}@${SERVER_HOST}" << 'REMOTE_SCRIPT'
 set -e
 
-APP_DIR="$HOME/chess-server"
+APP_DIR="/root/chessr"
 CONTAINER_NAME="chess-dashboard"
 IMAGE_NAME="chess-dashboard"
-ENV_FILE="$HOME/.env.dashboard"
+ENV_FILE="$APP_DIR/.env.dashboard"
 
 echo "📥 Pull des dernières modifications..."
 cd "$APP_DIR"
@@ -52,6 +52,7 @@ echo "🐳 Build de l'image Docker..."
 docker build \
     --build-arg NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
     --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+    --build-arg NEXT_PUBLIC_CHESS_SERVER_URL="wss://engine.chessr.io" \
     -t "$IMAGE_NAME" ./dashboard
 
 echo "🔄 Redémarrage du container..."
@@ -64,9 +65,10 @@ docker run -d \
     --name "$CONTAINER_NAME" \
     --restart unless-stopped \
     --network chess-network \
-    -p 4000:3000 \
-    -e METRICS_URL="http://chess-server:3001/metrics" \
+    -p 3000:3000 \
+    -e METRICS_URL="http://chess-engine:3001/metrics" \
     -e ADMIN_EMAILS="$ADMIN_EMAILS" \
+    -e DOCKER_CONTAINER_NAME="chess-engine" \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     "$IMAGE_NAME"
 

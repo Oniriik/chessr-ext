@@ -6,8 +6,8 @@
 set -e
 
 # Configuration
-SERVER_USER="ubuntu"
-SERVER_HOST="135.125.201.246"
+SERVER_USER="root"
+SERVER_HOST="91.99.78.172"
 
 # Couleurs
 RED='\033[0;31m'
@@ -15,7 +15,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${YELLOW}🔄 Mise à jour du serveur Chess Stockfish (Docker Compose)${NC}"
+echo -e "${YELLOW}🔄 Mise à jour du serveur Chess Engine (Docker Compose)${NC}"
 echo "==========================================================="
 
 echo -e "\n${YELLOW}📡 Connexion au serveur...${NC}"
@@ -23,15 +23,15 @@ echo -e "\n${YELLOW}📡 Connexion au serveur...${NC}"
 ssh "${SERVER_USER}@${SERVER_HOST}" << 'REMOTE_SCRIPT'
 set -e
 
-APP_DIR="$HOME/chess-server"
+APP_DIR="/root/chessr"
 
 echo "📥 Pull des dernières modifications..."
 cd "$APP_DIR"
 git pull
 
 echo "🛑 Arrêt des containers existants..."
-docker stop chess-stockfish-server chess-dashboard 2>/dev/null || true
-docker rm chess-stockfish-server chess-dashboard 2>/dev/null || true
+docker stop chess-engine chess-dashboard 2>/dev/null || true
+docker rm chess-engine chess-dashboard 2>/dev/null || true
 
 echo "🐳 Rebuild et redémarrage avec docker compose..."
 docker compose up -d --build
@@ -44,7 +44,7 @@ docker compose ps
 
 echo ""
 echo "🔍 Vérification des variables d'environnement Grafana..."
-if docker exec chess-stockfish-server env | grep -q GRAFANA_INSTANCE_ID; then
+if docker exec chess-engine env | grep -q GRAFANA_INSTANCE_ID; then
     echo "✅ Variables Grafana présentes"
 else
     echo "⚠️  Variables Grafana manquantes!"
@@ -73,16 +73,16 @@ else
 fi
 
 # Test public endpoints via nginx
-if curl -s -o /dev/null -w "%{http_code}" https://ws.chessr.io 2>/dev/null | grep -q "426"; then
-    echo "✅ ws.chessr.io OK"
+if curl -s -o /dev/null -w "%{http_code}" https://engine.chessr.io 2>/dev/null | grep -q "426"; then
+    echo "✅ engine.chessr.io OK"
 else
-    echo "⚠️  ws.chessr.io ne répond pas (vérifier nginx)"
+    echo "⚠️  engine.chessr.io ne répond pas (vérifier nginx)"
 fi
 
-if curl -s -o /dev/null -w "%{http_code}" https://admin.chessr.io 2>/dev/null | grep -q "200"; then
-    echo "✅ admin.chessr.io OK"
+if curl -s -o /dev/null -w "%{http_code}" https://dashboard.chessr.io 2>/dev/null | grep -q "200"; then
+    echo "✅ dashboard.chessr.io OK"
 else
-    echo "⚠️  admin.chessr.io ne répond pas (vérifier nginx)"
+    echo "⚠️  dashboard.chessr.io ne répond pas (vérifier nginx)"
 fi
 
 echo ""
