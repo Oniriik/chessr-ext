@@ -8,7 +8,7 @@ set -e
 # Configuration
 SERVER_USER="root"
 SERVER_HOST="91.99.78.172"
-APP_DIR="/root/chessr"
+APP_DIR="/opt/chessr/app"
 CONTAINER_NAME="chess-dashboard"
 IMAGE_NAME="chess-dashboard"
 
@@ -26,7 +26,7 @@ echo -e "\n${YELLOW}📡 Connexion au serveur...${NC}"
 ssh "${SERVER_USER}@${SERVER_HOST}" << 'REMOTE_SCRIPT'
 set -e
 
-APP_DIR="/root/chessr"
+APP_DIR="/opt/chessr/app"
 CONTAINER_NAME="chess-dashboard"
 IMAGE_NAME="chess-dashboard"
 ENV_FILE="$APP_DIR/.env.dashboard"

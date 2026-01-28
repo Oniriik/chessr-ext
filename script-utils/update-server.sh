@@ -23,7 +23,7 @@ echo -e "\n${YELLOW}📡 Connexion au serveur...${NC}"
 ssh "${SERVER_USER}@${SERVER_HOST}" << 'REMOTE_SCRIPT'
 set -e
 
-APP_DIR="/root/chessr"
+APP_DIR="/opt/chessr/app"
 
 echo "📥 Pull des dernières modifications..."
 cd "$APP_DIR"
