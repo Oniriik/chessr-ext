@@ -26,8 +26,8 @@ RUN npm prune --production
 EXPOSE 3000
 
 # Utilisateur non-root pour la sécurité
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
+RUN groupadd --gid 1001 nodejs && \
+    useradd --uid 1001 --gid nodejs --shell /bin/bash --create-home nodejs && \
     chown -R nodejs:nodejs /app
 
 USER nodejs
