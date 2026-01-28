@@ -2,22 +2,28 @@
 
 ## Documentation
 
+**IMPORTANT: Toujours lire le dossier `docs/` en début de conversation pour avoir le contexte complet de Chessr.**
+
 Before making changes to the server infrastructure, deployment, or operations:
 
-1. **Check the documentation** in `docs/` folder:
+1. **ALWAYS read the documentation** in `docs/` folder first:
    - `docs/README.md` - Main index
-   - `docs/architecture/ARCHITECTURE.md` - Server infrastructure overview
-   - `docs/deployment/` - Setup and deployment guides
-   - `docs/operations/` - Server management and troubleshooting
-   - `docs/scripts/SCRIPTS-REFERENCE.md` - All scripts documented
+   - `docs/server/SERVER_INFO.md` - Current server info (IP, specs, SSH access)
+   - `docs/architecture/` - Server infrastructure overview (if exists)
+   - `docs/deployment/` - Setup and deployment guides (if exists)
+   - `docs/operations/` - Server management and troubleshooting (if exists)
+   - `docs/dashboard/` - Dashboard documentation (if exists)
+   - `docs/extension/` - Extension documentation (if exists)
 
 2. **Update documentation** when making infrastructure changes
 
-3. **Key server details**:
-   - Server IP: 135.125.201.246
-   - User: ubuntu
-   - Project dir: /home/ubuntu/chess-server
-   - Domains: ws.chessr.io, admin.chessr.io
+3. **Current server details** (see docs/server/SERVER_INFO.md for full details):
+   - Server IP: 91.99.78.172
+   - Hostname: chessr
+   - User: root
+   - OS: Ubuntu 24.04.3 LTS
+   - Resources: 8 vCPU, 16 GB RAM, 160 GB disk
+   - Provider: Hetzner Cloud
 
 ---
 

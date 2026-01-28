@@ -1,7 +1,8 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 # Chess engine (Komodo Dragon) is mounted at runtime via docker-compose
-# No compilation needed - the engine binary is provided externally
+# Using node:20-slim (Debian-based) instead of Alpine for glibc compatibility
+# Komodo Dragon Linux binary requires GNU/Linux glibc, not musl libc
 
 # Création du répertoire de travail
 WORKDIR /app

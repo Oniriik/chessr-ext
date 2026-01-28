@@ -6,8 +6,8 @@ services:
     container_name: chess-dragon-server
     restart: unless-stopped
     ports:
-      - "3000:3000"
-      - "3001:3001"
+      - "8080:3000"
+      - "8081:3001"
     volumes:
       - ./server/engine/Linux:/engine:ro
     environment:
@@ -52,7 +52,7 @@ services:
     container_name: chess-dashboard
     restart: unless-stopped
     ports:
-      - "3002:3000"
+      - "3000:3000"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
