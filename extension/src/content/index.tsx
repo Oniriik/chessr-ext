@@ -13,14 +13,10 @@ import { OpeningTracker } from './openings/opening-tracker';
 import { AnalysisResult, BoardConfig, Settings } from '../shared/types';
 import { isUpdateRequired } from '../shared/version';
 
-// Convert WebSocket URL to HTTP URL for version endpoint
-function getHttpVersionUrl(wsUrl: string): string {
-  const httpUrl = wsUrl.replace(/^ws:/, 'http:').replace(/^wss:/, 'https:');
-  // Use port 3001 for HTTP endpoints (metrics server)
-  const url = new URL(httpUrl);
-  url.port = '3001';
-  url.pathname = '/version';
-  return url.toString();
+// Get version info from download page
+function getHttpVersionUrl(_wsUrl: string): string {
+  // Always use the download page for version info
+  return 'https://download.chessr.io/version.json';
 }
 
 class Chessr {

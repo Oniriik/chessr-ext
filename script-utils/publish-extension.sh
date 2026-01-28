@@ -71,7 +71,14 @@ mv "/tmp/\${ZIP_NAME}" "\$EXTENSION_DIR/"
 mv "/tmp/index.html" "\$EXTENSION_DIR/"
 
 # Create version.json
-echo "{\"version\": \"\${VERSION}\", \"file\": \"\${ZIP_NAME}\"}" > "\$EXTENSION_DIR/version.json"
+cat > "\$EXTENSION_DIR/version.json" <<JSON
+{
+  "version": "\${VERSION}",
+  "minVersion": "\${VERSION}",
+  "downloadUrl": "https://download.chessr.io/\${ZIP_NAME}",
+  "file": "\${ZIP_NAME}"
+}
+JSON
 
 # Set permissions
 chmod 644 \${EXTENSION_DIR}/*
