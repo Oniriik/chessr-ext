@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress'
 interface Metrics {
   connectedClients: number
   authenticatedUsers: number
-  stockfishPool: {
+  enginePool: {
     total: number
     available: number
     queued: number
@@ -101,7 +101,7 @@ export default function MetricsPanel() {
   }
 
   const poolUtilization = metrics
-    ? Math.round(((metrics.stockfishPool.total - metrics.stockfishPool.available) / metrics.stockfishPool.total) * 100)
+    ? Math.round(((metrics.enginePool.total - metrics.enginePool.available) / metrics.enginePool.total) * 100)
     : 0
 
   return (
@@ -139,15 +139,15 @@ export default function MetricsPanel() {
 
         <MetricCard
           icon={<Cpu className="w-5 h-5" />}
-          label="Stockfish Instances"
-          value={`${metrics?.stockfishPool.total || 0} / ${metrics?.stockfishPool.available || 0} avail`}
+          label="Chess Engine Instances"
+          value={`${metrics?.enginePool.total || 0} / ${metrics?.enginePool.available || 0} avail`}
           color="purple"
         />
 
         <MetricCard
           icon={<Clock className="w-5 h-5" />}
           label="Queued Requests"
-          value={metrics?.stockfishPool.queued || 0}
+          value={metrics?.enginePool.queued || 0}
           color="orange"
         />
 
@@ -177,7 +177,7 @@ export default function MetricsPanel() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Stockfish Pool</CardTitle>
+            <CardTitle className="text-sm font-medium">Engine Pool</CardTitle>
           </CardHeader>
           <CardContent>
             <Progress value={poolUtilization} className="h-3" />
