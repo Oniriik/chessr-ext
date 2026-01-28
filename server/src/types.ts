@@ -33,6 +33,7 @@ export interface PVLine {
 
 export interface AnalysisResult {
   type: 'result';
+  requestId?: string;  // Internal request ID for log correlation
   bestMove: string;
   ponder?: string;
   evaluation: number;

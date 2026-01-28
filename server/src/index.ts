@@ -11,13 +11,16 @@ import { telemetry } from './telemetry.js';
 const PORT = 3000;
 const METRICS_PORT = 3001;
 
-// Pool configuration - optimized for 2 vCPU / 2GB RAM server
+// Pool configuration from environment or defaults (optimized for 2 vCPU / 2GB RAM)
 const POOL_CONFIG = {
-  minEngines: 1,      // Keep 1 engine ready at minimum
-  maxEngines: 2,      // Max 2 engines for 2 vCPU
-  scaleUpThreshold: 1, // Scale up when 1+ requests queued
-  scaleDownIdleTime: 60000, // Scale down after 1 min of inactivity
-  engineOptions: { threads: 1, hash: 32 }, // 1 thread per engine, 32MB hash
+  minEngines: parseInt(process.env.POOL_MIN_ENGINES || '1', 10),
+  maxEngines: parseInt(process.env.POOL_MAX_ENGINES || '2', 10),
+  scaleUpThreshold: parseInt(process.env.POOL_SCALE_UP_THRESHOLD || '1', 10),
+  scaleDownIdleTime: parseInt(process.env.POOL_SCALE_DOWN_IDLE_TIME || '60000', 10),
+  engineOptions: {
+    threads: parseInt(process.env.ENGINE_THREADS || '1', 10),
+    hash: parseInt(process.env.ENGINE_HASH || '32', 10),
+  },
 };
 
 class ChessServer {
@@ -217,8 +220,8 @@ class ChessServer {
       const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
 
       logger.info('analysis_complete', clientInfo.email, {
+        req: result.requestId,
         lines: result.lines.length,
-        depth: result.depth,
         warmup: result.timing ? formatTime(result.timing.warmup) : '0ms',
         analysis: result.timing ? formatTime(result.timing.analysis) : 'N/A',
         total: result.timing ? formatTime(result.timing.total) : 'N/A',

@@ -4,6 +4,7 @@ import { CandidateSelector } from './candidate-selector.js';
 import { globalLogger } from './logger.js';
 
 interface AnalysisRequest {
+  id: string;  // Unique request ID for log correlation
   fen: string;
   options: {
     moves: string[];
@@ -13,8 +14,15 @@ interface AnalysisRequest {
     allowBrilliant: boolean;
     showAlwaysBestMoveFirst: boolean;
   };
+  createdAt: number;  // Timestamp for queue wait time tracking
   resolve: (result: AnalysisResult) => void;
   reject: (error: Error) => void;
+}
+
+// Simple incrementing request ID
+let requestCounter = 0;
+function nextRequestId(): string {
+  return `r${++requestCounter}`;
 }
 
 interface PoolConfig {
@@ -35,6 +43,8 @@ export class EnginePool {
   private scaleDownTimer: NodeJS.Timeout | null = null;
   private restartCooldowns: Map<ChessEngine, number> = new Map(); // Track restart attempts
   private pendingEngines = 0; // Track engines being created to prevent race conditions
+  private isScalingDown = false; // Guard against concurrent scale-down operations
+  private isScalingUp = false; // Guard against concurrent scale-up operations
 
   constructor(config: Partial<PoolConfig> = {}) {
     this.config = {
@@ -75,10 +85,10 @@ export class EnginePool {
       await engine.init(this.config.engineOptions);
       this.pool.push(engine);
       this.available.push(engine);
-      globalLogger.info('pool_engine_added', { current: this.pool.length, max: this.config.maxEngines });
+      globalLogger.info('pool_add', { pool: this.pool.length, max: this.config.maxEngines });
       return engine;
     } catch (err) {
-      globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'add' });
+      globalLogger.error('pool_error', err instanceof Error ? err : String(err), { action: 'add' });
       return null;
     } finally {
       this.pendingEngines--;
@@ -97,39 +107,120 @@ export class EnginePool {
       if (index !== -1) {
         this.pool.splice(index, 1);
         engine.quit();
-        globalLogger.info('pool_engine_removed', { current: this.pool.length, max: this.config.maxEngines });
+        globalLogger.info('pool_remove', { pool: this.pool.length, max: this.config.maxEngines });
       }
     }
   }
 
-  private async scaleUp(): Promise<void> {
-    if (this.pool.length >= this.config.maxEngines) {
-      return;
+  /**
+   * Proactive healthcheck: purge dead engines from pool even without traffic.
+   * This prevents dead engines from blocking scale-down detection.
+   */
+  private purgeDeadEngines(): void {
+    // Snapshot to avoid mutating while iterating
+    const snapshot = [...this.available];
+    for (const engine of snapshot) {
+      if (!engine.isAlive()) {
+        globalLogger.info('pool_dead', { action: 'purge' });
+        this.removeDeadEngine(engine);
+      }
     }
+  }
 
-    const engine = await this.addEngine();
+  /**
+   * Try to scale up - takes lock synchronously to prevent cascade
+   */
+  private tryScaleUp(): void {
+    // 1) Already scaling up => skip
+    if (this.isScalingUp) return;
 
-    // If we added an engine and there's a queued request, process it
-    if (engine && this.queue.length > 0) {
-      const request = this.queue.shift()!;
-      this.processRequest(engine, request);
-      // Remove from available since we're using it
-      const idx = this.available.indexOf(engine);
-      if (idx !== -1) this.available.splice(idx, 1);
+    // 2) Engine creation in progress => skip
+    if (this.pendingEngines > 0) return;
+
+    // 3) Already at max => skip
+    if (this.pool.length >= this.config.maxEngines) return;
+
+    // 4) Queue no longer needs scale-up (was drained in the meantime)
+    if (this.queue.length < this.config.scaleUpThreshold) return;
+
+    // 5) At least one healthy engine available => skip
+    if (this.available.some(e => e.isAlive())) return;
+
+    // TAKE LOCK SYNCHRONOUSLY (critical to avoid race condition)
+    this.isScalingUp = true;
+
+    globalLogger.info('pool_scale_up', { qLen: this.queue.length, pool: this.pool.length });
+
+    // Launch async scale-up (lock already taken)
+    this.scaleUpLocked().catch(err => {
+      globalLogger.error('pool_error', err instanceof Error ? err : String(err), { action: 'scale_up' });
+    });
+  }
+
+  /**
+   * Actually perform scale-up - lock must be taken before calling
+   */
+  private async scaleUpLocked(): Promise<void> {
+    try {
+      if (this.pool.length >= this.config.maxEngines) return;
+
+      const engine = await this.addEngine();
+
+      // If we added an engine and there's a queued request, process it
+      if (engine && this.queue.length > 0) {
+        const request = this.queue.shift()!;
+        globalLogger.info('pool_dequeue', { req: request.id, waitMs: Date.now() - request.createdAt, qLen: this.queue.length });
+        this.processRequest(engine, request);
+        // Remove from available since we're using it
+        const idx = this.available.indexOf(engine);
+        if (idx !== -1) this.available.splice(idx, 1);
+      }
+    } finally {
+      this.isScalingUp = false;
+
+      // Progressive scale-up: if still saturated and no healthy engine available
+      if (
+        this.queue.length >= this.config.scaleUpThreshold &&
+        !this.available.some(e => e.isAlive())
+      ) {
+        this.tryScaleUp();
+      }
     }
   }
 
   private startScaleDownMonitor(): void {
-    this.scaleDownTimer = setInterval(() => {
+    this.scaleDownTimer = setInterval(async () => {
+      // Guard against concurrent scale-down operations
+      if (this.isScalingDown) return;
+
+      // 1) Purge dead engines first (mini healthcheck)
+      this.purgeDeadEngines();
+
+      // 2) Calculate conditions
       const idleTime = Date.now() - this.lastActivityTime;
       const hasExtraEngines = this.pool.length > this.config.minEngines;
-      const allIdle = this.available.length === this.pool.length;
+      // Robust check: all engines must be in available AND alive
+      const allIdle =
+        this.pool.length > 0 &&
+        this.pool.every(e => this.available.includes(e) && e.isAlive());
 
+      // 3) Debug log only when close to triggering (idle > 50% of threshold)
+      if (hasExtraEngines && idleTime > this.config.scaleDownIdleTime * 0.5) {
+        globalLogger.info('pool_scale_down', { status: 'check', pool: this.pool.length, avail: this.available.length, idleMs: idleTime, allIdle });
+      }
+
+      // 4) Scale down if conditions met
       if (hasExtraEngines && allIdle && idleTime > this.config.scaleDownIdleTime) {
-        // Remove all extra engines at once when idle
-        const enginesToRemove = this.pool.length - this.config.minEngines;
-        for (let i = 0; i < enginesToRemove; i++) {
-          this.removeEngine();
+        this.isScalingDown = true;
+        try {
+          const enginesToRemove = this.pool.length - this.config.minEngines;
+          globalLogger.info('pool_scale_down', { status: 'trigger', removing: enginesToRemove, pool: this.pool.length });
+          // Sequential removal to avoid race conditions
+          for (let i = 0; i < enginesToRemove; i++) {
+            await this.removeEngine();
+          }
+        } finally {
+          this.isScalingDown = false;
         }
       }
     }, 5000); // Check every 5 seconds
@@ -154,6 +245,7 @@ export class EnginePool {
 
     return new Promise((resolve, reject) => {
       const request: AnalysisRequest = {
+        id: nextRequestId(),
         fen,
         options: {
           moves: options.moves,
@@ -163,6 +255,7 @@ export class EnginePool {
           allowBrilliant: options.allowBrilliant ?? false,
           showAlwaysBestMoveFirst: options.showAlwaysBestMoveFirst ?? false,
         },
+        createdAt: Date.now(),
         resolve,
         reject,
       };
@@ -180,14 +273,16 @@ export class EnginePool {
       }
 
       if (engine) {
+        globalLogger.info('pool_assign', { req: request.id, pool: this.pool.length, avail: this.available.length });
         this.processRequest(engine, request);
       } else {
         // No engine available, add to queue
         this.queue.push(request);
+        globalLogger.info('pool_queue', { req: request.id, qLen: this.queue.length, pool: this.pool.length });
 
         // Scale up if queue is getting long
         if (this.queue.length >= this.config.scaleUpThreshold) {
-          this.scaleUp();
+          this.tryScaleUp();
         }
       }
     });
@@ -205,13 +300,13 @@ export class EnginePool {
         const now = Date.now();
         if (now - lastRestart < 5000) {
           // Too soon to restart, reject and remove engine
-          globalLogger.info('pool_engine_cooldown', { waitMs: 5000 - (now - lastRestart) });
+          globalLogger.info('pool_restart', { req: request.id, status: 'cooldown', waitMs: 5000 - (now - lastRestart) });
           this.removeDeadEngine(engine);
           request.reject(new Error('Engine unavailable, please retry'));
           return;
         }
 
-        globalLogger.info('pool_engine_restart', { reason: 'dead_before_use' });
+        globalLogger.info('pool_restart', { req: request.id, reason: 'dead' });
         this.restartCooldowns.set(engine, now);
         await engine.restart();
       }
@@ -224,12 +319,14 @@ export class EnginePool {
         request.options.elo,
         request.options.playerColor,
         request.options.allowBrilliant,
-        request.options.showAlwaysBestMoveFirst
+        request.options.showAlwaysBestMoveFirst,
+        request.id
       );
 
       // Build AnalysisResult from CandidateSelector result
       const result: AnalysisResult = {
         type: 'result',
+        requestId: request.id,
         bestMove: selectResult.bestMove,
         evaluation: selectResult.evaluation,
         lines: selectResult.lines,
@@ -245,21 +342,23 @@ export class EnginePool {
 
       // Clear cooldown on success
       this.restartCooldowns.delete(engine);
+      const durationMs = Date.now() - request.createdAt;
+      globalLogger.info('pool_done', { req: request.id, ms: durationMs, move: selectResult.bestMove });
       request.resolve(result);
     } catch (err) {
-      globalLogger.error('pool_engine_error', err instanceof Error ? err : String(err), { action: 'analyze', retryCount });
+      globalLogger.error('pool_error', err instanceof Error ? err : String(err), { req: request.id, retry: retryCount });
 
       // Only retry once
       if (retryCount < MAX_RETRIES) {
         try {
           this.restartCooldowns.set(engine, Date.now());
           await engine.restart();
-          globalLogger.info('pool_engine_restart', { reason: 'error_recovery', status: 'success' });
+          globalLogger.info('pool_restart', { req: request.id, reason: 'error', status: 'ok' });
 
           // Retry the request with the restarted engine
           return this.processRequest(engine, request, retryCount + 1);
         } catch (restartErr) {
-          globalLogger.error('pool_engine_error', restartErr instanceof Error ? restartErr : String(restartErr), { action: 'restart_failed' });
+          globalLogger.error('pool_error', restartErr instanceof Error ? restartErr : String(restartErr), { req: request.id, action: 'restart' });
         }
       }
 
@@ -295,12 +394,12 @@ export class EnginePool {
       // Ignore quit errors on dead engine
     }
 
-    globalLogger.info('pool_engine_removed', { reason: 'dead', current: this.pool.length });
+    globalLogger.info('pool_dead', { action: 'removed', pool: this.pool.length });
 
     // Ensure minimum engines (async, don't wait)
     if (this.pool.length < this.config.minEngines) {
       this.addEngine().catch(() => {
-        globalLogger.error('pool_engine_error', 'Failed to maintain minimum engines', { action: 'add_minimum' });
+        globalLogger.error('pool_error', 'Failed to maintain minimum engines', { action: 'add_min' });
       });
     }
   }
@@ -308,7 +407,7 @@ export class EnginePool {
   private returnEngine(engine: ChessEngine): void {
     // Only return healthy engines to the pool
     if (!engine.isAlive()) {
-      globalLogger.info('pool_engine_dead', { action: 'discarding' });
+      globalLogger.info('pool_dead', { action: 'discard' });
       this.removeDeadEngine(engine);
       return;
     }
@@ -316,6 +415,7 @@ export class EnginePool {
     // Check if there's a pending request
     const nextRequest = this.queue.shift();
     if (nextRequest) {
+      globalLogger.info('pool_dequeue', { req: nextRequest.id, waitMs: Date.now() - nextRequest.createdAt, qLen: this.queue.length });
       this.processRequest(engine, nextRequest);
     } else {
       // Only add to available if not already there

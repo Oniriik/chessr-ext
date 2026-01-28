@@ -172,7 +172,8 @@ export class CandidateSelector {
     elo: number,
     playerColor: 'w' | 'b',
     allowBrilliant = false,
-    showAlwaysBestMoveFirst = false
+    showAlwaysBestMoveFirst = false,
+    reqId?: string
   ): Promise<SelectResult> {
     const totalStart = Date.now();
     const band = getEloBand(elo);
@@ -181,14 +182,7 @@ export class CandidateSelector {
     const seedString = `${fen}|${moves.join(',')}|${elo}|${playerColor}|${allowBrilliant ? 1 : 0}`;
     const rng = new SeededRNG(seedString);
 
-    globalLogger.info('candidate_selector_start', {
-      elo,
-      nodesMain: band.nodesMain,
-      nodesCand: band.nodesCand,
-      windowCp: band.windowCp,
-      tempCp: band.tempCp,
-      movesCount: moves.length,
-    });
+    globalLogger.info('select_start', { req: reqId, elo, nodes: band.nodesMain, moves: moves.length });
 
     // Configure engine for full strength analysis
     this.engine.sendCommand('setoption name MultiPV value 1');
@@ -242,11 +236,7 @@ export class CandidateSelector {
     const bestEvalPlayerCp = toPlayerPov(refResult.evalCp, playerColor, sideToMove);
     const bestMove = refResult.bestMove;
 
-    globalLogger.info('candidate_selector_reference', {
-      bestMove,
-      bestEvalPlayerCp,
-      mate: refResult.mate,
-    });
+    globalLogger.info('select_ref', { req: reqId, best: bestMove, cp: bestEvalPlayerCp, mate: refResult.mate });
 
     // Step 3: Build candidates (12-16)
     let candidates = this.buildCandidates(legal, playerColor);
@@ -258,10 +248,7 @@ export class CandidateSelector {
       candidates = legal.map(legalToCandidate);
     }
 
-    globalLogger.info('candidate_selector_candidates', {
-      count: candidates.length,
-      moves: candidates.map(c => c.move).join(', '),
-    });
+    globalLogger.info('select_cand', { req: reqId, n: candidates.length });
 
     // Step 4: Quick-eval each candidate
     for (const cand of candidates) {
@@ -309,10 +296,7 @@ export class CandidateSelector {
       // If not enough non-sacrifice moves, keep original accepted (fallback to guarantee K moves)
     }
 
-    globalLogger.info('candidate_selector_accepted', {
-      count: accepted.length,
-      moves: accepted.map(c => `${c.move}(${c.quality}:${c.lossCp})`).join(', '),
-    });
+    globalLogger.info('select_accept', { req: reqId, n: accepted.length });
 
     // Step 6: Sample picks using quality buckets
     const pick1 = this.pickBucketed(accepted, band, rng, bestEvalPlayerCp) ?? this.bestByEval(accepted);
@@ -338,9 +322,7 @@ export class CandidateSelector {
       ? (this.pickBucketedWithSim(rem2, pick2 ? [pick1, pick2] : [pick1], band, rng, bestEvalPlayerCp, slot1Quality) ?? this.bestByEval(rem2))
       : undefined;
 
-    globalLogger.info('candidate_selector_sampled', {
-      picks: [pick1, pick2, pick3].filter(Boolean).map(p => `${p!.move}(${p!.quality})`).join(', '),
-    });
+    globalLogger.info('select_sample', { req: reqId, picks: [pick1, pick2, pick3].filter(Boolean).map(p => p!.move).join(',') });
 
     // Step 7: Verify final moves
     const toVerify = [pick1, pick2, pick3].filter(Boolean) as BucketedCandidate[];
@@ -373,12 +355,7 @@ export class CandidateSelector {
           isBrilliant,
         });
       } else {
-        globalLogger.info('candidate_selector_verify_rejected', {
-          move: candidate.move,
-          verifyEvalPlayerCp,
-          bestEvalPlayerCp,
-          drop: bestEvalPlayerCp - verifyEvalPlayerCp,
-        });
+        globalLogger.info('select_verify', { req: reqId, move: candidate.move, drop: bestEvalPlayerCp - verifyEvalPlayerCp, status: 'reject' });
       }
     }
 
@@ -403,12 +380,7 @@ export class CandidateSelector {
 
     // Debug: invariant check
     if (legal.length >= 3 && result.length < 3) {
-      globalLogger.error('candidate_selector_invariant_broken', 'Returned fewer than 3 moves when legal >= 3', {
-        legal: legal.length,
-        candidates: candidates.length,
-        accepted: accepted.length,
-        result: result.length,
-      });
+      globalLogger.error('select_error', 'Invariant broken: fewer than 3 moves', { req: reqId, legal: legal.length, result: result.length });
     }
 
     result = result.slice(0, K);
@@ -428,9 +400,7 @@ export class CandidateSelector {
       mate: undefined,
     }));
 
-    globalLogger.info('candidate_selector_result', {
-      moves: result.map(x => `${x.move}(${x.quality}${x.isBrilliant ? '!' : ''})`).join(', '),
-    });
+    globalLogger.info('select_result', { req: reqId, moves: result.map(x => x.move).join(',') });
 
     const analysisTime = Date.now() - analysisStart;
     const totalTime = Date.now() - totalStart;

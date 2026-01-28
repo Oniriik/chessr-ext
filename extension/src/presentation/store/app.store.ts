@@ -71,6 +71,11 @@ interface AppState {
   reanalyzeCount: number;
   requestReanalyze: () => void;
 
+  // TEMP: Pool stress test
+  testPoolCount: number;
+  testPoolRequestCount: number;
+  requestTestPool: (count: number) => void;
+
   // Version check
   updateRequired: boolean;
   updateDismissed: boolean;
@@ -170,6 +175,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   // Re-analyze trigger
   reanalyzeCount: 0,
   requestReanalyze: () => set((state) => ({ reanalyzeCount: state.reanalyzeCount + 1 })),
+
+  // TEMP: Pool stress test
+  testPoolCount: 0,
+  testPoolRequestCount: 4,
+  requestTestPool: (count: number) => set((state) => ({ testPoolCount: state.testPoolCount + 1, testPoolRequestCount: count })),
 
   // Version check
   updateRequired: false,

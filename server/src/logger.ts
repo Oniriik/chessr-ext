@@ -51,14 +51,43 @@ const categories: Record<string, { color: string; icon: string; label: string }>
   analysis_complete: { color: colors.green, icon: '✨', label: 'ANALYSIS' },
   analysis_error: { color: colors.red, icon: '❌', label: 'ANALYSIS' },
 
+  // Candidate selector
+  select_start: { color: colors.blue, icon: '🎯', label: 'SELECT' },
+  select_ref: { color: colors.cyan, icon: '📊', label: 'SELECT' },
+  select_cand: { color: colors.cyan, icon: '📋', label: 'SELECT' },
+  select_accept: { color: colors.green, icon: '✓', label: 'SELECT' },
+  select_sample: { color: colors.yellow, icon: '🎲', label: 'SELECT' },
+  select_verify: { color: colors.yellow, icon: '🔍', label: 'SELECT' },
+  select_result: { color: colors.green, icon: '✨', label: 'SELECT' },
+  select_error: { color: colors.red, icon: '❌', label: 'SELECT' },
+
   // Errors
   parse_error: { color: colors.red, icon: '❌', label: 'ERROR' },
   unknown_message: { color: colors.yellow, icon: '❓', label: 'UNKNOWN' },
 
-  // Pool events
+  // Pool lifecycle
   pool_init: { color: colors.cyan, icon: '🏊', label: 'POOL' },
   pool_ready: { color: colors.green, icon: '✅', label: 'POOL' },
-  pool_engine_added: { color: colors.cyan, icon: '➕', label: 'POOL' },
+
+  // Pool scaling
+  pool_add: { color: colors.green, icon: '➕', label: 'POOL' },
+  pool_remove: { color: colors.yellow, icon: '➖', label: 'POOL' },
+  pool_scale_up: { color: colors.green, icon: '📈', label: 'POOL' },
+  pool_scale_down: { color: colors.yellow, icon: '📉', label: 'POOL' },
+
+  // Pool requests
+  pool_assign: { color: colors.blue, icon: '→', label: 'POOL' },
+  pool_queue: { color: colors.yellow, icon: '⏳', label: 'POOL' },
+  pool_dequeue: { color: colors.blue, icon: '←', label: 'POOL' },
+  pool_done: { color: colors.green, icon: '✓', label: 'POOL' },
+
+  // Pool engine health
+  pool_restart: { color: colors.yellow, icon: '🔄', label: 'POOL' },
+  pool_dead: { color: colors.red, icon: '💀', label: 'POOL' },
+  pool_error: { color: colors.red, icon: '💥', label: 'POOL' },
+
+  // Legacy (keep for backward compat)
+  pool_engine_added: { color: colors.green, icon: '➕', label: 'POOL' },
   pool_engine_removed: { color: colors.yellow, icon: '➖', label: 'POOL' },
   pool_engine_restart: { color: colors.yellow, icon: '🔄', label: 'POOL' },
   pool_engine_error: { color: colors.red, icon: '💥', label: 'POOL' },

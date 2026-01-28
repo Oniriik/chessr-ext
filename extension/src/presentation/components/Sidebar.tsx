@@ -305,6 +305,37 @@ export function Sidebar() {
 
           </>
         )}
+
+        {/* TEMP: Pool stress test button */}
+        <Card>
+          <CardTitle>Pool Test (TEMP)</CardTitle>
+          <div className="tw-flex tw-gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => useAppStore.getState().requestTestPool(4)}
+            >
+              Send 4
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => useAppStore.getState().requestTestPool(8)}
+            >
+              Send 8
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => useAppStore.getState().requestTestPool(12)}
+            >
+              Send 12
+            </Button>
+          </div>
+          <p className="tw-text-xs tw-text-muted tw-mt-2">
+            Check server logs for pool scaling
+          </p>
+        </Card>
         </div>
       </div>
       )}
