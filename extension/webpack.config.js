@@ -2,10 +2,17 @@ const path = require('path');
 const CopyPlugin = require('copy-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const webpack = require('webpack');
-require('dotenv').config({ path: `.env.${process.env.NODE_ENV || 'development'}` });
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
+  
+  // Load environment variables based on NODE_ENV
+  // This must be done inside the function to access the correct NODE_ENV
+  const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
+  require('dotenv').config({ path: envFile });
+  
+  console.log(`[Webpack] Loading environment from: ${envFile}`);
+  console.log(`[Webpack] STOCKFISH_SERVER_URL: ${process.env.STOCKFISH_SERVER_URL}`);
 
   return {
     entry: {

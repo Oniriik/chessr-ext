@@ -108,7 +108,9 @@ export function AuthForm() {
           <div>
             <label className="tw-text-xs tw-text-muted tw-block tw-mb-1">{t.auth.email}</label>
             <div className="tw-relative">
-              <Mail className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-w-4 tw-h-4 tw-text-muted" />
+              <div className="tw-absolute tw-left-3 tw-top-0 tw-h-full tw-flex tw-items-center tw-pointer-events-none">
+                <Mail className="tw-w-4 tw-h-4 tw-text-muted" />
+              </div>
               <input
                 type="email"
                 value={email}
@@ -125,7 +127,9 @@ export function AuthForm() {
             <div>
               <label className="tw-text-xs tw-text-muted tw-block tw-mb-1">{t.auth.password}</label>
               <div className="tw-relative">
-                <Lock className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-w-4 tw-h-4 tw-text-muted" />
+                <div className="tw-absolute tw-left-3 tw-top-0 tw-h-full tw-flex tw-items-center tw-pointer-events-none">
+                  <Lock className="tw-w-4 tw-h-4 tw-text-muted" />
+                </div>
                 <input
                   type="password"
                   value={password}
@@ -143,7 +147,9 @@ export function AuthForm() {
             <div>
               <label className="tw-text-xs tw-text-muted tw-block tw-mb-1">{t.auth.confirmPassword}</label>
               <div className="tw-relative">
-                <Lock className="tw-absolute tw-left-3 tw-top-1/2 -tw-translate-y-1/2 tw-w-4 tw-h-4 tw-text-muted" />
+                <div className="tw-absolute tw-left-3 tw-top-0 tw-h-full tw-flex tw-items-center tw-pointer-events-none">
+                  <Lock className="tw-w-4 tw-h-4 tw-text-muted" />
+                </div>
                 <input
                   type="password"
                   value={confirmPassword}

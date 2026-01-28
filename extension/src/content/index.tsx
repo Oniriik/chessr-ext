@@ -175,6 +175,7 @@ class Chessr {
 
     try {
       const response = await fetch(versionUrl, { signal: AbortSignal.timeout(5000) });
+      console.log('[Chessr] Version check response:', response);
       if (!response.ok) {
         return true; // Server error - allow to proceed
       }
