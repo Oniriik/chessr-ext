@@ -50,6 +50,10 @@ const categories: Record<string, { color: string; icon: string; label: string }>
   analysis_request: { color: colors.blue, icon: '♟️', label: 'ANALYSIS' },
   analysis_complete: { color: colors.green, icon: '✨', label: 'ANALYSIS' },
   analysis_error: { color: colors.red, icon: '❌', label: 'ANALYSIS' },
+  stats_start: { color: colors.cyan, icon: '📊', label: 'STATS' },
+  reset_before: { color: colors.yellow, icon: '🔄', label: 'RESET' },
+  reset_after: { color: colors.green, icon: '✓', label: 'RESET' },
+  suggestion_start: { color: colors.magenta, icon: '💡', label: 'SUGGEST' },
 
   // Candidate selector
   select_start: { color: colors.blue, icon: '🎯', label: 'SELECT' },

@@ -1,15 +1,38 @@
 import { useAppStore } from '../presentation/store/app.store';
 import { fr } from './translations/fr';
 import { en } from './translations/en';
-import type { Language } from './types';
+import { es } from './translations/es';
+import { ru } from './translations/ru';
+import { de } from './translations/de';
+import { pt } from './translations/pt';
+import { hi } from './translations/hi';
+import type { Language, Translations } from './types';
+
+const translations: Record<Language, Translations> = {
+  en,
+  fr,
+  es,
+  ru,
+  de,
+  pt,
+  hi,
+};
 
 /**
  * Detect browser language
- * Returns 'fr' if browser language starts with 'fr', otherwise 'en'
+ * Returns detected language if supported, otherwise 'en'
  */
 export function detectBrowserLanguage(): Language {
-  const lang = navigator.language || (navigator as any).userLanguage || 'en';
-  return lang.toLowerCase().startsWith('fr') ? 'fr' : 'en';
+  const lang = (navigator.language || (navigator as any).userLanguage || 'en').toLowerCase();
+
+  if (lang.startsWith('fr')) return 'fr';
+  if (lang.startsWith('es')) return 'es';
+  if (lang.startsWith('ru')) return 'ru';
+  if (lang.startsWith('de')) return 'de';
+  if (lang.startsWith('pt')) return 'pt';
+  if (lang.startsWith('hi')) return 'hi';
+
+  return 'en';
 }
 
 /**
@@ -23,7 +46,7 @@ export function useTranslation() {
     ? detectBrowserLanguage()
     : settings.language as Language;
 
-  const t = currentLanguage === 'fr' ? fr : en;
+  const t = translations[currentLanguage] || en;
 
   return { t, currentLanguage };
 }

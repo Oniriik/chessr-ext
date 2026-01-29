@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, LogOut, Settings2, RotateCw } from 'lucide-react';
 import { useAppStore } from '../store/app.store';
+import { useFeedbackStore } from '../store/feedback.store';
 import { useAuthStore } from '../store/auth.store';
 import { useTranslation } from '../../i18n';
 import { useIsRTL } from '../hooks/useIsRTL';
@@ -12,6 +13,8 @@ import { Slider } from './ui/slider';
 import { Select } from './ui/select';
 import { OpeningSelector } from './OpeningSelector';
 import { SettingsModal } from './SettingsModal';
+import { SuggestionCard } from './SuggestionCard';
+import { AccuracyWidget } from './AccuracyWidget';
 
 import { Personality } from '../../shared/types';
 
@@ -20,7 +23,8 @@ const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Act
 
 
 export function Sidebar() {
-  const { settings, setSettings: setSettingsBase, connected, analysis, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, isGamePage, sideToMove } = useAppStore();
+  const { settings, setSettings: setSettingsBase, connected, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, isGamePage, sideToMove, lastGamePlayerColor } = useAppStore();
+  const { activeSnapshot, selectedSuggestionIndex, setSelectedSuggestionIndex, previousAccuracy, accuracyCache } = useFeedbackStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -39,19 +43,11 @@ export function Sidebar() {
   const [localElo, setLocalElo] = useState(settings.targetElo);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Store last complete analysis (with bestMove) to keep eval visible during processing
-  const lastCompleteAnalysisRef = useRef(analysis);
-  useEffect(() => {
-    if (analysis?.bestMove) {
-      lastCompleteAnalysisRef.current = analysis;
-    }
-  }, [analysis]);
-
-  // Use last complete analysis for eval display, current for move
-  const displayAnalysis = lastCompleteAnalysisRef.current;
-
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // Local state for expanded PV
+  const [expandedPvIndex, setExpandedPvIndex] = useState<number | undefined>(undefined);
 
   // Animation states for refresh buttons
   const [colorSpinning, setColorSpinning] = useState(false);
@@ -62,7 +58,6 @@ export function Sidebar() {
     setLocalElo(settings.targetElo);
   }, [settings.targetElo]);
 
-
   const handleEloChange = (value: number) => {
     setLocalElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -70,23 +65,6 @@ export function Sidebar() {
       setSettings({ targetElo: value });
     }, 300);
   };
-
-  // Use displayAnalysis for eval (persists during processing), analysis for move
-  const evalValue = displayAnalysis?.mate !== undefined
-    ? `M${Math.abs(displayAnalysis.mate)}`
-    : displayAnalysis?.evaluation !== undefined
-      ? (displayAnalysis.evaluation >= 0 ? '+' : '') + displayAnalysis.evaluation.toFixed(1)
-      : '--';
-
-  const evalColor = displayAnalysis?.mate !== undefined
-    ? (displayAnalysis.mate > 0 ? 'tw-text-green-400' : 'tw-text-red-400')
-    : (displayAnalysis?.evaluation ?? 0) >= 0 ? 'tw-text-green-400' : 'tw-text-red-400';
-
-  const centipawnsValue = displayAnalysis?.mate !== undefined
-    ? `M${Math.abs(displayAnalysis.mate)}`
-    : displayAnalysis?.evaluation !== undefined
-      ? `${displayAnalysis.evaluation >= 0 ? '+' : ''}${Math.round(displayAnalysis.evaluation * 100)}`
-      : '--';
 
   // RTL-aware styles
   const OpenIcon = isRTL ? ChevronRight : ChevronLeft;
@@ -159,19 +137,47 @@ export function Sidebar() {
       {/* Content */}
       <div className="tw-flex-1 tw-overflow-y-auto tw-p-4 tw-space-y-4">
         {!isGamePage ? (
-          /* Message when not on a game page */
-          <Card>
-            <div className="tw-text-center tw-py-4">
-              <img
-                src={chrome.runtime.getURL('icons/chessr-logo.png')}
-                alt="Chessr"
-                className="tw-w-16 tw-h-16 tw-mx-auto tw-mb-3 tw-opacity-50"
-              />
-              <div className="tw-text-sm tw-text-muted">
-                Start a game to use Chessr
+          /* Review/Analysis page - show last game info if available */
+          lastGamePlayerColor && activeSnapshot?.accuracy ? (
+            <>
+              {/* Last Game Info */}
+              <Card>
+                <div className="tw-text-center">
+                  <div className="tw-text-[10px] tw-text-muted tw-uppercase tw-mb-1">{t.player.lastGamePlayed}</div>
+                  <div className="tw-flex tw-items-center tw-justify-center tw-gap-1">
+                    <span className="tw-text-xs tw-text-muted">{t.player.myColor}:</span>
+                    <span className="tw-font-semibold">
+                      {lastGamePlayerColor === 'white' ? `⬜ ${t.player.white}` : `⬛ ${t.player.black}`}
+                    </span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Accuracy Widget */}
+              {settings.showRollingAccuracy && (
+                <AccuracyWidget
+                  accuracy={activeSnapshot.accuracy}
+                  previousAccuracy={previousAccuracy}
+                  accuracyCache={accuracyCache}
+                  playerColor={lastGamePlayerColor}
+                />
+              )}
+            </>
+          ) : (
+            /* Start game message */
+            <Card>
+              <div className="tw-text-center tw-py-4">
+                <img
+                  src={chrome.runtime.getURL('icons/chessr-logo.png')}
+                  alt="Chessr"
+                  className="tw-w-16 tw-h-16 tw-mx-auto tw-mb-3 tw-opacity-50"
+                />
+                <div className="tw-text-sm tw-text-muted">
+                  Start a game to use Chessr
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )
         ) : (
           <>
             {/* Player Info - Two Columns */}
@@ -220,61 +226,60 @@ export function Sidebar() {
               </div>
             </Card>
 
-            {/* Analysis */}
-            <Card>
-              <div className="tw-grid tw-grid-cols-3 tw-gap-2">
-                <div className="tw-text-center">
-                  <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.eval}</div>
-                  <div className={cn('tw-text-lg tw-font-bold', evalColor)}>{evalValue}</div>
-                </div>
-                <div className="tw-text-center">
-                  <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.centipawns}</div>
-                  <div className={cn('tw-text-lg tw-font-bold', evalColor)}>{centipawnsValue}</div>
-                </div>
-                <div className="tw-text-center">
-                  <div className="tw-text-[10px] tw-text-muted tw-mb-1 tw-whitespace-nowrap">{t.analysis.move}</div>
-                  <div className="tw-text-lg tw-font-bold tw-text-primary">{analysis?.bestMove || '--'}</div>
+            {/* ELO */}
+            <Card className="!tw-p-3">
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
+                <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
+                <div className="tw-flex tw-items-baseline tw-gap-1">
+                  <div className="tw-text-base tw-font-semibold tw-text-primary">
+                    {localElo}
+                  </div>
+                  <div className="tw-text-[10px] tw-text-muted">UCI</div>
                 </div>
               </div>
+              <Slider
+                value={localElo}
+                onValueChange={handleEloChange}
+                min={300}
+                max={3000}
+                step={50}
+              />
             </Card>
 
-            {/* Player Performance */}
-            {displayAnalysis?.playerPerformance && (displayAnalysis.playerPerformance.movesAnalyzed ?? 0) > 0 && (
-              <Card>
-                <div className="tw-grid tw-grid-cols-1 tw-gap-2">
-                  <div className="tw-text-center">
-                    <div className="tw-text-[10px] tw-text-muted tw-mb-1">Accuracy</div>
-                    <div className="tw-text-lg tw-font-bold tw-text-green-400">
-                      {displayAnalysis.playerPerformance.accuracy}%
-                    </div>
-                  </div>
-                </div>
-                <div className="tw-text-center tw-text-xs tw-text-muted tw-mt-2">
-                  Based on {displayAnalysis.playerPerformance.movesAnalyzed} moves
-                </div>
-              </Card>
+            {/* Accuracy Widget */}
+            {settings.showRollingAccuracy && activeSnapshot?.accuracy && (
+              <AccuracyWidget
+                accuracy={activeSnapshot.accuracy}
+                previousAccuracy={previousAccuracy}
+                accuracyCache={accuracyCache}
+                playerColor={boardConfig?.playerColor}
+              />
+            )}
+
+            {/* Suggestions */}
+            {settings.showSuggestions && activeSnapshot?.suggestions && activeSnapshot.suggestions.length > 0 && (
+              <div className="tw-space-y-2">
+                {activeSnapshot.suggestions.map((suggestion) => (
+                  <SuggestionCard
+                    key={suggestion.index}
+                    suggestion={suggestion}
+                    isSelected={selectedSuggestionIndex === suggestion.index}
+                    isExpanded={expandedPvIndex === suggestion.index}
+                    showPromotionAsText={settings.showPromotionAsText}
+                    playerColor={boardConfig?.playerColor}
+                    onSelect={() => setSelectedSuggestionIndex(suggestion.index)}
+                    onToggleExpand={() => {
+                      setExpandedPvIndex(
+                        expandedPvIndex === suggestion.index ? undefined : suggestion.index
+                      );
+                    }}
+                  />
+                ))}
+              </div>
             )}
 
             {/* Opening Selector */}
             <OpeningSelector />
-
-        {/* ELO */}
-        <Card>
-          <CardTitle>{t.elo.title}</CardTitle>
-          <div className="tw-flex tw-items-baseline tw-gap-2 tw-mb-3">
-            <div className="tw-text-3xl tw-font-bold tw-text-primary">
-              {localElo}
-            </div>
-            <div className="tw-text-sm tw-text-muted">UCI</div>
-          </div>
-          <Slider
-            value={localElo}
-            onValueChange={handleEloChange}
-            min={300}
-            max={3000}
-            step={50}
-          />
-        </Card>
 
         {/* Personality */}
         <Card>

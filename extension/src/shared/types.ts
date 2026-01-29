@@ -60,10 +60,15 @@ export interface Settings {
   useDifferentArrowColors: boolean;  // true = different colors per arrow, false = single color
   arrowColors: ArrowColors;
   singleArrowColor: string;  // Used when useDifferentArrowColors is false
-  language: 'fr' | 'en' | 'auto';  // UI language: auto = detect from browser
+  language: 'fr' | 'en' | 'es' | 'ru' | 'de' | 'pt' | 'hi' | 'auto';  // UI language: auto = detect from browser
   numberOfSuggestions: 1 | 2 | 3;  // Number of suggestions to show (1-3)
-  allowBrilliant: boolean;           // Enable brilliant move detection
-  showAlwaysBestMoveFirst: boolean;  // Always show best move as first suggestion
+
+  // Feedback & Analysis Display Options
+  showSuggestions: boolean;               // Display suggestion cards (#1, #2, #3) in sidebar
+  showRollingAccuracy: boolean;           // Display accuracy widget for last 10 moves
+  showQualityLabels: boolean;             // Display Best/Safe/Risky quality labels on suggestions
+  showEffectLabels: boolean;              // Display mate/check/capture/promo effect labels on suggestions
+  showPromotionAsText: boolean;           // Display "Promote to Knight" instead of "e7e8n"
 }
 
 // NOTE: DEFAULT_SETTINGS has been moved to ./defaults.ts to use environment config

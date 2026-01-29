@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from '../presentation/App';
 import { useAppStore } from '../presentation/store/app.store';
+import { useFeedbackStore } from '../presentation/store/feedback.store';
 import { useOpeningStore } from '../presentation/store/opening.store';
 import { createPlatformAdapter, PlatformAdapter } from './platforms';
 import { MoveTracker } from './move-tracker';
@@ -10,13 +11,22 @@ import { OverlayManager } from './overlay/overlay-manager';
 import { ArrowRenderer } from './overlay/arrow-renderer';
 import { EvalBar } from './overlay/eval-bar';
 import { OpeningTracker } from './openings/opening-tracker';
-import { AnalysisResult, BoardConfig, Settings } from '../shared/types';
+import { BoardConfig, Settings } from '../shared/types';
+import { AnalyzeResultResponse, AnalyzeErrorResponse, SuggestionMove } from '../domain/analysis/feedback-types';
+import { buildBadges } from '../domain/analysis/feedback-helpers';
 import { isUpdateRequired } from '../shared/version';
 
 // Get version info from download page
 function getHttpVersionUrl(_wsUrl: string): string {
   // Always use the download page for version info
   return 'https://download.chessr.io/version.json';
+}
+
+/**
+ * Generate a short request ID (8 characters) for better log readability
+ */
+function generateShortRequestId(): string {
+  return crypto.randomUUID().slice(0, 8);
 }
 
 class Chessr {
@@ -31,6 +41,10 @@ class Chessr {
   private analysisDisabled = false;
   private versionCheckPassed = false;
   private lastRequestId: string | null = null;
+
+  // New game detection
+  private lastMoveHistoryLength = 0;
+  private lastFirstMove: string | null = null;
 
   async init() {
     // Create platform adapter
@@ -184,8 +198,10 @@ class Chessr {
 
     // Set up message handler for analysis results
     this.wsClient.onMessage((message) => {
-      if (message.type === 'result') {
-        this.onAnalysisResult(message as AnalysisResult);
+      if (message.type === 'analyze_result') {
+        this.onAnalyzeResult(message);
+      } else if (message.type === 'analyze_error') {
+        this.onAnalyzeError(message);
       }
     });
 
@@ -232,7 +248,12 @@ class Chessr {
     // Start tracking moves with player color
     this.moveTracker.start(config.boardElement, config.playerColor);
     this.moveTracker.onPositionChange((fen) => this.onPositionChange(fen));
-    this.moveTracker.onMoveDetected((move) => this.onMoveDetected(move));
+    this.moveTracker.onMoveDetected((move) => {
+      this.onMoveDetected(move);
+      // Forward to feedback store
+      const feedbackStore = useFeedbackStore.getState();
+      feedbackStore.handlePlayerMove(move);
+    });
   }
 
   private onMoveDetected(move: string) {
@@ -277,42 +298,130 @@ class Chessr {
 
     const moveHistory = this.adapter?.getMoveHistory?.() || [];
 
+    // Detect new game (reset accumulated stats)
+    const currentFirstMove = moveHistory.length > 0 ? moveHistory[0] : null;
+    const isNewGame =
+      (moveHistory.length < this.lastMoveHistoryLength) || // Move count decreased
+      (currentFirstMove !== null && currentFirstMove !== this.lastFirstMove); // Different opening
+
+    if (isNewGame && this.lastMoveHistoryLength > 0) {
+      console.log('[Chessr] 🎮 New game detected - resetting stats cache');
+      const feedbackStore = useFeedbackStore.getState();
+      feedbackStore.reset();
+      this.openingTracker.reset();
+    }
+
+    // Update tracking for next detection
+    this.lastMoveHistoryLength = moveHistory.length;
+    this.lastFirstMove = currentFirstMove;
+
     // Generate unique request ID to track this analysis
-    const requestId = crypto.randomUUID();
+    const requestId = generateShortRequestId();
     this.lastRequestId = requestId;
 
     console.log('[Chessr] ✓ Player turn - sending suggestion request, moves:', moveHistory.length, 'requestId:', requestId);
-    this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory, playerColor, requestId);
+    this.wsClient.analyze(moveHistory, settings, requestId);
   }
 
-  private onAnalysisResult(result: AnalysisResult) {
-    console.log('[Chessr] Suggestion received, requestId:', result.requestId);
+  private onAnalyzeResult(result: AnalyzeResultResponse) {
+    console.log('[Chessr] Analyze result received, requestId:', result.requestId);
 
-    // Ignore results that don't match the latest request
-    if (result.requestId && result.requestId !== this.lastRequestId) {
-      console.log('[Chessr] Ignoring outdated suggestion (requestId mismatch)');
+    // Anti-stale: ignore if not the latest request
+    if (result.requestId !== this.lastRequestId) {
+      console.log('[Chessr] Stale result ignored');
       return;
     }
 
-    // Ignore empty results (cancelled analyses)
-    if (!result.bestMove) {
-      return;
-    }
+    // Get current position info
+    const currentFen = this.moveTracker.getCurrentFEN();
+    const moveHistory = this.adapter?.getMoveHistory?.() || [];
 
+    // Forward to feedback store
+    const feedbackStore = useFeedbackStore.getState();
+    feedbackStore.handleAnalyzeResult(result, currentFen, moveHistory);
+
+    // Update arrows if enabled
     const store = useAppStore.getState();
-    store.setAnalysis(result);
-
-    if (store.settings.showArrows) {
-      const linesToDraw = result.lines.slice(0, store.settings.numberOfSuggestions);
-      this.arrowRenderer.drawBestMoves(linesToDraw, {
-        useDifferentColors: store.settings.useDifferentArrowColors,
-        colors: store.settings.arrowColors,
-        singleColor: store.settings.singleArrowColor,
-      });
+    if (store.settings.showArrows && result.payload.suggestions.suggestions.length > 0) {
+      this.updateArrowsFromSuggestions(result.payload.suggestions.suggestions);
     }
 
+    // Update eval bar if enabled
     if (store.settings.showEvalBar) {
-      this.evalBar.update(result.evaluation, result.mate);
+      const bestSuggestion = result.payload.suggestions.suggestions[0];
+      if (bestSuggestion) {
+        // Convert score to player POV (scores are in White POV by default)
+        const isBlackPlayer = store.boardConfig?.playerColor === 'black';
+        const scoreMultiplier = isBlackPlayer ? -1 : 1;
+
+        if (bestSuggestion.score.type === 'mate') {
+          this.evalBar.update(0, bestSuggestion.score.value * scoreMultiplier);
+        } else {
+          this.evalBar.update((bestSuggestion.score.value / 100) * scoreMultiplier);
+        }
+      }
+    }
+  }
+
+  private onAnalyzeError(error: AnalyzeErrorResponse) {
+    console.error('[Chessr] Analyze error:', error.error);
+    const feedbackStore = useFeedbackStore.getState();
+    feedbackStore.handleAnalyzeError(error);
+  }
+
+  private updateArrowsFromSuggestions(suggestions: SuggestionMove[]) {
+    const store = useAppStore.getState();
+    this.overlay.clearArrows();
+
+    // Draw arrows for suggestions based on settings
+    const numToShow = Math.min(suggestions.length, store.settings.numberOfSuggestions);
+    for (let i = 0; i < numToShow; i++) {
+      const suggestion = suggestions[i];
+      const move = suggestion.move;
+
+      // Extract from/to from UCI move (e.g., "e2e4" -> from: "e2", to: "e4")
+      if (move.length < 4) continue;
+      const from = move.slice(0, 2);
+      const to = move.slice(2, 4);
+
+      const color = store.settings.useDifferentArrowColors
+        ? (i === 0 ? store.settings.arrowColors.best : i === 1 ? store.settings.arrowColors.second : store.settings.arrowColors.other)
+        : store.settings.singleArrowColor;
+
+      // Build badges from suggestion data and filter based on settings
+      const allBadges = buildBadges(suggestion);
+      const { showQualityLabels, showEffectLabels } = store.settings;
+
+      // Filter badges based on settings
+      let badges: string[] = [];
+      if (showQualityLabels || showEffectLabels) {
+        badges = allBadges.filter(badge => {
+          // Quality badges
+          const isQualityBadge =
+            badge === 'Best' ||
+            badge === 'Safe' ||
+            badge === 'Risky' ||
+            badge === 'Human' ||
+            badge === 'Alt' ||
+            badge.includes('Medium risk');
+
+          // Effect badges
+          const isEffectBadge =
+            badge.startsWith('#') ||   // Mate
+            badge.startsWith('+') ||   // Check
+            badge.startsWith('x ') ||  // Capture
+            badge.includes('Promo');   // Promotion
+
+          return (showQualityLabels && isQualityBadge) || (showEffectLabels && isEffectBadge);
+        });
+      }
+
+      this.arrowRenderer['drawArrowWithColor']({
+        from,
+        to,
+        color,
+        badges
+      });
     }
   }
 
@@ -322,8 +431,10 @@ class Chessr {
       this.wsClient.disconnect();
       this.wsClient = new WebSocketClient(settings.serverUrl);
       this.wsClient.onMessage((message) => {
-        if (message.type === 'result') {
-          this.onAnalysisResult(message as AnalysisResult);
+        if (message.type === 'analyze_result') {
+          this.onAnalyzeResult(message);
+        } else if (message.type === 'analyze_error') {
+          this.onAnalyzeError(message);
         }
       });
       this.wsClient.onConnectionChange((connected) => {

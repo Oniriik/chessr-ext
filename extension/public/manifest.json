@@ -9,7 +9,8 @@
   ],
   "host_permissions": [
     "*://*.chess.com/*",
-    "*://lichess.org/*"
+    "*://lichess.org/*",
+    "https://download.chessr.io/*"
   ],
   "content_scripts": [
     {

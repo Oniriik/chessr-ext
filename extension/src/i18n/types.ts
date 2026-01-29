@@ -10,6 +10,7 @@ export interface Translations {
     turn: string;
     white: string;
     black: string;
+    lastGamePlayed: string;
   };
 
   // Analysis
@@ -92,6 +93,10 @@ export interface Translations {
     secondSuggestion: string;
     thirdSuggestion: string;
     singleColor: string;
+    showQualityLabels: string;
+    showQualityLabelsDesc: string;
+    showEffectLabels: string;
+    showEffectLabelsDesc: string;
   };
 
   // Openings
@@ -111,6 +116,11 @@ export interface Translations {
     automatic: string;
     french: string;
     english: string;
+    spanish: string;
+    russian: string;
+    german: string;
+    portuguese: string;
+    hindi: string;
     detected: string;
   };
 
@@ -121,6 +131,39 @@ export interface Translations {
     showAlwaysBestMoveFirstDesc: string;
     allowBrilliant: string;
     allowBrilliantDesc: string;
+  };
+
+  // Feedback settings
+  feedback: {
+    title: string;
+    showSuggestions: string;
+    showSuggestionsDesc: string;
+    showRollingAccuracy: string;
+    showRollingAccuracyDesc: string;
+  };
+
+  // Badges
+  badges: {
+    best: string;
+    safe: string;
+    risky: string;
+    human: string;
+    alt: string;
+    promotion: string;
+    mate: string;
+    check: string;
+    capture: string;
+    lowRisk: string;
+    mediumRisk: string;
+    highRisk: string;
+  };
+
+  // Tabs
+  tabs: {
+    general: string;
+    display: string;
+    suggestions: string;
+    feedback: string;
   };
 
   // Version check
@@ -165,4 +208,4 @@ export interface Translations {
   };
 }
 
-export type Language = 'fr' | 'en';
+export type Language = 'fr' | 'en' | 'es' | 'ru' | 'de' | 'pt' | 'hi';

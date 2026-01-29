@@ -10,6 +10,7 @@ export const fr: Translations = {
     turn: 'Tour',
     white: 'Blancs',
     black: 'Noirs',
+    lastGamePlayed: 'Dernière Partie Jouée',
   },
 
   analysis: {
@@ -86,6 +87,10 @@ export const fr: Translations = {
     secondSuggestion: '2ème Suggestion',
     thirdSuggestion: '3ème Suggestion',
     singleColor: 'Couleur des suggestions',
+    showQualityLabels: 'Afficher labels qualité',
+    showQualityLabelsDesc: 'Affiche les étiquettes Meilleur/Sûr/Risqué sur les flèches',
+    showEffectLabels: 'Afficher labels effets',
+    showEffectLabelsDesc: 'Affiche les labels mat/échec/capture/promotion sur les flèches',
   },
 
   openings: {
@@ -103,6 +108,11 @@ export const fr: Translations = {
     automatic: 'Automatique',
     french: 'Français',
     english: 'English',
+    spanish: 'Español',
+    russian: 'Русский',
+    german: 'Deutsch',
+    portuguese: 'Português',
+    hindi: 'हिन्दी',
     detected: 'détecté',
   },
 
@@ -112,6 +122,36 @@ export const fr: Translations = {
     showAlwaysBestMoveFirstDesc: 'La première suggestion est toujours le meilleur coup moteur.',
     allowBrilliant: 'Autoriser les coups brillants',
     allowBrilliantDesc: 'Affiche les coups qui sacrifient du matériel pour des positions fortes.',
+  },
+
+  feedback: {
+    title: 'Détails des coups',
+    showSuggestions: 'Afficher suggestions détaillées',
+    showSuggestionsDesc: 'Affiche les cartes avec coups, effets et qualité',
+    showRollingAccuracy: 'Afficher précision glissante',
+    showRollingAccuracyDesc: 'Affiche un widget de précision pour les 10 derniers coups',
+  },
+
+  badges: {
+    best: 'Meilleur',
+    safe: 'Sûr',
+    risky: 'Risqué',
+    human: 'Humain',
+    alt: 'Alt',
+    promotion: 'Promotion',
+    mate: 'Mat',
+    check: 'Échec',
+    capture: 'Capture',
+    lowRisk: 'Risque faible',
+    mediumRisk: 'Risque moyen',
+    highRisk: 'Risque élevé',
+  },
+
+  tabs: {
+    general: 'Général',
+    display: 'Affichage',
+    suggestions: 'Suggestions',
+    feedback: 'Détails',
   },
 
   version: {

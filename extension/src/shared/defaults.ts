@@ -1,6 +1,10 @@
 import { Settings } from './types';
 import { config } from './config';
 
+// Analysis window: analyze only the last N moves (not the entire game)
+// This keeps analysis fast (~0.5s) while the extension accumulates stats over time
+export const DEFAULT_LAST_MOVES = 1;
+
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   serverUrl: config.stockfishServerUrl, // Uses environment variable
@@ -23,6 +27,11 @@ export const DEFAULT_SETTINGS: Settings = {
   singleArrowColor: '#00c850',  // Green
   language: 'auto',  // Auto-detect browser language
   numberOfSuggestions: 3,  // Show all 3 suggestions by default
-  allowBrilliant: false,           // Disabled by default
-  showAlwaysBestMoveFirst: false,  // Disabled by default
+
+  // New feedback & analysis options (all enabled by default)
+  showSuggestions: true,
+  showRollingAccuracy: true,
+  showQualityLabels: true,
+  showEffectLabels: true,
+  showPromotionAsText: true,
 };

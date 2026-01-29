@@ -59,6 +59,10 @@ interface AppState {
   isGamePage: boolean;
   setIsGamePage: (isGamePage: boolean) => void;
 
+  // Last game info (for review page)
+  lastGamePlayerColor: 'white' | 'black' | null;
+  setLastGamePlayerColor: (color: 'white' | 'black' | null) => void;
+
   // Side to move
   sideToMove: 'w' | 'b' | null;
   setSideToMove: (side: 'w' | 'b' | null) => void;
@@ -157,7 +161,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Page state
   isGamePage: false,
-  setIsGamePage: (isGamePage) => set({ isGamePage }),
+  setIsGamePage: (isGamePage) => {
+    // When leaving a game page, save the player color
+    if (!isGamePage && get().isGamePage && get().boardConfig) {
+      set({ lastGamePlayerColor: get().boardConfig!.playerColor });
+    }
+    set({ isGamePage });
+  },
+
+  // Last game info
+  lastGamePlayerColor: null,
+  setLastGamePlayerColor: (color) => set({ lastGamePlayerColor: color }),
 
   // Side to move
   sideToMove: null,

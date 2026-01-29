@@ -1,21 +1,25 @@
+// Import new analyze types
+import type { AnalyzeResultResponse, AnalyzeErrorResponse } from './analyze-types.js';
+
 // Komodo Dragon Personalities
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 
 export interface AnalyzeRequest {
   type: 'analyze';
-  requestId?: string;  // Request ID to match request/response (from client)
-  fen: string;
-  moves: string[];  // UCI move history (e.g., ["e2e4", "e7e5", "g1f3"])
-  elo: number;
-  personality: Personality;
-  playerColor: 'w' | 'b';  // Player's color (detected by extension)
-  allowBrilliant?: boolean;           // Enable brilliant move detection (default: false)
-  showAlwaysBestMoveFirst?: boolean;  // Always show best move as first suggestion (default: false)
-  // Deprecated fields (kept for backwards compatibility but ignored):
-  searchMode?: 'depth' | 'time';
-  depth?: number;
-  moveTime?: number;
-  multiPV?: number;
+  requestId?: string;
+  payload: {
+    movesUci: string[];          // Plies in UCI format: ["e2e4", "e7e5", ...]
+    fen?: string;                 // Optional (can be derived from movesUci)
+    sideToMove?: 'w' | 'b';      // Optional (can be derived from movesUci)
+    review: {
+      lastMoves: number;          // Number of full moves to analyze (default: 10)
+    };
+    user: {
+      targetElo: number;          // User's target ELO (500-2500)
+      personality: Personality;   // Komodo personality
+      multiPV: number;            // Number of suggestion lines (1-8)
+    };
+  };
 }
 
 export interface AuthMessage {
@@ -92,7 +96,14 @@ export interface AuthSuccessMessage {
   };
 }
 
-export type ServerMessage = AnalysisResult | InfoUpdate | ReadyMessage | ErrorMessage | VersionErrorMessage | AuthSuccessMessage;
+export type ServerMessage =
+  | AnalyzeResultResponse  // New dual-phase analysis response
+  | AnalyzeErrorResponse   // New analysis error response
+  | InfoUpdate
+  | ReadyMessage
+  | ErrorMessage
+  | VersionErrorMessage
+  | AuthSuccessMessage;
 
 // User tracking
 export interface UserInfo {

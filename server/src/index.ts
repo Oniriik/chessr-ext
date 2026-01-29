@@ -151,17 +151,21 @@ class ChessServer {
 
   private async handleMessage(ws: WebSocket, rawData: string) {
     const clientInfo = this.getClientInfo(ws);
-    const requestId = Logger.createRequestId();
-    const logger = new Logger(requestId);
 
     let message: ClientMessage;
     try {
       message = JSON.parse(rawData);
     } catch {
-      logger.error('parse_error', clientInfo.email, 'Invalid JSON');
+      // Create temporary logger for parse error
+      const tempLogger = new Logger(Logger.createRequestId());
+      tempLogger.error('parse_error', clientInfo.email, 'Invalid JSON');
       this.send(ws, { type: 'error', message: 'Invalid JSON' });
       return;
     }
+
+    // Use requestId from message if available, otherwise generate one
+    const requestId = (message as any).requestId || Logger.createRequestId();
+    const logger = new Logger(requestId);
 
     switch (message.type) {
       case 'analyze':
@@ -186,57 +190,61 @@ class ChessServer {
     const clientInfo = this.getClientInfo(ws);
 
     logger.info('analysis_request', clientInfo.email, {
-      elo: message.elo,
-      personality: message.personality,
-      playerColor: message.playerColor,
-      movesCount: message.moves?.length || 0,
-      moves: message.moves?.length > 0 ? message.moves.join(' ') : '(empty)',
+      requestId: message.requestId || 'none',
+      movesCount: message.payload.movesUci.length,
+      targetElo: message.payload.user.targetElo,
+      multiPV: message.payload.user.multiPV,
+      lastMoves: message.payload.review.lastMoves,
     });
 
     try {
-      const result = await this.pool.analyze(
-        message.fen,
-        {
-          moves: message.moves,
-          elo: message.elo,
-          personality: message.personality || 'Default',
-          playerColor: message.playerColor,
-          allowBrilliant: message.allowBrilliant,
-          showAlwaysBestMoveFirst: message.showAlwaysBestMoveFirst,
-          clientRequestId: message.requestId,  // Pass client request ID
+      // Get engine from pool for direct UCI control
+      const engine = await this.pool.getEngineForDirectUse();
+
+      try {
+        // Import and run the dual-phase pipeline
+        const { handleAnalyze: runPipeline } = await import('./analyze-pipeline.js');
+        const result = await runPipeline(engine, message, clientInfo.email);
+
+        // Check if result is success or error
+        if (result.type === 'analyze_error') {
+          logger.error('analysis_error', clientInfo.email, result.error.message);
+          this.send(ws, result);
+          return;
         }
-      );
 
-      // Format moves summary: "1. e2e4 (+0.3) 2. d2d4 (+0.2) 3. g1f3 (+0.1)"
-      const movesSummary = result.lines
-        .map((line, i) => {
-          const evalStr = line.mate
-            ? `#${line.mate}`
-            : (line.evaluation >= 0 ? `+${line.evaluation.toFixed(1)}` : line.evaluation.toFixed(1));
-          return `${i + 1}. ${line.moves[0]} (${evalStr})`;
-        })
-        .join(' ');
+        // Format timing: ms if < 1s, otherwise seconds
+        const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
 
-      // Format timing: ms if < 1s, otherwise seconds
-      const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+        logger.info('analysis_complete', clientInfo.email, {
+          requestId: result.requestId,
+          reviewMs: formatTime(result.meta.timings.reviewMs),
+          suggestionMs: formatTime(result.meta.timings.suggestionMs),
+          totalMs: formatTime(result.meta.timings.totalMs),
+          overall: result.payload.accuracy.overall,
+          suggestions: result.payload.suggestions.suggestions.length,
+        });
 
-      logger.info('analysis_complete', clientInfo.email, {
-        req: result.requestId,
-        lines: result.lines.length,
-        warmup: result.timing ? formatTime(result.timing.warmup) : '0ms',
-        analysis: result.timing ? formatTime(result.timing.analysis) : 'N/A',
-        total: result.timing ? formatTime(result.timing.total) : 'N/A',
-        summary: movesSummary,
-      });
-
-      this.metrics.incrementSuggestions(result.lines.length);
-      telemetry.recordSuggestion(result.depth);
-      this.send(ws, result);
+        this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
+        telemetry.recordSuggestion(0); // Depth not applicable in new system
+        this.send(ws, result);
+      } finally {
+        // Always return engine to pool
+        this.pool.releaseEngine(engine);
+      }
     } catch (err) {
       logger.error('analysis_error', clientInfo.email, err instanceof Error ? err : String(err));
+
+      // Send properly formatted error response
       this.send(ws, {
-        type: 'error',
-        message: err instanceof Error ? err.message : 'Analysis failed',
+        type: 'analyze_error',
+        requestId: message.requestId || '',
+        version: '1.0',
+        error: {
+          code: 'ANALYZE_FAILED',
+          message: err instanceof Error ? err.message : 'Analysis failed',
+        },
+        meta: { engine: 'KomodoDragon' },
       });
     }
   }

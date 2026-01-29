@@ -10,6 +10,7 @@ export const en: Translations = {
     turn: 'Turn',
     white: 'White',
     black: 'Black',
+    lastGamePlayed: 'Last Game Played',
   },
 
   analysis: {
@@ -86,6 +87,10 @@ export const en: Translations = {
     secondSuggestion: '2nd Suggestion',
     thirdSuggestion: '3rd Suggestion',
     singleColor: 'Suggestion Color',
+    showQualityLabels: 'Show move quality labels',
+    showQualityLabelsDesc: 'Display Best/Safe/Risky labels on arrows',
+    showEffectLabels: 'Show effect labels',
+    showEffectLabelsDesc: 'Display mate/check/capture/promotion labels on arrows',
   },
 
   openings: {
@@ -103,6 +108,11 @@ export const en: Translations = {
     automatic: 'Automatic',
     french: 'Français',
     english: 'English',
+    spanish: 'Español',
+    russian: 'Русский',
+    german: 'Deutsch',
+    portuguese: 'Português',
+    hindi: 'हिन्दी',
     detected: 'detected',
   },
 
@@ -112,6 +122,36 @@ export const en: Translations = {
     showAlwaysBestMoveFirstDesc: 'The first suggestion is always the best engine move.',
     allowBrilliant: 'Allow brilliant moves',
     allowBrilliantDesc: 'Show moves that sacrifice material for strong positions.',
+  },
+
+  feedback: {
+    title: 'Move Details',
+    showSuggestions: 'Show detailed move suggestions',
+    showSuggestionsDesc: 'Display suggestion cards with moves, effects, and quality',
+    showRollingAccuracy: 'Show rolling accuracy',
+    showRollingAccuracyDesc: 'Display accuracy widget for last 10 moves',
+  },
+
+  badges: {
+    best: 'Best',
+    safe: 'Safe',
+    risky: 'Risky',
+    human: 'Human',
+    alt: 'Alt',
+    promotion: 'Promotion',
+    mate: 'Mate',
+    check: 'Check',
+    capture: 'Capture',
+    lowRisk: 'Low risk',
+    mediumRisk: 'Medium risk',
+    highRisk: 'High risk',
+  },
+
+  tabs: {
+    general: 'General',
+    display: 'Display',
+    suggestions: 'Suggestions',
+    feedback: 'Move Details',
   },
 
   version: {

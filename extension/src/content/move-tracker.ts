@@ -1,12 +1,12 @@
-import { positionsToFEN } from "./position-parser";
+import { Chess } from "chess.js";
 import { PlatformAdapter } from "./platforms/types";
 
 export class MoveTracker {
   private adapter: PlatformAdapter;
   private boardElement: HTMLElement | null = null;
+  private chess: Chess = new Chess();
   private lastFEN = "";
-  private lastPiecePositions: Map<string, string> = new Map();
-  private currentSideToMove: "w" | "b" = "w";
+  private lastMoveCount = 0;
   private playerColor: "white" | "black" = "white";
   private callbacks: ((fen: string) => void)[] = [];
   private moveCallbacks: ((move: string) => void)[] = [];
@@ -49,23 +49,14 @@ export class MoveTracker {
   private initializePosition() {
     if (!this.boardElement) return;
 
-    const currentPositions = this.getPiecePositions();
-    this.lastPiecePositions = currentPositions;
+    // Build chess.js state from move history
+    this.updateChessFromMoveHistory();
 
-    // Determine side to move from move count
-    const moveCount = this.adapter.getMoveCount?.() ?? 0;
-    this.currentSideToMove = moveCount % 2 === 0 ? "w" : "b";
-
-    console.log(
-      "[MoveTracker] Initialized - moves:",
-      moveCount,
-      "side:",
-      this.currentSideToMove,
-    );
-
-    const fen = positionsToFEN(currentPositions, this.currentSideToMove);
+    const fen = this.chess.fen();
     this.lastFEN = fen;
     this.initialized = true;
+
+    console.log("[MoveTracker] Initialized - FEN:", fen);
 
     // Notify callbacks of initial position
     this.callbacks.forEach((cb) => cb(fen));
@@ -83,109 +74,66 @@ export class MoveTracker {
   private checkForChange() {
     if (!this.boardElement) return;
 
-    const currentPositions = this.getPiecePositions();
-    const currentPosString = this.positionsToString(currentPositions);
-    const lastPosString = this.positionsToString(this.lastPiecePositions);
+    // Check if move count changed
+    const currentMoveCount = this.adapter.getMoveCount?.() ?? 0;
 
-    const positionsChanged = currentPosString !== lastPosString;
+    if (currentMoveCount !== this.lastMoveCount) {
+      // Update chess.js state from move history
+      const lastMove = this.updateChessFromMoveHistory();
 
-    if (positionsChanged) {
-      // Detect move info
-      const moveInfo = this.detectMoveInfo(
-        this.lastPiecePositions,
-        currentPositions,
-      );
-
-      // Update side to move from move count (most reliable)
-      const moveCount = this.adapter.getMoveCount?.() ?? 0;
-      this.currentSideToMove = moveCount % 2 === 0 ? "w" : "b";
-
+      const fen = this.chess.fen();
       console.log(
         "[MoveTracker] Position changed - moves:",
-        moveCount,
-        "side:",
-        this.currentSideToMove,
-        "detected:",
-        moveInfo.move,
+        currentMoveCount,
+        "last move:",
+        lastMove,
       );
-
-      this.lastPiecePositions = currentPositions;
-
-      const fen = positionsToFEN(currentPositions, this.currentSideToMove);
 
       if (fen !== this.lastFEN) {
         this.lastFEN = fen;
         this.callbacks.forEach((cb) => cb(fen));
       }
 
-      // Notify move callbacks
-      if (moveInfo.move) {
-        this.moveCallbacks.forEach((cb) => cb(moveInfo.move!));
+      // Notify move callbacks with the last move in UCI format
+      if (lastMove) {
+        this.moveCallbacks.forEach((cb) => cb(lastMove));
       }
+
+      this.lastMoveCount = currentMoveCount;
     }
   }
 
-  private detectMoveInfo(
-    oldPos: Map<string, string>,
-    newPos: Map<string, string>,
-  ): { move: string | null; movedColor: "w" | "b" | null } {
-    let fromSquare: string | null = null;
-    let movedPiece: string | null = null;
+  /**
+   * Updates chess.js instance from move history in the DOM
+   * Returns the last move in UCI format, or null if no moves
+   */
+  private updateChessFromMoveHistory(): string | null {
+    // Get move history from adapter
+    const moveHistory = this.adapter.getMoveHistory?.() ?? [];
 
-    for (const [square, piece] of oldPos) {
-      if (!newPos.has(square) || newPos.get(square) !== piece) {
-        const stillExists = Array.from(newPos.values()).includes(piece);
-        if (stillExists || newPos.get(square) !== piece) {
-          fromSquare = square;
-          movedPiece = piece;
-          break;
+    // Reset chess.js to starting position
+    this.chess = new Chess();
+
+    // Apply all moves
+    let lastUciMove: string | null = null;
+    for (const uciMove of moveHistory) {
+      try {
+        // Parse UCI move (e.g., "e2e4" or "e7e8q")
+        const from = uciMove.substring(0, 2);
+        const to = uciMove.substring(2, 4);
+        const promotion = uciMove.length > 4 ? uciMove[4] : undefined;
+
+        const move = this.chess.move({ from, to, promotion });
+        if (move) {
+          lastUciMove = uciMove;
         }
-      }
-    }
-
-    let toSquare: string | null = null;
-
-    for (const [square, piece] of newPos) {
-      const oldPiece = oldPos.get(square);
-      if (oldPiece !== piece && piece === movedPiece) {
-        toSquare = square;
+      } catch (error) {
+        console.warn("[MoveTracker] Failed to apply move:", uciMove, error);
         break;
       }
     }
 
-    if (!toSquare) {
-      for (const [square, piece] of newPos) {
-        const oldPiece = oldPos.get(square);
-        if (!oldPiece && piece) {
-          toSquare = square;
-          movedPiece = piece;
-          for (const [oldSq, oldP] of oldPos) {
-            if (oldP === piece && !newPos.has(oldSq)) {
-              fromSquare = oldSq;
-              break;
-            }
-          }
-          break;
-        }
-      }
-    }
-
-    const move = fromSquare && toSquare ? fromSquare + toSquare : null;
-    const movedColor = movedPiece ? (movedPiece[0] as "w" | "b") : null;
-
-    return { move, movedColor };
-  }
-
-  private getPiecePositions(): Map<string, string> {
-    if (!this.boardElement) return new Map();
-    return this.adapter.getPiecePositions(this.boardElement);
-  }
-
-  private positionsToString(positions: Map<string, string>): string {
-    const entries = Array.from(positions.entries()).sort((a, b) =>
-      a[0].localeCompare(b[0]),
-    );
-    return entries.map(([sq, pc]) => `${sq}:${pc}`).join(",");
+    return lastUciMove;
   }
 
   getCurrentFEN(): string {
@@ -193,19 +141,15 @@ export class MoveTracker {
   }
 
   setSideToMove(side: "w" | "b") {
-    this.currentSideToMove = side;
-    if (this.boardElement) {
-      const positions = this.getPiecePositions();
-      const fen = positionsToFEN(positions, this.currentSideToMove);
-      if (fen !== this.lastFEN) {
-        this.lastFEN = fen;
-        this.callbacks.forEach((cb) => cb(fen));
-      }
-    }
+    // Note: With chess.js mirror approach, side to move is automatically tracked
+    // This method is kept for backwards compatibility but doesn't need to do much
+    console.warn(
+      "[MoveTracker] setSideToMove called, but side is now tracked automatically by chess.js",
+    );
   }
 
   getCurrentSideToMove(): "w" | "b" {
-    return this.currentSideToMove;
+    return this.chess.turn();
   }
 
   setPlayerColor(color: "white" | "black") {

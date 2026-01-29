@@ -1,12 +1,14 @@
-import { AnalysisResult, InfoUpdate, Settings } from '../shared/types';
+import { Settings } from '../shared/types';
+import { AnalyzeResultResponse, AnalyzeErrorResponse } from '../domain/analysis/feedback-types';
 import { getCurrentVersion } from '../shared/version';
+import { DEFAULT_LAST_MOVES } from '../shared/defaults';
 
 export interface VersionInfo {
   minVersion: string;
   downloadUrl?: string;
 }
 
-type MessageHandler = (message: AnalysisResult | InfoUpdate) => void;
+type MessageHandler = (message: AnalyzeResultResponse | AnalyzeErrorResponse) => void;
 type ConnectionHandler = (connected: boolean) => void;
 type VersionHandler = (version: VersionInfo) => void;
 type VersionErrorHandler = (version: VersionInfo) => void;
@@ -90,17 +92,21 @@ export class WebSocketClient {
     }
   }
 
-  analyze(fen: string, settings: Settings, effectiveElo?: number, moves: string[] = [], playerColor: 'w' | 'b' = 'w', requestId?: string) {
+  analyze(movesUci: string[], settings: Settings, requestId?: string) {
     this.send({
       type: 'analyze',
       requestId,
-      fen,
-      moves,
-      elo: effectiveElo ?? settings.targetElo,
-      personality: settings.personality,
-      playerColor,
-      allowBrilliant: settings.allowBrilliant,
-      showAlwaysBestMoveFirst: settings.showAlwaysBestMoveFirst,
+      payload: {
+        movesUci,
+        review: {
+          lastMoves: DEFAULT_LAST_MOVES, // Analyze only last 5 moves (fast, ~2-3s)
+        },
+        user: {
+          targetElo: settings.targetElo,
+          personality: settings.personality,
+          multiPV: settings.multiPV,
+        },
+      },
     });
   }
 
@@ -149,7 +155,7 @@ export class WebSocketClient {
   }
 
   private handleMessage(message: any) {
-    if (message.type === 'result' || message.type === 'info') {
+    if (message.type === 'analyze_result' || message.type === 'analyze_error') {
       this.messageHandlers.forEach(handler => handler(message));
     } else if (message.type === 'auth_success') {
       // Auth successful

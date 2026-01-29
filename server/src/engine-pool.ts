@@ -428,6 +428,67 @@ export class EnginePool {
     }
   }
 
+  /**
+   * Get engine for direct UCI control (bypasses CandidateSelector).
+   * Blocks until engine available.
+   * Used by the new dual-phase analysis pipeline.
+   */
+  async getEngineForDirectUse(): Promise<ChessEngine> {
+    if (!this.initialized) {
+      throw new Error('Pool not initialized');
+    }
+
+    this.lastActivityTime = Date.now();
+
+    while (true) {
+      // Try to get available engine
+      const engine = this.available.shift();
+      if (engine && engine.isAlive()) {
+        globalLogger.info('pool_direct_use', { action: 'acquire', pool: this.pool.length, avail: this.available.length });
+        return engine;
+      }
+
+      // Dead engine found, remove it
+      if (engine && !engine.isAlive()) {
+        globalLogger.info('pool_dead', { action: 'direct_use' });
+        this.removeDeadEngine(engine);
+      }
+
+      // No engine available, try to scale up
+      this.tryScaleUp();
+
+      // Wait and retry
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
+  /**
+   * Release engine back to pool after direct use.
+   * Checks if engine is still alive before returning to pool.
+   */
+  releaseEngine(engine: ChessEngine): void {
+    this.lastActivityTime = Date.now();
+
+    if (engine.isAlive()) {
+      // Check if there's a queued request that needs this engine
+      const nextRequest = this.queue.shift();
+      if (nextRequest) {
+        globalLogger.info('pool_dequeue', { req: nextRequest.id, waitMs: Date.now() - nextRequest.createdAt, qLen: this.queue.length });
+        this.processRequest(engine, nextRequest);
+      } else {
+        // Return to available pool
+        if (!this.available.includes(engine)) {
+          this.available.push(engine);
+          globalLogger.info('pool_direct_use', { action: 'release', pool: this.pool.length, avail: this.available.length });
+        }
+      }
+    } else {
+      // Engine died during use, remove from pool
+      globalLogger.info('pool_dead', { action: 'release' });
+      this.removeDeadEngine(engine);
+    }
+  }
+
   // Metrics methods
   getPoolSize(): number {
     return this.pool.length;
