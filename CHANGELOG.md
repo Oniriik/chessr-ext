@@ -2,6 +2,47 @@
 
 All notable changes to Chessr will be documented in this file.
 
+## [1.3.0] - 2026-01-29
+
+### Added
+
+- **5 new languages**: Extended internationalization support
+  - Spanish (Español) - 500M+ speakers
+  - Russian (Русский) - Strong chess tradition
+  - German (Deutsch) - Major European market
+  - Portuguese (Português) - Brazil and Portugal
+  - Hindi (हिन्दी) - India's growing chess community
+- **Move feedback system**: Detailed move analysis with suggestion cards
+  - Quality badges (Best, Safe, Risky, Human, Alt)
+  - Effect labels (Mate, Check, Capture, Promotion)
+  - Risk level indicators (Low, Medium, High)
+- **Rolling accuracy widget**: Real-time accuracy tracking for last 10 moves
+- **Analysis pipeline**: Server-side move classification and evaluation system
+  - Move quality assessment based on centipawn loss
+  - Brilliant move detection (material sacrifice for strong positions)
+  - Human-like move suggestions
+
+### Changed
+
+- **i18n system**: Enhanced language detection to support all 7 languages automatically
+  - Browser language auto-detection for ES, RU, DE, PT, HI
+  - Fallback to English for unsupported languages
+- **Settings UI**: Updated language selector with all available languages
+- **Minimum version**: Updated to 1.3.0 to ensure users have latest features
+
+### Technical
+
+- Created `extension/src/i18n/translations/es.ts`, `ru.ts`, `de.ts`, `pt.ts`, `hi.ts`
+- Created `extension/src/domain/analysis/feedback-helpers.ts` for badge generation
+- Created `extension/src/domain/analysis/feedback-types.ts` for type definitions
+- Created `extension/src/presentation/components/SuggestionCard.tsx` for move suggestions
+- Created `extension/src/presentation/components/AccuracyWidget.tsx` for accuracy display
+- Created `extension/src/presentation/store/feedback.store.ts` for feedback state management
+- Created `server/src/analyze-pipeline.ts` for move analysis
+- Created `server/src/uci-helpers.ts` and `uci-helpers-classify.ts` for UCI parsing
+- Updated `extension/src/i18n/index.ts` with comprehensive language detection
+- Updated `server/src/version-config.ts` minimum version to 1.3.0
+
 ## [1.2.0] - 2026-01-27
 
 ### Added
