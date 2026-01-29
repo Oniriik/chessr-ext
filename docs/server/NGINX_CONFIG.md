@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-Nginx est configuré comme reverse proxy pour les deux domaines de Chessr, avec SSL/TLS automatique via Let's Encrypt.
+Nginx est configuré comme reverse proxy pour les trois domaines de Chessr, avec SSL/TLS automatique via Let's Encrypt.
 
 ## Domaines Configurés
 
@@ -19,13 +19,22 @@ Nginx est configuré comme reverse proxy pour les deux domaines de Chessr, avec 
 - **Redirection HTTP → HTTPS**: Automatique
 - **Timeouts WebSocket**: 7 jours
 
+### download.chessr.io
+- **Type**: Serveur de fichiers statiques (extension navigateur)
+- **Root directory**: `/opt/chessr/extension`
+- **SSL**: Actif (Let's Encrypt)
+- **Redirection HTTP → HTTPS**: Automatique
+- **Compression gzip**: Activée
+- **Cache**: 1h pour fichiers statiques (.zip, .html, .json, images)
+
 ## Fichiers de Configuration
 
 ### Emplacements
 ```
 /opt/chessr/nginx/
 ├── dashboard.chessr.io.conf    # Config dashboard
-└── engine.chessr.io.conf       # Config engine (WebSocket)
+├── engine.chessr.io.conf       # Config engine (WebSocket)
+└── download.chessr.io.conf     # Config distribution extension
 
 Liens symboliques:
 /etc/nginx/sites-available/     → Sources
@@ -98,15 +107,55 @@ server {
 }
 ```
 
+### Download - Distribution Extension (download.chessr.io)
+
+Fichier: `/opt/chessr/nginx/download.chessr.io.conf`
+
+```nginx
+server {
+    listen 80;
+    server_name download.chessr.io;
+
+    # Logs
+    access_log /opt/chessr/logs/download-access.log;
+    error_log /opt/chessr/logs/download-error.log;
+
+    # Root directory for extension files
+    root /opt/chessr/extension;
+
+    # Default file
+    index index.html;
+
+    # Serve static files
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    # Enable gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    # Cache static files
+    location ~* \.(zip|html|json|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1h;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+**Note**: Cette configuration sert des fichiers statiques (extension .zip) directement depuis `/opt/chessr/extension`. Pas de proxy, juste du serving de fichiers.
+
 ## Certificats SSL
 
 ### Informations
 - **Provider**: Let's Encrypt
 - **Type**: ECDSA
-- **Domaines couverts**: dashboard.chessr.io, engine.chessr.io
+- **Domaines couverts**: dashboard.chessr.io, engine.chessr.io, download.chessr.io
 - **Expiration**: 2026-04-28 (renouvellement automatique)
-- **Chemin certificat**: `/etc/letsencrypt/live/dashboard.chessr.io/fullchain.pem`
-- **Chemin clé privée**: `/etc/letsencrypt/live/dashboard.chessr.io/privkey.pem`
+- **Certificats**: Un certificat séparé par domaine
+  - `/etc/letsencrypt/live/dashboard.chessr.io/`
+  - `/etc/letsencrypt/live/engine.chessr.io/`
+  - `/etc/letsencrypt/live/download.chessr.io/`
 
 ### Renouvellement Automatique
 Certbot a configuré un timer systemd pour le renouvellement automatique :
@@ -142,6 +191,10 @@ tail -f /opt/chessr/logs/dashboard-error.log
 # Engine
 tail -f /opt/chessr/logs/engine-access.log
 tail -f /opt/chessr/logs/engine-error.log
+
+# Download
+tail -f /opt/chessr/logs/download-access.log
+tail -f /opt/chessr/logs/download-error.log
 ```
 
 ### Gérer les certificats SSL
@@ -156,13 +209,17 @@ certbot renew
 certbot renew --dry-run
 ```
 
-## Ports Backend Attendus
+## Backends
 
+### Ports Docker (Proxy)
 Les containers Docker doivent exposer ces ports **localement** :
-- **Dashboard**: `localhost:3000`
-- **Engine**: `localhost:8080`
+- **Dashboard**: `localhost:3000` (reverse proxy)
+- **Engine**: `localhost:8080` (reverse proxy WebSocket)
 
-Nginx s'occupe de la terminaison SSL et du routage vers ces ports.
+### Fichiers Statiques
+- **Download**: `/opt/chessr/extension` (serving direct de fichiers)
+
+Nginx s'occupe de la terminaison SSL et du routage.
 
 ## Sécurité
 

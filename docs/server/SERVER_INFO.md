@@ -51,12 +51,24 @@ Status: **Actif** et démarré au boot
 
 ```
 /opt/chessr/
-├── dashboard/     # Application dashboard
-├── server/        # Backend server
+├── app/           # Code source Git (dashboard, server, docker-compose.yml)
+├── extension/     # Fichiers extension (.zip) pour distribution
 ├── nginx/         # Configuration Nginx personnalisée
 ├── ssl/           # Certificats SSL
 ├── logs/          # Logs applicatifs
+├── docs/          # Documentation (copie de docs/)
 └── backups/       # Backups
+```
+
+**Détail du répertoire app/** :
+```
+/opt/chessr/app/   # Repository Git: github.com/Oniriik/chessr-ext
+├── dashboard/     # Code source Next.js
+├── server/        # Code source Node.js (WebSocket + Komodo)
+├── extension/     # Code source extension navigateur
+├── docker-compose.yml
+├── .env
+└── ...
 ```
 
 ## État des Services
@@ -83,6 +95,7 @@ Status: **Actif** et démarré au boot
 
 - **dashboard.chessr.io** → Dashboard web (HTTPS actif ✓)
 - **engine.chessr.io** → WebSocket server Komodo (HTTPS actif ✓)
+- **download.chessr.io** → Distribution extension navigateur (HTTPS actif ✓)
 
 ### Configuration DNS (Active)
 
@@ -91,11 +104,13 @@ Type    Nom/Host          Valeur/Target      TTL
 ─────────────────────────────────────────────────
 A       dashboard         91.99.78.172       3600
 A       engine            91.99.78.172       3600
+A       download          91.99.78.172       3600
 ```
 
 ### SSL/TLS
 
 - **Certificats**: Let's Encrypt (ECDSA)
+- **Domaines couverts**: dashboard.chessr.io, engine.chessr.io, download.chessr.io
 - **Expiration**: 2026-04-28
 - **Renouvellement**: Automatique (Certbot timer)
 - **Statut**: ✅ Valides et actifs
@@ -103,10 +118,11 @@ A       engine            91.99.78.172       3600
 ## Nginx
 
 - **Version**: 1.24.0 (Ubuntu)
-- **Configuration**: Reverse proxy pour dashboard et engine
-- **Ports backend**:
-  - Dashboard: `localhost:3000`
-  - Engine: `localhost:8080`
+- **Configuration**: Reverse proxy pour dashboard, engine et serveur de fichiers statiques
+- **Backends**:
+  - Dashboard: `localhost:3000` (proxy vers container)
+  - Engine: `localhost:8080` (proxy WebSocket vers container)
+  - Download: `/opt/chessr/extension` (fichiers statiques)
 - **Logs**: `/opt/chessr/logs/`
 - **Documentation**: Voir [NGINX_CONFIG.md](./NGINX_CONFIG.md)
 

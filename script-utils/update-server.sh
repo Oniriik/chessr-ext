@@ -58,18 +58,18 @@ echo ""
 echo "🔍 Test de santé des services..."
 sleep 3
 
-# Test WebSocket server
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "426"; then
-    echo "✅ WebSocket server (port 3000) OK"
+# Test Engine WebSocket server (port 8080 exposé, port 3000 interne)
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -q "426"; then
+    echo "✅ Engine WebSocket (port 8080) OK"
 else
-    echo "⚠️  WebSocket server (port 3000) ne répond pas!"
+    echo "⚠️  Engine WebSocket (port 8080) ne répond pas!"
 fi
 
-# Test Dashboard
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:3002 | grep -q "200"; then
-    echo "✅ Dashboard (port 3002) OK"
+# Test Dashboard (port 3000)
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200"; then
+    echo "✅ Dashboard (port 3000) OK"
 else
-    echo "⚠️  Dashboard (port 3002) ne répond pas!"
+    echo "⚠️  Dashboard (port 3000) ne répond pas!"
 fi
 
 # Test public endpoints via nginx
@@ -83,6 +83,12 @@ if curl -s -o /dev/null -w "%{http_code}" https://dashboard.chessr.io 2>/dev/nul
     echo "✅ dashboard.chessr.io OK"
 else
     echo "⚠️  dashboard.chessr.io ne répond pas (vérifier nginx)"
+fi
+
+if curl -s -o /dev/null -w "%{http_code}" https://download.chessr.io 2>/dev/null | grep -q "200"; then
+    echo "✅ download.chessr.io OK"
+else
+    echo "⚠️  download.chessr.io ne répond pas (vérifier nginx)"
 fi
 
 echo ""
