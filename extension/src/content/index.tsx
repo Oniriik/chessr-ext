@@ -100,22 +100,6 @@ class Chessr {
           this.onPositionChange(currentFEN);
         }
       }
-      // TEMP: Pool stress test
-      if (state.testPoolCount !== prevState.testPoolCount) {
-        const testFens = [
-          'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-          'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1',
-          'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2',
-          'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2',
-        ];
-        const count = state.testPoolRequestCount;
-        console.log(`[Chessr Test] Sending ${count} concurrent requests...`);
-        for (let i = 0; i < count; i++) {
-          const fen = testFens[i % testFens.length];
-          this.wsClient?.analyze(fen, state.settings, state.settings.targetElo, [], 'w');
-        }
-        console.log('[Chessr Test] Requests sent. Watch server logs for pool scaling.');
-      }
       // Re-detect turn from move list - only analyze if turn actually changed
       if (state.redetectTurnCount !== prevState.redetectTurnCount) {
         const moveCount = this.adapter?.getMoveCount?.() ?? 0;
