@@ -55,7 +55,7 @@ export class ChesscomAdapter implements PlatformAdapter {
       }
     };
 
-    // Wait 500ms before first detection to let pieces fully load
+    // Wait 3000ms before first detection to let pieces fully load
     setTimeout(check, 3000);
   }
 
