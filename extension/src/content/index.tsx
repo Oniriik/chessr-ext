@@ -30,6 +30,7 @@ class Chessr {
   private boardConfig: BoardConfig | null = null;
   private analysisDisabled = false;
   private versionCheckPassed = false;
+  private lastRequestId: string | null = null;
 
   async init() {
     // Create platform adapter
@@ -269,16 +270,30 @@ class Chessr {
       console.log('[Chessr] Not player turn - skipping analysis');
       this.overlay.clearArrows();
       store.setAnalysis(null);
+      // Invalidate any pending suggestions since it's no longer player's turn
+      this.lastRequestId = null;
       return;
     }
 
     const moveHistory = this.adapter?.getMoveHistory?.() || [];
-    console.log('[Chessr] ✓ Player turn - sending suggestion request, moves:', moveHistory.length);
-    this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory, playerColor);
+
+    // Generate unique request ID to track this analysis
+    const requestId = crypto.randomUUID();
+    this.lastRequestId = requestId;
+
+    console.log('[Chessr] ✓ Player turn - sending suggestion request, moves:', moveHistory.length, 'requestId:', requestId);
+    this.wsClient.analyze(fen, settings, settings.targetElo, moveHistory, playerColor, requestId);
   }
 
   private onAnalysisResult(result: AnalysisResult) {
-    console.log('[Chessr] Suggestion received');
+    console.log('[Chessr] Suggestion received, requestId:', result.requestId);
+
+    // Ignore results that don't match the latest request
+    if (result.requestId && result.requestId !== this.lastRequestId) {
+      console.log('[Chessr] Ignoring outdated suggestion (requestId mismatch)');
+      return;
+    }
+
     // Ignore empty results (cancelled analyses)
     if (!result.bestMove) {
       return;

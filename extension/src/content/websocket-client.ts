@@ -90,9 +90,10 @@ export class WebSocketClient {
     }
   }
 
-  analyze(fen: string, settings: Settings, effectiveElo?: number, moves: string[] = [], playerColor: 'w' | 'b' = 'w') {
+  analyze(fen: string, settings: Settings, effectiveElo?: number, moves: string[] = [], playerColor: 'w' | 'b' = 'w', requestId?: string) {
     this.send({
       type: 'analyze',
+      requestId,
       fen,
       moves,
       elo: effectiveElo ?? settings.targetElo,

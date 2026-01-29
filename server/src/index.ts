@@ -203,6 +203,7 @@ class ChessServer {
           playerColor: message.playerColor,
           allowBrilliant: message.allowBrilliant,
           showAlwaysBestMoveFirst: message.showAlwaysBestMoveFirst,
+          clientRequestId: message.requestId,  // Pass client request ID
         }
       );
 

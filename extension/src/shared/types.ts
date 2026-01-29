@@ -6,6 +6,7 @@ export interface PVLine {
 
 export interface AnalysisResult {
   type: 'result';
+  requestId?: string;      // Request ID to match request/response
   bestMove: string;
   ponder?: string;
   evaluation: number;

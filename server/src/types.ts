@@ -3,6 +3,7 @@ export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'P
 
 export interface AnalyzeRequest {
   type: 'analyze';
+  requestId?: string;  // Request ID to match request/response (from client)
   fen: string;
   moves: string[];  // UCI move history (e.g., ["e2e4", "e7e5", "g1f3"])
   elo: number;

@@ -5,6 +5,7 @@ import { globalLogger } from './logger.js';
 
 interface AnalysisRequest {
   id: string;  // Unique request ID for log correlation
+  clientRequestId?: string;  // Optional request ID from client to match request/response
   fen: string;
   options: {
     moves: string[];
@@ -235,6 +236,7 @@ export class EnginePool {
       playerColor: 'w' | 'b';
       allowBrilliant?: boolean;
       showAlwaysBestMoveFirst?: boolean;
+      clientRequestId?: string;  // Optional request ID from client
     }
   ): Promise<AnalysisResult> {
     if (!this.initialized) {
@@ -246,6 +248,7 @@ export class EnginePool {
     return new Promise((resolve, reject) => {
       const request: AnalysisRequest = {
         id: nextRequestId(),
+        clientRequestId: options.clientRequestId,
         fen,
         options: {
           moves: options.moves,
@@ -326,7 +329,7 @@ export class EnginePool {
       // Build AnalysisResult from CandidateSelector result
       const result: AnalysisResult = {
         type: 'result',
-        requestId: request.id,
+        requestId: request.clientRequestId || request.id,  // Use client ID if provided, otherwise internal ID
         bestMove: selectResult.bestMove,
         evaluation: selectResult.evaluation,
         lines: selectResult.lines,
