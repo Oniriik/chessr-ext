@@ -53,7 +53,7 @@ export function AccuracyWidget({ accuracy, previousAccuracy, accuracyCache, play
       </div>
 
       {/* Summary breakdown - 3x3 grid (Chess.com advanced notation) */}
-      {/* Shows summary of ALL played moves */}
+      {/* Shows summary of all analyzed moves */}
       <div className="tw-grid tw-grid-cols-3 tw-gap-1.5 tw-text-xs">
         {/* Row 1: Brilliant, Great, Best */}
         <div className="tw-text-center">
