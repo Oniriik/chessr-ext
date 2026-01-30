@@ -48,7 +48,7 @@ export function AccuracyWidget({ accuracy, previousAccuracy, accuracyCache, play
         </div>
 
         <div className="tw-text-xs tw-text-muted">
-          {gameStats.window.analyzedPlies} moves
+          {gameStats.window.analyzedPlies} analyzed
         </div>
       </div>
 
