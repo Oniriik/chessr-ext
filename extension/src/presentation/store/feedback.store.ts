@@ -15,6 +15,7 @@ import {
 import {
   onAnalyzeResult,
   onPlayerMoveDetected,
+  mergeAccuracyIntoCache,
 } from '../../domain/analysis/feedback-helpers';
 
 interface FeedbackStore extends ChessrState {
@@ -84,26 +85,23 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
   handleStatsResult: (result, currentFen, currentMovesUci) => {
     const currentState = get();
 
-    // Extract accuracy data and cache it
+    // Extract accuracy data and merge into existing cache
     const accuracyPayload = result.payload.accuracy;
 
-    // Build cache map from accuracy plies
-    const cacheMap = new Map();
-    accuracyPayload.perPly.forEach((ply: any) => {
-      cacheMap.set(ply.plyIndex, ply);
-    });
+    // Merge new accuracy data into existing cache (accumulate instead of replace)
+    const updatedCache = mergeAccuracyIntoCache(currentState.accuracyCache, accuracyPayload);
 
-    // Update state with cached accuracy
+    // Update state with merged cache
     set({
-      accuracyCache: {
-        analyzedPlies: cacheMap,
-        overallStats: accuracyPayload.summary,
-      },
+      accuracyCache: updatedCache,
+      previousAccuracy: currentState.activeSnapshot?.accuracy,
     });
 
     console.log('[Feedback] Stats result processed', {
-      cachedPlies: cacheMap.size,
+      newPlies: accuracyPayload.perPly.length,
+      totalCached: updatedCache.analyzedPlies.size,
       overall: accuracyPayload.overall,
+      stats: updatedCache.overallStats,
     });
   },
 
