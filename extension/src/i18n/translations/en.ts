@@ -130,8 +130,8 @@ export const en: Translations = {
     title: 'Move Details',
     showSuggestions: 'Show detailed move suggestions',
     showSuggestionsDesc: 'Display suggestion cards with moves, effects, and quality',
-    showRollingAccuracy: 'Show rolling accuracy',
-    showRollingAccuracyDesc: 'Display accuracy widget for last 10 moves',
+    showRollingAccuracy: 'Show game statistics',
+    showRollingAccuracyDesc: 'Display statistics widget with accuracy and move classifications for entire game',
   },
 
   badges: {

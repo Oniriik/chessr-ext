@@ -130,8 +130,8 @@ export const es: Translations = {
     title: 'Detalles de Jugadas',
     showSuggestions: 'Mostrar sugerencias detalladas',
     showSuggestionsDesc: 'Mostrar tarjetas con jugadas, efectos y calidad',
-    showRollingAccuracy: 'Mostrar precisión acumulativa',
-    showRollingAccuracyDesc: 'Mostrar widget de precisión para las últimas 10 jugadas',
+    showRollingAccuracy: 'Mostrar estadísticas del juego',
+    showRollingAccuracyDesc: 'Mostrar widget con precisión y clasificación de jugadas para todo el juego',
   },
 
   badges: {

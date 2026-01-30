@@ -130,8 +130,8 @@ export const de: Translations = {
     title: 'Zug-Details',
     showSuggestions: 'Detaillierte Vorschläge anzeigen',
     showSuggestionsDesc: 'Zeige Vorschlagskarten mit Zügen, Effekten und Qualität',
-    showRollingAccuracy: 'Laufende Genauigkeit anzeigen',
-    showRollingAccuracyDesc: 'Zeige Genauigkeits-Widget für die letzten 10 Züge',
+    showRollingAccuracy: 'Spielstatistiken anzeigen',
+    showRollingAccuracyDesc: 'Zeige Widget mit Genauigkeit und Zugklassifizierung für das gesamte Spiel',
   },
 
   badges: {

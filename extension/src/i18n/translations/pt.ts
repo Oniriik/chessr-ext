@@ -130,8 +130,8 @@ export const pt: Translations = {
     title: 'Detalhes dos Lances',
     showSuggestions: 'Mostrar sugestões detalhadas',
     showSuggestionsDesc: 'Exibir cartões com lances, efeitos e qualidade',
-    showRollingAccuracy: 'Mostrar precisão móvel',
-    showRollingAccuracyDesc: 'Exibir widget de precisão para os últimos 10 lances',
+    showRollingAccuracy: 'Mostrar estatísticas do jogo',
+    showRollingAccuracyDesc: 'Exibir widget com precisão e classificação de lances para todo o jogo',
   },
 
   badges: {

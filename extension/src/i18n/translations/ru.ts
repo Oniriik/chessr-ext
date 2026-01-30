@@ -130,8 +130,8 @@ export const ru: Translations = {
     title: 'Детали Ходов',
     showSuggestions: 'Показывать детальные предложения',
     showSuggestionsDesc: 'Отображать карточки с ходами, эффектами и качеством',
-    showRollingAccuracy: 'Показывать скользящую точность',
-    showRollingAccuracyDesc: 'Отображать виджет точности для последних 10 ходов',
+    showRollingAccuracy: 'Показать статистику игры',
+    showRollingAccuracyDesc: 'Показать виджет с точностью и классификацией ходов для всей игры',
   },
 
   badges: {

@@ -130,8 +130,8 @@ export const fr: Translations = {
     title: 'Détails des coups',
     showSuggestions: 'Afficher suggestions détaillées',
     showSuggestionsDesc: 'Affiche les cartes avec coups, effets et qualité',
-    showRollingAccuracy: 'Afficher précision glissante',
-    showRollingAccuracyDesc: 'Affiche un widget de précision pour les 10 derniers coups',
+    showRollingAccuracy: 'Afficher statistiques de jeu',
+    showRollingAccuracyDesc: 'Affiche un widget avec précision et classification des coups pour toute la partie',
   },
 
   badges: {

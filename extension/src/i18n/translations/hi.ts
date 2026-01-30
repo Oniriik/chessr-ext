@@ -130,8 +130,8 @@ export const hi: Translations = {
     title: 'चाल विवरण',
     showSuggestions: 'विस्तृत सुझाव दिखाएं',
     showSuggestionsDesc: 'चालों, प्रभावों और गुणवत्ता के साथ सुझाव कार्ड प्रदर्शित करें',
-    showRollingAccuracy: 'रोलिंग सटीकता दिखाएं',
-    showRollingAccuracyDesc: 'पिछली 10 चालों के लिए सटीकता विजेट प्रदर्शित करें',
+    showRollingAccuracy: 'खेल के आंकड़े दिखाएं',
+    showRollingAccuracyDesc: 'पूरे खेल के लिए सटीकता और चाल वर्गीकरण के साथ विजेट प्रदर्शित करें',
   },
 
   badges: {
