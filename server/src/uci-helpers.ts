@@ -5,7 +5,7 @@
  * All scores are normalized to White's perspective (POV) for consistent comparison.
  */
 
-import { EngineScore, PVLine, Side } from './analyze-types.js';
+import { EngineScore, PVLine, Side } from "./analyze-types.js";
 
 // ============================================================================
 // UCI Protocol Parsing
@@ -20,7 +20,7 @@ import { EngineScore, PVLine, Side } from './analyze-types.js';
  * Returns null if line doesn't contain a valid score.
  */
 export function parseInfoLine(line: string): PVLine | null {
-  if (!line.startsWith('info ') || !line.includes('score')) {
+  if (!line.startsWith("info ") || !line.includes("score")) {
     return null;
   }
 
@@ -28,27 +28,27 @@ export function parseInfoLine(line: string): PVLine | null {
   let depth: number | undefined;
   let seldepth: number | undefined;
   let multipv = 1;
-  let scoreType: 'cp' | 'mate' | null = null;
+  let scoreType: "cp" | "mate" | null = null;
   let scoreValue: number | null = null;
   let pv: string[] = [];
 
   for (let i = 1; i < tokens.length; i++) {
     const token = tokens[i];
 
-    if (token === 'depth') {
+    if (token === "depth") {
       depth = Number(tokens[++i]);
-    } else if (token === 'seldepth') {
+    } else if (token === "seldepth") {
       seldepth = Number(tokens[++i]);
-    } else if (token === 'multipv') {
+    } else if (token === "multipv") {
       multipv = Number(tokens[++i]);
-    } else if (token === 'score') {
-      const st = tokens[++i] as 'cp' | 'mate';
+    } else if (token === "score") {
+      const st = tokens[++i] as "cp" | "mate";
       const sv = Number(tokens[++i]);
-      if (st === 'cp' || st === 'mate') {
+      if (st === "cp" || st === "mate") {
         scoreType = st;
         scoreValue = sv;
       }
-    } else if (token === 'pv') {
+    } else if (token === "pv") {
       // Rest of tokens are PV moves
       pv = tokens.slice(i + 1);
       break;
@@ -72,7 +72,10 @@ export function parseInfoLine(line: string): PVLine | null {
  * Pick the best scoring line from multiple info lines with the same multipv index.
  * Selects the line with maximum depth.
  */
-export function pickBestScoreFromInfos(infos: PVLine[], multipvIndex: number = 1): PVLine | null {
+export function pickBestScoreFromInfos(
+  infos: PVLine[],
+  multipvIndex: number = 1,
+): PVLine | null {
   const lines = infos.filter((x) => x.multipv === multipvIndex && x.score);
   if (!lines.length) return null;
 
@@ -88,8 +91,8 @@ export function pickBestScoreFromInfos(infos: PVLine[], multipvIndex: number = 1
  * Invert a score (flip sign).
  * Used to convert between White POV and Black POV.
  */
-export function invertScore(score: { type: 'cp' | 'mate'; value: number }): {
-  type: 'cp' | 'mate';
+export function invertScore(score: { type: "cp" | "mate"; value: number }): {
+  type: "cp" | "mate";
   value: number;
 } {
   return { ...score, value: -score.value };
@@ -106,14 +109,14 @@ export function invertScore(score: { type: 'cp' | 'mate'; value: number }): {
  * @returns Score normalized to White POV with explicit pov field
  */
 export function toWhitePOV(
-  scoreRaw: { type: 'cp' | 'mate'; value: number },
-  sideToMove: Side
+  scoreRaw: { type: "cp" | "mate"; value: number },
+  sideToMove: Side,
 ): EngineScore {
-  const normalized = sideToMove === 'w' ? scoreRaw : invertScore(scoreRaw);
+  const normalized = sideToMove === "w" ? scoreRaw : invertScore(scoreRaw);
   return {
     type: normalized.type,
     value: normalized.value,
-    pov: 'white',
+    pov: "white",
   };
 }
 
@@ -125,7 +128,7 @@ export function toWhitePOV(
  * @returns 'w' if White to move, 'b' if Black to move
  */
 export function sideToMoveAtPly(plyIndex: number): Side {
-  return plyIndex % 2 === 0 ? 'w' : 'b';
+  return plyIndex % 2 === 0 ? "w" : "b";
 }
 
 // ============================================================================
@@ -146,11 +149,11 @@ export function sideToMoveAtPly(plyIndex: number): Side {
 export function lossCpForPlayer(
   sidePlayed: Side,
   bestAfterWhiteCp: number,
-  playedAfterWhiteCp: number
+  playedAfterWhiteCp: number,
 ): number {
   // For White: loss = drop in evaluation (best - played)
   // For Black: loss = increase in evaluation (played - best), since higher is worse for Black
-  if (sidePlayed === 'w') {
+  if (sidePlayed === "w") {
     return Math.max(0, bestAfterWhiteCp - playedAfterWhiteCp);
   } else {
     return Math.max(0, playedAfterWhiteCp - bestAfterWhiteCp);
@@ -182,7 +185,7 @@ export function cpToWinPercent(cpWhite: number): number {
  * @returns Win percentage (0-100) for White, or null if cannot convert
  */
 export function scoreToWinPercent(score: EngineScore): number | null {
-  if (score.type === 'mate') {
+  if (score.type === "mate") {
     // Treat mate as near-certain win/loss
     // mate > 0 => White wins, mate < 0 => Black wins
     return score.value > 0 ? 99.9 : 0.1;
@@ -201,7 +204,7 @@ export function scoreToWinPercent(score: EngineScore): number | null {
 export function lossWinForPlayer(
   sidePlayed: Side,
   bestScore: EngineScore,
-  playedAfterScore: EngineScore
+  playedAfterScore: EngineScore,
 ): number {
   const wBest = scoreToWinPercent(bestScore);
   const wPlayed = scoreToWinPercent(playedAfterScore);
@@ -210,7 +213,7 @@ export function lossWinForPlayer(
 
   // For White: loss = wBest - wPlayed
   // For Black: loss = (100-wBest) - (100-wPlayed) = wPlayed - wBest
-  const loss = sidePlayed === 'w' ? (wBest - wPlayed) : (wPlayed - wBest);
+  const loss = sidePlayed === "w" ? wBest - wPlayed : wPlayed - wBest;
   return Math.max(0, loss);
 }
 
@@ -225,7 +228,7 @@ export function lossWinForPlayer(
 export function gapWinForPlayer(
   sidePlayed: Side,
   bestScore: EngineScore,
-  secondScore: EngineScore | undefined
+  secondScore: EngineScore | undefined,
 ): number {
   if (!secondScore) return 0;
 
@@ -235,7 +238,7 @@ export function gapWinForPlayer(
   if (wBest === null || wSecond === null) return 0;
 
   // Gap is how much better best is than second
-  const gap = sidePlayed === 'w' ? (wBest - wSecond) : (wSecond - wBest);
+  const gap = sidePlayed === "w" ? wBest - wSecond : wSecond - wBest;
   return Math.max(0, gap);
 }
 
@@ -251,7 +254,7 @@ export function gapWinForPlayer(
 export function swingWinForPlayer(
   sidePlayed: Side,
   beforeScore: EngineScore,
-  afterScore: EngineScore
+  afterScore: EngineScore,
 ): number {
   const before = scoreToWinPercent(beforeScore);
   const after = scoreToWinPercent(afterScore);
@@ -259,7 +262,8 @@ export function swingWinForPlayer(
   if (before === null || after === null) return 0;
 
   // Swing for sidePlayed: positive = improvement
-  const swing = sidePlayed === 'w' ? (after - before) : ((100 - after) - (100 - before));
+  const swing =
+    sidePlayed === "w" ? after - before : 100 - after - (100 - before);
   return swing;
 }
 
@@ -267,7 +271,16 @@ export function swingWinForPlayer(
 // Advanced Move Classification
 // ============================================================================
 
-type MoveLabel = 'Brilliant' | 'Great' | 'Best' | 'Excellent' | 'Good' | 'Book' | 'Inaccuracy' | 'Mistake' | 'Blunder';
+type MoveLabel =
+  | "Brilliant"
+  | "Great"
+  | "Best"
+  | "Excellent"
+  | "Good"
+  | "Book"
+  | "Inaccuracy"
+  | "Mistake"
+  | "Blunder";
 
 /**
  * Get base classification label from win percentage loss.
@@ -280,13 +293,16 @@ type MoveLabel = 'Brilliant' | 'Great' | 'Best' | 'Excellent' | 'Good' | 'Book' 
  * - Mistake: 8-20% loss
  * - Blunder: >20% loss
  */
-export function baseLabelFromLossWin(lossWin: number, playedIsBest: boolean): MoveLabel {
-  if (playedIsBest || lossWin <= 0.2) return 'Best';
-  if (lossWin <= 1.0) return 'Excellent';
-  if (lossWin <= 3.0) return 'Good';
-  if (lossWin <= 8.0) return 'Inaccuracy';
-  if (lossWin <= 20.0) return 'Mistake';
-  return 'Blunder';
+export function baseLabelFromLossWin(
+  lossWin: number,
+  playedIsBest: boolean,
+): MoveLabel {
+  if (playedIsBest || lossWin <= 0.2) return "Best";
+  if (lossWin <= 1.0) return "Excellent";
+  if (lossWin <= 3.0) return "Good";
+  if (lossWin <= 8.0) return "Inaccuracy";
+  if (lossWin <= 20.0) return "Mistake";
+  return "Blunder";
 }
 
 /**
@@ -295,12 +311,12 @@ export function baseLabelFromLossWin(lossWin: number, playedIsBest: boolean): Mo
  * @deprecated Use baseLabelFromLossWin with win% for better accuracy
  */
 export function classifyByCpLoss(lossCp: number): MoveLabel {
-  if (lossCp <= 10) return 'Best';
-  if (lossCp <= 30) return 'Excellent';
-  if (lossCp <= 80) return 'Good';
-  if (lossCp <= 180) return 'Inaccuracy';
-  if (lossCp <= 400) return 'Mistake';
-  return 'Blunder';
+  if (lossCp <= 10) return "Best";
+  if (lossCp <= 30) return "Excellent";
+  if (lossCp <= 80) return "Good";
+  if (lossCp <= 180) return "Inaccuracy";
+  if (lossCp <= 400) return "Mistake";
+  return "Blunder";
 }
 
 /**
@@ -325,10 +341,8 @@ export function accuracyFromCpLoss(lossCp: number): number {
  * Map user's ELO to appropriate hash table size.
  * Lower ELO = smaller hash (more "human-like" play).
  */
-export function computeHashForElo(elo: number): number {
-  if (elo <= 800) return 32;
-  if (elo <= 1800) return 64;
-  return 128;
+export function computeHashForElo(_elo: number): number {
+  return 256;
 }
 
 /**
@@ -347,7 +361,10 @@ export function computeMovetimeForElo(elo: number): number {
  * Get blunder risk thresholds (in cp) based on ELO.
  * Lower ELO has higher tolerance (larger thresholds).
  */
-export function blunderRiskThresholds(elo: number): { low: number; medium: number } {
+export function blunderRiskThresholds(elo: number): {
+  low: number;
+  medium: number;
+} {
   if (elo <= 800) return { low: 80, medium: 200 };
   if (elo <= 1600) return { low: 60, medium: 150 };
   return { low: 40, medium: 120 };
@@ -360,11 +377,14 @@ export function blunderRiskThresholds(elo: number): { low: number; medium: numbe
  * @param elo - User's target ELO
  * @returns Risk category
  */
-export function computeBlunderRisk(dropCp: number, elo: number): 'low' | 'medium' | 'high' {
+export function computeBlunderRisk(
+  dropCp: number,
+  elo: number,
+): "low" | "medium" | "high" {
   const { low, medium } = blunderRiskThresholds(elo);
-  if (dropCp < low) return 'low';
-  if (dropCp < medium) return 'medium';
-  return 'high';
+  if (dropCp < low) return "low";
+  if (dropCp < medium) return "medium";
+  return "high";
 }
 
 // ============================================================================
@@ -377,11 +397,11 @@ export function computeBlunderRisk(dropCp: number, elo: number): 'low' | 'medium
  */
 export function isPromotionMove(move: string): {
   isPromotion: boolean;
-  piece?: 'q' | 'r' | 'b' | 'n';
+  piece?: "q" | "r" | "b" | "n";
 } {
   if (move.length === 5) {
     const piece = move[4] as any;
-    if (piece === 'q' || piece === 'r' || piece === 'b' || piece === 'n') {
+    if (piece === "q" || piece === "r" || piece === "b" || piece === "n") {
       return { isPromotion: true, piece };
     }
   }
@@ -395,11 +415,14 @@ export function isPromotionMove(move: string): {
  * @param sideToMove - Side to move in this position
  * @returns True if sideToMove has a winning mate
  */
-export function isWinningMateWhitePOV(scoreWhite: EngineScore, sideToMove: Side): boolean {
-  if (scoreWhite.type !== 'mate') return false;
+export function isWinningMateWhitePOV(
+  scoreWhite: EngineScore,
+  sideToMove: Side,
+): boolean {
+  if (scoreWhite.type !== "mate") return false;
 
   // Positive mate value = White wins, negative = Black wins
-  if (sideToMove === 'w') {
+  if (sideToMove === "w") {
     return scoreWhite.value > 0;
   } else {
     return scoreWhite.value < 0;
@@ -430,12 +453,12 @@ export function round(n: number, decimals: number = 0): number {
 // ============================================================================
 
 const PIECE_VALUE: Record<string, number> = {
-  p: 1,  // Pawn
-  n: 3,  // Knight
-  b: 3,  // Bishop
-  r: 5,  // Rook
-  q: 9,  // Queen
-  k: 0,  // King
+  p: 1, // Pawn
+  n: 3, // Knight
+  b: 3, // Bishop
+  r: 5, // Rook
+  q: 9, // Queen
+  k: 0, // King
 };
 
 /**
@@ -445,7 +468,7 @@ const PIECE_VALUE: Record<string, number> = {
  * @param color - Color to calculate material for
  * @returns Total material value
  */
-export function materialScoreForColor(chess: any, color: 'w' | 'b'): number {
+export function materialScoreForColor(chess: any, color: "w" | "b"): number {
   const board = chess.board(); // 8x8 array
   let sum = 0;
 
@@ -474,7 +497,7 @@ export function computeMaterialDelta(
   Chess: any,
   fenBefore: string,
   uciMove: string,
-  sidePlayed: Side
+  sidePlayed: Side,
 ): number | null {
   try {
     const chess = new Chess(fenBefore);

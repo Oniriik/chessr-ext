@@ -140,7 +140,7 @@ export default function MetricsPanel() {
         <MetricCard
           icon={<Cpu className="w-5 h-5" />}
           label="Chess Engine Instances"
-          value={`${metrics?.enginePool.total || 0} / ${metrics?.enginePool.available || 0} avail`}
+          value={`${metrics?.enginePool.available || 0} / ${metrics?.enginePool.total || 0}`}
           color="purple"
         />
 

@@ -229,7 +229,6 @@ class ChessServer {
           reviewMs: formatTime(result.meta.timings.reviewMs),
           suggestionMs: formatTime(result.meta.timings.suggestionMs),
           totalMs: formatTime(result.meta.timings.totalMs),
-          overall: result.payload.accuracy.overall,
           suggestions: result.payload.suggestions.suggestions.length,
         });
 
@@ -286,16 +285,6 @@ class ChessServer {
           return;
         }
 
-        // Format timing: ms if < 1s, otherwise seconds
-        const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
-
-        logger.info('stats_complete', clientInfo.email, {
-          requestId: result.requestId,
-          reviewMs: formatTime(result.meta.timings.reviewMs),
-          totalMs: formatTime(result.meta.timings.totalMs),
-          overall: result.payload.accuracy.overall,
-        });
-
         this.send(ws, result);
       } finally {
         // Always return engine to pool
@@ -347,16 +336,6 @@ class ChessServer {
           this.send(ws, result);
           return;
         }
-
-        // Format timing: ms if < 1s, otherwise seconds
-        const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
-
-        logger.info('suggestions_complete', clientInfo.email, {
-          requestId: result.requestId,
-          suggestionMs: formatTime(result.meta.timings.suggestionMs),
-          totalMs: formatTime(result.meta.timings.totalMs),
-          suggestions: result.payload.suggestions.suggestions.length,
-        });
 
         this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
         telemetry.recordSuggestion(0); // Depth not applicable in new system

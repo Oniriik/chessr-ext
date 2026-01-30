@@ -145,15 +145,21 @@ async function analyzePosition(
   searchMode: 'time' | 'depth',
   timeMs: number,
   depth: number,
-  multiPV: number
+  multiPV: number,
+  context?: 'stats' | 'suggestions'
 ): Promise<{ lines: any[]; bestMove: string }> {
-  const result = await engine.analyze(fen, {
-    moves,
-    searchMode,
-    depth,
-    moveTime: timeMs,
-    multiPV,
-  });
+  const result = await engine.analyze(
+    fen,
+    {
+      moves,
+      searchMode,
+      depth,
+      moveTime: timeMs,
+      multiPV,
+    },
+    undefined,  // onInfo callback
+    context     // Pass context to control warmup behavior
+  );
 
   return {
     lines: result.lines || [],
@@ -256,7 +262,7 @@ async function runAccuracyReview(
     lastMoves: number;
     cachedPerPly: AccuracyPly[];
   }
-): Promise<{ payload: AccuracyPayload; timingMs: number }> {
+): Promise<{ payload: AccuracyPayload; timingMs: number; windowPlies: number; analyzedPlies: number }> {
   const { movesUci, lastMoves, cachedPerPly } = params;
   const startTime = Date.now();
 
@@ -315,7 +321,7 @@ async function runAccuracyReview(
 
     // A1: Analyze position BEFORE move (MultiPV=2 for gap calculation)
     const fenBefore = buildFenFromMoves(beforeMoves);
-    const bestResult = await analyzePosition(engine, fenBefore, beforeMoves, 'time', movetimePerEval, 18, 2);
+    const bestResult = await analyzePosition(engine, fenBefore, beforeMoves, 'time', movetimePerEval, 18, 2, 'stats');
     const bestMove = bestResult.bestMove;
 
     // Extract best and second best scores from result
@@ -343,7 +349,7 @@ async function runAccuracyReview(
     // A2: Analyze position AFTER played move
     const afterMoves = beforeMoves.concat([playedMove]);
     const fenAfter = buildFenFromMoves(afterMoves);
-    const playedResult = await analyzePosition(engine, fenAfter, afterMoves, 'time', movetimePerEval, 18, 1);
+    const playedResult = await analyzePosition(engine, fenAfter, afterMoves, 'time', movetimePerEval, 18, 1, 'stats');
 
     const playedLine = playedResult.lines[0];
     const playedAfterRaw = playedLine
@@ -462,13 +468,7 @@ async function runAccuracyReview(
 
   const timingMs = Date.now() - startTime;
 
-  logger.info('stats_start', {
-    windowPlies,
-    analyzedPlies,
-    duration: timingMs >= 1000 ? `${(timingMs / 1000).toFixed(2)}s` : `${timingMs}ms`,
-  }, 'ended');
-
-  return { payload, timingMs };
+  return { payload, timingMs, windowPlies, analyzedPlies };
 }
 
 // ============================================================================
@@ -494,7 +494,7 @@ async function runSuggestions(
     multiPV: number;
     disableLimitStrength?: boolean;
   }
-): Promise<{ payload: SuggestionsPayload; timingMs: number }> {
+): Promise<{ payload: SuggestionsPayload; timingMs: number; suggestionsCount: number }> {
   const { movesUci, targetElo, personality, multiPV, disableLimitStrength } = params;
   const startTime = Date.now();
 
@@ -537,7 +537,8 @@ async function runSuggestions(
     'time',
     movetimeMs,
     18,
-    clamp(multiPV, 1, 8)
+    clamp(multiPV, 1, 8),
+    'suggestions'
   );
 
   // Extract lines from result
@@ -635,11 +636,7 @@ async function runSuggestions(
 
   const timingMs = Date.now() - startTime;
 
-  logger.info('suggestion_start', {
-    duration: timingMs >= 1000 ? `${(timingMs / 1000).toFixed(2)}s` : `${timingMs}ms`,
-  }, 'ended');
-
-  return { payload, timingMs };
+  return { payload, timingMs, suggestionsCount: payload.suggestions.length };
 }
 
 // ============================================================================
@@ -665,7 +662,6 @@ export async function handleAnalyzeStats(
     const cachedAccuracy = req.payload.review.cachedAccuracy ?? [];
 
     logger.info('stats_request', {
-      type: 'analyze_stats',
       movesCount: movesUci.length,
       lastMoves,
       cachedCount: cachedAccuracy.length,
@@ -675,7 +671,7 @@ export async function handleAnalyzeStats(
     await runEngineReset(engine);
 
     // Accuracy Review (Full Strength)
-    const { payload: accuracyPayload, timingMs: reviewMs } = await runAccuracyReview(
+    const { payload: accuracyPayload, timingMs: reviewMs, windowPlies, analyzedPlies } = await runAccuracyReview(
       logger,
       engine,
       {
@@ -686,6 +682,15 @@ export async function handleAnalyzeStats(
     );
 
     const totalMs = Date.now() - t0;
+
+    // Log completion with timings
+    const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+    logger.info('stats_start', {
+      windowPlies,
+      analyzedPlies,
+      duration: formatTime(reviewMs),
+      totalMs: formatTime(totalMs),
+    }, 'ended');
 
     const response: AnalyzeStatsResponse = {
       type: 'analyze_stats_result',
@@ -711,12 +716,6 @@ export async function handleAnalyzeStats(
         },
       },
     };
-
-    logger.info('stats_complete', {
-      reviewMs,
-      totalMs,
-      analyzedPlies: accuracyPayload.window.analyzedPlies,
-    });
 
     return response;
   } catch (e: any) {
@@ -795,7 +794,7 @@ export async function handleAnalyzeSuggestions(
     const resetMs = Date.now() - resetStart;
 
     // User-Mode Suggestions
-    const { payload: suggestionsPayload, timingMs: suggestionMs } = await runSuggestions(
+    const { payload: suggestionsPayload, timingMs: suggestionMs, suggestionsCount } = await runSuggestions(
       logger,
       engine,
       {
@@ -808,6 +807,14 @@ export async function handleAnalyzeSuggestions(
     );
 
     const totalMs = Date.now() - t0;
+
+    // Log completion with timings
+    const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+    logger.info('suggestion_start', {
+      duration: formatTime(suggestionMs),
+      suggestions: suggestionsCount,
+      totalMs: formatTime(totalMs),
+    }, 'ended');
 
     // Calculate actual limitStrength value used
     const suggestionLimitStrength = !(disableLimitStrength && targetElo >= 2000);
@@ -841,13 +848,6 @@ export async function handleAnalyzeSuggestions(
         },
       },
     };
-
-    logger.info('suggestions_complete', {
-      resetMs,
-      suggestionMs,
-      totalMs,
-      suggestionsCount: suggestionsPayload.suggestions.length,
-    });
 
     return response;
   } catch (e: any) {
@@ -907,7 +907,7 @@ export async function handleAnalyze(
     await runEngineReset(engine);
 
     // User-Mode Suggestions
-    const { payload: suggestionsPayload, timingMs: suggestionMs } = await runSuggestions(
+    const { payload: suggestionsPayload, timingMs: suggestionMs, suggestionsCount } = await runSuggestions(
       logger,
       engine,
       {
@@ -920,6 +920,14 @@ export async function handleAnalyze(
     );
 
     const totalMs = Date.now() - t0;
+
+    // Log completion with timings
+    const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+    logger.info('suggestion_start', {
+      duration: formatTime(suggestionMs),
+      suggestions: suggestionsCount,
+      totalMs: formatTime(totalMs),
+    }, 'ended');
 
     // Calculate actual limitStrength value used
     const suggestionLimitStrength = !(disableLimitStrength && targetElo >= 2000);

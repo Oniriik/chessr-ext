@@ -50,7 +50,13 @@ const categories: Record<string, { color: string; icon: string; label: string }>
   analysis_request: { color: colors.blue, icon: '♟️', label: 'ANALYSIS' },
   analysis_complete: { color: colors.green, icon: '✨', label: 'ANALYSIS' },
   analysis_error: { color: colors.red, icon: '❌', label: 'ANALYSIS' },
+  stats_request: { color: colors.cyan, icon: '📊', label: 'REQUEST' },
+  stats_complete: { color: colors.green, icon: '✨', label: 'STATS' },
+  stats_error: { color: colors.red, icon: '❌', label: 'STATS' },
   stats_start: { color: colors.cyan, icon: '📊', label: 'STATS' },
+  suggestions_request: { color: colors.magenta, icon: '💡', label: 'REQUEST' },
+  suggestions_complete: { color: colors.green, icon: '✨', label: 'SUGGEST' },
+  suggestions_error: { color: colors.red, icon: '❌', label: 'SUGGEST' },
   reset_before: { color: colors.yellow, icon: '🔄', label: 'RESET' },
   reset_after: { color: colors.green, icon: '✓', label: 'RESET' },
   suggestion_start: { color: colors.magenta, icon: '💡', label: 'SUGGEST' },
@@ -236,10 +242,12 @@ export const poolLogger = {
       actionColor = colors.yellow;
     } else if (action === 'dead' || action === 'error') {
       actionColor = colors.red;
+    } else if (action === 'scale_up') {
+      actionColor = colors.green;
     }
 
     const label = `${colors.cyan}[POOL]${colors.reset}`;
-    const actionLabel = `${actionColor}[${action}]${colors.reset}`;
+    const actionLabel = `${actionColor}[${action.toUpperCase()}]${colors.reset}`;
     const poolData = `${colors.gray}pool=${colors.reset}${colors.yellow}${pool}${colors.reset} ${colors.gray}available=${colors.reset}${colors.yellow}${available}${colors.reset}`;
     const extraStr = extraData ? ' ' + formatData(extraData) : '';
 
