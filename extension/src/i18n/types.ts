@@ -28,6 +28,8 @@ export interface Translations {
     title: string;
     display: string;
     antiCheat: string;
+    fullStrength: string;
+    fullStrengthDesc: string;
   };
 
   // Komodo Personalities

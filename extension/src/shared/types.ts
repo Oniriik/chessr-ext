@@ -62,6 +62,7 @@ export interface Settings {
   singleArrowColor: string;  // Used when useDifferentArrowColors is false
   language: 'fr' | 'en' | 'es' | 'ru' | 'de' | 'pt' | 'hi' | 'auto';  // UI language: auto = detect from browser
   numberOfSuggestions: 1 | 2 | 3;  // Number of suggestions to show (1-3)
+  disableLimitStrength: boolean;          // Disable UCI_LimitStrength for full-strength suggestions (only available when targetElo >= 2000)
 
   // Feedback & Analysis Display Options
   showSuggestions: boolean;               // Display suggestion cards (#1, #2, #3) in sidebar

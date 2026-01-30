@@ -1,26 +1,19 @@
 // Import new analyze types
-import type { AnalyzeResultResponse, AnalyzeErrorResponse } from './analyze-types.js';
+import type {
+  AnalyzeRequest,
+  AnalyzeResultResponse,
+  AnalyzeErrorResponse,
+  AnalyzeStatsRequest,
+  AnalyzeStatsResponse,
+  AnalyzeSuggestionsRequest,
+  AnalyzeSuggestionsResponse,
+} from './analyze-types.js';
 
 // Komodo Dragon Personalities
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 
-export interface AnalyzeRequest {
-  type: 'analyze';
-  requestId?: string;
-  payload: {
-    movesUci: string[];          // Plies in UCI format: ["e2e4", "e7e5", ...]
-    fen?: string;                 // Optional (can be derived from movesUci)
-    sideToMove?: 'w' | 'b';      // Optional (can be derived from movesUci)
-    review: {
-      lastMoves: number;          // Number of full moves to analyze (default: 10)
-    };
-    user: {
-      targetElo: number;          // User's target ELO (500-2500)
-      personality: Personality;   // Komodo personality
-      multiPV: number;            // Number of suggestion lines (1-8)
-    };
-  };
-}
+// Re-export AnalyzeRequest from analyze-types.ts
+export type { AnalyzeRequest, AnalyzeStatsRequest, AnalyzeSuggestionsRequest };
 
 export interface AuthMessage {
   type: 'auth';
@@ -28,7 +21,7 @@ export interface AuthMessage {
   version?: string;  // Client extension version
 }
 
-export type ClientMessage = AnalyzeRequest | AuthMessage;
+export type ClientMessage = AnalyzeRequest | AnalyzeStatsRequest | AnalyzeSuggestionsRequest | AuthMessage;
 
 export interface PVLine {
   moves: string[];
@@ -97,8 +90,10 @@ export interface AuthSuccessMessage {
 }
 
 export type ServerMessage =
-  | AnalyzeResultResponse  // New dual-phase analysis response
-  | AnalyzeErrorResponse   // New analysis error response
+  | AnalyzeResultResponse       // Full analysis response (legacy/combined)
+  | AnalyzeStatsResponse        // Stats-only response (accuracy review)
+  | AnalyzeSuggestionsResponse  // Suggestions-only response
+  | AnalyzeErrorResponse        // Analysis error response
   | InfoUpdate
   | ReadyMessage
   | ErrorMessage

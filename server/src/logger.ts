@@ -147,9 +147,11 @@ function formatData(data?: Record<string, any>): string {
 
 export class Logger {
   private requestId: string;
+  private userEmail: string;
 
-  constructor(requestId?: string) {
+  constructor(requestId?: string, userEmail?: string) {
     this.requestId = requestId || randomUUID().slice(0, 8);
+    this.userEmail = userEmail || 'anonymous';
   }
 
   static createRequestId(): string {
@@ -167,13 +169,29 @@ export class Logger {
     return `${timestamp} ${reqId} ${label} ${userName}${dataStr}`;
   }
 
-  info(name: string, user: string, data?: Record<string, any>): void {
-    console.log(this.format(name, user, data));
+  info(name: string, userOrData?: string | Record<string, any>, data?: Record<string, any>): void {
+    if (typeof userOrData === 'string') {
+      // Old signature: info(name, user, data?)
+      console.log(this.format(name, userOrData, data));
+    } else {
+      // New signature: info(name, data?)
+      console.log(this.format(name, this.userEmail, userOrData));
+    }
   }
 
-  error(name: string, user: string, error: Error | string, data?: Record<string, any>): void {
-    const errorMessage = error instanceof Error ? error.message : error;
-    console.log(this.format(name, user, { ...data, error: errorMessage }));
+  error(name: string, user: string | Error, error?: Error | string | Record<string, any>, data?: Record<string, any>): void {
+    // Support both old and new signatures
+    // Old: error(name, user, error, data?)
+    // New: error(name, error, data?)
+    if (user instanceof Error || typeof user === 'string' && !error) {
+      // New signature: error(name, error, data?)
+      const errorMessage = user instanceof Error ? user.message : user;
+      console.log(this.format(name, this.userEmail, { ...data, error: errorMessage }));
+    } else {
+      // Old signature: error(name, user, error, data?)
+      const errorMessage = error instanceof Error ? error.message : error;
+      console.log(this.format(name, user as string, { ...data as Record<string, any>, error: errorMessage }));
+    }
   }
 }
 

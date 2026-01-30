@@ -7,6 +7,7 @@ import { MetricsCollector } from './metrics.js';
 import { Logger, globalLogger } from './logger.js';
 import { versionConfig, isVersionOutdated } from './version-config.js';
 import { telemetry } from './telemetry.js';
+import { handleAnalyze, handleAnalyzeStats, handleAnalyzeSuggestions } from './analyze-pipeline.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -172,6 +173,14 @@ class ChessServer {
         await this.handleAnalyze(ws, message, logger);
         break;
 
+      case 'analyze_stats':
+        await this.handleAnalyzeStats(ws, message as any, logger);
+        break;
+
+      case 'analyze_suggestions':
+        await this.handleAnalyzeSuggestions(ws, message as any, logger);
+        break;
+
       case 'auth':
         this.handleAuth(ws, message, logger);
         break;
@@ -202,9 +211,8 @@ class ChessServer {
       const engine = await this.pool.getEngineForDirectUse();
 
       try {
-        // Import and run the dual-phase pipeline
-        const { handleAnalyze: runPipeline } = await import('./analyze-pipeline.js');
-        const result = await runPipeline(engine, message, clientInfo.email);
+        // Run the analysis pipeline
+        const result = await handleAnalyze(engine, message, clientInfo.email);
 
         // Check if result is success or error
         if (result.type === 'analyze_error') {
@@ -243,6 +251,131 @@ class ChessServer {
         error: {
           code: 'ANALYZE_FAILED',
           message: err instanceof Error ? err.message : 'Analysis failed',
+        },
+        meta: { engine: 'KomodoDragon' },
+      });
+    }
+  }
+
+  private async handleAnalyzeStats(
+    ws: WebSocket,
+    message: any,
+    logger: Logger
+  ): Promise<void> {
+    const clientInfo = this.getClientInfo(ws);
+
+    logger.info('stats_request', clientInfo.email, {
+      requestId: message.requestId || 'none',
+      movesCount: message.payload?.movesUci?.length || 0,
+      lastMoves: message.payload?.review?.lastMoves || 1,
+      cachedCount: message.payload?.review?.cachedAccuracy?.length || 0,
+    });
+
+    try {
+      // Get engine from pool for direct UCI control
+      const engine = await this.pool.getEngineForDirectUse();
+
+      try {
+        // Run stats-only (accuracy review)
+        const result = await handleAnalyzeStats(engine, message, clientInfo.email);
+
+        // Check if result is success or error
+        if (result.type === 'analyze_error') {
+          logger.info('stats_error', clientInfo.email, { errorMessage: result.error.message });
+          this.send(ws, result);
+          return;
+        }
+
+        // Format timing: ms if < 1s, otherwise seconds
+        const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+
+        logger.info('stats_complete', clientInfo.email, {
+          requestId: result.requestId,
+          reviewMs: formatTime(result.meta.timings.reviewMs),
+          totalMs: formatTime(result.meta.timings.totalMs),
+          overall: result.payload.accuracy.overall,
+        });
+
+        this.send(ws, result);
+      } finally {
+        // Always return engine to pool
+        this.pool.releaseEngine(engine);
+      }
+    } catch (err) {
+      logger.info('stats_error', clientInfo.email, { errorMessage: err instanceof Error ? err.message : String(err) });
+
+      // Send properly formatted error response
+      this.send(ws, {
+        type: 'analyze_error',
+        requestId: message.requestId || '',
+        version: '1.0',
+        error: {
+          code: 'STATS_FAILED',
+          message: err instanceof Error ? err.message : 'Stats analysis failed',
+        },
+        meta: { engine: 'KomodoDragon' },
+      });
+    }
+  }
+
+  private async handleAnalyzeSuggestions(
+    ws: WebSocket,
+    message: any,
+    logger: Logger
+  ): Promise<void> {
+    const clientInfo = this.getClientInfo(ws);
+
+    logger.info('suggestions_request', clientInfo.email, {
+      requestId: message.requestId || 'none',
+      movesCount: message.payload?.movesUci?.length || 0,
+      targetElo: message.payload?.user?.targetElo,
+      multiPV: message.payload?.user?.multiPV,
+      hasCachedStats: !!message.payload?.cachedStats?.accuracy,
+    });
+
+    try {
+      // Get engine from pool for direct UCI control
+      const engine = await this.pool.getEngineForDirectUse();
+
+      try {
+        // Run suggestions-only (engine reset + suggestions)
+        const result = await handleAnalyzeSuggestions(engine, message, clientInfo.email);
+
+        // Check if result is success or error
+        if (result.type === 'analyze_error') {
+          logger.info('suggestions_error', clientInfo.email, { errorMessage: result.error.message });
+          this.send(ws, result);
+          return;
+        }
+
+        // Format timing: ms if < 1s, otherwise seconds
+        const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
+
+        logger.info('suggestions_complete', clientInfo.email, {
+          requestId: result.requestId,
+          suggestionMs: formatTime(result.meta.timings.suggestionMs),
+          totalMs: formatTime(result.meta.timings.totalMs),
+          suggestions: result.payload.suggestions.suggestions.length,
+        });
+
+        this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
+        telemetry.recordSuggestion(0); // Depth not applicable in new system
+        this.send(ws, result);
+      } finally {
+        // Always return engine to pool
+        this.pool.releaseEngine(engine);
+      }
+    } catch (err) {
+      logger.info('suggestions_error', clientInfo.email, { errorMessage: err instanceof Error ? err.message : String(err) });
+
+      // Send properly formatted error response
+      this.send(ws, {
+        type: 'analyze_error',
+        requestId: message.requestId || '',
+        version: '1.0',
+        error: {
+          code: 'SUGGESTIONS_FAILED',
+          message: err instanceof Error ? err.message : 'Suggestions analysis failed',
         },
         meta: { engine: 'KomodoDragon' },
       });

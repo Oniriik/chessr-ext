@@ -26,6 +26,8 @@ export const pt: Translations = {
     title: 'ELO Alvo',
     display: 'Exibição Chess.com',
     antiCheat: 'Aleatorização ELO ±100',
+    fullStrength: 'Modo Força Máxima',
+    fullStrengthDesc: 'Desativar limite ELO para sugestões de força máxima (disponível a partir de 2000 ELO)',
   },
 
   personalities: {

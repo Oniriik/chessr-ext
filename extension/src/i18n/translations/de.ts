@@ -26,6 +26,8 @@ export const de: Translations = {
     title: 'Ziel-ELO',
     display: 'Chess.com Anzeige',
     antiCheat: 'ELO Randomisierung ±100',
+    fullStrength: 'Volle-Stärke-Modus',
+    fullStrengthDesc: 'ELO-Limit deaktivieren für Vorschläge mit maximaler Stärke (verfügbar ab 2000 ELO)',
   },
 
   personalities: {

@@ -244,6 +244,26 @@ export function Sidebar() {
                 max={3000}
                 step={50}
               />
+
+              {/* Full Strength Toggle (only visible at 2000+ ELO) */}
+              {localElo >= 2000 && (
+                <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
+                  <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
+                    <div className="tw-flex-1">
+                      <div className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-0.5">
+                        {t.elo.fullStrength}
+                      </div>
+                      <div className="tw-text-[10px] tw-text-muted tw-leading-tight">
+                        {t.elo.fullStrengthDesc}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={settings.disableLimitStrength}
+                      onCheckedChange={(checked) => setSettings({ disableLimitStrength: checked })}
+                    />
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Accuracy Widget */}

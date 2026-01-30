@@ -1,9 +1,9 @@
 /**
- * Type definitions for the dual-phase chess analysis pipeline.
+ * Type definitions for the chess analysis pipeline.
  *
  * This module defines types for:
- * - Accuracy review (Phase A): Analyzes last 10 moves at full strength
- * - User-mode suggestions (Phase C): MultiPV suggestions tuned to user's ELO
+ * - Accuracy review: Analyzes moves at full strength
+ * - User-mode suggestions: MultiPV suggestions tuned to user's ELO
  *
  * All evaluations are normalized to White POV for consistency.
  */
@@ -25,11 +25,51 @@ export interface AnalyzeRequest {
     sideToMove?: Side;            // Optional (can be derived from movesUci)
     review: {
       lastMoves: number;          // Number of full moves to analyze (default: 10)
+      cachedAccuracy: AccuracyPly[];  // Cached analysis from previous requests (can be empty [])
     };
     user: {
       targetElo: number;          // User's target ELO (500-2500)
       personality: Personality;   // Komodo personality
       multiPV: number;            // Number of suggestion lines (1-8)
+      disableLimitStrength?: boolean;  // Disable UCI_LimitStrength for full-strength suggestions (optional, only available at 2000+ ELO)
+    };
+  };
+}
+
+/**
+ * Stats-only request: Compute accuracy review on opponent's turn.
+ * Executed in background while player is thinking.
+ */
+export interface AnalyzeStatsRequest {
+  type: 'analyze_stats';
+  requestId?: string;
+  payload: {
+    movesUci: string[];          // Plies in UCI format: ["e2e4", "e7e5", ...]
+    review: {
+      lastMoves: number;          // Number of full moves to analyze (default: 1)
+      cachedAccuracy: AccuracyPly[];  // Cached analysis from previous requests (can be empty [])
+    };
+  };
+}
+
+/**
+ * Suggestions-only request: Compute user-mode suggestions on player's turn.
+ * Requires cached stats from a previous AnalyzeStatsRequest.
+ */
+export interface AnalyzeSuggestionsRequest {
+  type: 'analyze_suggestions';
+  requestId?: string;
+  payload: {
+    movesUci: string[];          // Plies in UCI format: ["e2e4", "e7e5", ...]
+    cachedStats: {
+      accuracy: AccuracyPayload;      // Cached accuracy analysis from stats request
+      reviewTimingMs: number;         // Timing info from stats request (for logging)
+    };
+    user: {
+      targetElo: number;          // User's target ELO (500-2500)
+      personality: Personality;   // Komodo personality
+      multiPV: number;            // Number of suggestion lines (1-8)
+      disableLimitStrength?: boolean;  // Disable UCI_LimitStrength for full-strength suggestions (optional, only available at 2000+ ELO)
     };
   };
 }
@@ -51,7 +91,7 @@ export interface EngineScore {
 }
 
 // ============================================================================
-// Accuracy Types (Phase A: Review)
+// Accuracy Types (Review)
 // ============================================================================
 
 export interface AccuracyPly {
@@ -126,7 +166,7 @@ export interface AccuracyPayload {
 }
 
 // ============================================================================
-// Suggestion Types (Phase C: User Mode)
+// Suggestion Types (User Mode)
 // ============================================================================
 
 export interface SuggestionMove {
@@ -201,7 +241,7 @@ export interface ReviewSettingsUsed {
 
 export interface SuggestionSettingsUsed {
   hashMB: number;                   // Hash size for suggestion
-  limitStrength: true;              // Always true for suggestion
+  limitStrength: boolean;           // Whether UCI_LimitStrength is enabled
   targetElo: number;                // User's target ELO
   personality: string;              // Komodo personality
   multiPV: number;                  // Number of lines
@@ -233,8 +273,8 @@ export interface AnalyzeResultResponse {
     };
 
     timings: {
-      reviewMs: number;         // Time spent on review phase
-      suggestionMs: number;     // Time spent on suggestion phase
+      reviewMs: number;         // Time spent on accuracy review
+      suggestionMs: number;     // Time spent on suggestions
       totalMs: number;          // Total time
     };
   };
@@ -252,6 +292,64 @@ export interface AnalyzeErrorResponse {
 
   meta?: {
     engine: 'KomodoDragon';
+  };
+}
+
+/**
+ * Stats-only response.
+ * Contains accuracy analysis without suggestions.
+ * Reset is done before suggestions, not after stats.
+ */
+export interface AnalyzeStatsResponse {
+  type: 'analyze_stats_result';
+  requestId: string;
+  version: '1.0';
+
+  payload: {
+    accuracy: AccuracyPayload;
+  };
+
+  meta: {
+    engine: 'KomodoDragon';
+    engineVersion?: string;
+
+    settingsUsed: {
+      review: ReviewSettingsUsed;
+    };
+
+    timings: {
+      reviewMs: number;         // Time spent on accuracy review
+      totalMs: number;          // Total time (reviewMs only)
+    };
+  };
+}
+
+/**
+ * Suggestions-only response.
+ * Contains user-mode suggestions with cached accuracy for convenience.
+ */
+export interface AnalyzeSuggestionsResponse {
+  type: 'analyze_suggestions_result';
+  requestId: string;
+  version: '1.0';
+
+  payload: {
+    suggestions: SuggestionsPayload;
+    accuracy?: AccuracyPayload;  // Cached stats included for convenience
+  };
+
+  meta: {
+    engine: 'KomodoDragon';
+    engineVersion?: string;
+
+    settingsUsed: {
+      suggestion: SuggestionSettingsUsed;
+    };
+
+    timings: {
+      suggestionMs: number;     // Time spent on suggestions
+      totalMs: number;          // Total time (suggestionMs only)
+    };
   };
 }
 

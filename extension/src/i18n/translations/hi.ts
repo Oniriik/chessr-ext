@@ -26,6 +26,8 @@ export const hi: Translations = {
     title: 'लक्ष्य ELO',
     display: 'Chess.com प्रदर्शन',
     antiCheat: 'ELO यादृच्छिकीकरण ±100',
+    fullStrength: 'पूर्ण शक्ति मोड',
+    fullStrengthDesc: 'अधिकतम-शक्ति सुझावों के लिए ELO सीमा अक्षम करें (2000+ ELO पर उपलब्ध)',
   },
 
   personalities: {

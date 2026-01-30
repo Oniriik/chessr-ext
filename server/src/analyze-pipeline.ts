@@ -1,11 +1,12 @@
 /**
- * Dual-Phase Chess Analysis Pipeline
+ * Chess Analysis Pipeline
  *
- * Phase A: Accuracy Review - Analyzes last 10 moves at full engine strength
- * Phase B: Reset - Clears engine state with ucinewgame
- * Phase C: User-Mode Suggestions - MultiPV suggestions tuned to user's ELO
+ * Components:
+ * - Accuracy Review: Analyzes moves at full engine strength
+ * - Engine Reset: Clears engine state with ucinewgame
+ * - Suggestions: MultiPV suggestions tuned to user's ELO
  *
- * Critical: No contamination between phases (ucinewgame between A and C)
+ * Critical: No contamination between accuracy review and suggestions (ucinewgame between them)
  */
 
 import { Chess } from 'chess.js';
@@ -15,23 +16,21 @@ import {
   AnalyzeRequest,
   AnalyzeResultResponse,
   AnalyzeErrorResponse,
+  AnalyzeStatsRequest,
+  AnalyzeStatsResponse,
+  AnalyzeSuggestionsRequest,
+  AnalyzeSuggestionsResponse,
   AccuracyPayload,
   AccuracyPly,
   SuggestionsPayload,
   SuggestionMove,
-  EngineScore,
-  PVLine,
   Side,
 } from './analyze-types.js';
 import type { Personality } from './types.js';
 import {
-  parseInfoLine,
-  pickBestScoreFromInfos,
   toWhitePOV,
   sideToMoveAtPly,
   lossCpForPlayer,
-  classifyByCpLoss,
-  accuracyFromCpLoss,
   computeHashForElo,
   computeMovetimeForElo,
   computeBlunderRisk,
@@ -163,16 +162,102 @@ async function analyzePosition(
 }
 
 // ============================================================================
-// Phase A: Accuracy Review (Full Strength)
+// Accuracy Review (Full Strength)
 // ============================================================================
 
-async function phaseA_AccuracyReview(
-  engine: ChessEngine,
+/**
+ * Validate cached AccuracyPly entries from client
+ * Returns only valid entries that are safe to reuse
+ */
+function validateCachedAccuracy(
+  cachedPerPly: AccuracyPly[],
   movesUci: string[],
-  lastMoves: number,
+  logger: Logger
+): Map<number, AccuracyPly> {
+  const validated = new Map<number, AccuracyPly>();
+
+  if (!Array.isArray(cachedPerPly) || cachedPerPly.length === 0) {
+    return validated;
+  }
+
+  let validCount = 0;
+  let invalidCount = 0;
+
+  for (const cached of cachedPerPly) {
+    try {
+      // Validation 1: Required fields exist
+      if (
+        typeof cached.plyIndex !== 'number' ||
+        typeof cached.playedMove !== 'string' ||
+        !cached.evaluation?.bestAfter ||
+        !cached.evaluation?.playedAfter
+      ) {
+        invalidCount++;
+        continue;
+      }
+
+      // Validation 2: plyIndex in valid range
+      if (cached.plyIndex < 0 || cached.plyIndex >= movesUci.length) {
+        invalidCount++;
+        continue;
+      }
+
+      // Validation 3: playedMove matches movesUci[plyIndex] (CRITICAL for preventing cross-game cache)
+      if (cached.playedMove !== movesUci[cached.plyIndex]) {
+        invalidCount++;
+        continue;
+      }
+
+      // Validation 4: Scores are valid structures
+      const { bestAfter, playedAfter } = cached.evaluation;
+      if (
+        (bestAfter.type !== 'cp' && bestAfter.type !== 'mate') ||
+        typeof bestAfter.value !== 'number' ||
+        (playedAfter.type !== 'cp' && playedAfter.type !== 'mate') ||
+        typeof playedAfter.value !== 'number'
+      ) {
+        invalidCount++;
+        continue;
+      }
+
+      // Validation 5: No duplicates (prefer first occurrence)
+      if (validated.has(cached.plyIndex)) {
+        invalidCount++;
+        continue;
+      }
+
+      // Valid entry - add to cache
+      validated.set(cached.plyIndex, cached);
+      validCount++;
+
+    } catch (err) {
+      // Any error during validation -> skip entry
+      invalidCount++;
+      continue;
+    }
+  }
+
+  if (validCount > 0 || invalidCount > 0) {
+    logger.info('cache_validation', 'system', {
+      validCount,
+      invalidCount,
+      hitRate: validCount > 0 ? validCount / (validCount + invalidCount) : 0,
+    });
+  }
+
+  return validated;
+}
+
+async function runAccuracyReview(
   logger: Logger,
-  userEmail: string
+  engine: ChessEngine,
+  params: {
+    movesUci: string[];
+    lastMoves: number;
+    cachedPerPly: AccuracyPly[];
+  }
 ): Promise<{ payload: AccuracyPayload; timingMs: number }> {
+  const { movesUci, lastMoves, cachedPerPly } = params;
   const startTime = Date.now();
 
   // Calculate window
@@ -182,12 +267,16 @@ async function phaseA_AccuracyReview(
   const windowMoves = movesUci.slice(startPlyIndex);
   const analyzedPlies = windowMoves.length;
 
-  logger.info('stats_start', userEmail, {
+  // Validate cached data
+  const cacheMap = validateCachedAccuracy(cachedPerPly, movesUci, logger);
+
+  logger.info('stats_start', {
     totalMoves: movesUci.length,
     lastMoves,
     windowPlies,
     analyzedPlies,
     startPlyIndex,
+    cachedEntries: cacheMap.size,
   });
 
   // Configure engine for full strength
@@ -202,10 +291,23 @@ async function phaseA_AccuracyReview(
   await engine.waitReady();
 
   const perPly: AccuracyPly[] = [];
+  let cacheHits = 0;
+  let cacheMisses = 0;
 
   // Analyze each ply in the window
   for (let i = 0; i < windowMoves.length; i++) {
     const plyIndex = startPlyIndex + i;
+
+    // Check cache first
+    const cachedEntry = cacheMap.get(plyIndex);
+    if (cachedEntry) {
+      perPly.push(cachedEntry);
+      cacheHits++;
+      continue;  // Skip analysis for this ply
+    }
+
+    // Cache miss - perform full analysis
+    cacheMisses++;
     const sidePlayed: Side = sideToMoveAtPly(plyIndex);
     const moveNumber = Math.floor(plyIndex / 2) + 1;
     const playedMove = windowMoves[i];
@@ -319,6 +421,14 @@ async function phaseA_AccuracyReview(
     });
   }
 
+  // Log cache performance
+  logger.info('cache_performance', {
+    cacheHits,
+    cacheMisses,
+    hitRate: cacheHits > 0 ? cacheHits / (cacheHits + cacheMisses) : 0,
+    timeSavedEstimateMs: cacheHits * movetimePerEval * 2,
+  });
+
   // Calculate summary with new classification system
   const summary = perPly.reduce(
     (acc, p) => {
@@ -366,45 +476,50 @@ async function phaseA_AccuracyReview(
 }
 
 // ============================================================================
-// Phase B: Reset (Anti-Contamination)
+// Engine Reset (Anti-Contamination)
 // ============================================================================
 
-async function phaseB_Reset(engine: ChessEngine, logger: Logger, userEmail: string): Promise<void> {
-  logger.info('reset_before', userEmail, {
-    phase: 'B',
+async function runEngineReset(logger: Logger, engine: ChessEngine): Promise<void> {
+  logger.info('reset_before', {
     action: 'ucinewgame',
-    reason: 'Prevent contamination between Phase A and Phase C',
+    reason: 'Prevent contamination between accuracy review and suggestions',
   });
 
   engine.sendCommand('ucinewgame');
   await engine.waitReady();
 
-  logger.info('reset_after', userEmail, {
-    phase: 'B',
+  logger.info('reset_after', {
     status: 'clean',
-    message: 'Engine state cleared, ready for Phase C',
+    message: 'Engine state cleared, ready for suggestions',
   });
 }
 
 // ============================================================================
-// Phase C: User-Mode Suggestions (MultiPV)
+// User-Mode Suggestions (MultiPV)
 // ============================================================================
 
-async function phaseC_UserModeSuggestions(
-  engine: ChessEngine,
-  movesUci: string[],
-  targetElo: number,
-  personality: Personality,
-  multiPV: number,
+async function runSuggestions(
   logger: Logger,
-  userEmail: string
+  engine: ChessEngine,
+  params: {
+    movesUci: string[];
+    targetElo: number;
+    personality: Personality;
+    multiPV: number;
+    disableLimitStrength?: boolean;
+  }
 ): Promise<{ payload: SuggestionsPayload; timingMs: number }> {
+  const { movesUci, targetElo, personality, multiPV, disableLimitStrength } = params;
   const startTime = Date.now();
 
-  logger.info('suggestion_start', userEmail, {
+  // Determine if we should enable limit strength (disabled if user requests full strength and ELO >= 2000)
+  const shouldLimitStrength = !(disableLimitStrength && targetElo >= 2000);
+
+  logger.info('suggestion_start', {
     targetElo,
     personality,
     multiPV,
+    limitStrength: shouldLimitStrength,
     currentPly: movesUci.length,
   });
 
@@ -414,8 +529,10 @@ async function phaseC_UserModeSuggestions(
 
   // Configure engine for user mode
   engine.sendCommand(`setoption name Hash value ${sugHashMB}`);
-  engine.sendCommand('setoption name UCI_LimitStrength value true');
-  engine.setElo(targetElo);  // Use setElo() to update tracked value
+  engine.sendCommand(`setoption name UCI_LimitStrength value ${shouldLimitStrength ? 'true' : 'false'}`);
+  if (shouldLimitStrength) {
+    engine.setElo(targetElo);  // Only set ELO if limit strength is enabled
+  }
   engine.setPersonality(personality);  // Use setPersonality() to update tracked value
   engine.sendCommand(`setoption name MultiPV value ${clamp(multiPV, 1, 8)}`);
   await engine.waitReady();
@@ -535,6 +652,235 @@ async function phaseC_UserModeSuggestions(
 }
 
 // ============================================================================
+// Decoupled Handler: Stats Only (Accuracy Review)
+// ============================================================================
+
+/**
+ * Handle stats-only request (opponent's turn, background).
+ * Executes engine reset + accuracy review.
+ * Another reset will be done before suggestions if needed.
+ */
+export async function handleAnalyzeStats(
+  engine: ChessEngine,
+  req: AnalyzeStatsRequest,
+  userEmail: string = 'system'
+): Promise<AnalyzeStatsResponse | AnalyzeErrorResponse> {
+  const t0 = Date.now();
+  const logger = new Logger(req.requestId || '', userEmail);
+
+  try {
+    const movesUci = req.payload.movesUci ?? [];
+    const lastMoves = req.payload.review?.lastMoves ?? 1;
+    const cachedAccuracy = req.payload.review.cachedAccuracy ?? [];
+
+    logger.info('stats_request', {
+      type: 'analyze_stats',
+      movesCount: movesUci.length,
+      lastMoves,
+      cachedCount: cachedAccuracy.length,
+    });
+
+    // Engine Reset (Clean State)
+    await runEngineReset(logger, engine);
+
+    // Accuracy Review (Full Strength)
+    const { payload: accuracyPayload, timingMs: reviewMs } = await runAccuracyReview(
+      logger,
+      engine,
+      {
+        movesUci,
+        lastMoves,
+        cachedPerPly: cachedAccuracy,
+      }
+    );
+
+    const totalMs = Date.now() - t0;
+
+    const response: AnalyzeStatsResponse = {
+      type: 'analyze_stats_result',
+      requestId: req.requestId || '',
+      version: '1.0',
+      payload: {
+        accuracy: accuracyPayload,
+      },
+      meta: {
+        engine: 'KomodoDragon',
+        settingsUsed: {
+          review: {
+            hashMB: 256,
+            limitStrength: false,
+            multiPV: 1,
+            movetimeMsPerEval: 80,
+            analyzedPlies: accuracyPayload.window.analyzedPlies,
+          },
+        },
+        timings: {
+          reviewMs,
+          totalMs,
+        },
+      },
+    };
+
+    logger.info('stats_complete', {
+      reviewMs,
+      totalMs,
+      analyzedPlies: accuracyPayload.window.analyzedPlies,
+    });
+
+    return response;
+  } catch (e: any) {
+    logger.info('stats_error', {
+      errorMessage: e?.message,
+      errorStack: e?.stack,
+    });
+
+    const errorResponse: AnalyzeErrorResponse = {
+      type: 'analyze_error',
+      requestId: req.requestId || '',
+      version: '1.0',
+      error: {
+        code: 'STATS_FAILED',
+        message: e?.message ?? 'Unknown error during stats analysis',
+      },
+      meta: { engine: 'KomodoDragon' },
+    };
+
+    return errorResponse;
+  }
+}
+
+// ============================================================================
+// Decoupled Handler: Suggestions Only
+// ============================================================================
+
+/**
+ * Handle suggestions-only request (player's turn, fast).
+ * Executes engine reset + user-mode suggestions using cached stats.
+ * Requires cached stats from a previous AnalyzeStatsRequest.
+ */
+export async function handleAnalyzeSuggestions(
+  engine: ChessEngine,
+  req: AnalyzeSuggestionsRequest,
+  userEmail: string = 'system'
+): Promise<AnalyzeSuggestionsResponse | AnalyzeErrorResponse> {
+  const t0 = Date.now();
+  const logger = new Logger(req.requestId || '', userEmail);
+
+  try {
+    const movesUci = req.payload.movesUci ?? [];
+    const cachedStats = req.payload.cachedStats;
+    const { targetElo, personality, multiPV, disableLimitStrength } = req.payload.user;
+
+    // Validation: cached stats required
+    if (!cachedStats?.accuracy) {
+      logger.info('suggestions_missing_stats', {
+        errorMessage: 'Missing cached stats',
+      });
+
+      return {
+        type: 'analyze_error',
+        requestId: req.requestId || '',
+        version: '1.0',
+        error: {
+          code: 'MISSING_STATS',
+          message: 'Cached stats required for suggestions-only request. Send analyze_stats first.',
+        },
+        meta: { engine: 'KomodoDragon' },
+      };
+    }
+
+    logger.info('suggestions_request', {
+      type: 'analyze_suggestions',
+      movesCount: movesUci.length,
+      targetElo,
+      personality,
+      multiPV,
+      cachedStatsAvailable: true,
+    });
+
+    // Engine Reset (Anti-Contamination between accuracy review and suggestions)
+    const resetStart = Date.now();
+    await runEngineReset(logger, engine);
+    const resetMs = Date.now() - resetStart;
+
+    // User-Mode Suggestions
+    const { payload: suggestionsPayload, timingMs: suggestionMs } = await runSuggestions(
+      logger,
+      engine,
+      {
+        movesUci,
+        targetElo,
+        personality,
+        multiPV,
+        disableLimitStrength,
+      }
+    );
+
+    const totalMs = Date.now() - t0;
+
+    // Calculate actual limitStrength value used
+    const suggestionLimitStrength = !(disableLimitStrength && targetElo >= 2000);
+
+    const response: AnalyzeSuggestionsResponse = {
+      type: 'analyze_suggestions_result',
+      requestId: req.requestId || '',
+      version: '1.0',
+      payload: {
+        suggestions: suggestionsPayload,
+        accuracy: cachedStats.accuracy, // Include cached stats for convenience
+      },
+      meta: {
+        engine: 'KomodoDragon',
+        settingsUsed: {
+          suggestion: {
+            hashMB: suggestionsPayload.computeSettings.hashMB,
+            limitStrength: suggestionLimitStrength,
+            targetElo,
+            personality,
+            multiPV: clamp(multiPV, 1, 8),
+            movetimeMs: suggestionsPayload.computeSettings.movetimeMs,
+            warmupNodes: suggestionsPayload.computeSettings.warmup.enabled
+              ? suggestionsPayload.computeSettings.warmup.nodes
+              : undefined,
+          },
+        },
+        timings: {
+          suggestionMs,
+          totalMs,
+        },
+      },
+    };
+
+    logger.info('suggestions_complete', {
+      resetMs,
+      suggestionMs,
+      totalMs,
+      suggestionsCount: suggestionsPayload.suggestions.length,
+    });
+
+    return response;
+  } catch (e: any) {
+    logger.info('suggestions_error', {
+      errorMessage: e?.message,
+      errorStack: e?.stack,
+    });
+
+    const errorResponse: AnalyzeErrorResponse = {
+      type: 'analyze_error',
+      requestId: req.requestId || '',
+      version: '1.0',
+      error: {
+        code: 'SUGGESTIONS_FAILED',
+        message: e?.message ?? 'Unknown error during suggestions analysis',
+      },
+      meta: { engine: 'KomodoDragon' },
+    };
+
+    return errorResponse;
+  }
+}
+
+// ============================================================================
 // Main Pipeline Entry Point
 // ============================================================================
 
@@ -544,37 +890,48 @@ export async function handleAnalyze(
   userEmail: string = 'system'
 ): Promise<AnalyzeResultResponse | AnalyzeErrorResponse> {
   const t0 = Date.now();
-  const logger = new Logger(req.requestId || '');
+  const logger = new Logger(req.requestId || '', userEmail);
 
   try {
     const movesUci = req.payload.movesUci ?? [];
     const lastMoves = req.payload.review?.lastMoves ?? 10;
-    const { targetElo, personality, multiPV } = req.payload.user;
+    const cachedAccuracy = req.payload.review.cachedAccuracy;
+    const { targetElo, personality, multiPV, disableLimitStrength } = req.payload.user;
 
-    // Phase A: Accuracy Review (Full Strength)
-    const { payload: accuracyPayload, timingMs: reviewMs } = await phaseA_AccuracyReview(
-      engine,
-      movesUci,
-      lastMoves,
+    // Engine Reset (Clean State)
+    await runEngineReset(logger, engine);
+
+    // Accuracy Review (Full Strength)
+    const { payload: accuracyPayload, timingMs: reviewMs } = await runAccuracyReview(
       logger,
-      userEmail
+      engine,
+      {
+        movesUci,
+        lastMoves,
+        cachedPerPly: cachedAccuracy,
+      }
     );
 
-    // Phase B: Reset (Anti-Contamination)
-    await phaseB_Reset(engine, logger, userEmail);
+    // Engine Reset (Anti-Contamination)
+    await runEngineReset(logger, engine);
 
-    // Phase C: User-Mode Suggestions
-    const { payload: suggestionsPayload, timingMs: suggestionMs } = await phaseC_UserModeSuggestions(
-      engine,
-      movesUci,
-      targetElo,
-      personality,
-      multiPV,
+    // User-Mode Suggestions
+    const { payload: suggestionsPayload, timingMs: suggestionMs } = await runSuggestions(
       logger,
-      userEmail
+      engine,
+      {
+        movesUci,
+        targetElo,
+        personality,
+        multiPV,
+        disableLimitStrength,
+      }
     );
 
     const totalMs = Date.now() - t0;
+
+    // Calculate actual limitStrength value used
+    const suggestionLimitStrength = !(disableLimitStrength && targetElo >= 2000);
 
     const response: AnalyzeResultResponse = {
       type: 'analyze_result',
@@ -596,7 +953,7 @@ export async function handleAnalyze(
           },
           suggestion: {
             hashMB: suggestionsPayload.computeSettings.hashMB,
-            limitStrength: true,
+            limitStrength: suggestionLimitStrength,
             targetElo,
             personality,
             multiPV: clamp(multiPV, 1, 8),

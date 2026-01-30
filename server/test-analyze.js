@@ -14,11 +14,12 @@ console.log('✓ uci-helpers imported successfully');
 // Verify key exports exist
 console.log('\nVerifying exports:');
 console.log('  handleAnalyze:', typeof handleAnalyze);
-console.log('  parseInfoLine:', typeof helpers.parseInfoLine);
 console.log('  toWhitePOV:', typeof helpers.toWhitePOV);
 console.log('  lossCpForPlayer:', typeof helpers.lossCpForPlayer);
+console.log('  lossWinForPlayer:', typeof helpers.lossWinForPlayer);
 console.log('  computeHashForElo:', typeof helpers.computeHashForElo);
 console.log('  isPromotionMove:', typeof helpers.isPromotionMove);
+console.log('  scoreToWinPercent:', typeof helpers.scoreToWinPercent);
 
 console.log('\n✅ All imports and exports verified successfully!');
 console.log('\nNext steps:');

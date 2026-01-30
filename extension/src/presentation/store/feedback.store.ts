@@ -25,6 +25,18 @@ interface FeedbackStore extends ChessrState {
     currentMovesUci: string[]
   ) => void;
 
+  handleStatsResult: (
+    result: any, // AnalyzeStatsResponse
+    currentFen: string,
+    currentMovesUci: string[]
+  ) => void;
+
+  handleSuggestionsResult: (
+    result: any, // AnalyzeSuggestionsResponse
+    currentFen: string,
+    currentMovesUci: string[]
+  ) => void;
+
   handlePlayerMove: (playedMoveUci: string) => void;
 
   handleAnalyzeError: (error: AnalyzeErrorResponse) => void;
@@ -66,6 +78,69 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
       plyIndex: newState.activeSnapshot?.plyIndex,
       suggestions: newState.activeSnapshot?.suggestions.length,
       accuracy: newState.activeSnapshot?.accuracy.overall,
+    });
+  },
+
+  handleStatsResult: (result, currentFen, currentMovesUci) => {
+    const currentState = get();
+
+    // Extract accuracy data and cache it
+    const accuracyPayload = result.payload.accuracy;
+
+    // Build cache map from accuracy plies
+    const cacheMap = new Map();
+    accuracyPayload.perPly.forEach((ply: any) => {
+      cacheMap.set(ply.plyIndex, ply);
+    });
+
+    // Update state with cached accuracy
+    set({
+      accuracyCache: {
+        analyzedPlies: cacheMap,
+        overallStats: accuracyPayload.summary,
+      },
+    });
+
+    console.log('[Feedback] Stats result processed', {
+      cachedPlies: cacheMap.size,
+      overall: accuracyPayload.overall,
+    });
+  },
+
+  handleSuggestionsResult: (result, currentFen, currentMovesUci) => {
+    const currentState = get();
+
+    // Extract suggestions and cached accuracy
+    const suggestionsPayload = result.payload.suggestions;
+    const accuracyPayload = result.payload.accuracy; // Included for convenience
+
+    // Build active snapshot
+    const plyIndex = currentMovesUci.length;
+    const sideToMove = currentFen.split(' ')[1] as 'w' | 'b';
+
+    // Create fenHash (simple hash for now)
+    const fenHash = currentFen.substring(0, 30);
+
+    set({
+      status: 'SHOWING',
+      activeSnapshot: {
+        requestId: result.requestId,
+        fenHash,
+        plyIndex,
+        sideToMove,
+        chosenIndex: suggestionsPayload.chosenIndex,
+        suggestions: suggestionsPayload.suggestions,
+        accuracy: accuracyPayload,
+        receivedAt: Date.now(),
+      },
+      selectedSuggestionIndex: 0, // Default to first suggestion
+    });
+
+    console.log('[Feedback] Suggestions result processed', {
+      status: 'SHOWING',
+      plyIndex,
+      suggestions: suggestionsPayload.suggestions.length,
+      accuracy: accuracyPayload.overall,
     });
   },
 

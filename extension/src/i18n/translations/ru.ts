@@ -26,6 +26,8 @@ export const ru: Translations = {
     title: 'Целевой ELO',
     display: 'Отображение Chess.com',
     antiCheat: 'Рандомизация ELO ±100',
+    fullStrength: 'Режим Полной Силы',
+    fullStrengthDesc: 'Отключить ограничение ELO для предложений максимальной силы (доступно от 2000 ELO)',
   },
 
   personalities: {

@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   singleArrowColor: '#00c850',  // Green
   language: 'auto',  // Auto-detect browser language
   numberOfSuggestions: 3,  // Show all 3 suggestions by default
+  disableLimitStrength: false,  // Keep limit strength enabled by default
 
   // New feedback & analysis options (all enabled by default)
   showSuggestions: true,

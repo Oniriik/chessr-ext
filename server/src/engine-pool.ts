@@ -431,7 +431,7 @@ export class EnginePool {
   /**
    * Get engine for direct UCI control (bypasses CandidateSelector).
    * Blocks until engine available.
-   * Used by the new dual-phase analysis pipeline.
+   * Used by the new analysis pipeline.
    */
   async getEngineForDirectUse(): Promise<ChessEngine> {
     if (!this.initialized) {
