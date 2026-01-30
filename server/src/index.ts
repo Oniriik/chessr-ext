@@ -401,8 +401,6 @@ class ChessServer {
       return;
     }
 
-    logger.info('auth_request', clientInfo.email);
-
     const userInfo = validateSupabaseToken(message.token);
 
     if (userInfo) {

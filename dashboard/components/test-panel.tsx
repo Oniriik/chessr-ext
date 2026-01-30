@@ -1,178 +1,183 @@
 'use client'
 
 import { useState } from 'react'
-import { Play, CheckCircle, XCircle } from 'lucide-react'
+import { Zap, CheckCircle, XCircle, Wifi, WifiOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Badge } from '@/components/ui/badge'
+import { Slider } from '@/components/ui/slider'
+import { useChessSocket } from '@/lib/use-chess-socket'
 
-const DEFAULT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+// Sample mid-game position (Italian Game, about 15 moves in)
+const TEST_MOVES = [
+  'e2e4', 'e7e5', 'g1f3', 'b8c6', 'f1c4', 'f8c5',
+  'd2d3', 'g8f6', 'c2c3', 'd7d6', 'b1d2', 'a7a6',
+  'c4b3', 'c8e6', 'd2c4', 'e6b3', 'a2b3', 'e8g8',
+  'h2h3', 'd8e7', 'e1g1', 'f8e8', 'f1e1', 'a8d8',
+  'c4e3', 'h7h6', 'd1c2', 'c6e5', 'f3e5', 'd6e5',
+]
 
 export default function TestPanel() {
-  const [fen, setFen] = useState(DEFAULT_FEN)
+  const serverUrl = process.env.NEXT_PUBLIC_CHESS_SERVER_URL || 'ws://localhost:3001'
+  const { isConnected, isAuthenticated, sendAnalysis } = useChessSocket(serverUrl)
+
+  const [requestCount, setRequestCount] = useState([10])
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
-  const [error, setError] = useState('')
-  const [responseTime, setResponseTime] = useState<number | null>(null)
+  const [results, setResults] = useState<{
+    success: number
+    failed: number
+    duration: number
+    avgResponseTime: number
+  } | null>(null)
 
-  const runTest = async () => {
+  const runLoadTest = async () => {
+    if (!isAuthenticated) {
+      console.error('Not authenticated')
+      return
+    }
+
     setLoading(true)
-    setResult(null)
-    setError('')
-    setResponseTime(null)
-
+    setResults(null)
     const startTime = Date.now()
+    const responseTimes: number[] = []
 
     try {
-      const response = await fetch('/api/test-analysis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fen }),
+      // Send N concurrent requests using WebSocket
+      const promises = Array.from({ length: requestCount[0] }, (_, i) => {
+        const requestStart = Date.now()
+        const requestId = `test-${Date.now()}-${i}`
+
+        return sendAnalysis(requestId, TEST_MOVES)
+          .then((result) => {
+            const requestDuration = Date.now() - requestStart
+            responseTimes.push(requestDuration)
+            return { success: result.type === 'analyze_result' }
+          })
+          .catch(() => ({ success: false }))
       })
 
-      const endTime = Date.now()
-      setResponseTime(endTime - startTime)
+      const responses = await Promise.all(promises)
+      const duration = Date.now() - startTime
 
-      const data = await response.json()
+      const success = responses.filter(r => r.success).length
+      const failed = responses.length - success
+      const avgResponseTime = responseTimes.length > 0
+        ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length)
+        : 0
 
-      if (data.error) {
-        setError(data.error)
-      } else {
-        setResult(data.result)
-      }
-    } catch (err: any) {
-      setError(err.message)
+      setResults({ success, failed, duration, avgResponseTime })
+    } catch (error) {
+      console.error('Load test error:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const loadExample = (exampleFen: string) => {
-    setFen(exampleFen)
-    setResult(null)
-    setError('')
-  }
-
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Analysis Test</h2>
-
-      {/* FEN Input */}
-      <div className="space-y-2">
-        <label className="text-sm font-medium">FEN Position</label>
-        <Input
-          type="text"
-          value={fen}
-          onChange={(e) => setFen(e.target.value)}
-          placeholder="Enter FEN position"
-          className="font-mono"
-        />
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            onClick={() => loadExample(DEFAULT_FEN)}
-            variant="secondary"
-            size="sm"
-          >
-            Starting Position
-          </Button>
-          <Button
-            onClick={() => loadExample('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3')}
-            variant="secondary"
-            size="sm"
-          >
-            Italian Opening
-          </Button>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Load Testing</h2>
+        <div className="flex items-center gap-2 text-sm">
+          {isConnected ? (
+            <>
+              <Wifi className="w-4 h-4 text-green-600" />
+              <span className="text-green-600">
+                {isAuthenticated ? 'Connected' : 'Authenticating...'}
+              </span>
+            </>
+          ) : (
+            <>
+              <WifiOff className="w-4 h-4 text-red-600" />
+              <span className="text-red-600">Disconnected</span>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Test Button */}
-      <Button onClick={runTest} disabled={loading || !fen} size="lg">
-        <Play className="w-5 h-5 mr-2" />
-        {loading ? 'Analyzing...' : 'Run Analysis Test'}
-      </Button>
-
-      {/* Response Time */}
-      {responseTime !== null && (
-        <div className="flex items-center gap-2 text-sm">
-          <CheckCircle className="w-4 h-4 text-green-500" />
-          <span>Response time: <strong>{responseTime}ms</strong></span>
-        </div>
-      )}
-
-      {/* Error Display */}
-      {error && (
-        <Alert variant="destructive">
-          <XCircle className="w-4 h-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Result Display */}
-      {result && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Analysis Result</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <span className="text-sm text-muted-foreground">Best Move</span>
-                <p className="text-xl font-bold font-mono">{result.bestMove}</p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Evaluation</span>
-                <p className="text-xl font-bold">
-                  {result.mate
-                    ? `M${result.mate}`
-                    : (result.evaluation / 100).toFixed(2)
-                  }
-                </p>
-              </div>
-              <div>
-                <span className="text-sm text-muted-foreground">Depth</span>
-                <p className="text-xl font-bold">{result.depth}</p>
-              </div>
-              {result.ponder && (
-                <div>
-                  <span className="text-sm text-muted-foreground">Ponder</span>
-                  <p className="text-xl font-bold font-mono">{result.ponder}</p>
-                </div>
-              )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Zap className="w-5 h-5" />
+            Concurrent Requests
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Slider */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <label className="text-sm font-medium">Number of requests:</label>
+              <span className="text-2xl font-bold text-primary">{requestCount[0]}</span>
             </div>
+            <Slider
+              value={requestCount}
+              onValueChange={setRequestCount}
+              min={1}
+              max={100}
+              step={1}
+              className="w-full"
+              disabled={loading || !isAuthenticated}
+            />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>1</span>
+              <span>25</span>
+              <span>50</span>
+              <span>75</span>
+              <span>100</span>
+            </div>
+          </div>
 
-            {/* Lines */}
-            {result.lines && result.lines.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Top Lines</h4>
-                <div className="space-y-2">
-                  {result.lines.map((line: any, idx: number) => (
-                    <div key={idx} className="bg-muted p-3 rounded-lg">
-                      <div className="flex justify-between items-center mb-1">
-                        <Badge variant="outline">Line {idx + 1}</Badge>
-                        <span className="text-sm text-muted-foreground">
-                          {line.mate ? `M${line.mate}` : (line.evaluation / 100).toFixed(2)}
-                        </span>
-                      </div>
-                      <code className="text-xs text-muted-foreground font-mono">
-                        {line.moves.slice(0, 6).join(' ')}
-                        {line.moves.length > 6 && '...'}
-                      </code>
-                    </div>
-                  ))}
+          {/* Test Button */}
+          <Button
+            onClick={runLoadTest}
+            disabled={loading || !isAuthenticated}
+            size="lg"
+            className="w-full"
+          >
+            <Zap className="w-5 h-5 mr-2" />
+            {loading ? 'Running...' : !isAuthenticated ? 'Not Connected' : `Send ${requestCount[0]} Request${requestCount[0] > 1 ? 's' : ''}`}
+          </Button>
+
+          {/* Results */}
+          {results && (
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Success:</span>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  <span className="text-lg font-semibold text-green-600">{results.success}</span>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Failed:</span>
+                <div className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-red-600" />
+                  <span className="text-lg font-semibold text-red-600">{results.failed}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total Duration:</span>
+                <span className="text-lg font-semibold">{results.duration}ms</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Avg Response:</span>
+                <span className="text-lg font-semibold">{results.avgResponseTime}ms</span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <span className="text-sm text-muted-foreground">Success Rate:</span>
+                <span className="text-lg font-semibold">
+                  {((results.success / (results.success + results.failed)) * 100).toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Server Info */}
       <Card>
         <CardContent className="pt-4">
           <div className="text-xs text-muted-foreground space-y-1">
-            <p><strong>Server:</strong> {process.env.NEXT_PUBLIC_CHESS_SERVER_URL || 'wss://ws.chessr.io'}</p>
+            <p><strong>Server:</strong> {process.env.NEXT_PUBLIC_CHESS_SERVER_URL || 'ws://localhost:3001'}</p>
+            <p><strong>Position:</strong> Starting position</p>
             <p><strong>Settings:</strong> Depth 15, ELO 2000, Balanced mode, MultiPV 3</p>
           </div>
         </CardContent>

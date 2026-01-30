@@ -273,11 +273,8 @@ async function runAccuracyReview(
   logger.info('stats_start', {
     totalMoves: movesUci.length,
     lastMoves,
-    windowPlies,
-    analyzedPlies,
     startPlyIndex,
-    cachedEntries: cacheMap.size,
-  });
+  }, 'started');
 
   // Configure engine for full strength
   const reviewHashMB = 256;
@@ -421,14 +418,6 @@ async function runAccuracyReview(
     });
   }
 
-  // Log cache performance
-  logger.info('cache_performance', {
-    cacheHits,
-    cacheMisses,
-    hitRate: cacheHits > 0 ? cacheHits / (cacheHits + cacheMisses) : 0,
-    timeSavedEstimateMs: cacheHits * movetimePerEval * 2,
-  });
-
   // Calculate summary with new classification system
   const summary = perPly.reduce(
     (acc, p) => {
@@ -472,6 +461,13 @@ async function runAccuracyReview(
   };
 
   const timingMs = Date.now() - startTime;
+
+  logger.info('stats_start', {
+    windowPlies,
+    analyzedPlies,
+    duration: timingMs >= 1000 ? `${(timingMs / 1000).toFixed(2)}s` : `${timingMs}ms`,
+  }, 'ended');
+
   return { payload, timingMs };
 }
 
@@ -479,19 +475,9 @@ async function runAccuracyReview(
 // Engine Reset (Anti-Contamination)
 // ============================================================================
 
-async function runEngineReset(logger: Logger, engine: ChessEngine): Promise<void> {
-  logger.info('reset_before', {
-    action: 'ucinewgame',
-    reason: 'Prevent contamination between accuracy review and suggestions',
-  });
-
+async function runEngineReset(engine: ChessEngine): Promise<void> {
   engine.sendCommand('ucinewgame');
   await engine.waitReady();
-
-  logger.info('reset_after', {
-    status: 'clean',
-    message: 'Engine state cleared, ready for suggestions',
-  });
 }
 
 // ============================================================================
@@ -521,7 +507,7 @@ async function runSuggestions(
     multiPV,
     limitStrength: shouldLimitStrength,
     currentPly: movesUci.length,
-  });
+  }, 'started');
 
   // Map ELO to hash and movetime
   const sugHashMB = computeHashForElo(targetElo);
@@ -648,6 +634,11 @@ async function runSuggestions(
   };
 
   const timingMs = Date.now() - startTime;
+
+  logger.info('suggestion_start', {
+    duration: timingMs >= 1000 ? `${(timingMs / 1000).toFixed(2)}s` : `${timingMs}ms`,
+  }, 'ended');
+
   return { payload, timingMs };
 }
 
@@ -681,7 +672,7 @@ export async function handleAnalyzeStats(
     });
 
     // Engine Reset (Clean State)
-    await runEngineReset(logger, engine);
+    await runEngineReset(engine);
 
     // Accuracy Review (Full Strength)
     const { payload: accuracyPayload, timingMs: reviewMs } = await runAccuracyReview(
@@ -800,7 +791,7 @@ export async function handleAnalyzeSuggestions(
 
     // Engine Reset (Anti-Contamination between accuracy review and suggestions)
     const resetStart = Date.now();
-    await runEngineReset(logger, engine);
+    await runEngineReset(engine);
     const resetMs = Date.now() - resetStart;
 
     // User-Mode Suggestions
@@ -899,7 +890,7 @@ export async function handleAnalyze(
     const { targetElo, personality, multiPV, disableLimitStrength } = req.payload.user;
 
     // Engine Reset (Clean State)
-    await runEngineReset(logger, engine);
+    await runEngineReset(engine);
 
     // Accuracy Review (Full Strength)
     const { payload: accuracyPayload, timingMs: reviewMs } = await runAccuracyReview(
@@ -913,7 +904,7 @@ export async function handleAnalyze(
     );
 
     // Engine Reset (Anti-Contamination)
-    await runEngineReset(logger, engine);
+    await runEngineReset(engine);
 
     // User-Mode Suggestions
     const { payload: suggestionsPayload, timingMs: suggestionMs } = await runSuggestions(

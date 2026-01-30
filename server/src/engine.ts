@@ -492,26 +492,15 @@ export class ChessEngine {
       this.send(`setoption name MultiPV value ${options.multiPV}`);
 
       // Use move history if available, otherwise FEN
-      const sideToMove = fen.split(' ')[1];
       if (options.moves.length > 0) {
-        globalLogger.info('engine_analyze_position', {
-          method: 'moves',
-          movesCount: options.moves.length,
-          lastMove: options.moves[options.moves.length - 1],
-          sideToMove,
-          elo: this.currentElo
-        });
         this.send(`position startpos moves ${options.moves.join(' ')}`);
       } else {
-        globalLogger.info('engine_analyze_position', { method: 'fen', fen, sideToMove, elo: this.currentElo });
         this.send(`position fen ${fen}`);
       }
 
       if (options.searchMode === 'time') {
-        globalLogger.info('engine_search_command', { mode: 'time', moveTime: options.moveTime, elo: this.currentElo, personality: this.currentPersonality });
         this.send(`go movetime ${options.moveTime}`);
       } else {
-        globalLogger.info('engine_search_command', { mode: 'depth', depth: options.depth, elo: this.currentElo, personality: this.currentPersonality });
         this.send(`go depth ${options.depth}`);
       }
     });

@@ -158,24 +158,30 @@ export class Logger {
     return randomUUID().slice(0, 8);
   }
 
-  private format(name: string, user: string, data?: Record<string, any>): string {
+  private format(name: string, user: string, data?: Record<string, any>, phase?: 'started' | 'ended'): string {
     const cat = categories[name] || defaultCategory;
     const timestamp = formatTimestamp();
     const reqId = formatRequestId(this.requestId);
-    const label = `${cat.color}${cat.icon} ${cat.label.padEnd(10)}${colors.reset}`;
+    const label = `${colors.cyan}[${cat.icon} ${cat.label}]${colors.reset}`;
+    const phaseColor = phase === 'started' ? colors.yellow : phase === 'ended' ? colors.green : '';
+    const phaseLabel = phase ? `${phaseColor}[${phase}]${colors.reset}` : '';
     const userName = formatUser(user);
     const dataStr = formatData(data);
 
-    return `${timestamp} ${reqId} ${label} ${userName}${dataStr}`;
+    return `${timestamp} ${reqId} ${label} ${phaseLabel} ${userName}${dataStr}`.replace(/\s+/g, ' ').trim();
   }
 
-  info(name: string, userOrData?: string | Record<string, any>, data?: Record<string, any>): void {
+  info(name: string, userOrData?: string | Record<string, any>, dataOrPhase?: Record<string, any> | 'started' | 'ended', phase?: 'started' | 'ended'): void {
     if (typeof userOrData === 'string') {
-      // Old signature: info(name, user, data?)
-      console.log(this.format(name, userOrData, data));
+      // Old signature: info(name, user, data?, phase?)
+      const data = typeof dataOrPhase === 'object' ? dataOrPhase : undefined;
+      const actualPhase = typeof dataOrPhase === 'string' ? dataOrPhase : phase;
+      console.log(this.format(name, userOrData, data, actualPhase));
     } else {
-      // New signature: info(name, data?)
-      console.log(this.format(name, this.userEmail, userOrData));
+      // New signature: info(name, data?, phase?)
+      const data = userOrData;
+      const actualPhase = typeof dataOrPhase === 'string' ? dataOrPhase : undefined;
+      console.log(this.format(name, this.userEmail, data, actualPhase));
     }
   }
 
@@ -200,7 +206,7 @@ export const globalLogger = {
   info(name: string, data?: Record<string, any>): void {
     const cat = categories[name] || defaultCategory;
     const timestamp = formatTimestamp();
-    const label = `${cat.color}${cat.icon} ${cat.label.padEnd(10)}${colors.reset}`;
+    const label = `${colors.cyan}[${cat.icon} ${cat.label}]${colors.reset}`;
     const dataStr = formatData(data);
 
     console.log(`${timestamp} ${label}${dataStr}`);
@@ -209,10 +215,34 @@ export const globalLogger = {
   error(name: string, error: Error | string, data?: Record<string, any>): void {
     const cat = categories[name] || defaultCategory;
     const timestamp = formatTimestamp();
-    const label = `${cat.color}${cat.icon} ${cat.label.padEnd(10)}${colors.reset}`;
+    const label = `${colors.cyan}[${cat.icon} ${cat.label}]${colors.reset}`;
     const errorMessage = error instanceof Error ? error.message : error;
     const dataStr = formatData({ ...data, error: errorMessage });
 
     console.log(`${timestamp} ${label}${dataStr}`);
+  },
+};
+
+// Pool logger with dedicated format
+type PoolAction = 'acquire' | 'release' | 'init' | 'ready' | 'add' | 'remove' | 'scale_up' | 'scale_down' | 'restart' | 'dead' | 'error';
+
+export const poolLogger = {
+  log(action: PoolAction, pool: number, available: number, extraData?: Record<string, any>): void {
+    const timestamp = formatTimestamp();
+
+    // Color-code the action based on type
+    let actionColor = colors.cyan;
+    if (action === 'restart') {
+      actionColor = colors.yellow;
+    } else if (action === 'dead' || action === 'error') {
+      actionColor = colors.red;
+    }
+
+    const label = `${colors.cyan}[POOL]${colors.reset}`;
+    const actionLabel = `${actionColor}[${action}]${colors.reset}`;
+    const poolData = `${colors.gray}pool=${colors.reset}${colors.yellow}${pool}${colors.reset} ${colors.gray}available=${colors.reset}${colors.yellow}${available}${colors.reset}`;
+    const extraStr = extraData ? ' ' + formatData(extraData) : '';
+
+    console.log(`${timestamp} ${label} ${actionLabel} ${poolData}${extraStr}`);
   },
 };
