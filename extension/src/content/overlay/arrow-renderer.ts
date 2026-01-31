@@ -1,5 +1,4 @@
 import { OverlayManager } from './overlay-manager';
-import { PVLine, ArrowColors } from '../../shared/types';
 
 interface ArrowOptions {
   from: string;
@@ -8,12 +7,6 @@ interface ArrowOptions {
   thickness?: number;
   opacity?: number;
   badges?: string[];  // All badges (label + sub-badges)
-}
-
-interface DrawOptions {
-  useDifferentColors: boolean;
-  colors: ArrowColors;
-  singleColor: string;
 }
 
 export class ArrowRenderer {
@@ -291,69 +284,5 @@ export class ArrowRenderer {
 
     marker.appendChild(polygon);
     defs.appendChild(marker);
-  }
-
-  drawBestMoves(lines: PVLine[], options: DrawOptions) {
-    this.overlay.clearArrows();
-
-    if (!lines || lines.length === 0) return;
-
-    const { useDifferentColors, colors, singleColor } = options;
-
-    // Prepare arrows data (we'll draw from thinnest to thickest)
-    const arrows: { from: string; to: string; color: string; thickness: number; opacity: number }[] = [];
-
-    lines.forEach((line, index) => {
-      if (!line.moves || line.moves.length === 0) return;
-
-      const move = line.moves[0];
-      if (move.length < 4) return;
-
-      const from = move.substring(0, 2);
-      const to = move.substring(2, 4);
-
-      let color: string;
-      let opacity: number;
-      let thickness: number;
-
-      if (useDifferentColors) {
-        if (index === 0) {
-          color = colors.best;
-          opacity = 0.9;
-          thickness = 8;
-        } else if (index === 1) {
-          color = colors.second;
-          opacity = 0.5;
-          thickness = 6;
-        } else {
-          color = colors.other;
-          opacity = 0.35;
-          thickness = 4;
-        }
-      } else {
-        // Single color mode - vary only thickness
-        color = singleColor;
-        if (index === 0) {
-          opacity = 0.9;
-          thickness = 8;
-        } else if (index === 1) {
-          opacity = 0.5;
-          thickness = 6;
-        } else {
-          opacity = 0.35;
-          thickness = 4;
-        }
-      }
-
-      arrows.push({ from, to, color, thickness, opacity });
-    });
-
-    // Sort by thickness (ascending) so thickest arrows are drawn last (on top)
-    arrows.sort((a, b) => a.thickness - b.thickness);
-
-    // Draw arrows from thinnest to thickest
-    arrows.forEach(arrow => {
-      this.drawArrowWithColor(arrow);
-    });
   }
 }

@@ -409,7 +409,14 @@ export class ChessEngine {
 
       // Determine if warmup should use user params
       const useUserParams = warmupContext === 'suggestions';
-      const warmupResult = await this.warmupHash(options.moves, playerColor, useUserParams);
+
+      // For suggestions, only warmup last 3 moves (6 plies) to save time
+      // For stats, warmup all moves for accurate ACPL calculation
+      const movesToWarmup = warmupContext === 'suggestions'
+        ? options.moves.slice(-6)  // Last 6 plies (3 full moves)
+        : options.moves;
+
+      const warmupResult = await this.warmupHash(movesToWarmup, playerColor, useUserParams);
       warmupTime = Date.now() - warmupStart;
 
       // For suggestions context: user settings already applied, no need to restore

@@ -246,7 +246,6 @@ class ChessServer {
       this.send(ws, {
         type: 'analyze_error',
         requestId: message.requestId || '',
-        version: '1.0',
         error: {
           code: 'ANALYZE_FAILED',
           message: err instanceof Error ? err.message : 'Analysis failed',
@@ -297,7 +296,6 @@ class ChessServer {
       this.send(ws, {
         type: 'analyze_error',
         requestId: message.requestId || '',
-        version: '1.0',
         error: {
           code: 'STATS_FAILED',
           message: err instanceof Error ? err.message : 'Stats analysis failed',
@@ -351,7 +349,6 @@ class ChessServer {
       this.send(ws, {
         type: 'analyze_error',
         requestId: message.requestId || '',
-        version: '1.0',
         error: {
           code: 'SUGGESTIONS_FAILED',
           message: err instanceof Error ? err.message : 'Suggestions analysis failed',

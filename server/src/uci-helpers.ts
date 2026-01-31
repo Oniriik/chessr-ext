@@ -5,83 +5,7 @@
  * All scores are normalized to White's perspective (POV) for consistent comparison.
  */
 
-import { EngineScore, PVLine, Side } from "./analyze-types.js";
-
-// ============================================================================
-// UCI Protocol Parsing
-// ============================================================================
-
-/**
- * Parse a UCI info line into structured data.
- *
- * Example input:
- *   "info depth 18 seldepth 28 multipv 1 score cp 34 pv e2e4 e7e5 g1f3"
- *
- * Returns null if line doesn't contain a valid score.
- */
-export function parseInfoLine(line: string): PVLine | null {
-  if (!line.startsWith("info ") || !line.includes("score")) {
-    return null;
-  }
-
-  const tokens = line.trim().split(/\s+/);
-  let depth: number | undefined;
-  let seldepth: number | undefined;
-  let multipv = 1;
-  let scoreType: "cp" | "mate" | null = null;
-  let scoreValue: number | null = null;
-  let pv: string[] = [];
-
-  for (let i = 1; i < tokens.length; i++) {
-    const token = tokens[i];
-
-    if (token === "depth") {
-      depth = Number(tokens[++i]);
-    } else if (token === "seldepth") {
-      seldepth = Number(tokens[++i]);
-    } else if (token === "multipv") {
-      multipv = Number(tokens[++i]);
-    } else if (token === "score") {
-      const st = tokens[++i] as "cp" | "mate";
-      const sv = Number(tokens[++i]);
-      if (st === "cp" || st === "mate") {
-        scoreType = st;
-        scoreValue = sv;
-      }
-    } else if (token === "pv") {
-      // Rest of tokens are PV moves
-      pv = tokens.slice(i + 1);
-      break;
-    }
-  }
-
-  if (!scoreType || scoreValue === null) {
-    return null;
-  }
-
-  return {
-    multipv,
-    depth,
-    seldepth,
-    score: { type: scoreType, value: scoreValue },
-    pv,
-  };
-}
-
-/**
- * Pick the best scoring line from multiple info lines with the same multipv index.
- * Selects the line with maximum depth.
- */
-export function pickBestScoreFromInfos(
-  infos: PVLine[],
-  multipvIndex: number = 1,
-): PVLine | null {
-  const lines = infos.filter((x) => x.multipv === multipvIndex && x.score);
-  if (!lines.length) return null;
-
-  // Sort by depth descending, take first
-  return lines.sort((a, b) => (b.depth ?? 0) - (a.depth ?? 0))[0];
-}
+import { EngineScore, Side } from "./analyze-types.js";
 
 // ============================================================================
 // Score Normalization
@@ -303,34 +227,6 @@ export function baseLabelFromLossWin(
   if (lossWin <= 8.0) return "Inaccuracy";
   if (lossWin <= 20.0) return "Mistake";
   return "Blunder";
-}
-
-/**
- * Classify a move based on centipawn loss (fallback when win% not available).
- *
- * @deprecated Use baseLabelFromLossWin with win% for better accuracy
- */
-export function classifyByCpLoss(lossCp: number): MoveLabel {
-  if (lossCp <= 10) return "Best";
-  if (lossCp <= 30) return "Excellent";
-  if (lossCp <= 80) return "Good";
-  if (lossCp <= 180) return "Inaccuracy";
-  if (lossCp <= 400) return "Mistake";
-  return "Blunder";
-}
-
-/**
- * Calculate accuracy score (0-100) from centipawn loss.
- *
- * Uses simple linear scaling: accuracy = 100 - (lossCp / K)
- * K = 10 means 10cp loss = -1 accuracy point
- *
- * @param lossCp - Centipawn loss
- * @returns Accuracy score (0-100)
- */
-export function accuracyFromCpLoss(lossCp: number): number {
-  const K = 10; // Calibration factor
-  return clamp(100 - lossCp / K, 0, 100);
 }
 
 // ============================================================================

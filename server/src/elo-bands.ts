@@ -66,32 +66,86 @@ export function getEloBand(elo: number): EloBand {
 
   // cplThresholds: move classification thresholds
   let cplThresholds: { inaccuracy: number; mistake: number; blunder: number };
-  if (elo < 800) cplThresholds = { inaccuracy: 120, mistake: 250, blunder: 500 };
-  else if (elo < 1100) cplThresholds = { inaccuracy: 90, mistake: 200, blunder: 400 };
-  else if (elo < 1400) cplThresholds = { inaccuracy: 70, mistake: 150, blunder: 300 };
-  else if (elo < 1700) cplThresholds = { inaccuracy: 50, mistake: 120, blunder: 250 };
-  else if (elo < 2000) cplThresholds = { inaccuracy: 30, mistake: 90, blunder: 180 };
+  if (elo < 800)
+    cplThresholds = { inaccuracy: 120, mistake: 250, blunder: 500 };
+  else if (elo < 1100)
+    cplThresholds = { inaccuracy: 90, mistake: 200, blunder: 400 };
+  else if (elo < 1400)
+    cplThresholds = { inaccuracy: 70, mistake: 150, blunder: 300 };
+  else if (elo < 1700)
+    cplThresholds = { inaccuracy: 50, mistake: 120, blunder: 250 };
+  else if (elo < 2000)
+    cplThresholds = { inaccuracy: 30, mistake: 90, blunder: 180 };
   else cplThresholds = { inaccuracy: 20, mistake: 60, blunder: 120 };
 
   // qualityLossCp: thresholds for move quality buckets (lossCp from best)
-  let qualityLossCp: { excellent: number; good: number; ok: number; inaccuracy: number };
-  if (elo < 800) qualityLossCp = { excellent: 25, good: 60, ok: 110, inaccuracy: 200 };
-  else if (elo < 1100) qualityLossCp = { excellent: 20, good: 50, ok: 90, inaccuracy: 160 };
-  else if (elo < 1400) qualityLossCp = { excellent: 18, good: 40, ok: 75, inaccuracy: 130 };
-  else if (elo < 1700) qualityLossCp = { excellent: 15, good: 35, ok: 65, inaccuracy: 110 };
-  else if (elo < 2000) qualityLossCp = { excellent: 12, good: 30, ok: 55, inaccuracy: 95 };
+  let qualityLossCp: {
+    excellent: number;
+    good: number;
+    ok: number;
+    inaccuracy: number;
+  };
+  if (elo < 800)
+    qualityLossCp = { excellent: 25, good: 60, ok: 110, inaccuracy: 200 };
+  else if (elo < 1100)
+    qualityLossCp = { excellent: 20, good: 50, ok: 90, inaccuracy: 160 };
+  else if (elo < 1400)
+    qualityLossCp = { excellent: 18, good: 40, ok: 75, inaccuracy: 130 };
+  else if (elo < 1700)
+    qualityLossCp = { excellent: 15, good: 35, ok: 65, inaccuracy: 110 };
+  else if (elo < 2000)
+    qualityLossCp = { excellent: 12, good: 30, ok: 55, inaccuracy: 95 };
   else qualityLossCp = { excellent: 10, good: 24, ok: 45, inaccuracy: 80 };
 
   // qualityTargets: target distribution for quality sampling (sum = 1.0)
-  let qualityTargets: { excellent: number; good: number; ok: number; inaccuracy: number };
-  if (elo < 800) qualityTargets = { excellent: 0.08, good: 0.30, ok: 0.42, inaccuracy: 0.20 };
-  else if (elo < 1100) qualityTargets = { excellent: 0.12, good: 0.35, ok: 0.38, inaccuracy: 0.15 };
-  else if (elo < 1400) qualityTargets = { excellent: 0.16, good: 0.44, ok: 0.32, inaccuracy: 0.08 };
-  else if (elo < 1700) qualityTargets = { excellent: 0.22, good: 0.48, ok: 0.26, inaccuracy: 0.04 };
-  else if (elo < 2000) qualityTargets = { excellent: 0.26, good: 0.52, ok: 0.20, inaccuracy: 0.02 };
-  else qualityTargets = { excellent: 0.32, good: 0.52, ok: 0.15, inaccuracy: 0.01 };
+  let qualityTargets: {
+    excellent: number;
+    good: number;
+    ok: number;
+    inaccuracy: number;
+  };
+  if (elo < 800)
+    qualityTargets = { excellent: 0.08, good: 0.3, ok: 0.42, inaccuracy: 0.2 };
+  else if (elo < 1100)
+    qualityTargets = {
+      excellent: 0.12,
+      good: 0.35,
+      ok: 0.38,
+      inaccuracy: 0.15,
+    };
+  else if (elo < 1400)
+    qualityTargets = {
+      excellent: 0.16,
+      good: 0.44,
+      ok: 0.32,
+      inaccuracy: 0.08,
+    };
+  else if (elo < 1700)
+    qualityTargets = {
+      excellent: 0.22,
+      good: 0.48,
+      ok: 0.26,
+      inaccuracy: 0.04,
+    };
+  else if (elo < 2000)
+    qualityTargets = { excellent: 0.26, good: 0.52, ok: 0.2, inaccuracy: 0.02 };
+  else
+    qualityTargets = {
+      excellent: 0.32,
+      good: 0.52,
+      ok: 0.15,
+      inaccuracy: 0.01,
+    };
 
-  return { nodesMain, nodesCand, windowCp, tempCp, cplThresholds, qualityLossCp, qualityTargets };
+  return {
+    nodesMain,
+    nodesCand,
+    windowCp,
+    tempCp,
+    cplThresholds,
+    qualityLossCp,
+    qualityTargets,
+  };
 }
 
 /**
@@ -103,17 +157,8 @@ export function getEloBand(elo: number): EloBand {
  */
 export function toPlayerPov(
   evalCp: number,
-  playerColor: 'w' | 'b',
-  sideToMove: 'w' | 'b'
+  playerColor: "w" | "b",
+  sideToMove: "w" | "b",
 ): number {
   return playerColor === sideToMove ? evalCp : -evalCp;
-}
-
-/**
- * Convert mate score to centipawns equivalent
- * @param mate - Moves to mate (positive = winning, negative = losing)
- * @returns Centipawn equivalent
- */
-export function mateToCp(mate: number): number {
-  return Math.sign(mate) * (100000 - Math.abs(mate) * 1000);
 }

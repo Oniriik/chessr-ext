@@ -140,14 +140,6 @@ export class MoveTracker {
     return this.lastFEN;
   }
 
-  setSideToMove(side: "w" | "b") {
-    // Note: With chess.js mirror approach, side to move is automatically tracked
-    // This method is kept for backwards compatibility but doesn't need to do much
-    console.warn(
-      "[MoveTracker] setSideToMove called, but side is now tracked automatically by chess.js",
-    );
-  }
-
   getCurrentSideToMove(): "w" | "b" {
     return this.chess.turn();
   }
