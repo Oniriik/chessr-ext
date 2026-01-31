@@ -40,8 +40,11 @@ export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'P
 export interface Settings {
   enabled: boolean;
   serverUrl: string;
-  targetElo: number;
+  userElo: number;  // User's base ELO (detected or manual)
+  targetElo: number;  // Target ELO for engine (userElo + 150)
   opponentElo: number;  // Opponent's ELO for contempt calculation
+  autoDetectTargetElo: boolean;  // Auto-detect target ELO from page
+  autoDetectOpponentElo: boolean;  // Auto-detect opponent ELO from page
   personality: Personality;
   searchMode: 'depth' | 'time';
   depth: number;

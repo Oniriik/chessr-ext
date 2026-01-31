@@ -9,6 +9,7 @@ import { cn } from '../lib/utils';
 import { Card, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
+import { Checkbox } from './ui/checkbox';
 import { Slider } from './ui/slider';
 import { Select } from './ui/select';
 import { OpeningSelector } from './OpeningSelector';
@@ -40,7 +41,7 @@ export function Sidebar() {
   };
 
   // Local state for ELO sliders with debounce
-  const [localElo, setLocalElo] = useState(settings.targetElo);
+  const [localUserElo, setLocalUserElo] = useState(settings.userElo);
   const [localOpponentElo, setLocalOpponentElo] = useState(settings.opponentElo);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const opponentDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -57,18 +58,18 @@ export function Sidebar() {
 
   // Sync local ELO when settings change externally
   useEffect(() => {
-    setLocalElo(settings.targetElo);
-  }, [settings.targetElo]);
+    setLocalUserElo(settings.userElo);
+  }, [settings.userElo]);
 
   useEffect(() => {
     setLocalOpponentElo(settings.opponentElo);
   }, [settings.opponentElo]);
 
   const handleEloChange = (value: number) => {
-    setLocalElo(value);
+    setLocalUserElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setSettings({ targetElo: value });
+      setSettings({ userElo: value, targetElo: value + 150 });
     }, 300);
   };
 
@@ -242,25 +243,63 @@ export function Sidebar() {
 
             {/* ELO */}
             <Card className="!tw-p-3">
-              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
-                <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
-                <div className="tw-flex tw-items-baseline tw-gap-1">
-                  <div className="tw-text-base tw-font-semibold tw-text-primary">
-                    {localElo}
+              {/* Target ELO */}
+              <div className="tw-flex tw-items-start tw-justify-between tw-mb-1">
+                <div className="tw-flex tw-flex-col tw-gap-0.5">
+                  <div className="tw-flex tw-items-center tw-gap-1.5">
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
+                    <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
+                      <Checkbox
+                        checked={settings.autoDetectTargetElo}
+                        onCheckedChange={(checked: boolean) => setSettings({ autoDetectTargetElo: checked })}
+                      />
+                      <span className="tw-text-[9px] tw-text-muted">Auto</span>
+                    </label>
                   </div>
-                  <div className="tw-text-[10px] tw-text-muted">UCI</div>
+                  <div className="tw-text-[10px] tw-text-muted">
+                    User: {localUserElo} + 150
+                  </div>
+                </div>
+                <div className="tw-text-base tw-font-semibold tw-text-primary">
+                  {localUserElo + 150}
                 </div>
               </div>
               <Slider
-                value={localElo}
+                value={localUserElo}
                 onValueChange={handleEloChange}
                 min={300}
                 max={3000}
                 step={50}
+                disabled={settings.autoDetectTargetElo}
               />
 
-              {/* Full Strength Toggle (only visible at 2000+ ELO) */}
-              {localElo >= 2000 && (
+              {/* Opponent ELO */}
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1 tw-mt-3">
+                <div className="tw-flex tw-items-center tw-gap-1.5">
+                  <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent ELO</div>
+                  <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
+                    <Checkbox
+                      checked={settings.autoDetectOpponentElo}
+                      onCheckedChange={(checked: boolean) => setSettings({ autoDetectOpponentElo: checked })}
+                    />
+                    <span className="tw-text-[9px] tw-text-muted">Auto</span>
+                  </label>
+                </div>
+                <div className="tw-text-base tw-font-semibold tw-text-primary">
+                  {localOpponentElo}
+                </div>
+              </div>
+              <Slider
+                value={localOpponentElo}
+                onValueChange={handleOpponentEloChange}
+                min={300}
+                max={3000}
+                step={50}
+                disabled={settings.autoDetectOpponentElo}
+              />
+
+              {/* Full Strength Toggle (only visible at 2000+ target ELO) */}
+              {(localUserElo + 150) >= 2000 && (
                 <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                   <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
                     <div className="tw-flex-1">
@@ -278,29 +317,6 @@ export function Sidebar() {
                   </div>
                 </div>
               )}
-            </Card>
-
-            {/* Opponent ELO */}
-            <Card className="!tw-p-3">
-              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
-                <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent ELO</div>
-                <div className="tw-flex tw-items-baseline tw-gap-1">
-                  <div className="tw-text-base tw-font-semibold tw-text-primary">
-                    {localOpponentElo}
-                  </div>
-                  <div className="tw-text-[10px] tw-text-muted">Contempt</div>
-                </div>
-              </div>
-              <Slider
-                value={localOpponentElo}
-                onValueChange={handleOpponentEloChange}
-                min={300}
-                max={3000}
-                step={50}
-              />
-              <div className="tw-text-[10px] tw-text-muted tw-mt-2">
-                Used for contempt calculation: (3200 - opponent ELO) / 12
-              </div>
             </Card>
 
             {/* Accuracy Widget */}

@@ -1,6 +1,6 @@
 import { Chess } from "chess.js";
 import { BoardConfig } from "../../shared/types";
-import { Platform, PlatformAdapter } from "./types";
+import { Platform, PlatformAdapter, RatingInfo } from "./types";
 
 const BOARD_SELECTORS = [
   "wc-chess-board",
@@ -284,6 +284,35 @@ export class ChesscomAdapter implements PlatformAdapter {
 
     // Remove whitespace for regular moves
     return text.replace(/\s+/g, "") || null;
+  }
+
+  /**
+   * Detect player and opponent ratings from Chess.com DOM
+   * Returns { playerRating, opponentRating } or nulls if not found
+   */
+  detectRatings(): RatingInfo {
+    // Player rating: bottom player
+    const bottomPlayer = document.querySelector("#board-layout-player-bottom");
+    const playerRatingEl = bottomPlayer?.querySelector(
+      '[data-cy="user-tagline-rating"]',
+    );
+    const playerRating = playerRatingEl?.textContent
+      ?.trim()
+      .replace(/[()]/g, "");
+
+    // Opponent rating: top player
+    const topPlayer = document.querySelector("#board-layout-player-top");
+    const opponentRatingEl = topPlayer?.querySelector(
+      '[data-cy="user-tagline-rating"]',
+    );
+    const opponentRating = opponentRatingEl?.textContent
+      ?.trim()
+      .replace(/[()]/g, "");
+
+    return {
+      playerRating: playerRating ? parseInt(playerRating, 10) : null,
+      opponentRating: opponentRating ? parseInt(opponentRating, 10) : null,
+    };
   }
 
   isAllowedPage(): boolean {

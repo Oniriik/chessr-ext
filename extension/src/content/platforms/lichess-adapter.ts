@@ -1,6 +1,6 @@
 import { Chess } from 'chess.js';
 import { BoardConfig } from '../../shared/types';
-import { Platform, PlatformAdapter } from './types';
+import { Platform, PlatformAdapter, RatingInfo } from './types';
 
 interface LichessGameData {
   game?: {
@@ -300,6 +300,43 @@ export class LichessAdapter implements PlatformAdapter {
     }
 
     return uciMoves;
+  }
+
+  /**
+   * Detect player and opponent ratings from Lichess DOM
+   * Returns { playerRating, opponentRating } or nulls if not found
+   */
+  detectRatings(): RatingInfo {
+    const playersContainer = document.querySelector('.game__meta__players');
+    if (!playersContainer) {
+      return { playerRating: null, opponentRating: null };
+    }
+
+    // Find white and black player ratings
+    const whitePlayerEl = playersContainer.querySelector('.player.is.white .rating');
+    const blackPlayerEl = playersContainer.querySelector('.player.is.black .rating');
+
+    // Extract and clean ratings (remove parentheses and '?' for provisional ratings)
+    const whiteRatingText = whitePlayerEl?.textContent?.trim().replace(/[()?\s]/g, '');
+    const blackRatingText = blackPlayerEl?.textContent?.trim().replace(/[()?\s]/g, '');
+
+    const whiteRating = whiteRatingText ? parseInt(whiteRatingText, 10) : null;
+    const blackRating = blackRatingText ? parseInt(blackRatingText, 10) : null;
+
+    // Determine player color to assign correct ratings
+    const playerColor = this.detectPlayerColor();
+
+    if (playerColor === 'white') {
+      return {
+        playerRating: whiteRating,
+        opponentRating: blackRating,
+      };
+    } else {
+      return {
+        playerRating: blackRating,
+        opponentRating: whiteRating,
+      };
+    }
   }
 
   isAllowedPage(): boolean {

@@ -51,7 +51,15 @@ class Chessr {
   private pendingStatsRequests = new Set<string>(); // Multiple stats requests possible
   private pendingSuggestionsRequest: string | null = null; // Only one suggestions request at a time
 
+  // Rating detection tracking
+  private initialRatingDetectionDone = false;
+  private pendingPositionForAnalysis: string | null = null;
+
   async init() {
+    // Reset rating detection flag for new page load
+    this.initialRatingDetectionDone = false;
+    this.pendingPositionForAnalysis = null;
+
     // Create platform adapter
     this.adapter = createPlatformAdapter();
     if (!this.adapter) {
@@ -95,6 +103,14 @@ class Chessr {
     useAppStore.subscribe((state, prevState) => {
       if (state.settings !== prevState.settings) {
         this.onSettingsChanged(state.settings, prevState.settings);
+
+        // Re-detect ratings when auto-detect is toggled on (no delay for manual toggle)
+        if (!prevState.settings.autoDetectTargetElo && state.settings.autoDetectTargetElo) {
+          this.autoDetectRatingsIfNeeded(0);
+        }
+        if (!prevState.settings.autoDetectOpponentElo && state.settings.autoDetectOpponentElo) {
+          this.autoDetectRatingsIfNeeded(0);
+        }
       }
       // Re-analyze when player color changes (via toggle or redetect)
       if (state.boardConfig?.playerColor !== prevState.boardConfig?.playerColor) {
@@ -240,6 +256,9 @@ class Chessr {
     this.openingTracker.setPlayerColor(config.playerColor);
     openingStore.setPlayerColor(config.playerColor);
 
+    // Auto-detect ratings if enabled
+    this.autoDetectRatingsIfNeeded();
+
     // Skip analysis features on review/analysis pages
     if (this.analysisDisabled) {
       return;
@@ -270,6 +289,60 @@ class Chessr {
     this.openingTracker.onMove(move);
   }
 
+  /**
+   * Auto-detect ratings from the page if enabled in settings
+   * @param delay - Optional delay in ms before detection (default: 2000 for initial load, 0 for manual toggle)
+   */
+  private autoDetectRatingsIfNeeded(delay: number = 2000) {
+    const store = useAppStore.getState();
+    const { settings } = store;
+
+    // Check if adapter supports rating detection
+    if (!this.adapter?.detectRatings) {
+      this.initialRatingDetectionDone = true;
+      return;
+    }
+
+    // Only auto-detect if at least one option is enabled
+    if (!settings.autoDetectTargetElo && !settings.autoDetectOpponentElo) {
+      this.initialRatingDetectionDone = true;
+      return;
+    }
+
+    // Wait for DOM elements to load (ratings appear after board on initial load)
+    setTimeout(() => {
+      const ratings = this.adapter!.detectRatings!();
+
+      const updates: Partial<Settings> = {};
+
+      // Update user ELO and target ELO if auto-detect is enabled and rating is found
+      if (settings.autoDetectTargetElo && ratings.playerRating) {
+        updates.userElo = ratings.playerRating;
+        updates.targetElo = ratings.playerRating + 150;  // Target = User ELO + 150
+      }
+
+      // Update opponent ELO if auto-detect is enabled and rating is found
+      if (settings.autoDetectOpponentElo && ratings.opponentRating) {
+        updates.opponentElo = ratings.opponentRating;
+      }
+
+      // Apply updates if any
+      if (Object.keys(updates).length > 0) {
+        store.setSettings(updates);
+      }
+
+      // Mark initial detection as done
+      this.initialRatingDetectionDone = true;
+
+      // If there was a pending position, analyze it now
+      if (this.pendingPositionForAnalysis) {
+        const fen = this.pendingPositionForAnalysis;
+        this.pendingPositionForAnalysis = null;
+        this.onPositionChange(fen);
+      }
+    }, delay);
+  }
+
 
   private onPositionChange(fen: string) {
     const store = useAppStore.getState();
@@ -282,6 +355,12 @@ class Chessr {
       return;
     }
     if (!this.wsClient?.getConnectionStatus()) {
+      return;
+    }
+
+    // Wait for initial rating detection before first analysis
+    if (!this.initialRatingDetectionDone && (settings.autoDetectTargetElo || settings.autoDetectOpponentElo)) {
+      this.pendingPositionForAnalysis = fen;
       return;
     }
 
@@ -473,6 +552,7 @@ class Chessr {
    */
   private onSuggestionsResult(result: any) {
     console.log('[Chessr] Suggestions result received, requestId:', result.requestId);
+    console.log('[Chessr] Full suggestions response:', result);
 
     // Anti-stale check: Is this request still pending?
     if (result.requestId !== this.pendingSuggestionsRequest) {

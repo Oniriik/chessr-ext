@@ -2,6 +2,11 @@ import { BoardConfig } from '../../shared/types';
 
 export type Platform = 'chesscom' | 'lichess';
 
+export interface RatingInfo {
+  playerRating: number | null;   // User's rating
+  opponentRating: number | null; // Opponent's rating
+}
+
 export interface PlatformAdapter {
   readonly platform: Platform;
 
@@ -20,6 +25,9 @@ export interface PlatformAdapter {
   stopMoveListObserver?(): void;
   getMoveCount?(): number;
   getMoveHistory?(): string[];  // Returns UCI moves from DOM
+
+  // Rating detection (optional - for platforms that support it)
+  detectRatings?(): RatingInfo;
 
   // Page validation
   isAllowedPage(): boolean;

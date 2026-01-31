@@ -8,8 +8,11 @@ export const DEFAULT_LAST_MOVES = 1;
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   serverUrl: config.stockfishServerUrl, // Uses environment variable
-  targetElo: 1500,
+  userElo: 1500,  // Default user ELO
+  targetElo: 1650,  // Default target ELO (userElo + 150)
   opponentElo: 1500,  // Default opponent ELO (same as player)
+  autoDetectTargetElo: true,  // Auto-detect enabled by default
+  autoDetectOpponentElo: true,  // Auto-detect enabled by default
   personality: 'Default',
   searchMode: 'time',
   depth: 18,
