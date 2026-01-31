@@ -147,7 +147,7 @@ async function analyzePosition(
   depth: number,
   multiPV: number,
   context?: 'stats' | 'suggestions'
-): Promise<{ lines: any[]; bestMove: string }> {
+): Promise<{ lines: any[]; bestMove: string; depth: number }> {
   const result = await engine.analyze(
     fen,
     {
@@ -164,6 +164,7 @@ async function analyzePosition(
   return {
     lines: result.lines || [],
     bestMove: result.bestMove,
+    depth: result.depth || 0,
   };
 }
 
@@ -493,16 +494,23 @@ async function runSuggestions(
     personality: Personality;
     multiPV: number;
     disableLimitStrength?: boolean;
+    opponentElo?: number;
   }
 ): Promise<{ payload: SuggestionsPayload; timingMs: number; suggestionsCount: number }> {
-  const { movesUci, targetElo, personality, multiPV, disableLimitStrength } = params;
+  const { movesUci, targetElo, personality, multiPV, disableLimitStrength, opponentElo } = params;
   const startTime = Date.now();
 
   // Determine if we should enable limit strength (disabled if user requests full strength and ELO >= 2000)
   const shouldLimitStrength = !(disableLimitStrength && targetElo >= 2000);
 
+  // Calculate contempt if opponentElo is provided
+  // Formula: (3200 - opponent_elo) / 12
+  const contempt = opponentElo !== undefined ? Math.round((3200 - opponentElo) / 12) : undefined;
+
   logger.info('suggestion_start', {
     targetElo,
+    opponentElo,
+    contempt,
     personality,
     multiPV,
     limitStrength: shouldLimitStrength,
@@ -521,6 +529,13 @@ async function runSuggestions(
   }
   engine.setPersonality(personality);  // Use setPersonality() to update tracked value
   engine.sendCommand(`setoption name MultiPV value ${clamp(multiPV, 1, 8)}`);
+  engine.sendCommand('setoption name Skill value 25'); // Always max skill for suggestions (personalities work best with skill < 25, but suggestions should be strongest)
+
+  // Set contempt (Komodo Dragon uses "Contempt" option)
+  if (contempt !== undefined) {
+    engine.sendCommand(`setoption name Contempt value ${contempt}`);
+  }
+
   await engine.waitReady();
 
   // Optional warmup - skipped for simplicity since analyze() does its own warmup
@@ -589,8 +604,8 @@ async function runSuggestions(
       move,
       score: scoreWhite,
       pv: pv.slice(0, 10),
-      depth: undefined, // Engine result doesn't include depth in this format
-      seldepth: undefined,
+      depth: sugResult.depth,
+      seldepth: undefined, // seldepth not currently captured
       flags: {
         isMate,
         isCheck,
@@ -695,7 +710,6 @@ export async function handleAnalyzeStats(
     const response: AnalyzeStatsResponse = {
       type: 'analyze_stats_result',
       requestId: req.requestId || '',
-      version: '1.0',
       payload: {
         accuracy: accuracyPayload,
       },
@@ -727,7 +741,6 @@ export async function handleAnalyzeStats(
     const errorResponse: AnalyzeErrorResponse = {
       type: 'analyze_error',
       requestId: req.requestId || '',
-      version: '1.0',
       error: {
         code: 'STATS_FAILED',
         message: e?.message ?? 'Unknown error during stats analysis',
@@ -759,7 +772,7 @@ export async function handleAnalyzeSuggestions(
   try {
     const movesUci = req.payload.movesUci ?? [];
     const cachedStats = req.payload.cachedStats;
-    const { targetElo, personality, multiPV, disableLimitStrength } = req.payload.user;
+    const { targetElo, personality, multiPV, disableLimitStrength, opponentElo } = req.payload.user;
 
     // Validation: cached stats required
     if (!cachedStats?.accuracy) {
@@ -770,7 +783,6 @@ export async function handleAnalyzeSuggestions(
       return {
         type: 'analyze_error',
         requestId: req.requestId || '',
-        version: '1.0',
         error: {
           code: 'MISSING_STATS',
           message: 'Cached stats required for suggestions-only request. Send analyze_stats first.',
@@ -803,6 +815,7 @@ export async function handleAnalyzeSuggestions(
         personality,
         multiPV,
         disableLimitStrength,
+        opponentElo,
       }
     );
 
@@ -822,7 +835,6 @@ export async function handleAnalyzeSuggestions(
     const response: AnalyzeSuggestionsResponse = {
       type: 'analyze_suggestions_result',
       requestId: req.requestId || '',
-      version: '1.0',
       payload: {
         suggestions: suggestionsPayload,
         accuracy: cachedStats.accuracy, // Include cached stats for convenience
@@ -859,7 +871,6 @@ export async function handleAnalyzeSuggestions(
     const errorResponse: AnalyzeErrorResponse = {
       type: 'analyze_error',
       requestId: req.requestId || '',
-      version: '1.0',
       error: {
         code: 'SUGGESTIONS_FAILED',
         message: e?.message ?? 'Unknown error during suggestions analysis',
@@ -887,7 +898,7 @@ export async function handleAnalyze(
     const movesUci = req.payload.movesUci ?? [];
     const lastMoves = req.payload.review?.lastMoves ?? 10;
     const cachedAccuracy = req.payload.review.cachedAccuracy;
-    const { targetElo, personality, multiPV, disableLimitStrength } = req.payload.user;
+    const { targetElo, personality, multiPV, disableLimitStrength, opponentElo } = req.payload.user;
 
     // Engine Reset (Clean State)
     await runEngineReset(engine);
@@ -916,6 +927,7 @@ export async function handleAnalyze(
         personality,
         multiPV,
         disableLimitStrength,
+        opponentElo,
       }
     );
 
@@ -935,7 +947,6 @@ export async function handleAnalyze(
     const response: AnalyzeResultResponse = {
       type: 'analyze_result',
       requestId: req.requestId || '',
-      version: '1.0',
       payload: {
         accuracy: accuracyPayload,
         suggestions: suggestionsPayload,
@@ -975,7 +986,6 @@ export async function handleAnalyze(
     const errorResponse: AnalyzeErrorResponse = {
       type: 'analyze_error',
       requestId: req.requestId || '',
-      version: '1.0',
       error: {
         code: 'ANALYZE_FAILED',
         message: e?.message ?? 'Unknown error',

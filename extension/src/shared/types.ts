@@ -28,13 +28,6 @@ export interface AnalysisResult {
   };
 }
 
-export interface InfoUpdate {
-  type: 'info';
-  depth: number;
-  evaluation: number;
-  mate?: number;
-}
-
 export interface ArrowColors {
   best: string;      // Color for best move
   second: string;    // Color for 2nd best
@@ -48,6 +41,7 @@ export interface Settings {
   enabled: boolean;
   serverUrl: string;
   targetElo: number;
+  opponentElo: number;  // Opponent's ELO for contempt calculation
   personality: Personality;
   searchMode: 'depth' | 'time';
   depth: number;

@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   serverUrl: config.stockfishServerUrl, // Uses environment variable
   targetElo: 1500,
+  opponentElo: 1500,  // Default opponent ELO (same as player)
   personality: 'Default',
   searchMode: 'time',
   depth: 18,

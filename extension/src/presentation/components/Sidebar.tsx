@@ -39,9 +39,11 @@ export function Sidebar() {
     return t.personalities[personality];
   };
 
-  // Local state for ELO slider with debounce
+  // Local state for ELO sliders with debounce
   const [localElo, setLocalElo] = useState(settings.targetElo);
+  const [localOpponentElo, setLocalOpponentElo] = useState(settings.opponentElo);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const opponentDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -58,11 +60,23 @@ export function Sidebar() {
     setLocalElo(settings.targetElo);
   }, [settings.targetElo]);
 
+  useEffect(() => {
+    setLocalOpponentElo(settings.opponentElo);
+  }, [settings.opponentElo]);
+
   const handleEloChange = (value: number) => {
     setLocalElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       setSettings({ targetElo: value });
+    }, 300);
+  };
+
+  const handleOpponentEloChange = (value: number) => {
+    setLocalOpponentElo(value);
+    if (opponentDebounceRef.current) clearTimeout(opponentDebounceRef.current);
+    opponentDebounceRef.current = setTimeout(() => {
+      setSettings({ opponentElo: value });
     }, 300);
   };
 
@@ -264,6 +278,29 @@ export function Sidebar() {
                   </div>
                 </div>
               )}
+            </Card>
+
+            {/* Opponent ELO */}
+            <Card className="!tw-p-3">
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
+                <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent ELO</div>
+                <div className="tw-flex tw-items-baseline tw-gap-1">
+                  <div className="tw-text-base tw-font-semibold tw-text-primary">
+                    {localOpponentElo}
+                  </div>
+                  <div className="tw-text-[10px] tw-text-muted">Contempt</div>
+                </div>
+              </div>
+              <Slider
+                value={localOpponentElo}
+                onValueChange={handleOpponentEloChange}
+                min={300}
+                max={3000}
+                step={50}
+              />
+              <div className="tw-text-[10px] tw-text-muted tw-mt-2">
+                Used for contempt calculation: (3200 - opponent ELO) / 12
+              </div>
             </Card>
 
             {/* Accuracy Widget */}

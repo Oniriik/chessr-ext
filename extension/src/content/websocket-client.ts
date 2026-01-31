@@ -111,6 +111,7 @@ export class WebSocketClient {
           targetElo: settings.targetElo,
           personality: settings.personality,
           multiPV: settings.multiPV,
+          opponentElo: settings.opponentElo,
         },
       },
     });
@@ -162,6 +163,7 @@ export class WebSocketClient {
           targetElo: settings.targetElo,
           personality: settings.personality,
           multiPV: settings.multiPV,
+          opponentElo: settings.opponentElo,
         },
       },
     });
@@ -169,16 +171,6 @@ export class WebSocketClient {
 
   stop() {
     this.send({ type: 'stop' });
-  }
-
-  updateSettings(settings: Partial<Settings>) {
-    if (settings.targetElo !== undefined || settings.personality !== undefined) {
-      this.send({
-        type: 'settings',
-        elo: settings.targetElo,
-        personality: settings.personality,
-      });
-    }
   }
 
   onMessage(handler: MessageHandler) {
@@ -189,10 +181,6 @@ export class WebSocketClient {
     this.connectionHandlers.push(handler);
     // Immediately notify of current state
     handler(this.isConnected);
-  }
-
-  onVersionInfo(handler: VersionHandler) {
-    this.versionHandlers.push(handler);
   }
 
   onVersionError(handler: VersionErrorHandler) {
@@ -260,10 +248,6 @@ export class WebSocketClient {
     } catch (err) {
       console.error('[Chessr WS] Failed to send auth token:', err);
     }
-  }
-
-  resetAuthError() {
-    this.authErrorOccurred = false;
   }
 
   private scheduleReconnect() {

@@ -32,6 +32,7 @@ export interface AnalyzeRequest {
       personality: Personality;   // Komodo personality
       multiPV: number;            // Number of suggestion lines (1-8)
       disableLimitStrength?: boolean;  // Disable UCI_LimitStrength for full-strength suggestions (optional, only available at 2000+ ELO)
+      opponentElo?: number;       // Opponent's ELO for contempt calculation (optional)
     };
   };
 }
@@ -70,6 +71,7 @@ export interface AnalyzeSuggestionsRequest {
       personality: Personality;   // Komodo personality
       multiPV: number;            // Number of suggestion lines (1-8)
       disableLimitStrength?: boolean;  // Disable UCI_LimitStrength for full-strength suggestions (optional, only available at 2000+ ELO)
+      opponentElo?: number;       // Opponent's ELO for contempt calculation (optional)
     };
   };
 }
@@ -256,7 +258,6 @@ export interface SuggestionSettingsUsed {
 export interface AnalyzeResultResponse {
   type: 'analyze_result';
   requestId: string;
-  version: '1.0';
 
   payload: {
     accuracy: AccuracyPayload;
@@ -283,7 +284,6 @@ export interface AnalyzeResultResponse {
 export interface AnalyzeErrorResponse {
   type: 'analyze_error';
   requestId: string;
-  version: '1.0';
 
   error: {
     code: string;               // Error code (e.g., "ANALYZE_FAILED")
@@ -303,7 +303,6 @@ export interface AnalyzeErrorResponse {
 export interface AnalyzeStatsResponse {
   type: 'analyze_stats_result';
   requestId: string;
-  version: '1.0';
 
   payload: {
     accuracy: AccuracyPayload;
@@ -331,7 +330,6 @@ export interface AnalyzeStatsResponse {
 export interface AnalyzeSuggestionsResponse {
   type: 'analyze_suggestions_result';
   requestId: string;
-  version: '1.0';
 
   payload: {
     suggestions: SuggestionsPayload;
