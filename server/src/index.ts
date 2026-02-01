@@ -1,3 +1,6 @@
+// Load environment variables FIRST before any other modules
+import './env.js';
+
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import { EnginePool } from './engine-pool.js';
@@ -8,6 +11,7 @@ import { Logger, globalLogger } from './logger.js';
 import { versionConfig, isVersionOutdated } from './version-config.js';
 import { telemetry } from './telemetry.js';
 import { handleAnalyze, handleAnalyzeStats, handleAnalyzeSuggestions } from './analyze-pipeline.js';
+import { startApiServer } from './api-server.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -414,5 +418,8 @@ class ChessServer {
   }
 }
 
-// Start server
+// Start WebSocket server
 new ChessServer(PORT);
+
+// Start REST API server for subscriptions
+startApiServer();

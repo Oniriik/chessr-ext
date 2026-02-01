@@ -10,9 +10,11 @@ module.exports = (env, argv) => {
   // This must be done inside the function to access the correct NODE_ENV
   const envFile = `.env.${process.env.NODE_ENV || 'development'}`;
   require('dotenv').config({ path: envFile });
-  
+
   console.log(`[Webpack] Loading environment from: ${envFile}`);
   console.log(`[Webpack] STOCKFISH_SERVER_URL: ${process.env.STOCKFISH_SERVER_URL}`);
+  console.log(`[Webpack] SUPABASE_URL: ${process.env.SUPABASE_URL}`);
+  console.log(`[Webpack] SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? '***' : 'undefined'}`);
 
   return {
     entry: {
@@ -57,6 +59,24 @@ module.exports = (env, argv) => {
         ),
         'process.env.NODE_ENV': JSON.stringify(
           process.env.NODE_ENV || 'development'
+        ),
+        // Supabase environment variables
+        'process.env.SUPABASE_URL': JSON.stringify(
+          process.env.SUPABASE_URL
+        ),
+        'process.env.SUPABASE_ANON_KEY': JSON.stringify(
+          process.env.SUPABASE_ANON_KEY
+        ),
+        // Paddle environment variables
+        'process.env.PADDLE_ENVIRONMENT': JSON.stringify(
+          process.env.PADDLE_ENVIRONMENT || 'sandbox'
+        ),
+        'process.env.PADDLE_CLIENT_TOKEN': JSON.stringify(
+          process.env.PADDLE_CLIENT_TOKEN
+        ),
+        // API Server
+        'process.env.API_BASE_URL': JSON.stringify(
+          process.env.API_BASE_URL || 'http://localhost:3002'
         ),
       }),
     ],

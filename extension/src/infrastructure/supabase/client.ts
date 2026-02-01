@@ -5,8 +5,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = 'https://ratngdlkcvyfdmidtenx.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJhdG5nZGxrY3Z5ZmRtaWR0ZW54Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwODE0OTMsImV4cCI6MjA4NDY1NzQ5M30.ZYXOVkGgIrdymoRFOs5MHP_03UPOt6Mu00ijYL12Bv4';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error('Missing Supabase environment variables. Check .env.development file.');
+}
 
 // Chrome storage adapter for Supabase auth
 const chromeStorageAdapter = {
