@@ -11,16 +11,6 @@ interface AccuracyWidgetProps {
 }
 
 export function AccuracyWidget({ accuracy, previousAccuracy, accuracyCache, playerColor }: AccuracyWidgetProps) {
-  // DEBUG: Log inputs
-  console.log('[AccuracyWidget] Props:', {
-    playerColor,
-    hasCache: !!accuracyCache,
-    cacheSize: accuracyCache?.analyzedPlies?.size,
-    serverAccuracy: accuracy?.overall,
-    serverOverall: accuracyCache?.serverOverall,
-    initialCp: accuracyCache?.initialCp,
-  });
-
   // Build accuracy from cache if available, filtered by player color
   // This calculates accuracy only for the player's moves from the entire cache
   //
@@ -35,7 +25,6 @@ export function AccuracyWidget({ accuracy, previousAccuracy, accuracyCache, play
   } else if (accuracyCache && accuracyCache.serverOverall !== undefined) {
     // Player color unknown but server already calculated: use server's value
     // (server calculated with playerColor from request)
-    console.log('[AccuracyWidget] Using server overall (playerColor not specified):', accuracyCache.serverOverall);
     gameStats = buildAccuracyFromCache(accuracyCache, undefined);
     // Override with server's player-specific overall
     gameStats = { ...gameStats, overall: accuracyCache.serverOverall };
@@ -43,13 +32,6 @@ export function AccuracyWidget({ accuracy, previousAccuracy, accuracyCache, play
     // Fallback to passed accuracy payload
     gameStats = accuracy;
   }
-
-  // DEBUG: Log result
-  console.log('[AccuracyWidget] Result:', {
-    gameStatsOverall: gameStats?.overall,
-    analyzedPlies: gameStats?.window?.analyzedPlies,
-    method: accuracyCache ? (playerColor ? 'cache+color' : 'cache+serverOverall') : 'passed',
-  });
 
   const trend = computeAccuracyTrend(previousAccuracy, gameStats);
 
