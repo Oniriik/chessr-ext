@@ -12,6 +12,7 @@ export class Telemetry {
   private disconnectionsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private authenticationsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private suggestionsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
+  private statsCounter: ReturnType<ReturnType<typeof metrics.getMeter>['createCounter']> | null = null;
   private activeConnectionsGauge: ReturnType<ReturnType<typeof metrics.getMeter>['createUpDownCounter']> | null = null;
   private authenticatedUsersGauge: ReturnType<ReturnType<typeof metrics.getMeter>['createUpDownCounter']> | null = null;
   private authenticatedEmails = new Set<string>();
@@ -55,7 +56,7 @@ export class Telemetry {
 
     const metricReader = new PeriodicExportingMetricReader({
       exporter,
-      exportIntervalMillis: 60000, // Export every 60 seconds
+      exportIntervalMillis: 10000, // Export every 10 seconds
     });
 
     this.meterProvider = new MeterProvider({
@@ -79,6 +80,11 @@ export class Telemetry {
 
     this.suggestionsCounter = meter.createCounter('chessr_suggestions_total', {
       description: 'Total number of suggestions served',
+      valueType: ValueType.INT,
+    });
+
+    this.statsCounter = meter.createCounter('chessr_stats_total', {
+      description: 'Total number of stats requests completed',
       valueType: ValueType.INT,
     });
 
@@ -151,9 +157,17 @@ export class Telemetry {
   /**
    * Record a suggestion served
    */
-  recordSuggestion(depth: number = 0): void {
+  recordSuggestion(): void {
     if (!this.enabled) return;
-    this.suggestionsCounter?.add(1, { depth: String(depth) });
+    this.suggestionsCounter?.add(1);
+  }
+
+  /**
+   * Record a stats request completed
+   */
+  recordStats(): void {
+    if (!this.enabled) return;
+    this.statsCounter?.add(1);
   }
 
   /**

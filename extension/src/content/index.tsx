@@ -608,6 +608,17 @@ class Chessr {
 
     // Draw arrows for suggestions based on settings
     const numToShow = Math.min(suggestions.length, store.settings.numberOfSuggestions);
+
+    // Calculate arrow length (in squares) for sorting
+    const getArrowLength = (from: string, to: string): number => {
+      const fileDiff = Math.abs(from.charCodeAt(0) - to.charCodeAt(0));
+      const rankDiff = Math.abs(parseInt(from[1]) - parseInt(to[1]));
+      return Math.sqrt(fileDiff * fileDiff + rankDiff * rankDiff);
+    };
+
+    // Build arrow data with length for sorting
+    const arrowData: { from: string; to: string; color: string; badges: string[]; length: number }[] = [];
+
     for (let i = 0; i < numToShow; i++) {
       const suggestion = suggestions[i];
       const move = suggestion.move;
@@ -649,11 +660,19 @@ class Chessr {
         });
       }
 
+      arrowData.push({ from, to, color, badges, length: getArrowLength(from, to) });
+    }
+
+    // Sort by length descending (longest first, so shortest appears on top)
+    arrowData.sort((a, b) => b.length - a.length);
+
+    // Draw arrows in sorted order
+    for (const arrow of arrowData) {
       this.arrowRenderer['drawArrowWithColor']({
-        from,
-        to,
-        color,
-        badges
+        from: arrow.from,
+        to: arrow.to,
+        color: arrow.color,
+        badges: arrow.badges
       });
     }
   }

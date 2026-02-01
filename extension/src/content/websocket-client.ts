@@ -113,6 +113,7 @@ export class WebSocketClient {
           personality: settings.personality,
           multiPV: settings.multiPV,
           opponentElo: settings.opponentElo,
+          disableLimitStrength: settings.disableLimitStrength,
         },
       },
     });
@@ -166,6 +167,7 @@ export class WebSocketClient {
           personality: settings.personality,
           multiPV: settings.multiPV,
           opponentElo: settings.opponentElo,
+          disableLimitStrength: settings.disableLimitStrength,
         },
       },
     });

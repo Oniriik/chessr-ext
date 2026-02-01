@@ -233,7 +233,6 @@ class ChessServer {
         });
 
         this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
-        telemetry.recordSuggestion(0); // Depth not applicable in new system
         this.send(ws, result);
       } finally {
         // Always return engine to pool
@@ -284,6 +283,7 @@ class ChessServer {
           return;
         }
 
+        telemetry.recordStats();
         this.send(ws, result);
       } finally {
         // Always return engine to pool
@@ -336,7 +336,7 @@ class ChessServer {
         }
 
         this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
-        telemetry.recordSuggestion(0); // Depth not applicable in new system
+        telemetry.recordSuggestion();
         this.send(ws, result);
       } finally {
         // Always return engine to pool

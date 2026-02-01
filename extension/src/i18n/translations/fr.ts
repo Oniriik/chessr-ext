@@ -26,8 +26,8 @@ export const fr: Translations = {
     title: 'ELO Cible',
     display: 'Affichage Chess.com',
     antiCheat: 'Randomisation ELO ±100',
-    fullStrength: 'Mode Pleine Puissance',
-    fullStrengthDesc: 'Désactiver la limite ELO pour des suggestions à force maximale (disponible à partir de 2000 ELO)',
+    fullStrength: 'ELO Max (3500)',
+    fullStrengthDesc: 'Débloquer la puissance maximale du moteur à 3500 ELO',
   },
 
   personalities: {

@@ -94,19 +94,20 @@ export class OverlayManager {
     `;
 
     // Add marker definitions for arrows
+    // Using markerUnits="strokeWidth" ensures consistent proportions regardless of arrow thickness
     this.svg.innerHTML = `
       <defs>
-        <marker id="arrow-green" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
-          <polygon points="0 0, 4 2, 0 4" fill="rgba(0, 200, 80, 0.9)"/>
+        <marker id="arrow-green" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="2" refY="1.5" orient="auto">
+          <polygon points="0 0, 3 1.5, 0 3" fill="rgba(0, 200, 80, 0.9)"/>
         </marker>
-        <marker id="arrow-yellow" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
-          <polygon points="0 0, 4 2, 0 4" fill="rgba(255, 200, 0, 0.9)"/>
+        <marker id="arrow-yellow" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="2" refY="1.5" orient="auto">
+          <polygon points="0 0, 3 1.5, 0 3" fill="rgba(255, 200, 0, 0.9)"/>
         </marker>
-        <marker id="arrow-blue" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
-          <polygon points="0 0, 4 2, 0 4" fill="rgba(0, 120, 255, 0.9)"/>
+        <marker id="arrow-blue" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="2" refY="1.5" orient="auto">
+          <polygon points="0 0, 3 1.5, 0 3" fill="rgba(0, 120, 255, 0.9)"/>
         </marker>
-        <marker id="arrow-red" markerWidth="4" markerHeight="4" refX="2.5" refY="2" orient="auto">
-          <polygon points="0 0, 4 2, 0 4" fill="rgba(255, 50, 50, 0.9)"/>
+        <marker id="arrow-red" markerUnits="strokeWidth" markerWidth="3" markerHeight="3" refX="2" refY="1.5" orient="auto">
+          <polygon points="0 0, 3 1.5, 0 3" fill="rgba(255, 50, 50, 0.9)"/>
         </marker>
       </defs>
       <g id="arrows"></g>

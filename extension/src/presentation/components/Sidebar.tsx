@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, LogOut, Settings2, RotateCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, LogOut, Settings2, RotateCw } from 'lucide-react';
 import { useAppStore } from '../store/app.store';
 import { useFeedbackStore } from '../store/feedback.store';
 import { useAuthStore } from '../store/auth.store';
@@ -17,14 +17,14 @@ import { SettingsModal } from './SettingsModal';
 import { SuggestionCard } from './SuggestionCard';
 import { AccuracyWidget } from './AccuracyWidget';
 
-import { Personality } from '../../shared/types';
+import { Personality, Settings } from '../../shared/types';
 
 // Komodo personalities - all available at any ELO
 const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Active', 'Positional', 'Endgame', 'Beginner', 'Human'];
 
 
 export function Sidebar() {
-  const { settings, setSettings: setSettingsBase, connected, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, isGamePage, sideToMove, lastGamePlayerColor } = useAppStore();
+  const { settings, setSettings: setSettingsBase, connected, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, requestReanalyze, isGamePage, sideToMove, lastGamePlayerColor } = useAppStore();
   const { activeSnapshot, selectedSuggestionIndex, setSelectedSuggestionIndex, previousAccuracy, accuracyCache } = useFeedbackStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
@@ -56,6 +56,9 @@ export function Sidebar() {
   const [colorSpinning, setColorSpinning] = useState(false);
   const [turnSpinning, setTurnSpinning] = useState(false);
 
+  // ELO card expanded state
+  const [eloExpanded, setEloExpanded] = useState(false);
+
   // Sync local ELO when settings change externally
   useEffect(() => {
     setLocalUserElo(settings.userElo);
@@ -69,7 +72,12 @@ export function Sidebar() {
     setLocalUserElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      setSettings({ userElo: value, targetElo: value + 150 });
+      // Disable full strength mode if ELO drops below 3000
+      const newSettings: Partial<Settings> = { userElo: value, targetElo: value + 150 };
+      if (value + 150 < 3000 && settings.disableLimitStrength) {
+        newSettings.disableLimitStrength = false;
+      }
+      setSettings(newSettings);
     }, 300);
   };
 
@@ -244,78 +252,108 @@ export function Sidebar() {
 
             {/* ELO */}
             <Card className="!tw-p-3">
-              {/* Target ELO */}
-              <div className="tw-flex tw-items-start tw-justify-between tw-mb-1">
-                <div className="tw-flex tw-flex-col tw-gap-0.5">
-                  <div className="tw-flex tw-items-center tw-gap-1.5">
+              {/* Header - always visible, clickable to expand/collapse */}
+              <button
+                onClick={() => setEloExpanded(!eloExpanded)}
+                className="tw-w-full tw-flex tw-items-center tw-justify-between tw-text-left"
+              >
+                <div className="tw-flex tw-items-center tw-gap-3">
+                  <div>
                     <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
-                    <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
-                      <Checkbox
-                        checked={settings.autoDetectTargetElo}
-                        onCheckedChange={(checked: boolean) => setSettings({ autoDetectTargetElo: checked })}
-                      />
-                      <span className="tw-text-[9px] tw-text-muted">Auto</span>
-                    </label>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">{localUserElo + 150}</div>
                   </div>
-                  <div className="tw-text-[10px] tw-text-muted">
-                    User: {localUserElo} + 150
+                  <div>
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent</div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">{localOpponentElo}</div>
                   </div>
                 </div>
-                <div className="tw-text-base tw-font-semibold tw-text-primary">
-                  {localUserElo + 150}
-                </div>
-              </div>
-              <Slider
-                value={localUserElo}
-                onValueChange={handleEloChange}
-                min={300}
-                max={3000}
-                step={50}
-                disabled={settings.autoDetectTargetElo}
-              />
+                {eloExpanded ? (
+                  <ChevronUp className="tw-w-4 tw-h-4 tw-text-muted" />
+                ) : (
+                  <ChevronDown className="tw-w-4 tw-h-4 tw-text-muted" />
+                )}
+              </button>
 
-              {/* Opponent ELO */}
-              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1 tw-mt-3">
-                <div className="tw-flex tw-items-center tw-gap-1.5">
-                  <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent ELO</div>
-                  <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
-                    <Checkbox
-                      checked={settings.autoDetectOpponentElo}
-                      onCheckedChange={(checked: boolean) => setSettings({ autoDetectOpponentElo: checked })}
-                    />
-                    <span className="tw-text-[9px] tw-text-muted">Auto</span>
-                  </label>
-                </div>
-                <div className="tw-text-base tw-font-semibold tw-text-primary">
-                  {localOpponentElo}
-                </div>
-              </div>
-              <Slider
-                value={localOpponentElo}
-                onValueChange={handleOpponentEloChange}
-                min={300}
-                max={3000}
-                step={50}
-                disabled={settings.autoDetectOpponentElo}
-              />
-
-              {/* Full Strength Toggle (only visible at 2000+ target ELO) */}
-              {(localUserElo + 150) >= 2000 && (
+              {/* Expanded content */}
+              {eloExpanded && (
                 <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
-                  <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
-                    <div className="tw-flex-1">
-                      <div className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-0.5">
-                        {t.elo.fullStrength}
+                  {/* Target ELO */}
+                  <div className="tw-flex tw-items-start tw-justify-between tw-mb-1">
+                    <div className="tw-flex tw-flex-col tw-gap-0.5">
+                      <div className="tw-flex tw-items-center tw-gap-1.5">
+                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
+                        <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
+                          <Checkbox
+                            checked={settings.autoDetectTargetElo}
+                            onCheckedChange={(checked: boolean) => setSettings({ autoDetectTargetElo: checked })}
+                          />
+                          <span className="tw-text-[9px] tw-text-muted">Auto</span>
+                        </label>
                       </div>
-                      <div className="tw-text-[10px] tw-text-muted tw-leading-tight">
-                        {t.elo.fullStrengthDesc}
+                      <div className="tw-text-[10px] tw-text-muted">
+                        User: {localUserElo} + 150
                       </div>
                     </div>
-                    <Switch
-                      checked={settings.disableLimitStrength}
-                      onCheckedChange={(checked) => setSettings({ disableLimitStrength: checked })}
-                    />
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">
+                      {localUserElo + 150}
+                    </div>
                   </div>
+                  <Slider
+                    value={localUserElo}
+                    onValueChange={handleEloChange}
+                    min={300}
+                    max={3000}
+                    step={50}
+                    disabled={settings.autoDetectTargetElo}
+                  />
+
+                  {/* Opponent ELO */}
+                  <div className="tw-flex tw-items-center tw-justify-between tw-mb-1 tw-mt-3">
+                    <div className="tw-flex tw-items-center tw-gap-1.5">
+                      <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent ELO</div>
+                      <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
+                        <Checkbox
+                          checked={settings.autoDetectOpponentElo}
+                          onCheckedChange={(checked: boolean) => setSettings({ autoDetectOpponentElo: checked })}
+                        />
+                        <span className="tw-text-[9px] tw-text-muted">Auto</span>
+                      </label>
+                    </div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">
+                      {localOpponentElo}
+                    </div>
+                  </div>
+                  <Slider
+                    value={localOpponentElo}
+                    onValueChange={handleOpponentEloChange}
+                    min={300}
+                    max={3000}
+                    step={50}
+                    disabled={settings.autoDetectOpponentElo}
+                  />
+
+                  {/* Full Strength Toggle (only visible at 3000+ target ELO) */}
+                  {(localUserElo + 150) >= 3000 && (
+                    <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
+                      <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
+                        <div className="tw-flex-1">
+                          <div className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-0.5">
+                            {t.elo.fullStrength}
+                          </div>
+                          <div className="tw-text-[10px] tw-text-muted tw-leading-tight">
+                            {t.elo.fullStrengthDesc}
+                          </div>
+                        </div>
+                        <Switch
+                          checked={settings.disableLimitStrength}
+                          onCheckedChange={(checked) => {
+                            setSettings({ disableLimitStrength: checked });
+                            requestReanalyze();
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </Card>

@@ -26,8 +26,8 @@ export const en: Translations = {
     title: 'Target ELO',
     display: 'Chess.com Display',
     antiCheat: 'ELO Randomization ±100',
-    fullStrength: 'Full Strength Mode',
-    fullStrengthDesc: 'Disable ELO limit for maximum-strength suggestions (available at 2000+ ELO)',
+    fullStrength: 'Max ELO Power (3500)',
+    fullStrengthDesc: 'Unlock maximum engine strength at 3500 ELO',
   },
 
   personalities: {

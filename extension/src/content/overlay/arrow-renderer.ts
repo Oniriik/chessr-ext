@@ -47,77 +47,48 @@ export class ArrowRenderer {
     if (badges.length === 0) return;
 
     const squareSize = this.overlay.getSquareSize();
-    const boardSize = squareSize * 8;
+    const scale = squareSize / 100;
 
-    // Calculate arrow direction and position
-    const dx = Math.abs(toPos.x - fromPos.x);
-    const dy = Math.abs(toPos.y - fromPos.y);
-    const isVertical = dy > dx; // More vertical than horizontal
+    // Padding from square edge
+    const squarePadding = Math.max(2, Math.round(4 * scale));
+    const spacing = Math.max(1, Math.round(1 * scale));
 
-    // Determine which half of the board the arrow is in
-    const centerX = boardSize / 2;
-    const centerY = boardSize / 2;
-    const arrowCenterX = (fromPos.x + toPos.x) / 2;
-    const arrowCenterY = (fromPos.y + toPos.y) / 2;
+    // Calculate square boundaries
+    const squareRight = toPos.x + squareSize / 2;
+    const squareTop = toPos.y - squareSize / 2;
 
-    const isLeftHalf = arrowCenterX < centerX;
-    const isTopHalf = arrowCenterY < centerY;
+    let currentY = squareTop + squarePadding;
+    for (const badgeText of badges) {
+      const badgeColor = this.getBadgeColor(badgeText);
+      const badgeGroup = this.drawBadge(
+        { x: squareRight - squarePadding, y: currentY },
+        badgeText,
+        badgeColor,
+        'end',
+        scale
+      );
+      layer.appendChild(badgeGroup);
 
-    const spacing = 6; // Space between badges
-    const offset = squareSize * 0.3; // Base offset from arrow
-
-    if (isVertical) {
-      // Vertical arrow: display badges vertically
-      const offsetX = isLeftHalf ? offset : -offset; // Right if left half, left if right half
-      const startY = toPos.y + squareSize * 0.15;
-
-      let currentY = startY;
-      for (const badgeText of badges) {
-        const badgeColor = this.getBadgeColor(badgeText);
-        const badgeGroup = this.drawBadge(
-          { x: toPos.x + offsetX, y: currentY },
-          badgeText,
-          badgeColor
-        );
-        layer.appendChild(badgeGroup);
-
-        const bbox = badgeGroup.getBBox();
-        currentY += bbox.height + spacing;
-      }
-    } else {
-      // Horizontal arrow: display badges horizontally
-      const offsetY = isTopHalf ? squareSize * 0.5 : -squareSize * 0.5; // Bottom if top half, top if bottom half
-      const startX = toPos.x - (badges.length * 30) / 2; // Center badges horizontally
-
-      let currentX = startX;
-      for (const badgeText of badges) {
-        const badgeColor = this.getBadgeColor(badgeText);
-        const badgeGroup = this.drawBadge(
-          { x: currentX, y: toPos.y + offsetY },
-          badgeText,
-          badgeColor
-        );
-        layer.appendChild(badgeGroup);
-
-        const bbox = badgeGroup.getBBox();
-        currentX += bbox.width + spacing;
-      }
+      const bbox = badgeGroup.getBBox();
+      currentY += bbox.height + spacing;
     }
   }
 
-  private drawBadge(position: { x: number; y: number }, text: string, badgeColor: string): SVGGElement {
+  private drawBadge(position: { x: number; y: number }, text: string, badgeColor: string, align: 'middle' | 'start' | 'end' = 'middle', scale: number = 1): SVGGElement {
     const layer = this.overlay.getArrowsLayer();
     if (!layer) return document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
+    // Scale font size and padding based on viewport (with minimums for readability)
+    const fontSize = Math.max(8, Math.round(12 * scale));
+    const padding = Math.max(2, Math.round(3 * scale));
+    const borderRadius = Math.max(2, Math.round(3 * scale));
+
     // Create text element to measure size
     const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    textElement.setAttribute('x', position.x.toString());
-    textElement.setAttribute('y', position.y.toString());
-    textElement.setAttribute('text-anchor', 'middle');
-    textElement.setAttribute('dominant-baseline', 'middle');
-    textElement.setAttribute('font-size', '12');
+    textElement.setAttribute('dominant-baseline', 'central');
+    textElement.setAttribute('font-size', fontSize.toString());
     textElement.setAttribute('font-weight', 'bold');
     textElement.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
     textElement.setAttribute('fill', 'white');
@@ -128,17 +99,31 @@ export class ArrowRenderer {
     const bbox = textElement.getBBox();
     layer.removeChild(textElement);
 
-    // Create background rectangle
-    const padding = 4;
+    // Calculate rectangle position based on alignment
+    const rectHeight = bbox.height + padding * 2;
+    let rectX: number;
+    if (align === 'start') {
+      rectX = position.x;
+    } else if (align === 'end') {
+      rectX = position.x - bbox.width - padding * 2;
+    } else {
+      rectX = position.x - bbox.width / 2 - padding;
+    }
+
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('x', (position.x - bbox.width / 2 - padding).toString());
-    rect.setAttribute('y', (position.y - bbox.height / 2 - padding).toString());
+    rect.setAttribute('x', rectX.toString());
+    rect.setAttribute('y', position.y.toString());
     rect.setAttribute('width', (bbox.width + padding * 2).toString());
-    rect.setAttribute('height', (bbox.height + padding * 2).toString());
-    rect.setAttribute('rx', '4');
-    rect.setAttribute('ry', '4');
+    rect.setAttribute('height', rectHeight.toString());
+    rect.setAttribute('rx', borderRadius.toString());
+    rect.setAttribute('ry', borderRadius.toString());
     rect.setAttribute('fill', badgeColor);
-    rect.setAttribute('opacity', '0.95');
+    rect.setAttribute('opacity', '0.85');
+
+    // Position text centered vertically inside the rect
+    textElement.setAttribute('text-anchor', 'start');
+    textElement.setAttribute('x', (rectX + padding).toString());
+    textElement.setAttribute('y', (position.y + rectHeight / 2).toString());
 
     group.appendChild(rect);
     group.appendChild(textElement);
@@ -147,7 +132,7 @@ export class ArrowRenderer {
   }
 
   private drawArrowWithColor(options: ArrowOptions): SVGElement | null {
-    const { from, to, color, thickness = 8, opacity = 0.8, badges } = options;
+    const { from, to, color, opacity = 0.85, badges } = options;
 
     const layer = this.overlay.getArrowsLayer();
     if (!layer) return null;
@@ -155,13 +140,19 @@ export class ArrowRenderer {
     const fromPos = this.overlay.getSquareCenter(from);
     const toPos = this.overlay.getSquareCenter(to);
 
+    // Scale thickness based on square size (reference: 100px square = 10px thickness)
+    const squareSize = this.overlay.getSquareSize();
+    const scale = squareSize / 100;
+    const thickness = options.thickness ?? Math.max(5, Math.round(10 * scale));
+    const shortenAmount = thickness + Math.max(3, Math.round(5 * scale));
+
     // Create unique marker for this color
     const markerId = `arrow-marker-${color.replace('#', '')}`;
     this.ensureMarker(markerId, color);
 
     // Check if this is a knight move - use L-shaped arrow
     if (this.isKnightMove(from, to)) {
-      const arrow = this.drawLShapedArrow(fromPos, toPos, color, thickness, opacity, markerId, layer);
+      const arrow = this.drawLShapedArrow(fromPos, toPos, color, thickness, opacity, markerId, layer, shortenAmount);
 
       // Draw badges if provided
       if (badges && badges.length > 0) {
@@ -175,8 +166,7 @@ export class ArrowRenderer {
     const dx = toPos.x - fromPos.x;
     const dy = toPos.y - fromPos.y;
     const length = Math.sqrt(dx * dx + dy * dy);
-    const shortenBy = thickness + 5;
-    const ratio = (length - shortenBy) / length;
+    const ratio = (length - shortenAmount) / length;
 
     const endX = fromPos.x + dx * ratio;
     const endY = fromPos.y + dy * ratio;
@@ -209,7 +199,8 @@ export class ArrowRenderer {
     thickness: number,
     opacity: number,
     markerId: string,
-    layer: SVGGElement
+    layer: SVGGElement,
+    shortenBy: number
   ): SVGPathElement {
     const dx = toPos.x - fromPos.x;
     const dy = toPos.y - fromPos.y;
@@ -234,7 +225,6 @@ export class ArrowRenderer {
     const endDx = toPos.x - cornerX;
     const endDy = toPos.y - cornerY;
     const endLength = Math.sqrt(endDx * endDx + endDy * endDy);
-    const shortenBy = thickness + 5;
 
     let endX: number, endY: number;
     if (endLength > 0) {
@@ -272,14 +262,16 @@ export class ArrowRenderer {
 
     const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
     marker.setAttribute('id', markerId);
-    marker.setAttribute('markerWidth', '4');
-    marker.setAttribute('markerHeight', '4');
-    marker.setAttribute('refX', '2.5');
-    marker.setAttribute('refY', '2');
+    // Use markerUnits="strokeWidth" for consistent proportions regardless of arrow thickness
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    marker.setAttribute('markerWidth', '3');
+    marker.setAttribute('markerHeight', '3');
+    marker.setAttribute('refX', '2');
+    marker.setAttribute('refY', '1.5');
     marker.setAttribute('orient', 'auto');
 
     const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    polygon.setAttribute('points', '0 0, 4 2, 0 4');
+    polygon.setAttribute('points', '0 0, 3 1.5, 0 3');
     polygon.setAttribute('fill', color);
 
     marker.appendChild(polygon);
