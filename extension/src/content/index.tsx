@@ -553,9 +553,6 @@ class Chessr {
    * Updates UI with move suggestions and arrows.
    */
   private onSuggestionsResult(result: any) {
-    console.log('[Chessr] Suggestions result received, requestId:', result.requestId);
-    console.log('[Chessr] Full suggestions response:', result);
-
     // Anti-stale check: Is this request still pending?
     if (result.requestId !== this.pendingSuggestionsRequest) {
       console.log('[Chessr] Stale or unknown suggestions ignored', result.requestId);

@@ -96,13 +96,6 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
       accuracyCache: updatedCache,
       previousAccuracy: currentState.activeSnapshot?.accuracy,
     });
-
-    console.log('[Feedback] Stats result processed', {
-      newPlies: accuracyPayload.perPly.length,
-      totalCached: updatedCache.analyzedPlies.size,
-      overall: accuracyPayload.overall,
-      stats: updatedCache.overallStats,
-    });
   },
 
   handleSuggestionsResult: (result, currentFen, currentMovesUci) => {
@@ -136,15 +129,6 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
       },
       selectedSuggestionIndex: 0, // Default to first suggestion
       accuracyCache: updatedCache, // Update cache with merged data
-    });
-
-    console.log('[Feedback] Suggestions result processed', {
-      status: 'SHOWING',
-      plyIndex,
-      suggestions: suggestionsPayload.suggestions.length,
-      accuracy: accuracyPayload.overall,
-      cached: updatedCache.analyzedPlies.size,
-      serverOverall: updatedCache.serverOverall,
     });
   },
 
