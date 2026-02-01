@@ -42,6 +42,8 @@ import {
   computeMaterialDelta,
 } from './uci-helpers.js';
 import { classifyMove, type MoveContext } from './uci-helpers-classify.js';
+import { cpToWinPercent, calculateMoveAccuracy, calculateGameAccuracyLila, calculateGameAccuracyByColor } from './stats-calculator.js';
+import { capCentipawns, mateToCappedCp } from './math-utils.js';
 
 // ============================================================================
 // Chess.js Integration
@@ -119,6 +121,23 @@ function buildFenFromMoves(moves: string[]): string {
     // Fallback to startpos if moves invalid
     return 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   }
+}
+
+/**
+ * Convert EngineScore to win percentage.
+ *
+ * For mate scores, returns extreme win percentages (99.9% for winning, 0.1% for losing).
+ * For centipawn scores, uses the Lichess formula via cpToWinPercent.
+ *
+ * @param score - Engine score (cp or mate)
+ * @returns Win percentage (0-100), or undefined if score is invalid
+ */
+function scoreToWinPercent(score: { type: 'cp' | 'mate'; value: number }): number {
+  if (score.type === 'mate') {
+    // Mate scores: convert to extreme win percentages
+    return score.value > 0 ? 99.9 : 0.1;
+  }
+  return cpToWinPercent(score.value);
 }
 
 // ============================================================================
@@ -262,9 +281,10 @@ async function runAccuracyReview(
     movesUci: string[];
     lastMoves: number;
     cachedPerPly: AccuracyPly[];
+    playerColor?: 'w' | 'b';
   }
 ): Promise<{ payload: AccuracyPayload; timingMs: number; windowPlies: number; analyzedPlies: number }> {
-  const { movesUci, lastMoves, cachedPerPly } = params;
+  const { movesUci, lastMoves, cachedPerPly, playerColor } = params;
   const startTime = Date.now();
 
   // Calculate window
@@ -297,6 +317,30 @@ async function runAccuracyReview(
   const perPly: AccuracyPly[] = [];
   let cacheHits = 0;
   let cacheMisses = 0;
+  // Collect centipawn evaluations in White POV for Lila's game accuracy algorithm
+  // This is used for volatility window calculation and per-move accuracy recalculation
+  const cpsWhitePov: number[] = [];
+
+  // Get initial position evaluation (position BEFORE first analyzed move)
+  // This is crucial for correct volatility calculation when analyzing partial games
+  let initialCpWhitePov = 0; // Default: 0 cp for standard starting position
+  if (startPlyIndex > 0) {
+    // Analyze position before the first move in our window
+    const fenBeforeWindow = buildFenFromMoves(prefixMoves);
+    const sideToMoveBeforeWindow = sideToMoveAtPly(startPlyIndex);
+    const initialResult = await analyzePosition(engine, fenBeforeWindow, prefixMoves, 'time', movetimePerEval, 18, 1, 'stats');
+    const initialLine = initialResult.lines[0];
+    if (initialLine) {
+      const initialRaw = {
+        type: (initialLine.mate !== undefined ? 'mate' : 'cp') as 'cp' | 'mate',
+        value: initialLine.mate !== undefined ? initialLine.mate : initialLine.evaluation * 100,
+      };
+      const initialWhite = toWhitePOV(initialRaw, sideToMoveBeforeWindow);
+      initialCpWhitePov = initialWhite.type === 'cp'
+        ? capCentipawns(initialWhite.value)
+        : mateToCappedCp(initialWhite.value);
+    }
+  }
 
   // Analyze each ply in the window
   for (let i = 0; i < windowMoves.length; i++) {
@@ -306,6 +350,13 @@ async function runAccuracyReview(
     const cachedEntry = cacheMap.get(plyIndex);
     if (cachedEntry) {
       perPly.push(cachedEntry);
+
+      // Track cp in White POV for game accuracy aggregation (capped to avoid mate distortion)
+      const cpWhitePov = cachedEntry.evaluation.playedAfter.type === 'cp'
+        ? capCentipawns(cachedEntry.evaluation.playedAfter.value)
+        : mateToCappedCp(cachedEntry.evaluation.playedAfter.value);
+      cpsWhitePov.push(cpWhitePov);
+
       cacheHits++;
       continue;  // Skip analysis for this ply
     }
@@ -386,8 +437,22 @@ async function runAccuracyReview(
       ? lossCpForPlayer(sidePlayed, bestAfterWhite.value, playedAfterWhite.value)
       : 0;
 
-    // Calculate accuracy from win% loss (better than cp)
-    const accuracy = Math.max(0, Math.min(100, Math.round(100 - lossWin * 5)));
+    // Calculate accuracy using Lila's formula (exponential decay based on win% loss)
+    // Win percentages are in White POV, so for Black we need to invert them
+    const winPercentBeforeWhite = scoreToWinPercent(bestAfterWhite);
+    const winPercentAfterWhite = scoreToWinPercent(playedAfterWhite);
+
+    // For the player's perspective: White wants high win%, Black wants low win%
+    const winPercentBefore = sidePlayed === 'w' ? winPercentBeforeWhite : (100 - winPercentBeforeWhite);
+    const winPercentAfter = sidePlayed === 'w' ? winPercentAfterWhite : (100 - winPercentAfterWhite);
+    const accuracy = calculateMoveAccuracy(winPercentBefore, winPercentAfter);
+
+    // Track cp in White POV for game accuracy aggregation (capped to avoid mate distortion)
+    // Note: we use the PLAYED evaluation (after the move was made), which is what Lichess uses
+    const cpWhitePov = playedAfterWhite.type === 'cp'
+      ? capCentipawns(playedAfterWhite.value)
+      : mateToCappedCp(playedAfterWhite.value);
+    cpsWhitePov.push(cpWhitePov);
 
     // Flags for special situations
     const flags: AccuracyPly['flags'] = {};
@@ -452,7 +517,29 @@ async function runAccuracyReview(
     }
   );
 
-  const overall = perPly.length ? Math.round(perPly.reduce((sum, p) => sum + p.accuracy, 0) / perPly.length) : 100;
+  // Calculate accuracy using Lila's dual-weighted system
+  // The new implementation takes centipawn evaluations in White POV and calculates
+  // per-move accuracy with proper color perspective during aggregation (matching Lichess)
+
+  // Determine start color (who made the first move in the analyzed window)
+  const startColor: 'w' | 'b' = sideToMoveAtPly(startPlyIndex);
+
+  let overall: number;
+  if (playerColor) {
+    // Calculate accuracy only for the player's moves
+    const colorResult = calculateGameAccuracyByColor(cpsWhitePov, startColor, playerColor, initialCpWhitePov);
+    overall = colorResult?.[playerColor === 'w' ? 'white' : 'black'] ?? 100;
+  } else {
+    // No player color specified, calculate for all moves
+    overall = calculateGameAccuracyLila(cpsWhitePov, startColor, initialCpWhitePov) ?? 100;
+  }
+
+  logger.info('accuracy_calculated', {
+    overall,
+    playerColor,
+    totalMoves: perPly.length,
+    playerMovesCount: playerColor ? perPly.filter(p => p.side === playerColor).length : perPly.length,
+  });
 
   const payload: AccuracyPayload = {
     method: 'win_percent_loss', // Using win% for better accuracy
@@ -461,6 +548,7 @@ async function runAccuracyReview(
       lastPlies: windowPlies,
       analyzedPlies,
       startPlyIndex,
+      initialCp: initialCpWhitePov, // Position eval before first analyzed move (for partial game analysis)
     },
     overall,
     summary,
@@ -675,10 +763,12 @@ export async function handleAnalyzeStats(
     const movesUci = req.payload.movesUci ?? [];
     const lastMoves = req.payload.review?.lastMoves ?? 1;
     const cachedAccuracy = req.payload.review.cachedAccuracy ?? [];
+    const playerColor = req.payload.playerColor;
 
     logger.info('stats_request', {
       movesCount: movesUci.length,
       lastMoves,
+      playerColor,
       cachedCount: cachedAccuracy.length,
     });
 
@@ -693,6 +783,7 @@ export async function handleAnalyzeStats(
         movesUci,
         lastMoves,
         cachedPerPly: cachedAccuracy,
+        playerColor,
       }
     );
 
@@ -898,6 +989,7 @@ export async function handleAnalyze(
     const movesUci = req.payload.movesUci ?? [];
     const lastMoves = req.payload.review?.lastMoves ?? 10;
     const cachedAccuracy = req.payload.review.cachedAccuracy;
+    const playerColor = req.payload.playerColor;
     const { targetElo, personality, multiPV, disableLimitStrength, opponentElo } = req.payload.user;
 
     // Engine Reset (Clean State)
@@ -911,6 +1003,7 @@ export async function handleAnalyze(
         movesUci,
         lastMoves,
         cachedPerPly: cachedAccuracy,
+        playerColor,
       }
     );
 

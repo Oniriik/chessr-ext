@@ -23,6 +23,7 @@ export interface AnalyzeRequest {
     movesUci: string[];          // Plies in UCI format: ["e2e4", "e7e5", ...]
     fen?: string;                 // Optional (can be derived from movesUci)
     sideToMove?: Side;            // Optional (can be derived from movesUci)
+    playerColor?: 'w' | 'b';     // Player's color (for calculating only their accuracy)
     review: {
       lastMoves: number;          // Number of full moves to analyze (default: 10)
       cachedAccuracy: AccuracyPly[];  // Cached analysis from previous requests (can be empty [])
@@ -46,6 +47,7 @@ export interface AnalyzeStatsRequest {
   requestId?: string;
   payload: {
     movesUci: string[];          // Plies in UCI format: ["e2e4", "e7e5", ...]
+    playerColor?: 'w' | 'b';     // Player's color (for calculating only their accuracy)
     review: {
       lastMoves: number;          // Number of full moves to analyze (default: 1)
       cachedAccuracy: AccuracyPly[];  // Cached analysis from previous requests (can be empty [])
@@ -148,9 +150,11 @@ export interface AccuracyPayload {
     lastPlies: number;        // Max plies in window (e.g., 20)
     analyzedPlies: number;    // Actual plies analyzed (≤ lastPlies if game short)
     startPlyIndex: number;    // Global ply index where window starts
+    initialCp?: number;       // Centipawn eval of position BEFORE first analyzed move (White POV)
   };
 
   overall: number;            // Overall accuracy (0-100)
+  playerAccuracy?: number;    // Player's accuracy (0-100), calculated for their color only
 
   summary: {
     brilliant: number;        // Count of brilliant moves (sacrifice + winning)

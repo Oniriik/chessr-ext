@@ -135,9 +135,11 @@ export interface AccuracyPayload {
     lastPlies: number;        // Max plies in window (e.g., 20)
     analyzedPlies: number;    // Actual plies analyzed (≤ lastPlies if game short)
     startPlyIndex: number;    // Global ply index where window starts
+    initialCp?: number;       // Centipawn eval of position BEFORE first analyzed move (White POV)
   };
 
   overall: number;            // Overall accuracy (0-100)
+  playerAccuracy?: number;    // Player's accuracy (0-100), calculated for their color only
 
   summary: {
     brilliant: number;        // Count of brilliant moves (sacrifice + winning)
@@ -268,6 +270,8 @@ export interface AccuracyCache {
     mistakes: number;
     blunders: number;
   };
+  serverOverall?: number;  // Server-calculated overall accuracy (player-only, using lila's algorithm)
+  initialCp?: number;      // Centipawn eval of position BEFORE first analyzed move (White POV)
 }
 
 export interface ChessrState {

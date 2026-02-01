@@ -310,13 +310,21 @@ export function mergeAccuracyIntoCache(
       stats[key]++;
     });
 
-    return { analyzedPlies: plies, overallStats: stats };
+    return {
+      analyzedPlies: plies,
+      overallStats: stats,
+      serverOverall: newAccuracy.overall,  // Store server's overall accuracy (player-only)
+      initialCp: newAccuracy.window.initialCp,  // Store initial position eval for accurate recalculation
+    };
   }
 
   // Merge new plies (skip duplicates)
-  const updated = {
+  // Keep the earliest initialCp (from the first analysis window) for accurate game-level calculation
+  const updated: AccuracyCache = {
     analyzedPlies: new Map(cache.analyzedPlies),
     overallStats: { ...cache.overallStats },
+    serverOverall: newAccuracy.overall,  // Update with latest server overall (player-only)
+    initialCp: cache.initialCp ?? newAccuracy.window.initialCp,  // Keep first initialCp
   };
 
   newAccuracy.perPly.forEach(ply => {
@@ -331,8 +339,180 @@ export function mergeAccuracyIntoCache(
 }
 
 /**
+ * Convert centipawn evaluation to win percentage using Lichess formula.
+ */
+function cpToWinPercent(cp: number): number {
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+}
+
+/**
+ * Convert engine score to centipawn.
+ * For mate scores, use a capped value to avoid extreme win% swings.
+ *
+ * Using ±10000 creates artificial volatility when transitioning from
+ * "clearly winning" (+800cp) to "mate in N" - the practical outcome
+ * is the same but the numbers swing wildly.
+ *
+ * We use ±1500cp as the cap, which corresponds to ~99% win probability.
+ * This matches how positions are already "won" at high material advantages.
+ */
+const MATE_CP_CAP = 1500;
+
+function scoreToCp(score: { type: 'cp' | 'mate'; value: number }): number {
+  if (score.type === 'mate') {
+    return score.value > 0 ? MATE_CP_CAP : -MATE_CP_CAP;
+  }
+  // Also cap regular centipawn scores to avoid extreme values
+  return Math.max(-MATE_CP_CAP, Math.min(MATE_CP_CAP, score.value));
+}
+
+/**
+ * Calculate move accuracy from win percentages using Lichess formula.
+ */
+function calculateMoveAccuracyFromWinPercent(winPercentBefore: number, winPercentAfter: number): number {
+  if (winPercentAfter >= winPercentBefore) {
+    return 100;
+  }
+  const winDiff = winPercentBefore - winPercentAfter;
+  const raw = 103.1668100711649 * Math.exp(-0.04354415386753951 * winDiff) + -3.166924740191411;
+  const accuracy = raw + 1; // uncertainty bonus
+  return Math.max(0, Math.min(100, accuracy));
+}
+
+/**
+ * Calculate population standard deviation.
+ */
+function standardDeviation(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = values.reduce((sum, x) => sum + x, 0) / values.length;
+  const variance = values.reduce((sum, x) => sum + Math.pow(x - mean, 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+/**
+ * Clamp a value to a range.
+ */
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+/**
+ * Calculate overall accuracy using Lila's dual-weighted algorithm.
+ *
+ * This is the CORRECT implementation matching lila/modules/analyse/src/main/AccuracyPercent.scala
+ *
+ * The algorithm:
+ * 1. Takes centipawn evaluations in White POV
+ * 2. Creates sliding windows for volatility calculation
+ * 3. For each move, calculates accuracy with proper color perspective
+ * 4. Returns (weightedMean + harmonicMean) / 2 for the target color(s)
+ *
+ * IMPORTANT: This function requires CONTIGUOUS plies. If there are gaps in allPlies,
+ * the calculation will be incorrect because eval transitions would span multiple moves.
+ *
+ * @param allPlies - All plies sorted by plyIndex (MUST be contiguous for correct calculation)
+ * @param targetPlies - Plies to include in accuracy calculation (can be filtered subset)
+ * @param initialCp - Optional: centipawn eval of position before first analyzed move (default: 0)
+ */
+function calculateLilaAccuracy(allPlies: AccuracyPly[], targetPlies: AccuracyPly[], initialCp: number = 0): number {
+  if (allPlies.length === 0 || targetPlies.length === 0) {
+    return 100;
+  }
+
+  if (allPlies.length === 1) {
+    // Single move: just return its accuracy (already calculated correctly on server)
+    return targetPlies[0]?.accuracy ?? 100;
+  }
+
+  // Check for gaps in the ply sequence (critical for correct calculation)
+  const startPlyIndex = allPlies[0].plyIndex;
+  const endPlyIndex = allPlies[allPlies.length - 1].plyIndex;
+  const expectedLength = endPlyIndex - startPlyIndex + 1;
+
+  if (allPlies.length !== expectedLength) {
+    // Gap detected - fall back to simple average of per-ply accuracies (server-calculated)
+    const targetAccuracies = targetPlies.map(p => p.accuracy);
+    return targetAccuracies.reduce((sum, a) => sum + a, 0) / targetAccuracies.length;
+  }
+
+  // Extract centipawn evaluations in White POV from all plies
+  const cpsWhitePov = allPlies.map(p => scoreToCp(p.evaluation.playedAfter));
+
+  // Prepend initial position evaluation and convert to win percentages
+  // Use provided initialCp (position before first analyzed move) or 0 for standard starting position
+  const allWinPercents = [cpToWinPercent(initialCp), ...cpsWhitePov.map(cp => cpToWinPercent(cp))];
+
+  // Calculate adaptive window size: floor(n / 10), clamped [2, 8]
+  const windowSize = clamp(Math.floor(cpsWhitePov.length / 10), 2, 8);
+
+  // Create windows with padding (lila's algorithm)
+  const paddingCount = Math.max(0, Math.min(windowSize, allWinPercents.length) - 2);
+  const firstWindow = allWinPercents.slice(0, Math.min(windowSize, allWinPercents.length));
+  const windows: number[][] = [];
+
+  // Add padded windows
+  for (let i = 0; i < paddingCount; i++) {
+    windows.push(firstWindow);
+  }
+
+  // Add sliding windows
+  for (let i = 0; i + windowSize <= allWinPercents.length; i++) {
+    windows.push(allWinPercents.slice(i, i + windowSize));
+  }
+
+  // Calculate volatility weights (clamped [0.5, 12])
+  const weights = windows.map(window => clamp(standardDeviation(window), 0.5, 12));
+
+  // Calculate weighted accuracies with proper color perspective (matching Lichess exactly)
+  const weightedAccuracies: { accuracy: number; weight: number; plyIndex: number }[] = [];
+
+  for (let i = 0; i + 1 < allWinPercents.length; i++) {
+    const prev = allWinPercents[i];
+    const next = allWinPercents[i + 1];
+    const weight = weights[i];
+    // Use actual ply index from array (not calculated) to handle arbitrary start positions
+    const plyIndex = allPlies[i].plyIndex;
+
+    // Determine which color made this move based on actual ply index
+    const isWhiteMove = plyIndex % 2 === 0;
+
+    // Calculate accuracy with proper perspective (matching Lichess's color.fold)
+    // For White: before = prev, after = next (white wants high win%)
+    // For Black: before = next, after = prev (black wants low win%, so we invert)
+    const winPercentBefore = isWhiteMove ? prev : next;
+    const winPercentAfter = isWhiteMove ? next : prev;
+    const accuracy = calculateMoveAccuracyFromWinPercent(winPercentBefore, winPercentAfter);
+
+    weightedAccuracies.push({ accuracy, weight, plyIndex });
+  }
+
+  // Filter to target plies only
+  const targetPlyIndices = new Set(targetPlies.map(p => p.plyIndex));
+  const filteredData = weightedAccuracies.filter(wa => targetPlyIndices.has(wa.plyIndex));
+
+  if (filteredData.length === 0) {
+    return 100;
+  }
+
+  const accuracies = filteredData.map(d => d.accuracy);
+  const filteredWeights = filteredData.map(d => d.weight);
+
+  // Calculate volatility-weighted mean
+  const sumOfProducts = accuracies.reduce((sum, acc, i) => sum + acc * filteredWeights[i], 0);
+  const sumOfWeights = filteredWeights.reduce((sum, w) => sum + w, 0);
+  const weightedMean = sumOfProducts / sumOfWeights;
+
+  // Calculate harmonic mean (replace 0 with 0.01 to avoid division by zero)
+  const safeAccuracies = accuracies.map(a => a === 0 ? 0.01 : a);
+  const sumOfReciprocals = safeAccuracies.reduce((sum, a) => sum + 1 / a, 0);
+  const harmonicMean = accuracies.length / sumOfReciprocals;
+
+  return (weightedMean + harmonicMean) / 2;
+}
+
+/**
  * Build comprehensive AccuracyPayload from cache
- * Recalculates overall accuracy from all accumulated plies
+ * Uses lila's dual-weighted algorithm for overall accuracy calculation
  * @param cache - The accumulated accuracy cache
  * @param playerColor - Optional: filter to show only moves from this color (player-only stats)
  */
@@ -340,19 +520,22 @@ export function buildAccuracyFromCache(
   cache: AccuracyCache,
   playerColor?: Side
 ): AccuracyPayload {
-  let plies = Array.from(cache.analyzedPlies.values()).sort((a, b) => a.plyIndex - b.plyIndex);
+  // Get all plies sorted by plyIndex (needed for window calculation)
+  const allPlies = Array.from(cache.analyzedPlies.values()).sort((a, b) => a.plyIndex - b.plyIndex);
 
-  // Filter by player color if specified (show only player's moves)
-  if (playerColor) {
-    plies = plies.filter(ply => ply.side === playerColor);
-  }
+  // Filter by player color if specified
+  const targetPlies = playerColor
+    ? allPlies.filter(ply => ply.side === playerColor)
+    : allPlies;
 
-  const totalPlies = plies.length;
-  const totalAccuracy = totalPlies > 0
-    ? plies.reduce((sum, p) => sum + p.accuracy, 0) / totalPlies
-    : 100;
+  const totalPlies = targetPlies.length;
 
-  const startPlyIndex = plies.length > 0 ? plies[0].plyIndex : 0;
+  // Calculate overall accuracy using lila's algorithm on the ENTIRE cache
+  // Always recalculate from all accumulated plies (serverOverall only covers last window)
+  // Use initialCp from cache if available (for partial game analysis accuracy)
+  const totalAccuracy = calculateLilaAccuracy(allPlies, targetPlies, cache.initialCp ?? 0);
+
+  const startPlyIndex = targetPlies.length > 0 ? targetPlies[0].plyIndex : 0;
   const analyzedPlies = totalPlies;
 
   // Recalculate summary stats for filtered plies only
@@ -368,7 +551,7 @@ export function buildAccuracyFromCache(
     blunders: 0,
   };
 
-  plies.forEach(ply => {
+  targetPlies.forEach(ply => {
     const key = classificationToStatsKey(ply.classification);
     summary[key]++;
   });
@@ -383,7 +566,7 @@ export function buildAccuracyFromCache(
     },
     overall: Math.round(totalAccuracy),
     summary,
-    perPly: plies,
+    perPly: targetPlies,
   };
 }
 

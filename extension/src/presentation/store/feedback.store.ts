@@ -112,6 +112,9 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
     const suggestionsPayload = result.payload.suggestions;
     const accuracyPayload = result.payload.accuracy; // Included for convenience
 
+    // Merge accuracy data into cache (same as handleStatsResult)
+    const updatedCache = mergeAccuracyIntoCache(currentState.accuracyCache, accuracyPayload);
+
     // Build active snapshot
     const plyIndex = currentMovesUci.length;
     const sideToMove = currentFen.split(' ')[1] as 'w' | 'b';
@@ -132,6 +135,7 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
         receivedAt: Date.now(),
       },
       selectedSuggestionIndex: 0, // Default to first suggestion
+      accuracyCache: updatedCache, // Update cache with merged data
     });
 
     console.log('[Feedback] Suggestions result processed', {
@@ -139,6 +143,8 @@ export const useFeedbackStore = create<FeedbackStore>((set, get) => ({
       plyIndex,
       suggestions: suggestionsPayload.suggestions.length,
       accuracy: accuracyPayload.overall,
+      cached: updatedCache.analyzedPlies.size,
+      serverOverall: updatedCache.serverOverall,
     });
   },
 

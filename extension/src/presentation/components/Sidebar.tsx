@@ -88,6 +88,7 @@ export function Sidebar() {
     ? { boxShadow: '8px 0 30px rgba(0, 0, 0, 0.5), 2px 0 10px rgba(59, 130, 246, 0.1)' }
     : { boxShadow: '-8px 0 30px rgba(0, 0, 0, 0.5), -2px 0 10px rgba(59, 130, 246, 0.1)' };
 
+    console.log("activeSnapshot", activeSnapshot);
   return (
     <div className={cn(
       'tw-fixed tw-top-0 tw-h-screen tw-z-[10000] tw-flex tw-font-sans tw-select-none',
@@ -174,7 +175,7 @@ export function Sidebar() {
                   accuracy={activeSnapshot.accuracy}
                   previousAccuracy={previousAccuracy}
                   accuracyCache={accuracyCache}
-                  playerColor={lastGamePlayerColor}
+                  playerColor={lastGamePlayerColor === 'white' ? 'w' : lastGamePlayerColor === 'black' ? 'b' : undefined}
                 />
               )}
             </>
@@ -325,7 +326,7 @@ export function Sidebar() {
                 accuracy={activeSnapshot.accuracy}
                 previousAccuracy={previousAccuracy}
                 accuracyCache={accuracyCache}
-                playerColor={boardConfig?.playerColor}
+                playerColor={boardConfig?.playerColor === 'white' ? 'w' : boardConfig?.playerColor === 'black' ? 'b' : undefined}
               />
             )}
 

@@ -414,7 +414,8 @@ class Chessr {
       // Request stats analysis in background
       const statsRequestId = generateShortRequestId();
       this.pendingStatsRequests.add(statsRequestId);
-      this.wsClient.analyzeStats(moveHistory, statsRequestId, accuracyCache);
+      const playerColorSide = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
+      this.wsClient.analyzeStats(moveHistory, statsRequestId, accuracyCache, playerColorSide);
       return;
     }
 
@@ -428,7 +429,8 @@ class Chessr {
       // No cached stats or cache is stale → request stats first, then auto-trigger suggestions
       const statsRequestId = generateShortRequestId();
       this.pendingStatsRequests.add(statsRequestId);
-      this.wsClient.analyzeStats(moveHistory, statsRequestId, accuracyCache);
+      const playerColorSide = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
+      this.wsClient.analyzeStats(moveHistory, statsRequestId, accuracyCache, playerColorSide);
       // Note: Suggestions will be auto-triggered in onStatsResult() when stats arrive
       return;
     }

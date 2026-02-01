@@ -92,7 +92,7 @@ export class WebSocketClient {
     }
   }
 
-  analyze(movesUci: string[], settings: Settings, requestId?: string, accuracyCache?: AccuracyCache) {
+  analyze(movesUci: string[], settings: Settings, requestId?: string, accuracyCache?: AccuracyCache, playerColor?: 'w' | 'b') {
     // Convert cache Map to array (or empty if no cache)
     const cachedAccuracy: AccuracyPly[] = accuracyCache && accuracyCache.analyzedPlies.size > 0
       ? Array.from(accuracyCache.analyzedPlies.values())
@@ -103,6 +103,7 @@ export class WebSocketClient {
       requestId,
       payload: {
         movesUci,
+        playerColor,
         review: {
           lastMoves: DEFAULT_LAST_MOVES,
           cachedAccuracy,
@@ -121,7 +122,7 @@ export class WebSocketClient {
    * Request stats-only analysis (Phase A + B) - executed on opponent's turn (background).
    * This computes accuracy review without suggestions.
    */
-  analyzeStats(movesUci: string[], requestId?: string, accuracyCache?: AccuracyCache) {
+  analyzeStats(movesUci: string[], requestId?: string, accuracyCache?: AccuracyCache, playerColor?: 'w' | 'b') {
     // Convert cache Map to array (or empty if no cache)
     const cachedAccuracy: AccuracyPly[] = accuracyCache && accuracyCache.analyzedPlies.size > 0
       ? Array.from(accuracyCache.analyzedPlies.values())
@@ -132,6 +133,7 @@ export class WebSocketClient {
       requestId,
       payload: {
         movesUci,
+        playerColor,
         review: {
           lastMoves: DEFAULT_LAST_MOVES,
           cachedAccuracy,

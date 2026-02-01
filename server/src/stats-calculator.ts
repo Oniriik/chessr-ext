@@ -115,3 +115,193 @@ export function calculateMoveAccuracy(winPercentBefore: number, winPercentAfter:
 
   return Math.round(Math.max(0, Math.min(100, accuracy)));
 }
+
+/**
+ * Calculate per-color accuracy using Lila's dual-weighted system.
+ * This is the CORRECT implementation matching lila/modules/analyse/src/main/AccuracyPercent.scala:79-114
+ *
+ * IMPORTANT: Unlike the previous implementation, this function takes RAW centipawn
+ * evaluations in White POV and recalculates per-move accuracy during aggregation
+ * with proper color perspective. This matches how Lichess does it.
+ *
+ * @param cpsWhitePov - Array of centipawn evaluations in White POV (positive = good for white)
+ * @param startColor - Which color made the first move ('w' for standard games)
+ * @param onlyColor - Optional: calculate only this color (performance optimization)
+ * @param initialCp - Optional: centipawn eval of position before first move (default: 0 for starting position)
+ * @returns Object with white and/or black accuracies, or undefined if insufficient data
+ */
+export function calculateGameAccuracyByColor(
+  cpsWhitePov: number[],
+  startColor: 'w' | 'b' = 'w',
+  onlyColor?: 'w' | 'b',
+  initialCp: number = 0
+): { white?: number; black?: number } | undefined {
+  if (cpsWhitePov.length < 2) {
+    return undefined;
+  }
+
+  // Import math utilities
+  const { standardDeviation, harmonicMean, weightedMean, clamp } = require('./math-utils.js');
+
+  // Prepend initial position evaluation and convert to win percentages
+  // Use provided initialCp (position before first analyzed move) or 0 for standard starting position
+  const allWinPercents = [cpToWinPercent(initialCp), ...cpsWhitePov.map(cp => cpToWinPercent(cp))];
+
+  // Calculate adaptive window size: floor(n / 10), clamped [2, 8]
+  // This matches: val windowSize = (cps.size / 10).atLeast(2).atMost(8)
+  const windowSize = clamp(Math.floor(cpsWhitePov.length / 10), 2, 8);
+
+  // Create windows with padding (lila line 84-87)
+  // List.fill(windowSize.atMost(allWinPercentValues.size) - 2)(allWinPercentValues.take(windowSize))
+  //   ::: allWinPercentValues.sliding(windowSize).toList
+  const paddingCount = Math.max(0, Math.min(windowSize, allWinPercents.length) - 2);
+  const firstWindow = allWinPercents.slice(0, Math.min(windowSize, allWinPercents.length));
+  const paddedWindows: number[][] = Array(paddingCount).fill(firstWindow);
+
+  // Create sliding windows
+  const slidingWindows: number[][] = [];
+  for (let i = 0; i + windowSize <= allWinPercents.length; i++) {
+    slidingWindows.push(allWinPercents.slice(i, i + windowSize));
+  }
+
+  const windows = [...paddedWindows, ...slidingWindows];
+
+  // Calculate volatility weights per window (lila line 88)
+  // windows.map { xs => Maths.standardDeviation(xs).orZero.atLeast(0.5).atMost(12) }
+  const weights = windows.map(window => {
+    const stdDev = standardDeviation(window);
+    return clamp(stdDev, 0.5, 12);
+  });
+
+  // Calculate weighted accuracies with proper color perspective (lila lines 89-98)
+  // allWinPercents.sliding(2).zip(weights).zipWithIndex.collect { case ((List(prev, next), weight), i) =>
+  //   val color = Color.fromWhite((i % 2 == 0) == startColor.white)
+  //   val accuracy = AccuracyPercent.fromWinPercents(color.fold(prev, next), color.fold(next, prev)).value
+  //   ((accuracy, weight), color)
+  // }
+  const weightedAccuracies: { accuracy: number; weight: number; color: 'w' | 'b' }[] = [];
+
+  for (let i = 0; i + 1 < allWinPercents.length; i++) {
+    const prev = allWinPercents[i];
+    const next = allWinPercents[i + 1];
+    const weight = weights[i];
+
+    // Determine which color made this move
+    // In Scala: Color.fromWhite((i % 2 == 0) == startColor.white)
+    // If startColor is white: move 0 is white, move 1 is black, etc.
+    // If startColor is black: move 0 is black, move 1 is white, etc.
+    const isWhiteMove = (i % 2 === 0) === (startColor === 'w');
+    const color: 'w' | 'b' = isWhiteMove ? 'w' : 'b';
+
+    // Calculate accuracy with proper perspective
+    // In Scala: fromWinPercents(color.fold(prev, next), color.fold(next, prev))
+    // color.fold(ifWhite, ifBlack) means: if white, use first arg; if black, use second arg
+    // For White: before = prev, after = next (white wants high win%)
+    // For Black: before = next, after = prev (black wants low win%, so we invert)
+    const winPercentBefore = isWhiteMove ? prev : next;
+    const winPercentAfter = isWhiteMove ? next : prev;
+    const accuracy = calculateMoveAccuracy(winPercentBefore, winPercentAfter);
+
+    weightedAccuracies.push({ accuracy, weight, color });
+  }
+
+  // Calculate accuracy for a specific color (lila lines 105-112)
+  const calculateForColor = (color: 'w' | 'b'): number | undefined => {
+    const colorData = weightedAccuracies.filter(wa => wa.color === color);
+    if (colorData.length === 0) return undefined;
+
+    const colorAccuracies = colorData.map(wa => wa.accuracy);
+    const colorWeights = colorData.map(wa => wa.weight);
+
+    // Weighted mean (lila line 106-108)
+    const wMean = weightedMean(colorAccuracies, colorWeights);
+
+    // Harmonic mean (lila lines 109-111)
+    const hMean = harmonicMean(colorAccuracies);
+
+    // Average of both means (lila line 112)
+    return Math.round((wMean + hMean) / 2);
+  };
+
+  // Performance optimization: only calculate requested color
+  if (onlyColor) {
+    return {
+      white: onlyColor === 'w' ? calculateForColor('w') : undefined,
+      black: onlyColor === 'b' ? calculateForColor('b') : undefined
+    };
+  }
+
+  // Calculate both colors
+  return {
+    white: calculateForColor('w'),
+    black: calculateForColor('b')
+  };
+}
+
+/**
+ * Calculate game-level accuracy using Lila's dual-weighted system.
+ * Returns overall accuracy for all moves combined.
+ *
+ * This is the CORRECT implementation matching Lichess's algorithm.
+ * It takes raw centipawn evaluations in White POV and calculates
+ * per-move accuracy with proper perspective during aggregation.
+ *
+ * @param cpsWhitePov - Array of centipawn evaluations in White POV
+ * @param startColor - Which color made the first move ('w' for standard games)
+ * @param initialCp - Optional: centipawn eval of position before first move (default: 0 for starting position)
+ * @returns Game-level accuracy (0-100), or undefined if insufficient data
+ */
+export function calculateGameAccuracyLila(
+  cpsWhitePov: number[],
+  startColor: 'w' | 'b' = 'w',
+  initialCp: number = 0
+): number | undefined {
+  // Delegate to the by-color function and combine results
+  const result = calculateGameAccuracyByColor(cpsWhitePov, startColor, undefined, initialCp);
+  if (!result) return undefined;
+
+  // Calculate overall as average of both colors (weighted by move count)
+  const { standardDeviation, harmonicMean, weightedMean, clamp } = require('./math-utils.js');
+
+  // Prepend initial position and convert to win percentages
+  const allWinPercents = [cpToWinPercent(initialCp), ...cpsWhitePov.map(cp => cpToWinPercent(cp))];
+
+  // Calculate all move accuracies (same logic as in calculateGameAccuracyByColor)
+  const windowSize = clamp(Math.floor(cpsWhitePov.length / 10), 2, 8);
+
+  const paddingCount = Math.max(0, Math.min(windowSize, allWinPercents.length) - 2);
+  const firstWindow = allWinPercents.slice(0, Math.min(windowSize, allWinPercents.length));
+  const paddedWindows: number[][] = Array(paddingCount).fill(firstWindow);
+
+  const slidingWindows: number[][] = [];
+  for (let i = 0; i + windowSize <= allWinPercents.length; i++) {
+    slidingWindows.push(allWinPercents.slice(i, i + windowSize));
+  }
+
+  const windows = [...paddedWindows, ...slidingWindows];
+  const weights = windows.map(window => clamp(standardDeviation(window), 0.5, 12));
+
+  const allAccuracies: number[] = [];
+  const allWeights: number[] = [];
+
+  for (let i = 0; i + 1 < allWinPercents.length; i++) {
+    const prev = allWinPercents[i];
+    const next = allWinPercents[i + 1];
+    const weight = weights[i];
+
+    const isWhiteMove = (i % 2 === 0) === (startColor === 'w');
+    const winPercentBefore = isWhiteMove ? prev : next;
+    const winPercentAfter = isWhiteMove ? next : prev;
+    const accuracy = calculateMoveAccuracy(winPercentBefore, winPercentAfter);
+
+    allAccuracies.push(accuracy);
+    allWeights.push(weight);
+  }
+
+  if (allAccuracies.length === 0) return undefined;
+
+  const wMean = weightedMean(allAccuracies, allWeights);
+  const hMean = harmonicMean(allAccuracies);
+
+  return Math.round((wMean + hMean) / 2);
+}
