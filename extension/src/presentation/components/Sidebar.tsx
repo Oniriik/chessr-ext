@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, LogOut, Settings2, R
 import { useAppStore } from '../store/app.store';
 import { useFeedbackStore } from '../store/feedback.store';
 import { useAuthStore } from '../store/auth.store';
+import { useSubscriptionStore } from '../store/subscription.store';
 import { useTranslation } from '../../i18n';
 import { useIsRTL } from '../hooks/useIsRTL';
 import { cn } from '../lib/utils';
@@ -12,6 +13,7 @@ import { Switch } from './ui/switch';
 import { Checkbox } from './ui/checkbox';
 import { Slider } from './ui/slider';
 import { Select } from './ui/select';
+import { PlanBadge } from './ui/plan-badge';
 import { OpeningSelector } from './OpeningSelector';
 import { SettingsModal } from './SettingsModal';
 import { SuggestionCard } from './SuggestionCard';
@@ -29,6 +31,9 @@ export function Sidebar() {
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
+
+  // Subscription store
+  const { plan, isBetaTester } = useSubscriptionStore();
 
   // Wrapper to include userId for cloud sync
   const setSettings = (partial: Partial<typeof settings>) => {
@@ -139,10 +144,14 @@ export function Sidebar() {
                   <Settings2 className="tw-w-4 tw-h-4" />
                 </button>
               </div>
-              <Switch
-                checked={settings.enabled}
-                onCheckedChange={(checked) => setSettings({ enabled: checked })}
-              />
+              {/* Subscription Badge */}
+              {isBetaTester ? (
+                <PlanBadge variant="premium"/>
+              ) : plan ? (
+                <PlanBadge variant="premium"/>
+              ) : (
+                <PlanBadge variant="upgrade"/>
+              )}
             </div>
             {user && (
               <div className="tw-flex tw-items-center tw-justify-between tw-text-xs">
