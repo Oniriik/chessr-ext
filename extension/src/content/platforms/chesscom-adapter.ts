@@ -266,6 +266,45 @@ export class ChesscomAdapter implements PlatformAdapter {
   }
 
   /**
+   * Normalize localized piece letters to English SAN notation
+   * Chess.com uses localized piece letters (D=Dame, T=Tour, etc.)
+   * chess.js expects English notation (Q, R, B, N, K)
+   */
+  private normalizePieceLetters(san: string): string {
+    // Map of localized piece letters to English
+    // French: R(Roi), D(Dame), T(Tour), F(Fou), C(Cavalier)
+    // German: K(König), D(Dame), T(Turm), L(Läufer), S(Springer)
+    // Spanish: R(Rey), D(Dama), T(Torre), A(Alfil), C(Caballo)
+    // Portuguese: R(Rei), D(Dama), T(Torre), B(Bispo), C(Cavalo)
+    // Russian: Кр(Король), Ф(Ферзь), Л(Ладья), С(Слон), К(Конь)
+    const pieceMap: Record<string, string> = {
+      // Queen
+      'D': 'Q', // Dame/Dama (FR/DE/ES/PT)
+      'Ф': 'Q', // Ферзь (RU)
+      // Rook
+      'T': 'R', // Tour/Torre/Turm (FR/ES/DE/PT)
+      'Л': 'R', // Ладья (RU)
+      // Bishop
+      'F': 'B', // Fou (FR)
+      'A': 'B', // Alfil (ES)
+      'L': 'B', // Läufer (DE)
+      'С': 'B', // Слон (RU) - Cyrillic С
+      // Knight
+      'C': 'N', // Cavalier/Caballo/Cavalo (FR/ES/PT)
+      'S': 'N', // Springer (DE)
+      'К': 'N', // Конь (RU) - Cyrillic К (also used for King, but Knight more common in moves)
+    };
+
+    // Replace piece letter after = (promotion) - Latin and Cyrillic
+    let result = san.replace(/=([DTFALCSФЛСК])/, (_, piece) => '=' + (pieceMap[piece] || piece));
+
+    // Replace piece letter at start (piece moves) - only uppercase followed by file/rank
+    result = result.replace(/^([DTFALCSФЛСК])([a-h1-8x])/, (_, piece, rest) => (pieceMap[piece] || piece) + rest);
+
+    return result;
+  }
+
+  /**
    * Extract SAN notation from a ply element
    * Handles figurine notation (icons for pieces)
    */
@@ -279,11 +318,21 @@ export class ChesscomAdapter implements PlatformAdapter {
       const piece = figurine.getAttribute("data-figurine"); // N, B, R, Q, K
       // Remove any whitespace and get just the move part
       text = text.replace(/\s+/g, "");
+
+      // Check if this is a promotion (text contains "=")
+      // Promotion: e8= + Q → e8=Q (piece goes after =)
+      // Regular move: [N]f3 → Nf3 (piece goes before)
+      if (text.includes("=")) {
+        return text + piece;
+      }
       return piece + text;
     }
 
     // Remove whitespace for regular moves
-    return text.replace(/\s+/g, "") || null;
+    text = text.replace(/\s+/g, "");
+
+    // Normalize localized piece letters to English
+    return this.normalizePieceLetters(text) || null;
   }
 
   /**

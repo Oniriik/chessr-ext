@@ -43,8 +43,10 @@ export function Sidebar() {
   // Local state for ELO sliders with debounce
   const [localUserElo, setLocalUserElo] = useState(settings.userElo);
   const [localOpponentElo, setLocalOpponentElo] = useState(settings.opponentElo);
+  const [localDepth, setLocalDepth] = useState(settings.depth);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const opponentDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const depthDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -68,6 +70,10 @@ export function Sidebar() {
     setLocalOpponentElo(settings.opponentElo);
   }, [settings.opponentElo]);
 
+  useEffect(() => {
+    setLocalDepth(settings.depth);
+  }, [settings.depth]);
+
   const handleEloChange = (value: number) => {
     setLocalUserElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -86,6 +92,14 @@ export function Sidebar() {
     if (opponentDebounceRef.current) clearTimeout(opponentDebounceRef.current);
     opponentDebounceRef.current = setTimeout(() => {
       setSettings({ opponentElo: value });
+    }, 300);
+  };
+
+  const handleDepthChange = (value: number) => {
+    setLocalDepth(value);
+    if (depthDebounceRef.current) clearTimeout(depthDebounceRef.current);
+    depthDebounceRef.current = setTimeout(() => {
+      setSettings({ depth: value });
     }, 300);
   };
 
@@ -331,8 +345,62 @@ export function Sidebar() {
                     disabled={settings.autoDetectOpponentElo}
                   />
 
-                  {/* Full Strength Toggle (only visible at 3000+ target ELO) */}
-                  {(localUserElo + 150) >= 3000 && (
+                  {/* Depth Mode */}
+                  <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
+                    <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-mb-2">
+                      <div className="tw-flex-1">
+                        <div className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-0.5">
+                          Force Depth
+                        </div>
+                        <div className="tw-text-[10px] tw-text-muted tw-leading-tight">
+                          Use fixed depth instead of time limit
+                        </div>
+                      </div>
+                      <Switch
+                        checked={settings.searchMode === 'depth'}
+                        onCheckedChange={(checked) => {
+                          const newSettings: Partial<Settings> = {
+                            searchMode: checked ? 'depth' : 'time',
+                          };
+                          // Disable limit strength when enabling depth mode
+                          if (checked && settings.disableLimitStrength) {
+                            newSettings.disableLimitStrength = false;
+                          }
+                          setSettings(newSettings);
+                          requestReanalyze();
+                        }}
+                      />
+                    </div>
+
+                    {settings.searchMode === 'depth' && (
+                      <>
+                        {/* Warning */}
+                        <div className="tw-bg-yellow-500/10 tw-border tw-border-yellow-500/20 tw-rounded tw-p-2 tw-mb-2">
+                          <div className="tw-text-[10px] tw-text-yellow-600 dark:tw-text-yellow-500 tw-leading-tight">
+                            ⚠️ <strong>Warning:</strong> Forcing depth disables ELO limiting and significantly increases engine strength. Use with caution.
+                          </div>
+                        </div>
+
+                        {/* Depth Slider */}
+                        <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
+                          <div className="tw-text-[10px] tw-text-muted tw-uppercase">Depth Level</div>
+                          <div className="tw-text-base tw-font-semibold tw-text-primary">
+                            {localDepth}
+                          </div>
+                        </div>
+                        <Slider
+                          value={localDepth}
+                          onValueChange={handleDepthChange}
+                          min={1}
+                          max={30}
+                          step={1}
+                        />
+                      </>
+                    )}
+                  </div>
+
+                  {/* Full Strength Toggle (only visible at 3000+ target ELO and when not using depth mode) */}
+                  {(localUserElo + 150) >= 3000 && settings.searchMode !== 'depth' && (
                     <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                       <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
                         <div className="tw-flex-1">
