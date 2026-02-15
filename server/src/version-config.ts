@@ -1,5 +1,5 @@
 export const versionConfig = {
-  minVersion: "1.3.0",
+  minVersion: "1.3.3",
   downloadUrl: "https://download.chessr.io",
 };
 
