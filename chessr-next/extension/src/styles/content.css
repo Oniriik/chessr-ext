@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Mount wrapper - transparent to layout */
+.chessr-mount {
+  display: contents;
+}
+
+/* Match chess.com sidebar hover style */
+.chessr-mount .sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Chessr Theme - Dark */
+#chessr-root {
+  /* Background & Foreground */
+  --background: 240 20% 5%;
+  --foreground: 240 6% 90%;
+
+  /* Card */
+  --card: 233 19% 8%;
+  --card-foreground: 240 6% 90%;
+
+  /* Popover */
+  --popover: 233 19% 8%;
+  --popover-foreground: 240 6% 90%;
+
+  /* Primary - Blue */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary - Cyan */
+  --secondary: 188 86% 53%;
+  --secondary-foreground: 0 0% 0%;
+
+  /* Muted */
+  --muted: 235 21% 13%;
+  --muted-foreground: 240 5% 65%;
+
+  /* Accent */
+  --accent: 235 21% 13%;
+  --accent-foreground: 240 6% 90%;
+
+  /* Destructive - Red */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Success - Green */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+
+  /* Warning - Yellow/Orange */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%;
+
+  /* Danger - Red (alias for destructive) */
+  --danger: 0 84% 60%;
+  --danger-foreground: 0 0% 100%;
+
+  /* Border & Input */
+  --border: 236 20% 20%;
+  --input: 236 20% 20%;
+  --ring: 217 91% 60%;
+
+  /* Radius */
+  --radius: 0.5rem;
+
+  /* Base styles */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+  background-color: transparent;
+}
+
+/* Box sizing & border reset (replaces preflight) */
+#chessr-root *,
+#chessr-root *::before,
+#chessr-root *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: hsl(var(--border));
+}
+
+#chessr-root svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+#chessr-root button {
+  cursor: pointer;
+}
+
+/* Custom scrollbar */
+#chessr-root ::-webkit-scrollbar {
+  width: 6px;
+}
+
+#chessr-root ::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+#chessr-root ::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+#chessr-root ::-webkit-scrollbar-thumb:hover {
+  background: hsl(236 20% 30%);
+}
