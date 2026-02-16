@@ -4,7 +4,7 @@ import { Card, CardContent } from '../ui/card';
 import { Slider } from '../ui/slider';
 import { Checkbox } from '../ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { useEloStore } from '../../stores/eloStore';
+import { useEngineStore } from '../../stores/engineStore';
 
 export function EloSettings() {
   const [isOpen, setIsOpen] = useState(false);
@@ -20,7 +20,7 @@ export function EloSettings() {
     setOpponentEloAuto,
     setTargetEloManual,
     setOpponentEloManual,
-  } = useEloStore();
+  } = useEngineStore();
 
   const targetElo = getTargetElo();
   const opponentElo = getOpponentElo();

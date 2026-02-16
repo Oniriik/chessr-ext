@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSidebar } from '../../hooks/useSidebar';
 import { SidebarContent } from './SidebarContent';
+import { PortalContainerProvider } from '../../contexts/PortalContainerContext';
 
 interface SidebarPortalProps {
   /** Selector of the original sidebar to hide/show */
@@ -72,12 +73,31 @@ export function SidebarPortal({ originalSidebarSelector, inheritClass }: Sidebar
     }
   }, [isOpen, originalSidebarSelector]);
 
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  // Create portal container for dropdowns/modals inside the sidebar
+  useEffect(() => {
+    if (!container) return;
+
+    let portalEl = container.querySelector('#chessr-portal-container') as HTMLElement;
+    if (!portalEl) {
+      portalEl = document.createElement('div');
+      portalEl.id = 'chessr-portal-container';
+      portalEl.className = 'tw-absolute tw-inset-0 tw-pointer-events-none tw-z-50';
+      portalEl.style.position = 'relative';
+      container.appendChild(portalEl);
+    }
+    setPortalContainer(portalEl);
+  }, [container]);
+
   if (!container) return null;
 
   return createPortal(
-    <div id="chessr-root" className="tw-h-full">
-      <SidebarContent />
-    </div>,
+    <PortalContainerProvider value={portalContainer}>
+      <div id="chessr-root" className="tw-h-full tw-relative">
+        <SidebarContent />
+      </div>
+    </PortalContainerProvider>,
     container
   );
 }

@@ -15,26 +15,26 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
  * SIDEBAR COMPONENTS ARCHITECTURE
  * ================================
  *
- * IMPORTANT: Maximize component extraction for the sidebar elements.
- * Each UI block should be its own reusable component.
+ * IMPLEMENTED:
+ * ✓ SidebarHeader         → Logo, title, PlanBadge, logout & close buttons
+ * ✓ PlanBadge             → Plan status badge (lifetime/beta/premium/freetrial/free)
+ *                           Responsive: compact mode (icon + tooltip) when < 350px
+ * ✓ GameStatusCard        → Game detection status display
+ * ✓ EloSettings           → ELO configuration sliders
+ * ✓ PersonalitySelect     → Engine personality selector (native select)
+ * ✓ Tooltip               → CSS-based tooltip (no portals, avoids DOM shifts)
+ * ✓ useContainerWidth     → ResizeObserver hook for responsive behavior
  *
- * Planned sections & components to create:
+ * PLANNED:
+ * - RollingAccuracy       → Accuracy % with trend arrow + plies count
+ * - MoveStatsGrid         → Grid showing !!, !, Best, Exc, Good, Book, ?!, ?, ??
+ * - MoveSuggestionList    → List of suggested moves
+ * - MoveSuggestionCard    → Individual move with rank, name, eval, quality badges
+ * - QualityBadge          → Reusable badge (Best, Safe, Risky, etc.)
+ * - EffectIcon            → Icons for captures, checks, etc.
  *
- * 1. ELO SETTINGS SECTION
- *    - EloDisplay          → Shows TARGET ELO / OPPONENT ELO header values
- *    - EloSlider           → Reusable slider with Auto checkbox, value display
- *    - MaxEloPowerToggle   → Toggle for unlocking max engine strength (3500 ELO)
- *
- * 2. ANALYSIS SECTION
- *    - RollingAccuracy     → Accuracy % with trend arrow + plies count
- *    - MoveStatsGrid       → Grid showing !!, !, Best, Exc, Good, Book, ?!, ?, ??
- *    - MoveSuggestionList  → List of suggested moves
- *    - MoveSuggestionCard  → Individual move with rank, name, eval, quality badges, effects
- *    - QualityBadge        → Reusable badge (Best, Safe, Risky, etc.)
- *    - EffectIcon          → Icons for captures, checks, etc.
- *
- * Components should be placed in: src/components/sidebar/
- * Keep components small, focused, and reusable.
+ * Components: src/components/sidebar/
+ * UI primitives: src/components/ui/
  */
 
 function SidebarHeader({ compactBadge }: { compactBadge: boolean }) {

@@ -84,7 +84,7 @@ export function AuthForm() {
   const displayError = localError || error;
 
   return (
-    <div className="tw-p-4 tw-h-full">
+    <div className="tw-h-full">
       <Card className="tw-p-4 tw-text-foreground tw-h-full">
         {/* Header */}
         <div className="tw-text-center tw-mb-4">

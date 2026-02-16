@@ -36,8 +36,8 @@ export function GameStatusCard() {
 
   if (!isGameStarted) {
     return (
-      <Card className="tw-bg-muted/50">
-        <CardContent className="!tw-p-4 !tw-pt-4">
+      <Card className="tw-bg-muted/50 tw-p-4">
+        <CardContent>
           <p className="tw-text-sm tw-text-muted-foreground tw-text-center">
             Waiting for game to start...
           </p>
@@ -47,8 +47,8 @@ export function GameStatusCard() {
   }
 
   return (
-    <Card className="tw-bg-muted/50">
-      <CardContent className="!tw-p-4 !tw-pt-4">
+    <Card className="tw-bg-muted/50 tw-p-4">
+      <CardContent>
         <div className="tw-grid tw-grid-cols-2 tw-gap-4">
           {/* My Color */}
           <div className="tw-flex tw-flex-col tw-items-center tw-gap-2">

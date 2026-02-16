@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../stores/gameStore';
-import { useEloStore } from '../stores/eloStore';
+import { useEngineStore } from '../stores/engineStore';
 import {
   detectGameStarted,
   detectPlayerColor,
@@ -20,7 +20,7 @@ const MOVE_SELECTOR = '.main-line-ply';
 export function useGameDetection() {
   const { setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset } =
     useGameStore();
-  const { detectFromDOM } = useEloStore();
+  const { detectFromDOM } = useEngineStore();
   const moveListObserver = useRef<MutationObserver | null>(null);
   const documentObserver = useRef<MutationObserver | null>(null);
   const lastMoveCount = useRef<number>(0);
