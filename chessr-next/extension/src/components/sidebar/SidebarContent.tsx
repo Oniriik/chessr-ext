@@ -4,6 +4,7 @@ import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { LogOut } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
+import { EloSettings } from './EloSettings';
 import { useGameDetection } from '../../hooks/useGameDetection';
 
 /**
@@ -64,9 +65,10 @@ function AuthenticatedContent() {
 
   return (
     <div className="tw-h-full">
-      <Card className="tw-p-4 tw-text-foreground tw-h-full">
+      <Card className="tw-p-4 tw-text-foreground tw-h-full tw-space-y-4">
         <SidebarHeader />
         <GameStatusCard />
+        <EloSettings />
       </Card>
     </div>
   );

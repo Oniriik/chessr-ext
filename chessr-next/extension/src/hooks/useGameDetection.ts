@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useGameStore } from '../stores/gameStore';
+import { useEloStore } from '../stores/eloStore';
 import {
   detectGameStarted,
   detectPlayerColor,
@@ -14,9 +15,12 @@ const MOVE_SELECTOR = '.main-line-ply';
  * 1. Waits for the move list to appear (game started)
  * 2. Detects player color and current turn
  * 3. Observes move list for turn changes
+ * 4. Syncs chess.js state from DOM
  */
 export function useGameDetection() {
-  const { setGameStarted, setPlayerColor, setCurrentTurn } = useGameStore();
+  const { setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset } =
+    useGameStore();
+  const { detectFromDOM } = useEloStore();
   const moveListObserver = useRef<MutationObserver | null>(null);
   const documentObserver = useRef<MutationObserver | null>(null);
   const lastMoveCount = useRef<number>(0);
@@ -30,6 +34,13 @@ export function useGameDetection() {
         setGameStarted(true);
         setPlayerColor(detectPlayerColor());
         setCurrentTurn(detectCurrentTurn());
+
+        // Initial sync of chess.js state
+        syncFromDOM();
+
+        // Detect ELO from DOM
+        detectFromDOM();
+
         startMoveListObserver();
         return true;
       }
@@ -47,10 +58,20 @@ export function useGameDetection() {
 
       moveListObserver.current = new MutationObserver(() => {
         const currentMoves = moveList.querySelectorAll(MOVE_SELECTOR);
+
+        // Detect game reset (move count dropped to 0 or 1)
+        if (currentMoves.length <= 1 && lastMoveCount.current > 1) {
+          console.log('[useGameDetection] Game reset detected');
+          reset();
+          setGameStarted(true);
+          setPlayerColor(detectPlayerColor());
+        }
+
         if (currentMoves.length !== lastMoveCount.current) {
           lastMoveCount.current = currentMoves.length;
-          // Update turn when moves change
-          setCurrentTurn(detectCurrentTurn());
+
+          // Sync chess.js state (this also updates currentTurn)
+          syncFromDOM();
         }
       });
 
@@ -80,5 +101,5 @@ export function useGameDetection() {
       moveListObserver.current?.disconnect();
       documentObserver.current?.disconnect();
     };
-  }, [setGameStarted, setPlayerColor, setCurrentTurn]);
+  }, [setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset, detectFromDOM]);
 }

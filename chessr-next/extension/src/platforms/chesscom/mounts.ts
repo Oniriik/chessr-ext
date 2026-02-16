@@ -16,7 +16,7 @@ export function getMountPoints(): MountPoint[] {
     // Floating sidebar for pages without a dedicated sidebar
     {
       id: 'floating-sidebar',
-      route: ['home', 'analysis', 'game', 'unknown'],
+      route: ['home', 'analysis', 'unknown'],
       selector: 'body',
       position: 'append',
       component: FloatingSidebar,
@@ -37,6 +37,21 @@ export function getMountPoints(): MountPoint[] {
     {
       id: 'play-online-toggle',
       route: 'play-online',
+      selector: '#board-layout-player-bottom .player-playerContent',
+      position: 'after',
+      component: SidebarMount,
+      props: {
+        originalSidebarSelector: '#board-layout-sidebar',
+        inheritClass: 'board-layout-sidebar',
+      },
+      parentStyles: {
+        gap: '8px',
+      },
+    },
+    // Game page (e.g., /game/164748313598)
+    {
+      id: 'game-toggle',
+      route: 'game',
       selector: '#board-layout-player-bottom .player-playerContent',
       position: 'after',
       component: SidebarMount,
