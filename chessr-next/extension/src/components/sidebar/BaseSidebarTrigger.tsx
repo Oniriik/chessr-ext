@@ -1,4 +1,7 @@
+import { Info } from 'lucide-react';
 import { useSidebar } from '../../hooks/useSidebar';
+import { useAuthStore } from '../../stores/authStore';
+import { Tooltip } from '../ui/tooltip';
 
 /**
  * Trigger button styled to match chess.com base-sidebar navigation.
@@ -6,7 +9,9 @@ import { useSidebar } from '../../hooks/useSidebar';
  */
 export function BaseSidebarTrigger() {
   const { isOpen, toggle } = useSidebar();
+  const { user, initializing } = useAuthStore();
   const logoUrl = chrome.runtime.getURL('icons/chessr-logo.png');
+  const isLoggedOut = !initializing && !user;
 
   return (
     <a
@@ -38,7 +43,7 @@ export function BaseSidebarTrigger() {
           flex: 1,
         }}
       >
-        Chessr
+        Chessr.io
       </h2>
 
       {isOpen && (
@@ -51,6 +56,15 @@ export function BaseSidebarTrigger() {
             marginLeft: 'auto',
           }}
         />
+      )}
+
+      {!isOpen && isLoggedOut && (
+        <Tooltip content="Connexion requise" side="top">
+          <Info
+            size={16}
+            style={{ marginLeft: 'auto', color: '#f59e0b' }}
+          />
+        </Tooltip>
       )}
     </a>
   );

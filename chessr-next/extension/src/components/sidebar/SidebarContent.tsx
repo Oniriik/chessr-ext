@@ -2,10 +2,14 @@ import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { LogOut } from 'lucide-react';
+import { LogOut, X } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
 import { EloSettings } from './EloSettings';
+import { PersonalitySelect } from './PersonalitySelect';
+import { PlanBadge } from '../ui/plan-badge';
 import { useGameDetection } from '../../hooks/useGameDetection';
+import { useSidebar } from '../../hooks/useSidebar';
+import { useContainerWidth } from '../../hooks/useContainerWidth';
 
 /**
  * SIDEBAR COMPONENTS ARCHITECTURE
@@ -33,8 +37,9 @@ import { useGameDetection } from '../../hooks/useGameDetection';
  * Keep components small, focused, and reusable.
  */
 
-function SidebarHeader() {
+function SidebarHeader({ compactBadge }: { compactBadge: boolean }) {
   const { signOut } = useAuthStore();
+  const { toggle } = useSidebar();
 
   return (
     <div className="tw-flex tw-items-center tw-justify-between tw-mb-4">
@@ -44,17 +49,29 @@ function SidebarHeader() {
           alt="Chessr"
           className="tw-w-8 tw-h-8"
         />
-        <span className="tw-text-lg tw-font-semibold">Chessr.io</span>
+        <span className="tw-text-lg tw-font-semibold tw-mr-2">Chessr.io</span>
+        <PlanBadge plan="beta" compact={compactBadge} />
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={signOut}
-        className="tw-h-8 tw-w-8"
-        title="Sign out"
-      >
-        <LogOut className="tw-h-4 tw-w-4" />
-      </Button>
+      <div className="tw-flex tw-items-center tw-gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={signOut}
+          className="tw-h-8 tw-w-8"
+          title="Sign out"
+        >
+          <LogOut className="tw-h-4 tw-w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggle}
+          className="tw-h-8 tw-w-8"
+          title="Close sidebar"
+        >
+          <X className="tw-h-4 tw-w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
@@ -62,13 +79,16 @@ function SidebarHeader() {
 function AuthenticatedContent() {
   // Initialize game detection (waits for move list, observes changes)
   useGameDetection();
+  const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
+  const compactBadge = containerWidth > 0 && containerWidth < 350;
 
   return (
-    <div className="tw-h-full">
+    <div className="tw-h-full" ref={containerRef}>
       <Card className="tw-p-4 tw-text-foreground tw-h-full tw-space-y-4">
-        <SidebarHeader />
+        <SidebarHeader compactBadge={compactBadge} />
         <GameStatusCard />
         <EloSettings />
+        <PersonalitySelect />
       </Card>
     </div>
   );
