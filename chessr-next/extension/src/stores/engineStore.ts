@@ -59,33 +59,49 @@ export const PERSONALITY_INFO: Record<Personality, { label: string; description:
   },
 };
 
+// Risk Taking labels (maps to Komodo contempt 0-200)
+export const RISK_LEVELS = [
+  { threshold: 0, label: 'Safe' },          // 0cp - accept draws
+  { threshold: 20, label: 'Cautious' },     // 40cp - vs Super GM
+  { threshold: 40, label: 'Moderate' },     // 80cp - vs GM
+  { threshold: 60, label: 'Bold' },         // 120cp - vs IM
+  { threshold: 80, label: 'Aggressive' },   // 160cp - vs Master
+  { threshold: 100, label: 'Reckless' },    // 200cp - vs Amateur
+] as const;
+
+export function getRiskLabel(value: number): string {
+  for (let i = RISK_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= RISK_LEVELS[i].threshold) {
+      return RISK_LEVELS[i].label;
+    }
+  }
+  return RISK_LEVELS[0].label;
+}
+
 interface EngineState {
-  // Detected values
+  // Detected user ELO
   userElo: number;
-  opponentElo: number;
 
-  // Auto mode toggles
+  // Auto mode toggle
   targetEloAuto: boolean;
-  opponentEloAuto: boolean;
 
-  // Manual values (used when auto is off)
+  // Manual value (used when auto is off)
   targetEloManual: number;
-  opponentEloManual: number;
+
+  // Risk taking (0-100)
+  riskTaking: number;
 
   // Personality
   personality: Personality;
 
-  // Computed getters
+  // Computed getter
   getTargetElo: () => number;
-  getOpponentElo: () => number;
 
   // Actions
   setUserElo: (elo: number) => void;
-  setOpponentElo: (elo: number) => void;
   setTargetEloAuto: (auto: boolean) => void;
-  setOpponentEloAuto: (auto: boolean) => void;
   setTargetEloManual: (elo: number) => void;
-  setOpponentEloManual: (elo: number) => void;
+  setRiskTaking: (value: number) => void;
   setPersonality: (personality: Personality) => void;
 
   // Auto-detect from DOM
@@ -97,11 +113,9 @@ export const useEngineStore = create<EngineState>()(
     (set, get) => ({
       // Initial values
       userElo: 1500,
-      opponentElo: 1500,
       targetEloAuto: true,
-      opponentEloAuto: true,
       targetEloManual: 1650,
-      opponentEloManual: 1500,
+      riskTaking: 0,
       personality: 'Default',
 
       // Target ELO: auto = userElo + 150, manual = slider value
@@ -110,19 +124,11 @@ export const useEngineStore = create<EngineState>()(
         return targetEloAuto ? userElo + 150 : targetEloManual;
       },
 
-      // Opponent ELO: auto = detected, manual = slider value
-      getOpponentElo: () => {
-        const { opponentEloAuto, opponentElo, opponentEloManual } = get();
-        return opponentEloAuto ? opponentElo : opponentEloManual;
-      },
-
       // Setters
       setUserElo: (elo) => set({ userElo: elo }),
-      setOpponentElo: (elo) => set({ opponentElo: elo }),
       setTargetEloAuto: (auto) => set({ targetEloAuto: auto }),
-      setOpponentEloAuto: (auto) => set({ opponentEloAuto: auto }),
       setTargetEloManual: (elo) => set({ targetEloManual: elo }),
-      setOpponentEloManual: (elo) => set({ opponentEloManual: elo }),
+      setRiskTaking: (value: number) => set({ riskTaking: value }),
       setPersonality: (personality) => set({ personality }),
 
       // Detect ratings from Chess.com DOM
@@ -132,18 +138,14 @@ export const useEngineStore = create<EngineState>()(
         if (ratings.playerRating) {
           set({ userElo: ratings.playerRating });
         }
-        if (ratings.opponentRating) {
-          set({ opponentElo: ratings.opponentRating });
-        }
       },
     }),
     {
       name: 'chessr-engine',
       partialize: (state) => ({
         targetEloAuto: state.targetEloAuto,
-        opponentEloAuto: state.opponentEloAuto,
         targetEloManual: state.targetEloManual,
-        opponentEloManual: state.opponentEloManual,
+        riskTaking: state.riskTaking,
         personality: state.personality,
       }),
     }

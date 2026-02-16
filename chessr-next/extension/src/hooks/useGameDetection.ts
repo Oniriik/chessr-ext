@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useEngineStore } from '../stores/engineStore';
 import {
@@ -9,6 +9,39 @@ import {
 
 const MOVE_LIST_SELECTOR = '.play-controller-moves, .move-list, [class*="vertical-move-list"]';
 const MOVE_SELECTOR = '.main-line-ply';
+
+/**
+ * Hook to detect URL changes (SPA navigation)
+ */
+function useUrlChange() {
+  const [url, setUrl] = useState(window.location.href);
+
+  useEffect(() => {
+    let lastUrl = window.location.href;
+
+    // Check URL periodically (handles pushState/replaceState)
+    const interval = setInterval(() => {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        setUrl(lastUrl);
+      }
+    }, 500);
+
+    // Also listen for popstate (back/forward)
+    const handlePopState = () => {
+      setUrl(window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  return url;
+}
 
 /**
  * Hook that handles game detection:
@@ -25,7 +58,17 @@ export function useGameDetection() {
   const documentObserver = useRef<MutationObserver | null>(null);
   const lastMoveCount = useRef<number>(0);
 
+  // Track URL changes for SPA navigation
+  const currentUrl = useUrlChange();
+
   useEffect(() => {
+    console.log('[useGameDetection] URL changed or init:', currentUrl);
+
+    // Reset state when URL changes
+    reset();
+    moveListObserver.current?.disconnect();
+    documentObserver.current?.disconnect();
+    lastMoveCount.current = 0;
     // Try to detect if game is already started
     const initDetection = () => {
       const isStarted = detectGameStarted();
@@ -101,5 +144,5 @@ export function useGameDetection() {
       moveListObserver.current?.disconnect();
       documentObserver.current?.disconnect();
     };
-  }, [setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset, detectFromDOM]);
+  }, [currentUrl, setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset, detectFromDOM]);
 }

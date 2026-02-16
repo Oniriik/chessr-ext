@@ -1,4 +1,4 @@
-import { useSettingsStore } from '../../../stores/settingsStore';
+import { useSettingsStore, type EvalBarMode } from '../../../stores/settingsStore';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
 import {
@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../../ui/select';
+} from '../../ui/select'; // Keep for language select
 
 export function GeneralTab() {
   const {
@@ -15,10 +15,12 @@ export function GeneralTab() {
     showGameStatistics,
     showDetailedMoveSuggestion,
     showEvalBar,
+    evalBarMode,
     setLanguage,
     setShowGameStatistics,
     setShowDetailedMoveSuggestion,
     setShowEvalBar,
+    setEvalBarMode,
   } = useSettingsStore();
 
   return (
@@ -79,10 +81,22 @@ export function GeneralTab() {
               Chess board eval bar
             </p>
           </div>
-          <Switch
-            checked={showEvalBar}
-            onCheckedChange={setShowEvalBar}
-          />
+          <div className="tw-flex tw-items-center tw-gap-2">
+            {showEvalBar && (
+              <select
+                value={evalBarMode}
+                onChange={(e) => setEvalBarMode(e.target.value as EvalBarMode)}
+                className="tw-h-8 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
+              >
+                <option value="eval">Eval</option>
+                <option value="winrate">Win %</option>
+              </select>
+            )}
+            <Switch
+              checked={showEvalBar}
+              onCheckedChange={setShowEvalBar}
+            />
+          </div>
         </div>
       </div>
     </div>

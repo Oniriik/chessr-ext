@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
+import { useSuggestionTrigger } from '../../hooks/useSuggestionTrigger';
+import { useArrowRenderer } from '../../hooks/useArrowRenderer';
+import { useEvalBar } from '../../hooks/useEvalBar';
 import { AuthForm } from './AuthForm';
 
 interface AuthGuardProps {
@@ -28,6 +31,15 @@ export function AuthGuard({ children }: AuthGuardProps) {
       destroyWebSocket();
     };
   }, [user, initWebSocket, connectWebSocket, destroyWebSocket]);
+
+  // Auto-trigger suggestions on player turn
+  useSuggestionTrigger();
+
+  // Draw suggestion arrows on board
+  useArrowRenderer();
+
+  // Show eval bar next to board
+  useEvalBar();
 
   if (initializing) {
     return (

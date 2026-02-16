@@ -6,6 +6,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type EvalBarMode = 'eval' | 'winrate';
+
 interface SettingsState {
   // Language
   language: string;
@@ -14,6 +16,7 @@ interface SettingsState {
   showGameStatistics: boolean;
   showDetailedMoveSuggestion: boolean;
   showEvalBar: boolean;
+  evalBarMode: EvalBarMode;
 
   // Suggestions settings
   numberOfSuggestions: 1 | 2 | 3;
@@ -28,6 +31,7 @@ interface SettingsState {
   setShowGameStatistics: (show: boolean) => void;
   setShowDetailedMoveSuggestion: (show: boolean) => void;
   setShowEvalBar: (show: boolean) => void;
+  setEvalBarMode: (mode: EvalBarMode) => void;
   setNumberOfSuggestions: (num: 1 | 2 | 3) => void;
   setUseSameColorForAllArrows: (use: boolean) => void;
   setSingleArrowColor: (color: string) => void;
@@ -44,6 +48,7 @@ export const useSettingsStore = create<SettingsState>()(
       showGameStatistics: true,
       showDetailedMoveSuggestion: true,
       showEvalBar: true,
+      evalBarMode: 'eval',
 
       // Suggestions defaults
       numberOfSuggestions: 3,
@@ -58,6 +63,7 @@ export const useSettingsStore = create<SettingsState>()(
       setShowGameStatistics: (show) => set({ showGameStatistics: show }),
       setShowDetailedMoveSuggestion: (show) => set({ showDetailedMoveSuggestion: show }),
       setShowEvalBar: (show) => set({ showEvalBar: show }),
+      setEvalBarMode: (mode) => set({ evalBarMode: mode }),
       setNumberOfSuggestions: (num) => set({ numberOfSuggestions: num }),
       setUseSameColorForAllArrows: (use) => set({ useSameColorForAllArrows: use }),
       setSingleArrowColor: (color) => set({ singleArrowColor: color }),

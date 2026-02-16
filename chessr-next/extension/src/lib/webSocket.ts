@@ -5,6 +5,7 @@
 
 import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
+import { useSuggestionStore } from '../stores/suggestionStore';
 import { logger } from './logger';
 
 type MessageHandler = (data: unknown) => void;
@@ -144,6 +145,19 @@ class WebSocketManager {
           } else if (data.type === 'ping') {
             // Respond to heartbeat
             this.send({ type: 'pong' });
+          } else if (data.type === 'suggestion_result') {
+            // Handle suggestion response
+            logger.log(
+              `Received ${data.suggestions?.length || 0} suggestions for requestId: ${data.requestId}, eval: ${data.positionEval}, mate: ${data.mateIn}, winRate: ${data.winRate}`
+            );
+            useSuggestionStore
+              .getState()
+              .receiveSuggestions(data.requestId, data.fen, data.positionEval, data.mateIn, data.winRate, data.suggestions);
+          } else if (data.type === 'suggestion_error') {
+            // Handle suggestion error
+            useSuggestionStore
+              .getState()
+              .receiveError(data.requestId, data.error);
           } else {
             // Dispatch to message handlers
             this.messageHandlers.forEach((h) => h(data));
