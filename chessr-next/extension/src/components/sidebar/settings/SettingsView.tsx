@@ -1,6 +1,7 @@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AccountTab } from "./AccountTab";
 import { GeneralTab } from "./GeneralTab";
+import { SuggestionsTab } from "./SuggestionsTab";
 
 export function SettingsView() {
   return (
@@ -17,9 +18,7 @@ export function SettingsView() {
         <GeneralTab />
       </TabsContent>
       <TabsContent value="suggestions">
-        <div className="tw-text-sm tw-text-muted-foreground tw-py-4">
-          Suggestions settings coming soon...
-        </div>
+        <SuggestionsTab />
       </TabsContent>
     </Tabs>
   );
