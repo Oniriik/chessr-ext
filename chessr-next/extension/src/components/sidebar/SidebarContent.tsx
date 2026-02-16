@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
-import { LogOut, X } from 'lucide-react';
+import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
 import { EloSettings } from './EloSettings';
 import { PersonalitySelect } from './PersonalitySelect';
+import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
 import { useGameDetection } from '../../hooks/useGameDetection';
 import { useSidebar } from '../../hooks/useSidebar';
@@ -37,20 +39,54 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
  * UI primitives: src/components/ui/
  */
 
-function SidebarHeader({ compactBadge }: { compactBadge: boolean }) {
+function SidebarHeader({
+  compactBadge,
+  showSettings,
+  onSettingsToggle
+}: {
+  compactBadge: boolean;
+  showSettings: boolean;
+  onSettingsToggle: () => void;
+}) {
   const { signOut } = useAuthStore();
   const { toggle } = useSidebar();
 
   return (
     <div className="tw-flex tw-items-center tw-justify-between tw-mb-4">
       <div className="tw-flex tw-items-center tw-gap-2">
-        <img
-          src={chrome.runtime.getURL('icons/icon48.png')}
-          alt="Chessr"
-          className="tw-w-8 tw-h-8"
-        />
-        <span className="tw-text-lg tw-font-semibold tw-mr-2">Chessr.io</span>
-        <PlanBadge plan="beta" compact={compactBadge} />
+        {showSettings ? (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onSettingsToggle}
+              className="tw-h-8 tw-w-8"
+              title="Back"
+            >
+              <ArrowLeft className="tw-h-4 tw-w-4" />
+            </Button>
+            <span className="tw-text-lg tw-font-semibold">Settings</span>
+          </>
+        ) : (
+          <>
+            <img
+              src={chrome.runtime.getURL('icons/icon48.png')}
+              alt="Chessr"
+              className="tw-w-8 tw-h-8"
+            />
+            <span className="tw-text-lg tw-font-semibold">Chessr.io</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onSettingsToggle}
+              className="tw-h-6 tw-w-6"
+              title="Settings"
+            >
+              <Settings className="tw-h-4 tw-w-4" />
+            </Button>
+            <PlanBadge plan="beta" compact={compactBadge} />
+          </>
+        )}
       </div>
       <div className="tw-flex tw-items-center tw-gap-1">
         <Button
@@ -81,14 +117,25 @@ function AuthenticatedContent() {
   useGameDetection();
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const compactBadge = containerWidth > 0 && containerWidth < 350;
+  const [showSettings, setShowSettings] = useState(false);
 
   return (
     <div className="tw-h-full" ref={containerRef}>
       <Card className="tw-p-4 tw-text-foreground tw-h-full tw-space-y-4">
-        <SidebarHeader compactBadge={compactBadge} />
-        <GameStatusCard />
-        <EloSettings />
-        <PersonalitySelect />
+        <SidebarHeader
+          compactBadge={compactBadge}
+          showSettings={showSettings}
+          onSettingsToggle={() => setShowSettings(!showSettings)}
+        />
+        {showSettings ? (
+          <SettingsView />
+        ) : (
+          <>
+            <GameStatusCard />
+            <EloSettings />
+            <PersonalitySelect />
+          </>
+        )}
       </Card>
     </div>
   );

@@ -12,7 +12,7 @@ function ColorIndicator({ color }: ColorIndicatorProps) {
   const bgColor = color === 'white' ? 'tw-bg-white' : 'tw-bg-zinc-900';
 
   return (
-    <div className={`tw-w-4 tw-h-4 ${bgColor} tw-border tw-border-border tw-rounded-sm`} />
+    <div className={`tw-w-6 tw-h-6 ${bgColor} tw-border tw-border-border tw-rounded-sm`} />
   );
 }
 

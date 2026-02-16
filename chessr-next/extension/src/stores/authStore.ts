@@ -21,6 +21,7 @@ interface AuthState {
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   resendConfirmationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
 }
@@ -167,6 +168,37 @@ export const useAuthStore = create<AuthState>((set) => ({
       return { success: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Password reset failed';
+      set({ loading: false, error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  changePassword: async (oldPassword, newPassword) => {
+    set({ loading: true, error: null });
+
+    try {
+      const { user } = useAuthStore.getState();
+      if (!user?.email) throw new Error('No user logged in');
+
+      // Re-authenticate with old password to verify it
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      });
+
+      if (signInError) throw new Error('Current password is incorrect');
+
+      // Update to new password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (error) throw error;
+
+      set({ loading: false });
+      return { success: true };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Password change failed';
       set({ loading: false, error: message });
       return { success: false, error: message };
     }
