@@ -126,7 +126,7 @@ export function App() {
             </div>
             <div className="tw-p-4 tw-text-center tw-border-t tw-border-border">
               <a
-                href="https://discord.gg/wTXQDKbhh4"
+                href="https://discord.gg/72j4dUadTu"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="tw-text-xs tw-text-muted hover:tw-text-primary tw-transition-colors tw-inline-flex tw-items-center tw-gap-1.5"
