@@ -283,18 +283,6 @@ export async function handleAnalyzeRequest(
     // After move, side to move has changed
     const sideAfter: Side = sidePlayed === 'w' ? 'b' : 'w';
 
-    // DEBUG: Log the conversion process
-    logger.info('analyze_debug', {
-      step: 'before_toWhitePOV',
-      fenBeforeSide: fenBefore.split(' ')[1],
-      fenAfterSide: fenAfter.split(' ')[1],
-      sidePlayed,
-      sideAfter,
-      rawAfterPlayed: { type: rawAfterPlayed.type, value: rawAfterPlayed.value },
-      isTerminalCheckmate,
-      terminalWinnerIsWhite,
-    });
-
     // For terminal checkmate, directly set White POV (bypass toWhitePOV which may give wrong result)
     let afterPlayedWhite: EngineScore;
     if (isTerminalCheckmate) {
@@ -309,12 +297,6 @@ export async function handleAnalyzeRequest(
     } else {
       afterPlayedWhite = toWhitePOV(rawAfterPlayed, sideAfter);
     }
-
-    // DEBUG: Log after conversion
-    logger.info('analyze_debug', {
-      step: 'after_toWhitePOV',
-      afterPlayedWhite: { type: afterPlayedWhite.type, value: afterPlayedWhite.value },
-    });
 
     // Calculate material delta for the move
     const materialDelta = computeMaterialDelta(Chess, fenBefore, move, sidePlayed) ?? 0;
