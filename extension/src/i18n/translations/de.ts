@@ -65,6 +65,15 @@ export const de: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'Armageddon',
+    off: 'Aus',
+    whiteMustWin: 'Weiß muss gewinnen',
+    blackMustWin: 'Schwarz muss gewinnen',
+    description: 'Remis zählt als Niederlage für die gewählte Seite',
+    warning: 'Volle Engine-Leistung - Hohes Erkennungsrisiko',
+  },
+
   engine: {
     title: 'Engine-Einstellungen',
     riskTaking: 'Risikobereitschaft',

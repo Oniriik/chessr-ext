@@ -268,7 +268,9 @@ export function Sidebar() {
                 <div className="tw-flex tw-items-center tw-gap-3 tw-flex-wrap">
                   <div>
                     <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
-                    <div className="tw-text-base tw-font-semibold tw-text-primary">{localUserElo + 150}</div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">
+                      {settings.armageddon !== 'off' ? t.armageddon.title : localUserElo + 150}
+                    </div>
                   </div>
                   <div>
                     <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.riskTaking}</div>
@@ -298,20 +300,22 @@ export function Sidebar() {
                     <div className="tw-flex tw-flex-col tw-gap-0.5">
                       <div className="tw-flex tw-items-center tw-gap-1.5">
                         <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
-                        <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
-                          <Checkbox
-                            checked={settings.autoDetectTargetElo}
-                            onCheckedChange={(checked: boolean) => setSettings({ autoDetectTargetElo: checked })}
-                          />
-                          <span className="tw-text-[9px] tw-text-muted">Auto</span>
-                        </label>
+                        {settings.armageddon === 'off' && (
+                          <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
+                            <Checkbox
+                              checked={settings.autoDetectTargetElo}
+                              onCheckedChange={(checked: boolean) => setSettings({ autoDetectTargetElo: checked })}
+                            />
+                            <span className="tw-text-[9px] tw-text-muted">Auto</span>
+                          </label>
+                        )}
                       </div>
                       <div className="tw-text-[10px] tw-text-muted">
-                        User: {localUserElo} + 150
+                        {settings.armageddon !== 'off' ? t.armageddon.description : `User: ${localUserElo} + 150`}
                       </div>
                     </div>
                     <div className="tw-text-base tw-font-semibold tw-text-primary">
-                      {localUserElo + 150}
+                      {settings.armageddon !== 'off' ? t.armageddon.title : localUserElo + 150}
                     </div>
                   </div>
                   <Slider
@@ -320,7 +324,7 @@ export function Sidebar() {
                     min={300}
                     max={3000}
                     step={50}
-                    disabled={settings.autoDetectTargetElo}
+                    disabled={settings.autoDetectTargetElo || settings.armageddon !== 'off'}
                   />
 
                   {/* Risk Taking */}
@@ -390,6 +394,30 @@ export function Sidebar() {
                     <p className="tw-text-[10px] tw-text-muted tw-mt-1">
                       {getPersonalityInfo(settings.personality).description}
                     </p>
+                  </div>
+
+                  {/* Armageddon */}
+                  <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
+                    <div className="tw-flex tw-items-center tw-justify-between">
+                      <div>
+                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.armageddon.title}</div>
+                        <div className={cn("tw-text-[10px]", settings.armageddon !== 'off' ? "tw-text-red-500" : "tw-text-muted")}>
+                          {settings.armageddon !== 'off'
+                            ? `${boardConfig?.playerColor === 'black' ? t.armageddon.blackMustWin : t.armageddon.whiteMustWin} (risky)`
+                            : t.armageddon.description
+                          }
+                        </div>
+                      </div>
+                      <Switch
+                        checked={settings.armageddon !== 'off'}
+                        onCheckedChange={(checked) => {
+                          // Use player's color as the side that must win
+                          const playerColor = boardConfig?.playerColor === 'black' ? 'black' : 'white';
+                          setSettings({ armageddon: checked ? playerColor : 'off' });
+                          requestReanalyze();
+                        }}
+                      />
+                    </div>
                   </div>
 
                   {/* Full Strength Toggle (only visible at 3000+ target ELO) */}

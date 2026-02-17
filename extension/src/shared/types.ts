@@ -37,6 +37,9 @@ export interface ArrowColors {
 // Komodo Dragon Personalities
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 
+// Komodo Armageddon mode (draw = loss for specified side)
+export type ArmageddonMode = 'off' | 'white' | 'black';
+
 // Eval Bar display mode
 export type EvalBarMode = 'eval' | 'winrate';
 
@@ -47,6 +50,7 @@ export interface Settings {
   targetElo: number;  // Target ELO for engine (userElo + 150)
   autoDetectTargetElo: boolean;  // Auto-detect target ELO from page
   personality: Personality;
+  armageddon: ArmageddonMode;  // Armageddon mode: draw = loss for specified side
   riskTaking: number;  // Risk taking slider 0-100 (maps to Komodo contempt 0-200cp)
   skill: number;  // Skill level 1-25 (Komodo Skill option)
   moveTime: number;  // in milliseconds

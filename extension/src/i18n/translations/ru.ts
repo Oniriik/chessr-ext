@@ -65,6 +65,15 @@ export const ru: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'Армагеддон',
+    off: 'Выкл',
+    whiteMustWin: 'Белые должны выиграть',
+    blackMustWin: 'Чёрные должны выиграть',
+    description: 'Ничья считается поражением для выбранной стороны',
+    warning: 'Полная мощность движка - Высокий риск обнаружения',
+  },
+
   engine: {
     title: 'Настройки Движка',
     riskTaking: 'Принятие Риска',

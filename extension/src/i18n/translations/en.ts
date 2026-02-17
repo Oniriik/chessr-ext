@@ -65,6 +65,15 @@ export const en: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'Armageddon',
+    off: 'Off',
+    whiteMustWin: 'White Must Win',
+    blackMustWin: 'Black Must Win',
+    description: 'Draw counts as loss for selected side',
+    warning: 'Full engine power - High risk of detection',
+  },
+
   engine: {
     title: 'Engine Settings',
     riskTaking: 'Risk Taking',

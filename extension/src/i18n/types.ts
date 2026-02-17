@@ -68,6 +68,16 @@ export interface Translations {
     };
   };
 
+  // Armageddon mode
+  armageddon: {
+    title: string;
+    off: string;
+    whiteMustWin: string;
+    blackMustWin: string;
+    description: string;
+    warning: string;
+  };
+
   // Engine settings
   engine: {
     title: string;

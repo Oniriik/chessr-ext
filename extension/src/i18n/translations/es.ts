@@ -65,6 +65,15 @@ export const es: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'Armagedón',
+    off: 'Desactivado',
+    whiteMustWin: 'Blancas deben ganar',
+    blackMustWin: 'Negras deben ganar',
+    description: 'El empate cuenta como derrota para el bando elegido',
+    warning: 'Motor a máxima potencia - Alto riesgo de detección',
+  },
+
   engine: {
     title: 'Configuración del Motor',
     riskTaking: 'Toma de Riesgos',

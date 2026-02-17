@@ -65,6 +65,15 @@ export const pt: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'Armageddon',
+    off: 'Desativado',
+    whiteMustWin: 'Brancas devem ganhar',
+    blackMustWin: 'Pretas devem ganhar',
+    description: 'Empate conta como derrota para o lado escolhido',
+    warning: 'Motor em potência máxima - Alto risco de detecção',
+  },
+
   engine: {
     title: 'Configurações do Motor',
     riskTaking: 'Tomada de Risco',

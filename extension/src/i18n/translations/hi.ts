@@ -65,6 +65,15 @@ export const hi: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'आर्मागेडन',
+    off: 'बंद',
+    whiteMustWin: 'सफ़ेद को जीतना होगा',
+    blackMustWin: 'काले को जीतना होगा',
+    description: 'ड्रॉ चुने हुए पक्ष के लिए हार के रूप में गिना जाता है',
+    warning: 'पूर्ण इंजन शक्ति - पता लगने का उच्च जोखिम',
+  },
+
   engine: {
     title: 'इंजन सेटिंग्स',
     riskTaking: 'जोखिम लेना',

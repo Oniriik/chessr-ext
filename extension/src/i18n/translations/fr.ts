@@ -65,6 +65,15 @@ export const fr: Translations = {
     },
   },
 
+  armageddon: {
+    title: 'Armageddon',
+    off: 'Désactivé',
+    whiteMustWin: 'Blancs doivent gagner',
+    blackMustWin: 'Noirs doivent gagner',
+    description: 'La nulle compte comme défaite pour le camp choisi',
+    warning: 'Moteur à pleine puissance - Risque élevé de détection',
+  },
+
   engine: {
     title: 'Paramètres Moteur',
     riskTaking: 'Prise de risque',

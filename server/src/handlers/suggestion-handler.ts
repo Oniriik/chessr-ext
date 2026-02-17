@@ -10,7 +10,7 @@ import { Chess } from 'chess.js';
 import { ChessEngine } from '../engine.js';
 import { Logger } from '../logger.js';
 import { SuggestionMove, EngineScore, Side } from '../analyze-types.js';
-import type { Personality } from '../types.js';
+import type { Personality, ArmageddonMode } from '../types.js';
 import {
   toWhitePOV,
   computeMovetimeForElo,
@@ -32,6 +32,7 @@ export interface SuggestionRequest {
   moves: string[];
   targetElo: number;
   personality: Personality;
+  armageddon: ArmageddonMode; // Armageddon mode: draw = loss for specified side
   multiPv: number;
   contempt: number; // 0-100 (riskTaking)
   skill: number; // 1-25 (Komodo Skill option)
@@ -101,6 +102,20 @@ function riskToContempt(riskTaking: number): number {
   return Math.round(riskTaking * 2);
 }
 
+/**
+ * Convert ArmageddonMode to Komodo's expected UCI option value.
+ * 'off' -> 'Off'
+ * 'white' -> 'White Must Win' (draw = Black wins)
+ * 'black' -> 'Black Must Win' (draw = White wins)
+ */
+function armageddonToUCI(mode: ArmageddonMode): string {
+  switch (mode) {
+    case 'white': return 'White Must Win';
+    case 'black': return 'Black Must Win';
+    default: return 'Off';
+  }
+}
+
 // ============================================================================
 // Main Handler
 // ============================================================================
@@ -128,6 +143,7 @@ export async function handleSuggestionRequest(
       moves,
       targetElo,
       personality,
+      armageddon,
       multiPv,
       contempt: riskTaking,
       skill,
@@ -146,6 +162,7 @@ export async function handleSuggestionRequest(
       movesCount: moves.length,
       targetElo,
       personality,
+      armageddon,
       multiPv,
       riskTaking,
       contempt,
@@ -153,21 +170,25 @@ export async function handleSuggestionRequest(
       sideToMove,
     }, 'started');
 
-    // Reset engine state (anti-contamination)
-    engine.sendCommand('ucinewgame');
-    await engine.waitReady();
-
-    // Configure engine
+    // Configure engine options BEFORE ucinewgame (per UCI protocol)
     const movetimeMs = computeMovetimeForElo(targetElo);
+    const isArmageddon = armageddon !== 'off';
 
     engine.sendCommand('setoption name Hash value 512');
-    engine.sendCommand('setoption name UCI_LimitStrength value true');
-    engine.setElo(targetElo);
+    // Armageddon mode = full power (no ELO limit)
+    engine.sendCommand(`setoption name UCI_LimitStrength value ${isArmageddon ? 'false' : 'true'}`);
+    if (!isArmageddon) {
+      engine.setElo(targetElo);
+    }
+    engine.sendCommand(`setoption name Armageddon value ${armageddonToUCI(armageddon)}`);
     engine.setPersonality(personality);
     engine.sendCommand(`setoption name MultiPV value ${clamp(multiPv, 1, 8)}`);
     engine.sendCommand(`setoption name Skill value ${clamp(skill, 1, 25)}`);
     engine.sendCommand(`setoption name Contempt value ${contempt}`);
     await engine.waitReady();
+
+    // Reset engine state AFTER options are set
+    engine.sendCommand('ucinewgame');
 
     // Analyze position
     const result = await engine.analyze(

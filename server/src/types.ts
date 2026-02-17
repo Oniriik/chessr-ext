@@ -12,6 +12,9 @@ import type {
 // Komodo Dragon Personalities
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 
+// Komodo Armageddon mode (draw = loss for specified side)
+export type ArmageddonMode = 'off' | 'white' | 'black';
+
 // Re-export AnalyzeRequest from analyze-types.ts
 export type { AnalyzeRequest, AnalyzeStatsRequest, AnalyzeSuggestionsRequest };
 

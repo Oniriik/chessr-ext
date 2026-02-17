@@ -113,6 +113,7 @@ export class WebSocketClient {
       moves,
       targetElo: settings.targetElo,
       personality: settings.personality,
+      armageddon: settings.armageddon,
       multiPv: settings.multiPV,
       contempt: settings.riskTaking,
       skill: settings.skill,
