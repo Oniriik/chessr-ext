@@ -45,8 +45,8 @@ const planConfig: Record<Plan, {
   free: {
     label: 'Upgrade',
     icon: Lock,
-    bgColor: '#4b5563',
-    textColor: '#ffffff',
+    bgColor: '#EAB308',
+    textColor: '#574407',
   },
 };
 

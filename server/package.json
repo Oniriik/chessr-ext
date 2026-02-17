@@ -4,8 +4,8 @@
   "description": "Chess engine server with WebSocket API (Komodo Dragon)",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "ENGINE_PATH=./engine/MacOS/dragon-3.3-macos POOL_MAX_ENGINES=12 POOL_SCALE_DOWN_IDLE_TIME=20000 ENGINE_THREADS=1 ENGINE_HASH=64 tsx watch src/index.ts",
-    "dev:m1": "ENGINE_PATH=./engine/MacOS/dragon-3.3-macos-m1 POOL_MAX_ENGINES=12 POOL_SCALE_DOWN_IDLE_TIME=20000 ENGINE_THREADS=1 ENGINE_HASH=64 tsx watch src/index.ts",
+    "dev": "ENGINE_PATH=./engine/MacOS/dragon-3.3-macos POOL_MAX_ENGINES=12 POOL_SCALE_DOWN_IDLE_TIME=20000 ENGINE_THREADS=1 ENGINE_HASH=64 SYZYGY_PATH=./syzygy tsx watch src/index.ts",
+    "dev:m1": "ENGINE_PATH=./engine/MacOS/dragon-3.3-macos-m1 POOL_MAX_ENGINES=12 POOL_SCALE_DOWN_IDLE_TIME=20000 ENGINE_THREADS=1 ENGINE_HASH=64 SYZYGY_PATH=./syzygy tsx watch src/index.ts",
     "dev:prod": "ENGINE_PATH=./engine/MacOS/dragon-3.3-macos tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js"

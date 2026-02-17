@@ -695,7 +695,6 @@ class Chessr {
       settings.targetElo !== prevSettings.targetElo ||
       settings.personality !== prevSettings.personality ||
       settings.riskTaking !== prevSettings.riskTaking ||
-      settings.moveTime !== prevSettings.moveTime ||
       settings.multiPV !== prevSettings.multiPV;
 
     if (analysisSettingsChanged) {
