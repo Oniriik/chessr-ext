@@ -12,6 +12,7 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   plan: Plan;
+  planExpiry: Date | null; // Expiry date for time-limited plans (premium, freetrial)
   initializing: boolean; // true only during initial auth check
   loading: boolean; // true during actions (login, signup, etc.)
   error: string | null;
@@ -31,6 +32,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
   plan: 'free',
+  planExpiry: null,
   initializing: true,
   loading: false,
   error: null,
@@ -100,7 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('plan')
+        .select('plan, plan_expiry')
         .eq('user_id', userId)
         .single();
 
@@ -108,14 +110,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (error) {
         // No row found or other error - default to free
-        set({ plan: 'free' });
+        set({ plan: 'free', planExpiry: null });
         return;
       }
 
-      set({ plan: data?.plan ?? 'free' });
+      set({
+        plan: data?.plan ?? 'free',
+        planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null,
+      });
     } catch (e) {
       console.error('[Auth] fetchPlan error:', e);
-      set({ plan: 'free' });
+      set({ plan: 'free', planExpiry: null });
     }
   },
 
@@ -183,6 +188,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         user: null,
         session: null,
         plan: 'free',
+        planExpiry: null,
         loading: false,
       });
     } catch (error: any) {

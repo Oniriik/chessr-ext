@@ -34,7 +34,7 @@ const FREE_MAX_USER_ELO = 2000;
 export function Sidebar() {
   const { settings, setSettings: setSettingsBase, connected, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, requestReanalyze, isGamePage, sideToMove, lastGamePlayerColor } = useAppStore();
   const { activeSnapshot, selectedSuggestionIndex, setSelectedSuggestionIndex, newAccuracyCache } = useFeedbackStore();
-  const { user, signOut, plan, initializing } = useAuthStore();
+  const { user, signOut, plan, planExpiry, initializing } = useAuthStore();
   const isFree = plan === 'free';
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -223,7 +223,7 @@ export function Sidebar() {
                 >
                   <Settings2 className="tw-w-4 tw-h-4" />
                 </button>
-                {!initializing && <PlanBadge plan={plan} />}
+                {!initializing && <PlanBadge plan={plan} expiry={planExpiry} />}
               </div>
               <Switch
                 checked={settings.enabled}

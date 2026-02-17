@@ -45,13 +45,31 @@ const planConfig: Record<Plan, {
 
 interface PlanBadgeProps {
   plan: Plan;
+  expiry?: Date | null;
   className?: string;
   compact?: boolean;
 }
 
-export function PlanBadge({ plan, className, compact }: PlanBadgeProps) {
+function getExpiryText(expiry: Date): string {
+  const now = new Date();
+  const diffMs = expiry.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return 'Expired';
+  if (diffDays === 0) return 'Expires today';
+  if (diffDays === 1) return 'Expires tomorrow';
+  return `Expires in ${diffDays} days`;
+}
+
+export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) {
   const config = planConfig[plan];
   const Icon = config.icon;
+
+  // Show expiry tooltip for time-limited plans
+  const hasExpiry = expiry && (plan === 'premium' || plan === 'freetrial');
+  const tooltipContent = hasExpiry
+    ? `${config.label} - ${getExpiryText(expiry)}`
+    : config.label;
 
   const badge = (
     <Badge
@@ -67,9 +85,10 @@ export function PlanBadge({ plan, className, compact }: PlanBadgeProps) {
     </Badge>
   );
 
-  if (compact) {
+  // Always show tooltip for compact mode or if there's an expiry
+  if (compact || hasExpiry) {
     return (
-      <Tooltip content={config.label}>
+      <Tooltip content={tooltipContent}>
         {badge}
       </Tooltip>
     );
