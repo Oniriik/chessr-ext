@@ -22,6 +22,7 @@ services:
       - POOL_MAX_ENGINES=${POOL_MAX_ENGINES}
       - ENGINE_THREADS=${ENGINE_THREADS}
       - ENGINE_HASH=${ENGINE_HASH}
+      - SYZYGY_PATH=${SYZYGY_PATH}
     # Limites de ressources
     deploy:
       resources:
