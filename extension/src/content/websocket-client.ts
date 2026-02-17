@@ -167,7 +167,6 @@ export class WebSocketClient {
 
   private send(message: object) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      console.log('[Chessr WS] Sending:', JSON.stringify(message).slice(0, 200));
       this.ws.send(JSON.stringify(message));
     } else {
       console.error('[Chessr WS] Cannot send - WebSocket not open');

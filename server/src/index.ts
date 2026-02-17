@@ -7,7 +7,8 @@ import { MetricsCollector } from './metrics.js';
 import { Logger, globalLogger } from './logger.js';
 import { versionConfig, isVersionOutdated } from './version-config.js';
 import { telemetry } from './telemetry.js';
-import { handleAnalyze, handleAnalyzeStats, handleAnalyzeSuggestions } from './analyze-pipeline.js';
+import { handleSuggestionRequest, SuggestionRequest } from './handlers/suggestion-handler.js';
+import { handleAnalyzeRequest, AnalyzeRequest as NewAnalyzeRequest } from './handlers/analyze-handler.js';
 
 const PORT = 3000;
 const METRICS_PORT = 3001;
@@ -169,16 +170,12 @@ class ChessServer {
     const logger = new Logger(requestId);
 
     switch (message.type) {
-      case 'analyze':
-        await this.handleAnalyze(ws, message, logger);
+      case 'suggestion':
+        await this.handleNewSuggestion(ws, message as any, logger);
         break;
 
-      case 'analyze_stats':
-        await this.handleAnalyzeStats(ws, message as any, logger);
-        break;
-
-      case 'analyze_suggestions':
-        await this.handleAnalyzeSuggestions(ws, message as any, logger);
+      case 'analyze_new':
+        await this.handleNewAnalyze(ws, message as any, logger);
         break;
 
       case 'auth':
@@ -191,170 +188,72 @@ class ChessServer {
     }
   }
 
-  private async handleAnalyze(
+  /**
+   * Handle new suggestion request (new architecture).
+   * Uses FEN directly instead of replaying all moves.
+   */
+  private async handleNewSuggestion(
     ws: WebSocket,
-    message: ClientMessage & { type: 'analyze' },
+    message: SuggestionRequest,
     logger: Logger
   ): Promise<void> {
     const clientInfo = this.getClientInfo(ws);
 
-    logger.info('analysis_request', clientInfo.email, {
-      requestId: message.requestId || 'none',
-      movesCount: message.payload.movesUci.length,
-      targetElo: message.payload.user.targetElo,
-      multiPV: message.payload.user.multiPV,
-      lastMoves: message.payload.review.lastMoves,
-    });
-
     try {
-      // Get engine from pool for direct UCI control
       const engine = await this.pool.getEngineForDirectUse();
 
       try {
-        // Run the analysis pipeline
-        const result = await handleAnalyze(engine, message, clientInfo.email);
+        const result = await handleSuggestionRequest(engine, message, clientInfo.email);
+        this.send(ws, result as any);
 
-        // Check if result is success or error
-        if (result.type === 'analyze_error') {
-          logger.error('analysis_error', clientInfo.email, result.error.message);
-          this.send(ws, result);
-          return;
+        if (result.type === 'suggestion_result') {
+          this.metrics.incrementSuggestions(result.suggestions.length);
+          telemetry.recordSuggestion();
         }
-
-        // Format timing: ms if < 1s, otherwise seconds
-        const formatTime = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms}ms`;
-
-        logger.info('analysis_complete', clientInfo.email, {
-          requestId: result.requestId,
-          reviewMs: formatTime(result.meta.timings.reviewMs),
-          suggestionMs: formatTime(result.meta.timings.suggestionMs),
-          totalMs: formatTime(result.meta.timings.totalMs),
-          suggestions: result.payload.suggestions.suggestions.length,
-        });
-
-        this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
-        this.send(ws, result);
       } finally {
-        // Always return engine to pool
         this.pool.releaseEngine(engine);
       }
     } catch (err) {
-      logger.error('analysis_error', clientInfo.email, err instanceof Error ? err : String(err));
-
-      // Send properly formatted error response
+      logger.error('suggestion_error', clientInfo.email, err instanceof Error ? err : String(err));
       this.send(ws, {
-        type: 'analyze_error',
+        type: 'suggestion_error',
         requestId: message.requestId || '',
-        error: {
-          code: 'ANALYZE_FAILED',
-          message: err instanceof Error ? err.message : 'Analysis failed',
-        },
-        meta: { engine: 'KomodoDragon' },
-      });
+        error: err instanceof Error ? err.message : 'Suggestion failed',
+      } as any);
     }
   }
 
-  private async handleAnalyzeStats(
+  /**
+   * Handle new analyze request (new architecture).
+   * Analyzes a single move with fenBefore/fenAfter.
+   */
+  private async handleNewAnalyze(
     ws: WebSocket,
-    message: any,
+    message: NewAnalyzeRequest,
     logger: Logger
   ): Promise<void> {
     const clientInfo = this.getClientInfo(ws);
 
-    logger.info('stats_request', clientInfo.email, {
-      requestId: message.requestId || 'none',
-      movesCount: message.payload?.movesUci?.length || 0,
-      lastMoves: message.payload?.review?.lastMoves || 1,
-      cachedCount: message.payload?.review?.cachedAccuracy?.length || 0,
-    });
-
     try {
-      // Get engine from pool for direct UCI control
       const engine = await this.pool.getEngineForDirectUse();
 
       try {
-        // Run stats-only (accuracy review)
-        const result = await handleAnalyzeStats(engine, message, clientInfo.email);
+        const result = await handleAnalyzeRequest(engine, message, clientInfo.email);
+        this.send(ws, result as any);
 
-        // Check if result is success or error
-        if (result.type === 'analyze_error') {
-          logger.info('stats_error', clientInfo.email, { errorMessage: result.error.message });
-          this.send(ws, result);
-          return;
+        if (result.type === 'analysis_result') {
+          telemetry.recordStats();
         }
-
-        telemetry.recordStats();
-        this.send(ws, result);
       } finally {
-        // Always return engine to pool
         this.pool.releaseEngine(engine);
       }
     } catch (err) {
-      logger.info('stats_error', clientInfo.email, { errorMessage: err instanceof Error ? err.message : String(err) });
-
-      // Send properly formatted error response
+      logger.error('analyze_error', clientInfo.email, err instanceof Error ? err : String(err));
       this.send(ws, {
-        type: 'analyze_error',
+        type: 'analysis_error',
         requestId: message.requestId || '',
-        error: {
-          code: 'STATS_FAILED',
-          message: err instanceof Error ? err.message : 'Stats analysis failed',
-        },
-        meta: { engine: 'KomodoDragon' },
-      });
-    }
-  }
-
-  private async handleAnalyzeSuggestions(
-    ws: WebSocket,
-    message: any,
-    logger: Logger
-  ): Promise<void> {
-    const clientInfo = this.getClientInfo(ws);
-
-    logger.info('suggestions_request', clientInfo.email, {
-      requestId: message.requestId || 'none',
-      movesCount: message.payload?.movesUci?.length || 0,
-      targetElo: message.payload?.user?.targetElo,
-      multiPV: message.payload?.user?.multiPV,
-      hasCachedStats: !!message.payload?.cachedStats?.accuracy,
-    });
-
-    try {
-      // Get engine from pool for direct UCI control
-      const engine = await this.pool.getEngineForDirectUse();
-
-      try {
-        // Run suggestions-only (engine reset + suggestions)
-        const result = await handleAnalyzeSuggestions(engine, message, clientInfo.email);
-
-        // Check if result is success or error
-        if (result.type === 'analyze_error') {
-          logger.info('suggestions_error', clientInfo.email, { errorMessage: result.error.message });
-          this.send(ws, result);
-          return;
-        }
-
-        this.metrics.incrementSuggestions(result.payload.suggestions.suggestions.length);
-        telemetry.recordSuggestion();
-        this.send(ws, result);
-      } finally {
-        // Always return engine to pool
-        this.pool.releaseEngine(engine);
-      }
-    } catch (err) {
-      logger.info('suggestions_error', clientInfo.email, { errorMessage: err instanceof Error ? err.message : String(err) });
-
-      // Send properly formatted error response
-      this.send(ws, {
-        type: 'analyze_error',
-        requestId: message.requestId || '',
-        error: {
-          code: 'SUGGESTIONS_FAILED',
-          message: err instanceof Error ? err.message : 'Suggestions analysis failed',
-        },
-        meta: { engine: 'KomodoDragon' },
-      });
+        error: err instanceof Error ? err.message : 'Analysis failed',
+      } as any);
     }
   }
 

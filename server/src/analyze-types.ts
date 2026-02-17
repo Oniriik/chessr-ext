@@ -181,6 +181,7 @@ export interface SuggestionMove {
   move: string;               // UCI format: "e2e4" or promotion "e7e8q"
 
   score: EngineScore;         // Score for this line (White POV)
+  cpDelta?: number;           // Centipawn difference vs best move (0 for best, negative for worse)
 
   pv: string[];               // Principal variation (UCI moves)
 

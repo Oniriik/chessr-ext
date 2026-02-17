@@ -89,14 +89,16 @@ export class MoveTracker {
         lastMove,
       );
 
+      // IMPORTANT: Notify move callbacks FIRST, then position callbacks
+      // This ensures analysis is sent with the PREVIOUS lastFenBeforeMove
+      // before onPositionChange sets a new one for the next turn
+      if (lastMove) {
+        this.moveCallbacks.forEach((cb) => cb(lastMove));
+      }
+
       if (fen !== this.lastFEN) {
         this.lastFEN = fen;
         this.callbacks.forEach((cb) => cb(fen));
-      }
-
-      // Notify move callbacks with the last move in UCI format
-      if (lastMove) {
-        this.moveCallbacks.forEach((cb) => cb(lastMove));
       }
 
       this.lastMoveCount = currentMoveCount;

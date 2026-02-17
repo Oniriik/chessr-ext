@@ -21,7 +21,11 @@ export interface AuthMessage {
   version?: string;  // Client extension version
 }
 
-export type ClientMessage = AnalyzeRequest | AnalyzeStatsRequest | AnalyzeSuggestionsRequest | AuthMessage;
+// Import new handlers types
+import type { SuggestionRequest } from './handlers/suggestion-handler.js';
+import type { AnalyzeRequest as NewAnalyzeRequest } from './handlers/analyze-handler.js';
+
+export type ClientMessage = AnalyzeRequest | AnalyzeStatsRequest | AnalyzeSuggestionsRequest | AuthMessage | SuggestionRequest | NewAnalyzeRequest;
 
 export interface PVLine {
   moves: string[];

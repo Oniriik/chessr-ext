@@ -479,14 +479,6 @@ class Chessr {
       return;
     }
 
-    console.log('[Chessr] Player turn - requesting suggestions', {
-      fen: currentFen,
-      movesCount: moveHistory.length,
-      targetElo: settings.targetElo,
-      personality: settings.personality,
-      multiPV: settings.multiPV,
-      riskTaking: settings.riskTaking,
-    });
     const requestId = generateShortRequestId();
     this.lastSuggestionRequestId = requestId;
 
@@ -538,16 +530,6 @@ class Chessr {
       // winRate is from side-to-move perspective, convert to White POV
       const winRateSideToMove = result.winRate ?? 50;
       const winRate = sideToMove === 'w' ? winRateSideToMove : (100 - winRateSideToMove);
-
-      console.log('[Chessr] Eval bar update from suggestion:', {
-        positionEval: result.positionEval,
-        evalWhitePov,
-        evalInPawns,
-        mateIn: result.mateIn,
-        mateInWhitePov,
-        winRate,
-        mode: store.settings.evalBarMode,
-      });
 
       this.evalBar.update(evalInPawns, mateInWhitePov, store.settings.evalBarMode, winRate);
     }
