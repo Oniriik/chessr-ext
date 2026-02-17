@@ -9,9 +9,17 @@ import {
   type Client,
   type SuggestionMessage,
 } from './handlers/suggestionHandler.js';
+import {
+  initStockfishPool,
+  handleAnalysisRequest,
+  handleAnalysisDisconnect,
+  shutdownStockfishPool,
+  type AnalysisMessage,
+} from './handlers/analysisHandler.js';
 
 const PORT = parseInt(process.env.PORT || '8080');
 const MAX_KOMODO_INSTANCES = parseInt(process.env.MAX_KOMODO_INSTANCES || '2');
+const MAX_STOCKFISH_INSTANCES = parseInt(process.env.MAX_STOCKFISH_INSTANCES || '1');
 
 // Initialize Supabase client with service role key for token verification
 const supabase = createClient(
@@ -27,9 +35,14 @@ const wss = new WebSocketServer({ port: PORT });
 
 console.log(`WebSocket server starting on port ${PORT}...`);
 
-// Initialize engine pool
+// Initialize engine pools (Komodo for suggestions, Stockfish for analysis)
 initEnginePool(MAX_KOMODO_INSTANCES).catch((err) => {
-  console.error('Failed to initialize engine pool:', err);
+  console.error('Failed to initialize Komodo pool:', err);
+  process.exit(1);
+});
+
+initStockfishPool(MAX_STOCKFISH_INSTANCES).catch((err) => {
+  console.error('Failed to initialize Stockfish pool:', err);
   process.exit(1);
 });
 
@@ -104,6 +117,10 @@ wss.on('connection', (ws: WebSocket) => {
           handleSuggestionRequest(message as SuggestionMessage, clients.get(userId)!);
           break;
 
+        case 'analyze':
+          handleAnalysisRequest(message as AnalysisMessage, clients.get(userId)!);
+          break;
+
         default:
           console.log(`Unknown message type from ${userId}:`, message.type);
           ws.send(JSON.stringify({ type: 'error', error: 'Unknown message type' }));
@@ -120,6 +137,7 @@ wss.on('connection', (ws: WebSocket) => {
     if (userId) {
       // Cancel any pending requests for this user
       handleUserDisconnect(userId);
+      handleAnalysisDisconnect(userId);
       clients.delete(userId);
       console.log(`User disconnected: ${userId}`);
     } else {
@@ -139,7 +157,10 @@ wss.on('listening', () => {
 // Graceful shutdown
 const shutdown = async () => {
   console.log('\nShutting down...');
-  await shutdownEnginePool();
+  await Promise.all([
+    shutdownEnginePool(),
+    shutdownStockfishPool(),
+  ]);
   wss.close();
   process.exit(0);
 };

@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 import { useSuggestionTrigger } from '../../hooks/useSuggestionTrigger';
+import { useAnalysisTrigger } from '../../hooks/useAnalysisTrigger';
 import { useArrowRenderer } from '../../hooks/useArrowRenderer';
 import { useEvalBar } from '../../hooks/useEvalBar';
 import { AuthForm } from './AuthForm';
@@ -34,6 +35,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   // Auto-trigger suggestions on player turn
   useSuggestionTrigger();
+
+  // Auto-trigger analysis after player moves
+  useAnalysisTrigger();
 
   // Draw suggestion arrows on board
   useArrowRenderer();

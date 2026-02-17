@@ -5,6 +5,7 @@ import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
+import { GameStatsCard } from './GameStatsCard';
 import { EloSettings } from './EloSettings';
 import { PersonalitySelect } from './PersonalitySelect';
 import { SettingsView } from './settings';
@@ -132,6 +133,7 @@ function AuthenticatedContent() {
         ) : (
           <>
             <GameStatusCard />
+            <GameStatsCard />
             <EloSettings />
             <PersonalitySelect />
           </>

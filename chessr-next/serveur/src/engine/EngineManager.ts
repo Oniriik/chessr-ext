@@ -1,5 +1,5 @@
 /**
- * EngineManager - Manages a single Komodo Dragon UCI engine process
+ * EngineManager - Manages a single UCI engine process (Komodo or Stockfish)
  * Handles communication via stdin/stdout
  */
 
@@ -9,6 +9,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export type EngineType = 'komodo' | 'stockfish';
+
+export interface SearchOptions {
+  nodes?: number;
+  depth?: number;
+  moves?: string[];
+}
 
 export interface RawSuggestion {
   multipv: number;
@@ -23,28 +31,34 @@ export interface RawSuggestion {
 
 export class EngineManager extends EventEmitter {
   public id: number;
+  public engineType: EngineType;
   public isReady: boolean = false;
   public isBusy: boolean = false;
 
   private process: ChildProcess | null = null;
   private buffer: string = '';
 
-  constructor(id: number = 0) {
+  constructor(id: number = 0, engineType: EngineType = 'komodo') {
     super();
     this.id = id;
+    this.engineType = engineType;
   }
 
   /**
-   * Get engine path based on platform
+   * Get engine path based on platform and engine type
    */
   private getEnginePath(): string {
     const platform = process.platform;
     const arch = process.arch;
 
     if (platform === 'darwin' && arch === 'arm64') {
-      return path.join(__dirname, '../../engines/macos/dragon-m1');
+      return this.engineType === 'stockfish'
+        ? path.join(__dirname, '../../engines/macos/stockfish-m1')
+        : path.join(__dirname, '../../engines/macos/dragon-m1');
     } else if (platform === 'linux') {
-      return path.join(__dirname, '../../engines/linux/dragon-avx2');
+      return this.engineType === 'stockfish'
+        ? path.join(__dirname, '../../engines/linux/stockfish-avx2')
+        : path.join(__dirname, '../../engines/linux/dragon-avx2');
     }
     throw new Error(`Unsupported platform: ${platform} ${arch}`);
   }
@@ -56,7 +70,7 @@ export class EngineManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       const enginePath = this.getEnginePath();
 
-      console.log(`[Engine ${this.id}] Starting: ${enginePath}`);
+      console.log(`[Engine ${this.id}] Starting ${this.engineType}: ${enginePath}`);
 
       this.process = spawn(enginePath, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -161,10 +175,10 @@ export class EngineManager extends EventEmitter {
    * Scores are normalized to white's perspective (positive = white advantage)
    * @param fen - Current position in FEN format
    * @param multiPv - Number of principal variations to return
-   * @param nodes - Search nodes limit
-   * @param moves - Optional UCI format moves to replay game from startpos (for threefold/50-move context)
+   * @param options - Search options: nodes, depth, or moves for game context
    */
-  async search(fen: string, multiPv: number, nodes: number = 1000000, moves?: string[]): Promise<RawSuggestion[]> {
+  async search(fen: string, multiPv: number, options: SearchOptions = {}): Promise<RawSuggestion[]> {
+    const { nodes = 700000, depth, moves } = options;
     this.isBusy = true;
 
     // Determine if black is to move from FEN (second field)
@@ -235,8 +249,12 @@ export class EngineManager extends EventEmitter {
         this.sendCommand(`position fen ${fen}`);
       }
 
-      // Start search with nodes limit
-      this.sendCommand(`go nodes ${nodes}`);
+      // Start search with depth or nodes limit
+      if (depth) {
+        this.sendCommand(`go depth ${depth}`);
+      } else {
+        this.sendCommand(`go nodes ${nodes}`);
+      }
     });
   }
 

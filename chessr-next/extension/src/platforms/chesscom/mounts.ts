@@ -8,7 +8,7 @@ export function getMountPoints(): MountPoint[] {
     // Base sidebar trigger (navigation sidebar on left)
     {
       id: 'base-sidebar-trigger',
-      route: ['home', 'play-computer', 'play-online', 'analysis', 'game', 'unknown'],
+      route: ['home', 'play-computer', 'game-computer', 'play-online', 'analysis', 'game', 'unknown'],
       selector: '.sidebar-link[data-user-activity-key="profile"]',
       position: 'after',
       component: BaseSidebarTrigger,
@@ -24,7 +24,7 @@ export function getMountPoints(): MountPoint[] {
     // Play vs Computer page
     {
       id: 'play-computer-toggle',
-      route: 'play-computer',
+      route: ['play-computer', 'game-computer'],
       selector: '#player-bottom .player-row-container',
       position: 'after',
       component: SidebarMount,

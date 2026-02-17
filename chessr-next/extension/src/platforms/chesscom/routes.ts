@@ -13,6 +13,11 @@ export function detectRoute(url: URL): RouteId {
     return 'play-online';
   }
 
+  // /game/computer/123 (computer game review)
+  if (/^(\/[a-z]{2})?\/game\/computer\//.test(path)) {
+    return 'game-computer';
+  }
+
   // /game/live/123 or /game/daily/123
   if (path.startsWith('/game/')) {
     return 'game';

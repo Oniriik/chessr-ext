@@ -6,6 +6,7 @@
 import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
+import { useAccuracyStore } from '../stores/accuracyStore';
 import { logger } from './logger';
 
 type MessageHandler = (data: unknown) => void;
@@ -51,10 +52,13 @@ class WebSocketManager {
     document.addEventListener('visibilitychange', this.visibilityHandler);
 
     // Subscribe to game store changes
-    this.gameStoreUnsubscribe = useGameStore.subscribe(
-      (state) => state.isGameStarted,
-      () => this.checkActivity()
-    );
+    let prevIsGameStarted = useGameStore.getState().isGameStarted;
+    this.gameStoreUnsubscribe = useGameStore.subscribe((state) => {
+      if (state.isGameStarted !== prevIsGameStarted) {
+        prevIsGameStarted = state.isGameStarted;
+        this.checkActivity();
+      }
+    });
   }
 
   /**
@@ -156,6 +160,25 @@ class WebSocketManager {
           } else if (data.type === 'suggestion_error') {
             // Handle suggestion error
             useSuggestionStore
+              .getState()
+              .receiveError(data.requestId, data.error);
+          } else if (data.type === 'analysis_result') {
+            // Handle analysis response
+            logger.log(
+              `Received analysis: ${data.classification} (CPL: ${data.cpl})`
+            );
+            useAccuracyStore.getState().receiveAnalysis(data.requestId, {
+              move: data.move,
+              classification: data.classification,
+              cpl: data.cpl,
+              accuracyImpact: data.accuracyImpact,
+              weightedImpact: data.weightedImpact,
+              phase: data.phase,
+              bestMove: data.bestMove,
+            });
+          } else if (data.type === 'analysis_error') {
+            // Handle analysis error
+            useAccuracyStore
               .getState()
               .receiveError(data.requestId, data.error);
           } else {

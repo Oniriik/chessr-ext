@@ -167,7 +167,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       await engine.configure(config);
 
       // Run search with MultiPV (pass moves for game context)
-      const rawSuggestions = await engine.search(fen, pvCount, SEARCH_NODES, moves);
+      const rawSuggestions = await engine.search(fen, pvCount, { nodes: SEARCH_NODES, moves });
 
       // Label suggestions
       const suggestions = labelSuggestions(rawSuggestions);

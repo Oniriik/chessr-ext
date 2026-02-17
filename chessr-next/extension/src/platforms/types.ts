@@ -4,6 +4,7 @@ export type PlatformId = 'chesscom' | 'lichess';
 
 export type RouteId =
   | 'game'
+  | 'game-computer'
   | 'play-computer'
   | 'play-online'
   | 'analysis'
