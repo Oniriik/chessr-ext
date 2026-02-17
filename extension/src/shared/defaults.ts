@@ -50,9 +50,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoDetectTargetElo: true,  // Auto-detect enabled by default
   personality: 'Default',
   armageddon: 'off',  // Armageddon mode disabled by default
-  riskTaking: 0,  // Safe by default (0-100 maps to contempt 0-200cp)
-  skill: 25,  // Ruthless by default (1-25 maps to Komodo Skill)
-  moveTime: 1000,  // 1 second default
+  riskTaking: 20,  // Cautious by default (0-100 maps to contempt 0-200cp)
+  skill: 10,  // Solid by default (1-25 maps to Komodo Skill)
   multiPV: 3,
   showArrows: true,
   showEvalBar: true,

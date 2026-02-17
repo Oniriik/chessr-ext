@@ -16,6 +16,7 @@ import { OpeningSelector } from './OpeningSelector';
 import { SettingsModal } from './SettingsModal';
 import { SuggestionCard } from './SuggestionCard';
 import { NewAccuracyWidget } from './NewAccuracyWidget';
+import { PlanBadge, UpgradeButton } from './BetaBadge';
 
 import { Personality, Settings } from '../../shared/types';
 import { getRiskLabel, getSkillLabel } from '../../shared/defaults';
@@ -23,11 +24,18 @@ import { getRiskLabel, getSkillLabel } from '../../shared/defaults';
 // Komodo personalities - all available at any ELO
 const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Active', 'Positional', 'Endgame', 'Beginner', 'Human'];
 
+// Free personalities (for non-beta users)
+const FREE_PERSONALITIES: Personality[] = ['Default', 'Aggressive'];
+
+// Max user ELO for non-beta users (targetElo = userElo + 150)
+const FREE_MAX_USER_ELO = 2000;
+
 
 export function Sidebar() {
   const { settings, setSettings: setSettingsBase, connected, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, requestReanalyze, isGamePage, sideToMove, lastGamePlayerColor } = useAppStore();
   const { activeSnapshot, selectedSuggestionIndex, setSelectedSuggestionIndex, newAccuracyCache } = useFeedbackStore();
-  const { user, signOut } = useAuthStore();
+  const { user, signOut, plan, initializing } = useAuthStore();
+  const isFree = plan === 'free';
   const { t } = useTranslation();
   const isRTL = useIsRTL();
 
@@ -72,20 +80,79 @@ export function Sidebar() {
     setLocalSkill(settings.skill);
   }, [settings.skill]);
 
+  // Reset restricted settings to defaults when user is free (wait for plan to be fetched)
+  useEffect(() => {
+    if (initializing) return; // Wait for plan to be fetched
+    if (isFree) {
+      const updates: Partial<Settings> = {};
+
+      // Reset riskTaking to 20 if different
+      if (settings.riskTaking !== 20) {
+        updates.riskTaking = 20;
+        setLocalRiskTaking(20);
+      }
+
+      // Reset skill to 10 if different
+      if (settings.skill !== 10) {
+        updates.skill = 10;
+        setLocalSkill(10);
+      }
+
+      // Reset personality to Default if not in FREE_PERSONALITIES
+      if (!FREE_PERSONALITIES.includes(settings.personality)) {
+        updates.personality = 'Default';
+      }
+
+      // Disable armageddon
+      if (settings.armageddon !== 'off') {
+        updates.armageddon = 'off';
+      }
+
+      // Cap userElo to FREE_MAX_USER_ELO
+      if (settings.userElo > FREE_MAX_USER_ELO) {
+        updates.userElo = FREE_MAX_USER_ELO;
+        updates.targetElo = FREE_MAX_USER_ELO;
+        setLocalUserElo(FREE_MAX_USER_ELO);
+      }
+
+      // Apply updates if any
+      if (Object.keys(updates).length > 0) {
+        setSettings(updates);
+      }
+    }
+  }, [initializing, isFree]);
+
   const handleEloChange = (value: number) => {
+    // Enforce max ELO limit for non-beta users
+    if (isFree && value > FREE_MAX_USER_ELO) {
+      handleBypass();
+      return;
+    }
     setLocalUserElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      // Calculate targetElo based on auto setting
+      const targetElo = settings.autoDetectTargetElo
+        ? (!isFree ? value + 150 : Math.min(value + 150, FREE_MAX_USER_ELO))
+        : value;
       // Disable full strength mode if ELO drops below 3000
-      const newSettings: Partial<Settings> = { userElo: value, targetElo: value + 150 };
-      if (value + 150 < 3000 && settings.disableLimitStrength) {
+      const newSettings: Partial<Settings> = { userElo: value, targetElo };
+      if (targetElo < 3000 && settings.disableLimitStrength) {
         newSettings.disableLimitStrength = false;
       }
       setSettings(newSettings);
     }, 300);
   };
 
+  const handleBypass = () => {
+    alert('You cannot use this feature. Please upgrade to unlock.');
+  };
+
   const handleRiskTakingChange = (value: number) => {
+    if (isFree) {
+      handleBypass();
+      return;
+    }
     setLocalRiskTaking(value);
     if (riskDebounceRef.current) clearTimeout(riskDebounceRef.current);
     riskDebounceRef.current = setTimeout(() => {
@@ -95,6 +162,10 @@ export function Sidebar() {
   };
 
   const handleSkillChange = (value: number) => {
+    if (isFree) {
+      handleBypass();
+      return;
+    }
     setLocalSkill(value);
     if (skillDebounceRef.current) clearTimeout(skillDebounceRef.current);
     skillDebounceRef.current = setTimeout(() => {
@@ -152,6 +223,7 @@ export function Sidebar() {
                 >
                   <Settings2 className="tw-w-4 tw-h-4" />
                 </button>
+                {!initializing && <PlanBadge plan={plan} />}
               </div>
               <Switch
                 checked={settings.enabled}
@@ -269,7 +341,11 @@ export function Sidebar() {
                   <div>
                     <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
                     <div className="tw-text-base tw-font-semibold tw-text-primary">
-                      {settings.armageddon !== 'off' ? t.armageddon.title : localUserElo + 150}
+                      {settings.armageddon !== 'off'
+                        ? t.armageddon.title
+                        : settings.autoDetectTargetElo
+                          ? (!isFree ? localUserElo + 150 : Math.min(localUserElo + 150, FREE_MAX_USER_ELO))
+                          : localUserElo}
                     </div>
                   </div>
                   <div>
@@ -300,29 +376,43 @@ export function Sidebar() {
                     <div className="tw-flex tw-flex-col tw-gap-0.5">
                       <div className="tw-flex tw-items-center tw-gap-1.5">
                         <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
+                        {isFree && <UpgradeButton tooltip="Upgrade to unlock higher ELO targets (up to 3000)" />}
                         {settings.armageddon === 'off' && (
                           <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
                             <Checkbox
                               checked={settings.autoDetectTargetElo}
-                              onCheckedChange={(checked: boolean) => setSettings({ autoDetectTargetElo: checked })}
+                              onCheckedChange={(checked: boolean) => {
+                                const targetElo = checked
+                                  ? (!isFree ? localUserElo + 150 : Math.min(localUserElo + 150, FREE_MAX_USER_ELO))
+                                  : localUserElo;
+                                setSettings({ autoDetectTargetElo: checked, targetElo });
+                              }}
                             />
                             <span className="tw-text-[9px] tw-text-muted">Auto</span>
                           </label>
                         )}
                       </div>
                       <div className="tw-text-[10px] tw-text-muted">
-                        {settings.armageddon !== 'off' ? t.armageddon.description : `User: ${localUserElo} + 150`}
+                        {settings.armageddon !== 'off'
+                          ? t.armageddon.description
+                          : settings.autoDetectTargetElo
+                            ? `User: ${localUserElo} + 150${isFree && localUserElo + 150 > FREE_MAX_USER_ELO ? ` (cap ${FREE_MAX_USER_ELO})` : ''}`
+                            : `User: ${localUserElo}`}
                       </div>
                     </div>
                     <div className="tw-text-base tw-font-semibold tw-text-primary">
-                      {settings.armageddon !== 'off' ? t.armageddon.title : localUserElo + 150}
+                      {settings.armageddon !== 'off'
+                        ? t.armageddon.title
+                        : settings.autoDetectTargetElo
+                          ? (!isFree ? localUserElo + 150 : Math.min(localUserElo + 150, FREE_MAX_USER_ELO))
+                          : localUserElo}
                     </div>
                   </div>
                   <Slider
                     value={localUserElo}
                     onValueChange={handleEloChange}
                     min={300}
-                    max={3000}
+                    max={!isFree ? 3000 : FREE_MAX_USER_ELO}
                     step={50}
                     disabled={settings.autoDetectTargetElo || settings.armageddon !== 'off'}
                   />
@@ -331,21 +421,25 @@ export function Sidebar() {
                   <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                     <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
                       <div>
-                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.riskTaking}</div>
+                        <div className="tw-flex tw-items-center tw-gap-1.5">
+                          <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.riskTaking}</div>
+                          {isFree && <UpgradeButton tooltip="Upgrade to unlock risk taking adjustment" />}
+                        </div>
                         <div className="tw-text-[10px] tw-text-muted">
-                          {localRiskTaking}%
+                          {!isFree ? localRiskTaking : 20}%
                         </div>
                       </div>
                       <div className="tw-text-base tw-font-semibold tw-text-primary">
-                        {getRiskLabel(localRiskTaking)}
+                        {getRiskLabel(!isFree ? localRiskTaking : 20)}
                       </div>
                     </div>
                     <Slider
-                      value={localRiskTaking}
+                      value={!isFree ? localRiskTaking : 20}
                       onValueChange={handleRiskTakingChange}
                       min={0}
                       max={100}
                       step={1}
+                      disabled={isFree}
                     />
                     <p className="tw-text-[10px] tw-text-muted tw-mt-1">
                       {t.engine.riskTakingDesc}
@@ -356,21 +450,25 @@ export function Sidebar() {
                   <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                     <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
                       <div>
-                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.skill}</div>
+                        <div className="tw-flex tw-items-center tw-gap-1.5">
+                          <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.skill}</div>
+                          {isFree && <UpgradeButton tooltip="Upgrade to unlock skill adjustment" />}
+                        </div>
                         <div className="tw-text-[10px] tw-text-muted">
-                          {localSkill}
+                          {!isFree ? localSkill : 10}
                         </div>
                       </div>
                       <div className="tw-text-base tw-font-semibold tw-text-primary">
-                        {getSkillLabel(localSkill)}
+                        {getSkillLabel(!isFree ? localSkill : 10)}
                       </div>
                     </div>
                     <Slider
-                      value={localSkill}
+                      value={!isFree ? localSkill : 10}
                       onValueChange={handleSkillChange}
                       min={1}
                       max={25}
                       step={1}
+                      disabled={isFree}
                     />
                     <p className="tw-text-[10px] tw-text-muted tw-mt-1">
                       {t.engine.skillDesc}
@@ -379,14 +477,21 @@ export function Sidebar() {
 
                   {/* Personality */}
                   <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
-                    <div className="tw-text-[10px] tw-text-muted tw-uppercase tw-mb-1">{t.personalities.title}</div>
+                    <div className="tw-flex tw-items-center tw-gap-1.5 tw-mb-1">
+                      <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.personalities.title}</div>
+                      {isFree && <UpgradeButton tooltip="Upgrade to unlock Defensive, Active, Positional, Endgame, Beginner, Human" />}
+                    </div>
                     <Select
-                      value={settings.personality}
+                      value={!isFree ? settings.personality : (FREE_PERSONALITIES.includes(settings.personality) ? settings.personality : 'Default')}
                       onValueChange={(value) => {
+                        if (isFree && !FREE_PERSONALITIES.includes(value as Personality)) {
+                          handleBypass();
+                          return;
+                        }
                         setSettings({ personality: value as Personality });
                         requestReanalyze();
                       }}
-                      options={PERSONALITIES.map((personality) => ({
+                      options={(!isFree ? PERSONALITIES : FREE_PERSONALITIES).map((personality) => ({
                         value: personality,
                         label: getPersonalityInfo(personality).label,
                       }))}
@@ -394,13 +499,21 @@ export function Sidebar() {
                     <p className="tw-text-[10px] tw-text-muted tw-mt-1">
                       {getPersonalityInfo(settings.personality).description}
                     </p>
+                    {isFree && (
+                      <p className="tw-text-[10px] tw-mt-1" style={{ color: '#eab308' }}>
+                        Upgrade to unlock 6 more personalities
+                      </p>
+                    )}
                   </div>
 
                   {/* Armageddon */}
                   <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                     <div className="tw-flex tw-items-center tw-justify-between">
                       <div>
-                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.armageddon.title}</div>
+                        <div className="tw-flex tw-items-center tw-gap-1.5">
+                          <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.armageddon.title}</div>
+                          {isFree && <UpgradeButton tooltip="Upgrade to unlock Armageddon mode" />}
+                        </div>
                         <div className={cn("tw-text-[10px]", settings.armageddon !== 'off' ? "tw-text-red-500" : "tw-text-muted")}>
                           {settings.armageddon !== 'off'
                             ? `${boardConfig?.playerColor === 'black' ? t.armageddon.blackMustWin : t.armageddon.whiteMustWin} (risky)`
@@ -409,13 +522,15 @@ export function Sidebar() {
                         </div>
                       </div>
                       <Switch
-                        checked={settings.armageddon !== 'off'}
+                        checked={!isFree && settings.armageddon !== 'off'}
                         onCheckedChange={(checked) => {
+                          if (isFree) { handleBypass(); return; }
                           // Use player's color as the side that must win
                           const playerColor = boardConfig?.playerColor === 'black' ? 'black' : 'white';
                           setSettings({ armageddon: checked ? playerColor : 'off' });
                           requestReanalyze();
                         }}
+                        disabled={isFree}
                       />
                     </div>
                   </div>
