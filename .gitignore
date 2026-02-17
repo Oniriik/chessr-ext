@@ -17,3 +17,6 @@ extension/key.pem
 
 # Chess engine binaries (proprietary - Komodo Dragon)
 server/engine/
+
+# Syzygy tablebases (too large for git)
+server/syzygy/

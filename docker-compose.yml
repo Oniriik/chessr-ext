@@ -10,6 +10,7 @@ services:
       - "8081:3001"
     volumes:
       - ./server/engine/Linux:/engine:ro
+      - ./server/syzygy:/syzygy:ro
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -22,7 +23,7 @@ services:
       - POOL_MAX_ENGINES=${POOL_MAX_ENGINES}
       - ENGINE_THREADS=${ENGINE_THREADS}
       - ENGINE_HASH=${ENGINE_HASH}
-      - SYZYGY_PATH=${SYZYGY_PATH}
+      - SYZYGY_PATH=/syzygy
     # Limites de ressources
     deploy:
       resources:
