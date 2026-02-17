@@ -96,10 +96,12 @@ export function buildBadges(s: SuggestionMove): string[] {
   }
 
   // Sub-badges
-  if (s.flags?.isMate && s.score?.type === 'mate') {
+  const hasMate = s.flags?.isMate && s.score?.type === 'mate';
+  if (hasMate) {
     badges.push(`Mate ${Math.abs(s.score.value)}`);
   }
-  if (s.flags?.isCheck) badges.push('Check');
+  // Don't show Check if Mate is already shown (mate implies check)
+  if (s.flags?.isCheck && !hasMate) badges.push('Check');
 
   // Capture badge with piece symbol if available
   if (s.flags?.isCapture) {

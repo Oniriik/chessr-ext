@@ -26,7 +26,7 @@ export function SuggestionCard({
 
   // Categorize badges for better organization
   const mainBadges = badges.filter(b =>
-    b === 'Best' || b === 'Safe' || b === 'Risky' || b === 'Human' || b === 'Alt' || b === 'Medium risk'
+    b === 'Best' || b === 'Safe' || b === 'Risky' || b === 'Medium risk'
   );
   const tacticalBadges = badges.filter(b =>
     b.startsWith('Mate') || b === 'Check' || b.startsWith('x ') || b.includes('Promo')
@@ -130,8 +130,6 @@ export function SuggestionCard({
                       badge === 'Best' && 'tw-bg-green-500/20 tw-text-green-400',
                       badge === 'Safe' && 'tw-bg-blue-500/20 tw-text-blue-400',
                       badge === 'Risky' && 'tw-bg-red-500/20 tw-text-red-400',
-                      badge === 'Human' && 'tw-bg-purple-500/20 tw-text-purple-400',
-                      badge === 'Alt' && 'tw-bg-gray-500/20 tw-text-gray-400',
                       badge === 'Medium risk' && 'tw-bg-orange-500/20 tw-text-orange-400'
                     )}
                   >
@@ -151,20 +149,14 @@ export function SuggestionCard({
               <div className="tw-flex tw-flex-wrap tw-gap-1">
                 {tacticalBadges.map((badge, i) => {
                   const isCaptureBadge = badge.startsWith('x ');
-                  const captureColorClass = isCaptureBadge
-                    ? (playerColor === 'white'
-                        ? 'tw-bg-gray-900 tw-text-white'
-                        : 'tw-bg-gray-100 tw-text-black'
-                      )
-                    : '';
 
                   return (
                     <span
                       key={i}
                       className={cn(
                         'tw-text-xs tw-px-2 tw-py-0.5 tw-rounded tw-font-medium',
-                        isCaptureBadge && captureColorClass,
-                        !isCaptureBadge && badge.includes('Mate') && 'tw-bg-orange-500/20 tw-text-orange-400',
+                        isCaptureBadge && 'tw-bg-white tw-text-black',
+                        !isCaptureBadge && badge.includes('Mate') && 'tw-bg-yellow-500/20 tw-text-yellow-400',
                         !isCaptureBadge && badge.includes('Check') && 'tw-bg-yellow-500/20 tw-text-yellow-400',
                         !isCaptureBadge && badge.includes('Promo') && 'tw-bg-indigo-500/20 tw-text-indigo-400'
                       )}

@@ -22,22 +22,21 @@ export class ArrowRenderer {
     return (fileDiff === 1 && rankDiff === 2) || (fileDiff === 2 && rankDiff === 1);
   }
 
-  private getBadgeColor(badgeText: string): string {
+  private getBadgeColor(badgeText: string): { bg: string; text: string } {
     // Main labels
-    if (badgeText.includes('Best')) return 'rgba(34, 197, 94, 0.95)'; // Green
-    if (badgeText.includes('Safe')) return 'rgba(59, 130, 246, 0.95)'; // Blue
-    if (badgeText.includes('Risky') || badgeText.includes('⚠')) return 'rgba(239, 68, 68, 0.95)'; // Red
-    if (badgeText.includes('Human')) return 'rgba(168, 85, 247, 0.95)'; // Purple
-    if (badgeText.includes('Alt')) return 'rgba(107, 114, 128, 0.95)'; // Gray
+    if (badgeText.includes('Best')) return { bg: 'rgba(34, 197, 94, 0.95)', text: 'white' }; // Green
+    if (badgeText.includes('Safe')) return { bg: 'rgba(59, 130, 246, 0.95)', text: 'white' }; // Blue
+    if (badgeText.includes('Medium risk')) return { bg: 'rgba(249, 115, 22, 0.95)', text: 'white' }; // Orange
+    if (badgeText.includes('Risky')) return { bg: 'rgba(239, 68, 68, 0.95)', text: 'white' }; // Red
 
     // Sub-badges
-    if (badgeText.includes('Mate') || badgeText.includes('#')) return 'rgba(249, 115, 22, 0.95)'; // Orange
-    if (badgeText.includes('Check') || badgeText.includes('+')) return 'rgba(234, 179, 8, 0.95)'; // Yellow
-    if (badgeText.includes('Capture') || badgeText.includes('x')) return 'rgba(236, 72, 153, 0.95)'; // Pink
-    if (badgeText.includes('Promo') || badgeText.includes('♛')) return 'rgba(99, 102, 241, 0.95)'; // Indigo
+    if (badgeText.includes('Mate')) return { bg: 'rgba(234, 179, 8, 0.95)', text: 'white' }; // Yellow
+    if (badgeText.includes('Check')) return { bg: 'rgba(234, 179, 8, 0.95)', text: 'white' }; // Yellow
+    if (badgeText.includes('Capture')) return { bg: 'rgba(255, 255, 255, 0.95)', text: 'black' }; // White with black text
+    if (badgeText.includes('Promo')) return { bg: 'rgba(99, 102, 241, 0.95)', text: 'white' }; // Indigo
 
-    // Default
-    return 'rgba(75, 85, 99, 0.95)'; // Gray
+    // Default - don't render unknown badges
+    return { bg: '', text: '' };
   }
 
   private drawBadgesForArrow(fromPos: { x: number; y: number }, toPos: { x: number; y: number }, badges: string[]): void {
@@ -59,11 +58,15 @@ export class ArrowRenderer {
 
     let currentY = squareTop + squarePadding;
     for (const badgeText of badges) {
-      const badgeColor = this.getBadgeColor(badgeText);
+      const colors = this.getBadgeColor(badgeText);
+      // Skip badges with no color (unknown/unhandled labels)
+      if (!colors.bg) continue;
+
       const badgeGroup = this.drawBadge(
         { x: squareRight - squarePadding, y: currentY },
         badgeText,
-        badgeColor,
+        colors.bg,
+        colors.text,
         'end',
         scale
       );
@@ -74,7 +77,7 @@ export class ArrowRenderer {
     }
   }
 
-  private drawBadge(position: { x: number; y: number }, text: string, badgeColor: string, align: 'middle' | 'start' | 'end' = 'middle', scale: number = 1): SVGGElement {
+  private drawBadge(position: { x: number; y: number }, text: string, badgeColor: string, textColor: string, align: 'middle' | 'start' | 'end' = 'middle', scale: number = 1): SVGGElement {
     const layer = this.overlay.getArrowsLayer();
     if (!layer) return document.createElementNS('http://www.w3.org/2000/svg', 'g');
 
@@ -91,7 +94,7 @@ export class ArrowRenderer {
     textElement.setAttribute('font-size', fontSize.toString());
     textElement.setAttribute('font-weight', 'bold');
     textElement.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
-    textElement.setAttribute('fill', 'white');
+    textElement.setAttribute('fill', textColor);
     textElement.textContent = text;
 
     // Add temporary to measure
