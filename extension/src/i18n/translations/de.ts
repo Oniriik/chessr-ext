@@ -32,8 +32,8 @@ export const de: Translations = {
   personalities: {
     title: 'Persönlichkeit',
     Default: {
-      label: 'Engine',
-      description: 'Spielt wie eine Engine mit minimalen Fehlern.',
+      label: 'Roboter',
+      description: 'Spielt wie eine Roboter mit minimalen Fehlern.',
     },
     Aggressive: {
       label: 'Aggressiv',
@@ -71,15 +71,15 @@ export const de: Translations = {
     whiteMustWin: 'Weiß muss gewinnen',
     blackMustWin: 'Schwarz muss gewinnen',
     description: 'Remis zählt als Niederlage für die gewählte Seite',
-    warning: 'Volle Engine-Leistung - Hohes Erkennungsrisiko',
+    warning: 'Volle Roboter-Leistung - Hohes Erkennungsrisiko',
   },
 
   engine: {
-    title: 'Engine-Einstellungen',
+    title: 'Roboter-Einstellungen',
     riskTaking: 'Risikobereitschaft',
     riskTakingDesc: 'Akzeptiertes Risikoniveau für Gewinnchancen',
     skill: 'Spielstärke',
-    skillDesc: 'Stärkeniveau der Engine',
+    skillDesc: 'Stärkeniveau der Roboter',
     timePerMove: 'Zeit',
     analysisLines: 'Analyselinien',
   },
@@ -134,7 +134,7 @@ export const de: Translations = {
   advanced: {
     title: 'Erweitert',
     showAlwaysBestMoveFirst: 'Immer besten Zug zuerst zeigen',
-    showAlwaysBestMoveFirstDesc: 'Der erste Vorschlag ist immer der beste Engine-Zug.',
+    showAlwaysBestMoveFirstDesc: 'Der erste Vorschlag ist immer der beste Roboter-Zug.',
     allowBrilliant: 'Brillante Züge erlauben',
     allowBrilliantDesc: 'Zeige Züge, die Material für starke Stellungen opfern.',
   },

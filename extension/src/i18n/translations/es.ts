@@ -32,8 +32,8 @@ export const es: Translations = {
   personalities: {
     title: 'Personalidad',
     Default: {
-      label: 'Motor',
-      description: 'Juega como un motor con errores mínimos.',
+      label: 'Robot',
+      description: 'Juega como un robot con errores mínimos.',
     },
     Aggressive: {
       label: 'Agresivo',
@@ -71,15 +71,15 @@ export const es: Translations = {
     whiteMustWin: 'Blancas deben ganar',
     blackMustWin: 'Negras deben ganar',
     description: 'El empate cuenta como derrota para el bando elegido',
-    warning: 'Motor a máxima potencia - Alto riesgo de detección',
+    warning: 'Robot a máxima potencia - Alto riesgo de detección',
   },
 
   engine: {
-    title: 'Configuración del Motor',
+    title: 'Configuración del Robot',
     riskTaking: 'Toma de Riesgos',
     riskTakingDesc: 'Nivel de riesgo aceptado para ganar',
     skill: 'Habilidad',
-    skillDesc: 'Nivel de fuerza del motor',
+    skillDesc: 'Nivel de fuerza del robot',
     timePerMove: 'Tiempo',
     analysisLines: 'Líneas de Análisis',
   },
@@ -134,7 +134,7 @@ export const es: Translations = {
   advanced: {
     title: 'Avanzado',
     showAlwaysBestMoveFirst: 'Mostrar siempre la mejor jugada primero',
-    showAlwaysBestMoveFirstDesc: 'La primera sugerencia es siempre la mejor jugada del motor.',
+    showAlwaysBestMoveFirstDesc: 'La primera sugerencia es siempre la mejor jugada del robot.',
     allowBrilliant: 'Permitir jugadas brillantes',
     allowBrilliantDesc: 'Mostrar jugadas que sacrifican material por posiciones fuertes.',
   },

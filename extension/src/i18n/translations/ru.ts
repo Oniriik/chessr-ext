@@ -32,8 +32,8 @@ export const ru: Translations = {
   personalities: {
     title: 'Личность',
     Default: {
-      label: 'Движок',
-      description: 'Играет как движок с минимумом ошибок.',
+      label: 'Робот',
+      description: 'Играет как робот с минимумом ошибок.',
     },
     Aggressive: {
       label: 'Агрессивный',

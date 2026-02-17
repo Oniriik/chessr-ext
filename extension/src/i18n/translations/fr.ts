@@ -26,14 +26,14 @@ export const fr: Translations = {
     display: 'Affichage Chess.com',
     antiCheat: 'Randomisation ELO ±100',
     fullStrength: 'ELO Max (3500)',
-    fullStrengthDesc: 'Débloquer la puissance maximale du moteur à 3500 ELO',
+    fullStrengthDesc: 'Débloquer la puissance maximale du robot à 3500 ELO',
   },
 
   personalities: {
     title: 'Personnalité',
     Default: {
-      label: 'Moteur',
-      description: 'Joue comme un moteur avec un minimum d\'erreurs.',
+      label: 'Robot',
+      description: 'Joue comme un robot avec un minimum d\'erreurs.',
     },
     Aggressive: {
       label: 'Agressif',
@@ -71,15 +71,15 @@ export const fr: Translations = {
     whiteMustWin: 'Blancs doivent gagner',
     blackMustWin: 'Noirs doivent gagner',
     description: 'La nulle compte comme défaite pour le camp choisi',
-    warning: 'Moteur à pleine puissance - Risque élevé de détection',
+    warning: 'Robot à pleine puissance - Risque élevé de détection',
   },
 
   engine: {
-    title: 'Paramètres Moteur',
+    title: 'Paramètres Robot',
     riskTaking: 'Prise de risque',
     riskTakingDesc: 'Niveau de risque accepté pour gagner',
     skill: 'Compétence',
-    skillDesc: 'Niveau de force du moteur',
+    skillDesc: 'Niveau de force du robot',
     timePerMove: 'Temps',
     analysisLines: "Lignes d'analyse",
   },
@@ -134,7 +134,7 @@ export const fr: Translations = {
   advanced: {
     title: 'Avancé',
     showAlwaysBestMoveFirst: 'Toujours afficher le meilleur coup en premier',
-    showAlwaysBestMoveFirstDesc: 'La première suggestion est toujours le meilleur coup moteur.',
+    showAlwaysBestMoveFirstDesc: 'La première suggestion est toujours le meilleur coup robot.',
     allowBrilliant: 'Autoriser les coups brillants',
     allowBrilliantDesc: 'Affiche les coups qui sacrifient du matériel pour des positions fortes.',
   },

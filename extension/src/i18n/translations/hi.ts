@@ -32,8 +32,8 @@ export const hi: Translations = {
   personalities: {
     title: 'व्यक्तित्व',
     Default: {
-      label: 'इंजन',
-      description: 'न्यूनतम गलतियों के साथ इंजन की तरह खेलता है।',
+      label: 'रोबोट',
+      description: 'न्यूनतम गलतियों के साथ रोबोट की तरह खेलता है।',
     },
     Aggressive: {
       label: 'आक्रामक',
@@ -71,15 +71,15 @@ export const hi: Translations = {
     whiteMustWin: 'सफ़ेद को जीतना होगा',
     blackMustWin: 'काले को जीतना होगा',
     description: 'ड्रॉ चुने हुए पक्ष के लिए हार के रूप में गिना जाता है',
-    warning: 'पूर्ण इंजन शक्ति - पता लगने का उच्च जोखिम',
+    warning: 'पूर्ण रोबोट शक्ति - पता लगने का उच्च जोखिम',
   },
 
   engine: {
-    title: 'इंजन सेटिंग्स',
+    title: 'रोबोट सेटिंग्स',
     riskTaking: 'जोखिम लेना',
     riskTakingDesc: 'जीतने की संभावनाओं के लिए स्वीकृत जोखिम स्तर',
     skill: 'कौशल',
-    skillDesc: 'इंजन की खेल शक्ति स्तर',
+    skillDesc: 'रोबोट की खेल शक्ति स्तर',
     timePerMove: 'समय',
     analysisLines: 'विश्लेषण लाइनें',
   },
@@ -134,7 +134,7 @@ export const hi: Translations = {
   advanced: {
     title: 'उन्नत',
     showAlwaysBestMoveFirst: 'हमेशा सबसे अच्छी चाल पहले दिखाएं',
-    showAlwaysBestMoveFirstDesc: 'पहला सुझाव हमेशा इंजन की सबसे अच्छी चाल है।',
+    showAlwaysBestMoveFirstDesc: 'पहला सुझाव हमेशा रोबोट की सबसे अच्छी चाल है।',
     allowBrilliant: 'शानदार चालों की अनुमति दें',
     allowBrilliantDesc: 'मजबूत स्थितियों के लिए सामग्री का त्याग करने वाली चालें दिखाएं।',
   },

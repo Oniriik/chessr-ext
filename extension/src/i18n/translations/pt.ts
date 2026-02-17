@@ -32,8 +32,8 @@ export const pt: Translations = {
   personalities: {
     title: 'Personalidade',
     Default: {
-      label: 'Motor',
-      description: 'Joga como um motor com erros mínimos.',
+      label: 'Robô',
+      description: 'Joga como um robô com erros mínimos.',
     },
     Aggressive: {
       label: 'Agressivo',
@@ -71,15 +71,15 @@ export const pt: Translations = {
     whiteMustWin: 'Brancas devem ganhar',
     blackMustWin: 'Pretas devem ganhar',
     description: 'Empate conta como derrota para o lado escolhido',
-    warning: 'Motor em potência máxima - Alto risco de detecção',
+    warning: 'Robô em potência máxima - Alto risco de detecção',
   },
 
   engine: {
-    title: 'Configurações do Motor',
+    title: 'Configurações do Robô',
     riskTaking: 'Tomada de Risco',
     riskTakingDesc: 'Nível de risco aceito para chances de vitória',
     skill: 'Habilidade',
-    skillDesc: 'Nível de força do motor',
+    skillDesc: 'Nível de força do robô',
     timePerMove: 'Tempo',
     analysisLines: 'Linhas de Análise',
   },
@@ -134,7 +134,7 @@ export const pt: Translations = {
   advanced: {
     title: 'Avançado',
     showAlwaysBestMoveFirst: 'Sempre mostrar o melhor lance primeiro',
-    showAlwaysBestMoveFirstDesc: 'A primeira sugestão é sempre o melhor lance do motor.',
+    showAlwaysBestMoveFirstDesc: 'A primeira sugestão é sempre o melhor lance do robô.',
     allowBrilliant: 'Permitir lances brilhantes',
     allowBrilliantDesc: 'Mostrar lances que sacrificam material por posições fortes.',
   },
