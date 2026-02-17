@@ -32,8 +32,8 @@ export const ru: Translations = {
   personalities: {
     title: 'Личность',
     Default: {
-      label: 'По умолчанию',
-      description: 'Самая сильная личность с полным контролем над настройкой Contempt.',
+      label: 'Движок',
+      description: 'Играет как движок с минимумом ошибок.',
     },
     Aggressive: {
       label: 'Агрессивный',
@@ -69,6 +69,8 @@ export const ru: Translations = {
     title: 'Настройки Движка',
     riskTaking: 'Принятие Риска',
     riskTakingDesc: 'Уровень риска для шансов на победу',
+    skill: 'Мастерство',
+    skillDesc: 'Уровень силы движка',
     timePerMove: 'Время',
     analysisLines: 'Линии Анализа',
   },

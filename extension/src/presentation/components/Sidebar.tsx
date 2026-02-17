@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/auth.store';
 import { useTranslation } from '../../i18n';
 import { useIsRTL } from '../hooks/useIsRTL';
 import { cn } from '../lib/utils';
-import { Card, CardTitle } from './ui/card';
+import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 import { Checkbox } from './ui/checkbox';
@@ -18,7 +18,7 @@ import { SuggestionCard } from './SuggestionCard';
 import { NewAccuracyWidget } from './NewAccuracyWidget';
 
 import { Personality, Settings } from '../../shared/types';
-import { getRiskLabel } from '../../shared/defaults';
+import { getRiskLabel, getSkillLabel } from '../../shared/defaults';
 
 // Komodo personalities - all available at any ELO
 const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Active', 'Positional', 'Endgame', 'Beginner', 'Human'];
@@ -44,8 +44,10 @@ export function Sidebar() {
   // Local state for ELO sliders with debounce
   const [localUserElo, setLocalUserElo] = useState(settings.userElo);
   const [localRiskTaking, setLocalRiskTaking] = useState(settings.riskTaking);
+  const [localSkill, setLocalSkill] = useState(settings.skill);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const riskDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const skillDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -66,6 +68,10 @@ export function Sidebar() {
     setLocalRiskTaking(settings.riskTaking);
   }, [settings.riskTaking]);
 
+  useEffect(() => {
+    setLocalSkill(settings.skill);
+  }, [settings.skill]);
+
   const handleEloChange = (value: number) => {
     setLocalUserElo(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -84,6 +90,16 @@ export function Sidebar() {
     if (riskDebounceRef.current) clearTimeout(riskDebounceRef.current);
     riskDebounceRef.current = setTimeout(() => {
       setSettings({ riskTaking: value });
+      requestReanalyze();
+    }, 300);
+  };
+
+  const handleSkillChange = (value: number) => {
+    setLocalSkill(value);
+    if (skillDebounceRef.current) clearTimeout(skillDebounceRef.current);
+    skillDebounceRef.current = setTimeout(() => {
+      setSettings({ skill: value });
+      requestReanalyze();
     }, 300);
   };
 
@@ -249,14 +265,22 @@ export function Sidebar() {
                 onClick={() => setEloExpanded(!eloExpanded)}
                 className="tw-w-full tw-flex tw-items-center tw-justify-between tw-text-left"
               >
-                <div className="tw-flex tw-items-center tw-gap-3">
+                <div className="tw-flex tw-items-center tw-gap-3 tw-flex-wrap">
                   <div>
                     <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.elo.title}</div>
                     <div className="tw-text-base tw-font-semibold tw-text-primary">{localUserElo + 150}</div>
                   </div>
                   <div>
-                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">Risk</div>
-                    <div className="tw-text-base tw-font-semibold tw-text-primary">{getRiskLabel(localRiskTaking)}</div>
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.riskTaking}</div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">{localRiskTaking}%</div>
+                  </div>
+                  <div>
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.skill}</div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">{localSkill}</div>
+                  </div>
+                  <div>
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.personalities.title}</div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">{getPersonalityInfo(settings.personality).label}</div>
                   </div>
                 </div>
                 {eloExpanded ? (
@@ -303,7 +327,7 @@ export function Sidebar() {
                   <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                     <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
                       <div>
-                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">Risk Taking</div>
+                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.riskTaking}</div>
                         <div className="tw-text-[10px] tw-text-muted">
                           {localRiskTaking}%
                         </div>
@@ -317,10 +341,54 @@ export function Sidebar() {
                       onValueChange={handleRiskTakingChange}
                       min={0}
                       max={100}
-                      step={5}
+                      step={1}
                     />
                     <p className="tw-text-[10px] tw-text-muted tw-mt-1">
-                      How much risk to accept for winning chances
+                      {t.engine.riskTakingDesc}
+                    </p>
+                  </div>
+
+                  {/* Skill */}
+                  <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
+                    <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
+                      <div>
+                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">{t.engine.skill}</div>
+                        <div className="tw-text-[10px] tw-text-muted">
+                          {localSkill}
+                        </div>
+                      </div>
+                      <div className="tw-text-base tw-font-semibold tw-text-primary">
+                        {getSkillLabel(localSkill)}
+                      </div>
+                    </div>
+                    <Slider
+                      value={localSkill}
+                      onValueChange={handleSkillChange}
+                      min={1}
+                      max={25}
+                      step={1}
+                    />
+                    <p className="tw-text-[10px] tw-text-muted tw-mt-1">
+                      {t.engine.skillDesc}
+                    </p>
+                  </div>
+
+                  {/* Personality */}
+                  <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase tw-mb-1">{t.personalities.title}</div>
+                    <Select
+                      value={settings.personality}
+                      onValueChange={(value) => {
+                        setSettings({ personality: value as Personality });
+                        requestReanalyze();
+                      }}
+                      options={PERSONALITIES.map((personality) => ({
+                        value: personality,
+                        label: getPersonalityInfo(personality).label,
+                      }))}
+                    />
+                    <p className="tw-text-[10px] tw-text-muted tw-mt-1">
+                      {getPersonalityInfo(settings.personality).description}
                     </p>
                   </div>
 
@@ -374,21 +442,6 @@ export function Sidebar() {
             {/* Opening Selector */}
             <OpeningSelector />
 
-        {/* Personality */}
-        <Card>
-          <CardTitle>{t.personalities.title}</CardTitle>
-          <Select
-            value={settings.personality}
-            onValueChange={(value) => setSettings({ personality: value as Personality })}
-            options={PERSONALITIES.map((personality) => ({
-              value: personality,
-              label: getPersonalityInfo(personality).label,
-            }))}
-          />
-          <p className="tw-text-xs tw-text-muted tw-mt-2">
-            {getPersonalityInfo(settings.personality).description}
-          </p>
-        </Card>
 
           </>
         )}

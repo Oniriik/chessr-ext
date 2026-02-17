@@ -32,8 +32,8 @@ export const en: Translations = {
   personalities: {
     title: 'Personality',
     Default: {
-      label: 'Default',
-      description: 'Strongest personality with full control over Contempt setting.',
+      label: 'Engine',
+      description: 'Plays like an engine with minimal errors.',
     },
     Aggressive: {
       label: 'Aggressive',
@@ -69,6 +69,8 @@ export const en: Translations = {
     title: 'Engine Settings',
     riskTaking: 'Risk Taking',
     riskTakingDesc: 'How much risk to accept for winning chances',
+    skill: 'Skill',
+    skillDesc: 'Engine playing strength level',
     timePerMove: 'Time',
     analysisLines: 'Analysis Lines',
   },

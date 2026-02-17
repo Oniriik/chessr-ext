@@ -115,6 +115,7 @@ export class WebSocketClient {
       personality: settings.personality,
       multiPv: settings.multiPV,
       contempt: settings.riskTaking,
+      skill: settings.skill,
     });
   }
 

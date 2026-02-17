@@ -24,6 +24,24 @@ export function getRiskLabel(value: number): string {
   return RISK_LEVELS[0].label;
 }
 
+// Skill levels (Komodo Skill 1-25)
+export const SKILL_LEVELS = [
+  { threshold: 1, label: 'Casual' },
+  { threshold: 6, label: 'Solid' },
+  { threshold: 11, label: 'Sharp' },
+  { threshold: 16, label: 'Precise' },
+  { threshold: 21, label: 'Ruthless' },
+] as const;
+
+export function getSkillLabel(value: number): string {
+  for (let i = SKILL_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= SKILL_LEVELS[i].threshold) {
+      return SKILL_LEVELS[i].label;
+    }
+  }
+  return SKILL_LEVELS[0].label;
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   serverUrl: config.stockfishServerUrl, // Uses environment variable
@@ -32,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoDetectTargetElo: true,  // Auto-detect enabled by default
   personality: 'Default',
   riskTaking: 0,  // Safe by default (0-100 maps to contempt 0-200cp)
+  skill: 25,  // Ruthless by default (1-25 maps to Komodo Skill)
   moveTime: 1000,  // 1 second default
   multiPV: 3,
   showArrows: true,

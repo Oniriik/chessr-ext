@@ -34,6 +34,7 @@ export interface SuggestionRequest {
   personality: Personality;
   multiPv: number;
   contempt: number; // 0-100 (riskTaking)
+  skill: number; // 1-25 (Komodo Skill option)
 }
 
 export interface SuggestionResult {
@@ -129,6 +130,7 @@ export async function handleSuggestionRequest(
       personality,
       multiPv,
       contempt: riskTaking,
+      skill,
     } = request;
 
     // Convert riskTaking (0-100) to Komodo contempt (0-200cp)
@@ -147,6 +149,7 @@ export async function handleSuggestionRequest(
       multiPv,
       riskTaking,
       contempt,
+      skill,
       sideToMove,
     }, 'started');
 
@@ -162,7 +165,7 @@ export async function handleSuggestionRequest(
     engine.setElo(targetElo);
     engine.setPersonality(personality);
     engine.sendCommand(`setoption name MultiPV value ${clamp(multiPv, 1, 8)}`);
-    engine.sendCommand('setoption name Skill value 25');
+    engine.sendCommand(`setoption name Skill value ${clamp(skill, 1, 25)}`);
     engine.sendCommand(`setoption name Contempt value ${contempt}`);
     await engine.waitReady();
 

@@ -13,6 +13,9 @@ import {
 // Engine path from environment or default
 const ENGINE_PATH = process.env.ENGINE_PATH || "dragon-3.3";
 
+// Syzygy tablebases path (optional, for endgame positions with ≤6 pieces)
+const SYZYGY_PATH = process.env.SYZYGY_PATH || "";
+
 function isValidFEN(fen: string): boolean {
   const parts = fen.split(" ");
   if (parts.length < 4) return false;
@@ -190,6 +193,13 @@ export class ChessEngine {
 
     this.send(`setoption name Threads value ${threads}`);
     this.send(`setoption name Hash value ${hash}`);
+
+    // Configure Syzygy tablebases if path is set
+    if (SYZYGY_PATH) {
+      this.send(`setoption name SyzygyPath value ${SYZYGY_PATH}`);
+      globalLogger.info("engine_init", { syzygy: true, path: SYZYGY_PATH });
+    }
+
     this.setElo(elo);
   }
 

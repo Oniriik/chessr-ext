@@ -32,8 +32,8 @@ export const es: Translations = {
   personalities: {
     title: 'Personalidad',
     Default: {
-      label: 'Predeterminado',
-      description: 'Personalidad más fuerte con control total sobre la configuración de Contempt.',
+      label: 'Motor',
+      description: 'Juega como un motor con errores mínimos.',
     },
     Aggressive: {
       label: 'Agresivo',
@@ -69,6 +69,8 @@ export const es: Translations = {
     title: 'Configuración del Motor',
     riskTaking: 'Toma de Riesgos',
     riskTakingDesc: 'Nivel de riesgo aceptado para ganar',
+    skill: 'Habilidad',
+    skillDesc: 'Nivel de fuerza del motor',
     timePerMove: 'Tiempo',
     analysisLines: 'Líneas de Análisis',
   },

@@ -73,6 +73,8 @@ export interface Translations {
     title: string;
     riskTaking: string;
     riskTakingDesc: string;
+    skill: string;
+    skillDesc: string;
     timePerMove: string;
     analysisLines: string;
   };

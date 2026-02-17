@@ -32,8 +32,8 @@ export const hi: Translations = {
   personalities: {
     title: 'व्यक्तित्व',
     Default: {
-      label: 'डिफ़ॉल्ट',
-      description: 'Contempt सेटिंग पर पूर्ण नियंत्रण के साथ सबसे मजबूत व्यक्तित्व।',
+      label: 'इंजन',
+      description: 'न्यूनतम गलतियों के साथ इंजन की तरह खेलता है।',
     },
     Aggressive: {
       label: 'आक्रामक',
@@ -69,6 +69,8 @@ export const hi: Translations = {
     title: 'इंजन सेटिंग्स',
     riskTaking: 'जोखिम लेना',
     riskTakingDesc: 'जीतने की संभावनाओं के लिए स्वीकृत जोखिम स्तर',
+    skill: 'कौशल',
+    skillDesc: 'इंजन की खेल शक्ति स्तर',
     timePerMove: 'समय',
     analysisLines: 'विश्लेषण लाइनें',
   },

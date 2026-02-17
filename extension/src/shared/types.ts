@@ -48,6 +48,7 @@ export interface Settings {
   autoDetectTargetElo: boolean;  // Auto-detect target ELO from page
   personality: Personality;
   riskTaking: number;  // Risk taking slider 0-100 (maps to Komodo contempt 0-200cp)
+  skill: number;  // Skill level 1-25 (Komodo Skill option)
   moveTime: number;  // in milliseconds
   multiPV: number;
   showArrows: boolean;
