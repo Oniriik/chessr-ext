@@ -627,7 +627,7 @@ class Chessr {
             badge === 'Risky' ||
             badge === 'Human' ||
             badge === 'Alt' ||
-            badge.includes('Medium risk');
+            badge === 'Medium risk';
 
           // Effect badges
           const isEffectBadge =

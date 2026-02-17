@@ -26,7 +26,7 @@ export function SuggestionCard({
 
   // Categorize badges for better organization
   const mainBadges = badges.filter(b =>
-    b === 'Best' || b === 'Safe' || b === 'Risky' || b === 'Human' || b === 'Alt' || b.includes('Medium risk')
+    b === 'Best' || b === 'Safe' || b === 'Risky' || b === 'Human' || b === 'Alt' || b === 'Medium risk'
   );
   const tacticalBadges = badges.filter(b =>
     b.startsWith('Mate') || b === 'Check' || b.startsWith('x ') || b.includes('Promo')
@@ -127,12 +127,12 @@ export function SuggestionCard({
                     key={i}
                     className={cn(
                       'tw-text-xs tw-px-2 tw-py-0.5 tw-rounded tw-font-medium',
-                      badge.includes('Best') && 'tw-bg-green-500/20 tw-text-green-400',
-                      badge.includes('Safe') && 'tw-bg-blue-500/20 tw-text-blue-400',
-                      badge.includes('Risky') && 'tw-bg-red-500/20 tw-text-red-400',
-                      badge.includes('Human') && 'tw-bg-purple-500/20 tw-text-purple-400',
-                      badge.includes('Alt') && 'tw-bg-gray-500/20 tw-text-gray-400',
-                      badge.includes('Medium risk') && 'tw-bg-orange-500/20 tw-text-orange-400'
+                      badge === 'Best' && 'tw-bg-green-500/20 tw-text-green-400',
+                      badge === 'Safe' && 'tw-bg-blue-500/20 tw-text-blue-400',
+                      badge === 'Risky' && 'tw-bg-red-500/20 tw-text-red-400',
+                      badge === 'Human' && 'tw-bg-purple-500/20 tw-text-purple-400',
+                      badge === 'Alt' && 'tw-bg-gray-500/20 tw-text-gray-400',
+                      badge === 'Medium risk' && 'tw-bg-orange-500/20 tw-text-orange-400'
                     )}
                   >
                     {badge}

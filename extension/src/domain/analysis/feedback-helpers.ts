@@ -88,22 +88,11 @@ export function formatSuggestionTitle(s: SuggestionMove): string {
 export function buildBadges(s: SuggestionMove): string[] {
   const badges: string[] = [];
 
-  // Main label
-  if (s.label) {
+  // Main label - use "Medium risk" instead of "Risky" for medium blunder risk
+  if (s.safety?.blunderRisk === 'medium') {
+    badges.push('Medium risk');
+  } else if (s.label) {
     badges.push(s.label);
-  }
-
-  // Risk badge (only if different from main label to avoid duplication)
-  if (s.safety?.blunderRisk) {
-    const mainLabel = s.label;
-
-    if (s.safety.blunderRisk === 'high' && mainLabel !== 'Risky') {
-      badges.push('⚠ Risky');
-    } else if (s.safety.blunderRisk === 'medium') {
-      badges.push('Medium risk');
-    } else if (s.safety.blunderRisk === 'low' && mainLabel !== 'Safe') {
-      badges.push('Safe');
-    }
   }
 
   // Sub-badges
