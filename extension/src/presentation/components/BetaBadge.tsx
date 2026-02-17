@@ -61,6 +61,8 @@ function getExpiryText(expiry: Date): string {
   return `Expires in ${diffDays} days`;
 }
 
+const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
+
 export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) {
   const config = planConfig[plan];
   const Icon = config.icon;
@@ -69,9 +71,17 @@ export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) 
   const hasExpiry = expiry && (plan === 'premium' || plan === 'freetrial');
   const tooltipContent = hasExpiry
     ? `${config.label} - ${getExpiryText(expiry)}`
-    : config.label;
+    : plan === 'free'
+      ? 'Click to upgrade'
+      : config.label;
 
-  const badge = (
+  const handleClick = () => {
+    if (plan === 'free') {
+      window.open(UPGRADE_URL, '_blank');
+    }
+  };
+
+  const badgeElement = (
     <Badge
       className={`tw-select-none ${!compact ? 'tw-gap-1' : ''} ${className || ''}`}
       style={{
@@ -85,8 +95,17 @@ export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) 
     </Badge>
   );
 
-  // Always show tooltip for compact mode or if there's an expiry
-  if (compact || hasExpiry) {
+  const badge = plan === 'free' ? (
+    <button
+      onClick={handleClick}
+      className="tw-cursor-pointer hover:tw-opacity-80 tw-transition-opacity"
+    >
+      {badgeElement}
+    </button>
+  ) : badgeElement;
+
+  // Always show tooltip for compact mode, expiry, or free plan
+  if (compact || hasExpiry || plan === 'free') {
     return (
       <Tooltip content={tooltipContent}>
         {badge}
@@ -114,14 +133,19 @@ interface UpgradeButtonProps {
 export function UpgradeButton({ tooltip, variant = 'light' }: UpgradeButtonProps) {
   const [hovered, setHovered] = useState(false);
 
+  const handleClick = () => {
+    window.open(UPGRADE_URL, '_blank');
+  };
+
   if (variant === 'light') {
     return (
       <Tooltip content={tooltip}>
         <button
-          className="tw-p-0.5 tw-transition-all"
+          className="tw-p-0.5 tw-transition-all tw-cursor-pointer"
           style={{ color: '#eab308', opacity: hovered ? 1 : 0.4 }}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
+          onClick={handleClick}
         >
           {hovered ? (
             <LockOpen className="tw-w-3.5 tw-h-3.5" strokeWidth={2.5} />
@@ -136,13 +160,14 @@ export function UpgradeButton({ tooltip, variant = 'light' }: UpgradeButtonProps
   return (
     <Tooltip content={tooltip}>
       <button
-        className="tw-p-1 tw-rounded tw-transition-all"
+        className="tw-p-1 tw-rounded tw-transition-all tw-cursor-pointer"
         style={{
           backgroundColor: '#4b5563',
           color: '#ffffff',
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onClick={handleClick}
       >
         {hovered ? (
           <LockOpen className="tw-w-3 tw-h-3" strokeWidth={2.5} />
