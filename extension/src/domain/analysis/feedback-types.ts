@@ -30,6 +30,7 @@ export interface SuggestionMove {
   index: number;              // MultiPV rank (1..N)
   move: string;               // UCI format: "e2e4" or promotion "e7e8q"
   score: EngineScore;         // Score for this line (White POV)
+  cpDelta?: number;           // Centipawn difference vs best move (0 for best, negative for worse)
   pv: string[];               // Principal variation (UCI moves)
   depth?: number;             // Search depth
   seldepth?: number;          // Selective search depth
@@ -291,4 +292,124 @@ export interface ChessrState {
 
   // Player color for filtering accuracy stats (show only player's moves)
   playerColor?: Side;
+}
+
+// ============================================================================
+// NEW ARCHITECTURE TYPES
+// ============================================================================
+
+export type GamePhase = 'opening' | 'middlegame' | 'endgame';
+export type MoveClassification = 'Brilliant' | 'Great' | 'Best' | 'Excellent' | 'Good' | 'Book' | 'Inaccuracy' | 'Mistake' | 'Blunder';
+
+/**
+ * New suggestion request (replaces analyze_suggestions)
+ */
+export interface SuggestionRequest {
+  type: 'suggestion';
+  requestId: string;
+  fen: string;
+  moves: string[];
+  targetElo: number;
+  personality: string;
+  multiPv: number;
+  contempt: number;  // riskTaking 0-100
+}
+
+/**
+ * New suggestion result
+ */
+export interface SuggestionResult {
+  type: 'suggestion_result';
+  requestId: string;
+  fen: string;
+  positionEval?: number;
+  mateIn?: number;
+  winRate?: number;
+  suggestions: SuggestionMove[];
+}
+
+export interface SuggestionError {
+  type: 'suggestion_error';
+  requestId: string;
+  error: string;
+}
+
+/**
+ * New analyze request for single move analysis (replaces analyze_stats)
+ */
+export interface AnalyzeNewRequest {
+  type: 'analyze_new';
+  requestId: string;
+  fenBefore: string;
+  fenAfter: string;
+  move: string;
+  moves: string[];
+  playerColor: 'w' | 'b';
+  targetElo: number;
+}
+
+/**
+ * New analysis result for single move
+ */
+export interface AnalysisNewResult {
+  type: 'analysis_result';
+  requestId: string;
+  move: string;
+  classification: MoveClassification;
+  cpl: number;
+  accuracyImpact: number;
+  weightedImpact: number;
+  phase: GamePhase;
+  bestMove: string;
+  evalBefore: number;
+  evalAfter: number;
+  mateInAfter?: number;  // Mate-in value from White POV (positive = White mates, negative = Black mates)
+}
+
+export interface AnalysisNewError {
+  type: 'analysis_error';
+  requestId: string;
+  error: string;
+}
+
+/**
+ * Move analysis for accumulated accuracy
+ */
+export interface MoveAnalysis {
+  plyIndex: number;
+  move: string;
+  classification: MoveClassification;
+  cpl: number;
+  accuracyImpact: number;
+  weightedImpact: number;
+  phase: GamePhase;
+  bestMove: string;
+  evalBefore: number;
+  evalAfter: number;
+  mateInAfter?: number;  // Mate-in value from White POV
+}
+
+/**
+ * New AccuracyCache structure with phase tracking
+ */
+export interface NewAccuracyCache {
+  moveAnalyses: MoveAnalysis[];
+  accuracy: number;
+  accuracyTrend: 'up' | 'down' | 'stable';
+  phaseStats: {
+    opening: { moves: number; accuracy: number | null };
+    middlegame: { moves: number; accuracy: number | null };
+    endgame: { moves: number; accuracy: number | null };
+  };
+  summary: {
+    brilliant: number;
+    great: number;
+    best: number;
+    excellent: number;
+    good: number;
+    book: number;
+    inaccuracies: number;
+    mistakes: number;
+    blunders: number;
+  };
 }

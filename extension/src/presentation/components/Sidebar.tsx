@@ -15,9 +15,10 @@ import { Select } from './ui/select';
 import { OpeningSelector } from './OpeningSelector';
 import { SettingsModal } from './SettingsModal';
 import { SuggestionCard } from './SuggestionCard';
-import { AccuracyWidget } from './AccuracyWidget';
+import { NewAccuracyWidget } from './NewAccuracyWidget';
 
 import { Personality, Settings } from '../../shared/types';
+import { getRiskLabel } from '../../shared/defaults';
 
 // Komodo personalities - all available at any ELO
 const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Active', 'Positional', 'Endgame', 'Beginner', 'Human'];
@@ -25,7 +26,7 @@ const PERSONALITIES: Personality[] = ['Default', 'Aggressive', 'Defensive', 'Act
 
 export function Sidebar() {
   const { settings, setSettings: setSettingsBase, connected, sidebarOpen, toggleSidebar, boardConfig, redetectPlayerColor, requestTurnRedetect, requestReanalyze, isGamePage, sideToMove, lastGamePlayerColor } = useAppStore();
-  const { activeSnapshot, selectedSuggestionIndex, setSelectedSuggestionIndex, previousAccuracy, accuracyCache } = useFeedbackStore();
+  const { activeSnapshot, selectedSuggestionIndex, setSelectedSuggestionIndex, newAccuracyCache } = useFeedbackStore();
   const { user, signOut } = useAuthStore();
   const { t } = useTranslation();
   const isRTL = useIsRTL();
@@ -42,17 +43,12 @@ export function Sidebar() {
 
   // Local state for ELO sliders with debounce
   const [localUserElo, setLocalUserElo] = useState(settings.userElo);
-  const [localOpponentElo, setLocalOpponentElo] = useState(settings.opponentElo);
-  const [localDepth, setLocalDepth] = useState(settings.depth);
+  const [localRiskTaking, setLocalRiskTaking] = useState(settings.riskTaking);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
-  const opponentDebounceRef = useRef<NodeJS.Timeout | null>(null);
-  const depthDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const riskDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Settings modal state
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  // Local state for expanded PV
-  const [expandedPvIndex, setExpandedPvIndex] = useState<number | undefined>(undefined);
 
   // Animation states for refresh buttons
   const [colorSpinning, setColorSpinning] = useState(false);
@@ -67,12 +63,8 @@ export function Sidebar() {
   }, [settings.userElo]);
 
   useEffect(() => {
-    setLocalOpponentElo(settings.opponentElo);
-  }, [settings.opponentElo]);
-
-  useEffect(() => {
-    setLocalDepth(settings.depth);
-  }, [settings.depth]);
+    setLocalRiskTaking(settings.riskTaking);
+  }, [settings.riskTaking]);
 
   const handleEloChange = (value: number) => {
     setLocalUserElo(value);
@@ -87,19 +79,11 @@ export function Sidebar() {
     }, 300);
   };
 
-  const handleOpponentEloChange = (value: number) => {
-    setLocalOpponentElo(value);
-    if (opponentDebounceRef.current) clearTimeout(opponentDebounceRef.current);
-    opponentDebounceRef.current = setTimeout(() => {
-      setSettings({ opponentElo: value });
-    }, 300);
-  };
-
-  const handleDepthChange = (value: number) => {
-    setLocalDepth(value);
-    if (depthDebounceRef.current) clearTimeout(depthDebounceRef.current);
-    depthDebounceRef.current = setTimeout(() => {
-      setSettings({ depth: value });
+  const handleRiskTakingChange = (value: number) => {
+    setLocalRiskTaking(value);
+    if (riskDebounceRef.current) clearTimeout(riskDebounceRef.current);
+    riskDebounceRef.current = setTimeout(() => {
+      setSettings({ riskTaking: value });
     }, 300);
   };
 
@@ -191,13 +175,8 @@ export function Sidebar() {
               </Card>
 
               {/* Accuracy Widget */}
-              {settings.showRollingAccuracy && (
-                <AccuracyWidget
-                  accuracy={activeSnapshot.accuracy}
-                  previousAccuracy={previousAccuracy}
-                  accuracyCache={accuracyCache}
-                  playerColor={lastGamePlayerColor === 'white' ? 'w' : lastGamePlayerColor === 'black' ? 'b' : undefined}
-                />
+              {settings.showRollingAccuracy && newAccuracyCache && newAccuracyCache.moveAnalyses.length > 0 && (
+                <NewAccuracyWidget cache={newAccuracyCache} />
               )}
             </>
           ) : (
@@ -276,8 +255,8 @@ export function Sidebar() {
                     <div className="tw-text-base tw-font-semibold tw-text-primary">{localUserElo + 150}</div>
                   </div>
                   <div>
-                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent</div>
-                    <div className="tw-text-base tw-font-semibold tw-text-primary">{localOpponentElo}</div>
+                    <div className="tw-text-[10px] tw-text-muted tw-uppercase">Risk</div>
+                    <div className="tw-text-base tw-font-semibold tw-text-primary">{getRiskLabel(localRiskTaking)}</div>
                   </div>
                 </div>
                 {eloExpanded ? (
@@ -320,87 +299,33 @@ export function Sidebar() {
                     disabled={settings.autoDetectTargetElo}
                   />
 
-                  {/* Opponent ELO */}
-                  <div className="tw-flex tw-items-center tw-justify-between tw-mb-1 tw-mt-3">
-                    <div className="tw-flex tw-items-center tw-gap-1.5">
-                      <div className="tw-text-[10px] tw-text-muted tw-uppercase">Opponent ELO</div>
-                      <label className="tw-flex tw-items-center tw-gap-1 tw-cursor-pointer">
-                        <Checkbox
-                          checked={settings.autoDetectOpponentElo}
-                          onCheckedChange={(checked: boolean) => setSettings({ autoDetectOpponentElo: checked })}
-                        />
-                        <span className="tw-text-[9px] tw-text-muted">Auto</span>
-                      </label>
-                    </div>
-                    <div className="tw-text-base tw-font-semibold tw-text-primary">
-                      {localOpponentElo}
-                    </div>
-                  </div>
-                  <Slider
-                    value={localOpponentElo}
-                    onValueChange={handleOpponentEloChange}
-                    min={300}
-                    max={3000}
-                    step={50}
-                    disabled={settings.autoDetectOpponentElo}
-                  />
-
-                  {/* Depth Mode */}
+                  {/* Risk Taking */}
                   <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
-                    <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-mb-2">
-                      <div className="tw-flex-1">
-                        <div className="tw-text-xs tw-font-medium tw-text-foreground tw-mb-0.5">
-                          Force Depth
-                        </div>
-                        <div className="tw-text-[10px] tw-text-muted tw-leading-tight">
-                          Use fixed depth instead of time limit
+                    <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
+                      <div>
+                        <div className="tw-text-[10px] tw-text-muted tw-uppercase">Risk Taking</div>
+                        <div className="tw-text-[10px] tw-text-muted">
+                          {localRiskTaking}%
                         </div>
                       </div>
-                      <Switch
-                        checked={settings.searchMode === 'depth'}
-                        onCheckedChange={(checked) => {
-                          const newSettings: Partial<Settings> = {
-                            searchMode: checked ? 'depth' : 'time',
-                          };
-                          // Disable limit strength when enabling depth mode
-                          if (checked && settings.disableLimitStrength) {
-                            newSettings.disableLimitStrength = false;
-                          }
-                          setSettings(newSettings);
-                          requestReanalyze();
-                        }}
-                      />
+                      <div className="tw-text-base tw-font-semibold tw-text-primary">
+                        {getRiskLabel(localRiskTaking)}
+                      </div>
                     </div>
-
-                    {settings.searchMode === 'depth' && (
-                      <>
-                        {/* Warning */}
-                        <div className="tw-bg-yellow-500/10 tw-border tw-border-yellow-500/20 tw-rounded tw-p-2 tw-mb-2">
-                          <div className="tw-text-[10px] tw-text-yellow-600 dark:tw-text-yellow-500 tw-leading-tight">
-                            ⚠️ <strong>Warning:</strong> Forcing depth disables ELO limiting and significantly increases engine strength. Use with caution.
-                          </div>
-                        </div>
-
-                        {/* Depth Slider */}
-                        <div className="tw-flex tw-items-center tw-justify-between tw-mb-1">
-                          <div className="tw-text-[10px] tw-text-muted tw-uppercase">Depth Level</div>
-                          <div className="tw-text-base tw-font-semibold tw-text-primary">
-                            {localDepth}
-                          </div>
-                        </div>
-                        <Slider
-                          value={localDepth}
-                          onValueChange={handleDepthChange}
-                          min={1}
-                          max={30}
-                          step={1}
-                        />
-                      </>
-                    )}
+                    <Slider
+                      value={localRiskTaking}
+                      onValueChange={handleRiskTakingChange}
+                      min={0}
+                      max={100}
+                      step={5}
+                    />
+                    <p className="tw-text-[10px] tw-text-muted tw-mt-1">
+                      How much risk to accept for winning chances
+                    </p>
                   </div>
 
-                  {/* Full Strength Toggle (only visible at 3000+ target ELO and when not using depth mode) */}
-                  {(localUserElo + 150) >= 3000 && settings.searchMode !== 'depth' && (
+                  {/* Full Strength Toggle (only visible at 3000+ target ELO) */}
+                  {(localUserElo + 150) >= 3000 && (
                     <div className="tw-mt-3 tw-pt-3 tw-border-t tw-border-border">
                       <div className="tw-flex tw-items-center tw-justify-between tw-gap-3">
                         <div className="tw-flex-1">
@@ -426,13 +351,8 @@ export function Sidebar() {
             </Card>
 
             {/* Accuracy Widget */}
-            {settings.showRollingAccuracy && activeSnapshot?.accuracy && (
-              <AccuracyWidget
-                accuracy={activeSnapshot.accuracy}
-                previousAccuracy={previousAccuracy}
-                accuracyCache={accuracyCache}
-                playerColor={boardConfig?.playerColor === 'white' ? 'w' : boardConfig?.playerColor === 'black' ? 'b' : undefined}
-              />
+            {settings.showRollingAccuracy && newAccuracyCache && newAccuracyCache.moveAnalyses.length > 0 && (
+              <NewAccuracyWidget cache={newAccuracyCache} />
             )}
 
             {/* Suggestions */}
@@ -443,15 +363,9 @@ export function Sidebar() {
                     key={suggestion.index}
                     suggestion={suggestion}
                     isSelected={selectedSuggestionIndex === suggestion.index}
-                    isExpanded={expandedPvIndex === suggestion.index}
                     showPromotionAsText={settings.showPromotionAsText}
                     playerColor={boardConfig?.playerColor}
                     onSelect={() => setSelectedSuggestionIndex(suggestion.index)}
-                    onToggleExpand={() => {
-                      setExpandedPvIndex(
-                        expandedPvIndex === suggestion.index ? undefined : suggestion.index
-                      );
-                    }}
                   />
                 ))}
               </div>

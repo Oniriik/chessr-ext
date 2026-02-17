@@ -5,21 +5,38 @@ import { config } from './config';
 // This keeps analysis fast (~0.5s) while the extension accumulates stats over time
 export const DEFAULT_LAST_MOVES = 1;
 
+// Risk Taking labels (maps to Komodo contempt 0-200)
+export const RISK_LEVELS = [
+  { threshold: 0, label: 'Safe' },          // 0cp - accept draws
+  { threshold: 20, label: 'Cautious' },     // 40cp - vs Super GM
+  { threshold: 40, label: 'Moderate' },     // 80cp - vs GM
+  { threshold: 60, label: 'Bold' },         // 120cp - vs IM
+  { threshold: 80, label: 'Aggressive' },   // 160cp - vs Master
+  { threshold: 100, label: 'Reckless' },    // 200cp - vs Amateur
+] as const;
+
+export function getRiskLabel(value: number): string {
+  for (let i = RISK_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= RISK_LEVELS[i].threshold) {
+      return RISK_LEVELS[i].label;
+    }
+  }
+  return RISK_LEVELS[0].label;
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   serverUrl: config.stockfishServerUrl, // Uses environment variable
   userElo: 1500,  // Default user ELO
   targetElo: 1650,  // Default target ELO (userElo + 150)
-  opponentElo: 1500,  // Default opponent ELO (same as player)
   autoDetectTargetElo: true,  // Auto-detect enabled by default
-  autoDetectOpponentElo: true,  // Auto-detect enabled by default
   personality: 'Default',
-  searchMode: 'time',
-  depth: 18,
+  riskTaking: 0,  // Safe by default (0-100 maps to contempt 0-200cp)
   moveTime: 1000,  // 1 second default
   multiPV: 3,
   showArrows: true,
   showEvalBar: true,
+  evalBarMode: 'eval',  // Default to showing evaluation in pawns
   blunderThreshold: 100,
   selectedOpening: '',
   useDifferentArrowColors: true,

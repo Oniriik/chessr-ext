@@ -133,6 +133,20 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     onCheckedChange={(checked) => setSettings({ showEvalBar: checked })}
                   />
                 </div>
+
+                {settings.showEvalBar && (
+                  <div className="tw-flex tw-items-center tw-justify-between tw-ml-4">
+                    <span className="tw-text-sm tw-text-foreground">{t.display.evalBarMode}</span>
+                    <Select
+                      value={settings.evalBarMode}
+                      onValueChange={(value) => setSettings({ evalBarMode: value as 'eval' | 'winrate' })}
+                      options={[
+                        { value: 'eval', label: t.display.evalBarModeEval },
+                        { value: 'winrate', label: t.display.evalBarModeWinrate },
+                      ]}
+                    />
+                  </div>
+                )}
               </div>
             </TabsContent>
 

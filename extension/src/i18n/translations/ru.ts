@@ -18,7 +18,6 @@ export const ru: Translations = {
     centipawns: 'Сантипешки',
     move: 'Ход',
     mateIn: 'Мат в',
-    depth: 'Глубина',
     reanalyze: 'Переанализировать',
   },
 
@@ -68,8 +67,8 @@ export const ru: Translations = {
 
   engine: {
     title: 'Настройки Движка',
-    searchMode: 'Режим Поиска',
-    depth: 'Глубина',
+    riskTaking: 'Принятие Риска',
+    riskTakingDesc: 'Уровень риска для шансов на победу',
     timePerMove: 'Время',
     analysisLines: 'Линии Анализа',
   },
@@ -78,6 +77,9 @@ export const ru: Translations = {
     title: 'Отображение',
     showArrows: 'Показывать Стрелки',
     showEvalBar: 'Показывать Шкалу Оценки',
+    evalBarMode: 'Режим отображения',
+    evalBarModeEval: 'Оценка',
+    evalBarModeWinrate: '% Победы',
     blunderThreshold: 'Порог Грубой Ошибки',
   },
 

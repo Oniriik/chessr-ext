@@ -6,21 +6,17 @@ import { cn } from '../lib/utils';
 interface SuggestionCardProps {
   suggestion: SuggestionMove;
   isSelected: boolean;
-  isExpanded: boolean;
   showPromotionAsText: boolean;
   playerColor?: 'white' | 'black';
   onSelect: () => void;
-  onToggleExpand: () => void;
 }
 
 export function SuggestionCard({
   suggestion,
   isSelected,
-  isExpanded,
   showPromotionAsText,
   playerColor,
   onSelect,
-  onToggleExpand,
 }: SuggestionCardProps) {
   const { t } = useTranslation();
 
@@ -33,7 +29,7 @@ export function SuggestionCard({
     b === 'Best' || b === 'Safe' || b === 'Risky' || b === 'Human' || b === 'Alt' || b.includes('Medium risk')
   );
   const tacticalBadges = badges.filter(b =>
-    b.startsWith('#') || b.startsWith('+') || b.startsWith('x ') || b.includes('Promo')
+    b.startsWith('Mate') || b === 'Check' || b.startsWith('x ') || b.includes('Promo')
   );
 
   // Convert score to player POV (scores are in White POV by default)
@@ -41,10 +37,52 @@ export function SuggestionCard({
   const scoreMultiplier = isBlackPlayer ? -1 : 1;
   const playerScore = suggestion.score.value * scoreMultiplier;
 
-  // Format score
-  const scoreText = suggestion.score.type === 'mate'
-    ? `M${Math.abs(suggestion.score.value)}`
-    : (playerScore >= 0 ? '+' : '') + (playerScore / 100).toFixed(1);
+  // Format score - show resulting evaluation after playing this move
+  const isBestMove = suggestion.index === 1;
+  const hasDelta = suggestion.cpDelta !== undefined && suggestion.cpDelta !== 0;
+
+  let scoreText: string;
+  let scoreColor: string;
+
+  if (suggestion.score.type === 'mate') {
+    // Mate: convert to player perspective
+    // score.value is in White POV: positive = White mates, negative = Black mates
+    const mateValuePlayerPov = suggestion.score.value * scoreMultiplier;
+    const prefix = mateValuePlayerPov > 0 ? '+' : '';
+    scoreText = `${prefix}M${Math.abs(mateValuePlayerPov)}`;
+    // Green if player is mating, red if opponent is mating
+    scoreColor = mateValuePlayerPov > 0 ? 'tw-text-green-400' : 'tw-text-red-400';
+  } else if (isBestMove) {
+    // Best move: show absolute eval
+    const evalPawns = playerScore / 100;
+    if (Math.abs(evalPawns) < 0.05) {
+      scoreText = '0.0';
+      scoreColor = 'tw-text-gray-400';
+    } else {
+      scoreText = (evalPawns > 0 ? '+' : '') + evalPawns.toFixed(1);
+      scoreColor = evalPawns > 0 ? 'tw-text-green-400' : 'tw-text-red-400';
+    }
+  } else if (hasDelta) {
+    // Other moves: show delta vs best (cpDelta is negative for worse moves)
+    const delta = suggestion.cpDelta! / 100;
+    if (Math.abs(delta) < 0.05) {
+      scoreText = '0.0';
+      scoreColor = 'tw-text-gray-400';
+    } else {
+      scoreText = delta.toFixed(1); // Already negative
+      scoreColor = 'tw-text-yellow-400';
+    }
+  } else {
+    // Fallback to absolute eval
+    const evalPawns = playerScore / 100;
+    if (Math.abs(evalPawns) < 0.05) {
+      scoreText = '0.0';
+      scoreColor = 'tw-text-gray-400';
+    } else {
+      scoreText = (evalPawns > 0 ? '+' : '') + evalPawns.toFixed(1);
+      scoreColor = evalPawns > 0 ? 'tw-text-green-400' : 'tw-text-red-400';
+    }
+  }
 
   return (
     <div
@@ -68,7 +106,7 @@ export function SuggestionCard({
         </div>
         <span className={cn(
           'tw-text-sm tw-font-mono tw-font-semibold',
-          playerScore >= 0 ? 'tw-text-green-400' : 'tw-text-red-400'
+          scoreColor
         )}>
           {scoreText}
         </span>
@@ -139,29 +177,6 @@ export function SuggestionCard({
             </div>
           )}
         </div>
-      )}
-
-      {/* PV (if expanded) */}
-      {isExpanded && suggestion.pv.length > 0 && (
-        <div className="tw-mt-2 tw-pt-2 tw-border-t tw-border-border">
-          <div className="tw-text-xs tw-text-muted tw-mb-1">Principal Variation:</div>
-          <div className="tw-text-xs tw-font-mono tw-text-foreground tw-break-all">
-            {suggestion.pv.slice(0, 10).join(' ')}
-          </div>
-        </div>
-      )}
-
-      {/* Expand toggle */}
-      {suggestion.pv.length > 0 && (
-        <button
-          className="tw-text-xs tw-text-primary hover:tw-underline tw-mt-2"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleExpand();
-          }}
-        >
-          {isExpanded ? 'Show less' : 'Show line'}
-        </button>
       )}
     </div>
   );

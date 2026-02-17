@@ -18,7 +18,6 @@ export const pt: Translations = {
     centipawns: 'Centipeões',
     move: 'Lance',
     mateIn: 'Mate em',
-    depth: 'Profundidade',
     reanalyze: 'Reanalisar',
   },
 
@@ -68,8 +67,8 @@ export const pt: Translations = {
 
   engine: {
     title: 'Configurações do Motor',
-    searchMode: 'Modo de Busca',
-    depth: 'Profundidade',
+    riskTaking: 'Tomada de Risco',
+    riskTakingDesc: 'Nível de risco aceito para chances de vitória',
     timePerMove: 'Tempo',
     analysisLines: 'Linhas de Análise',
   },
@@ -78,6 +77,9 @@ export const pt: Translations = {
     title: 'Exibição',
     showArrows: 'Mostrar Setas',
     showEvalBar: 'Mostrar Barra de Aval',
+    evalBarMode: 'Modo de exibição',
+    evalBarModeEval: 'Avaliação',
+    evalBarModeWinrate: '% Vitória',
     blunderThreshold: 'Limite de Erro Grave',
   },
 

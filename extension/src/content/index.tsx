@@ -12,7 +12,13 @@ import { ArrowRenderer } from './overlay/arrow-renderer';
 import { EvalBar } from './overlay/eval-bar';
 import { OpeningTracker } from './openings/opening-tracker';
 import { BoardConfig, Settings } from '../shared/types';
-import { AnalyzeResultResponse, AnalyzeErrorResponse, SuggestionMove } from '../domain/analysis/feedback-types';
+import {
+  SuggestionMove,
+  SuggestionResult,
+  SuggestionError,
+  AnalysisNewResult,
+  AnalysisNewError,
+} from '../domain/analysis/feedback-types';
 import { buildBadges } from '../domain/analysis/feedback-helpers';
 import { isUpdateRequired } from '../shared/version';
 
@@ -40,16 +46,17 @@ class Chessr {
   private boardConfig: BoardConfig | null = null;
   private analysisDisabled = false;
   private versionCheckPassed = false;
-  private lastRequestId: string | null = null;
+
+  // Suggestion tracking (one at a time, anti-stale)
+  private lastSuggestionRequestId: string | null = null;
+
+  // Analysis tracking (multiple allowed, Set for anti-stale)
+  private pendingAnalysisRequests = new Set<string>();
+  private lastFenBeforeMove: string | null = null;
 
   // New game detection
   private lastMoveHistoryLength = 0;
   private lastFirstMove: string | null = null;
-
-  // Phase decoupling: separate stats and suggestions tracking
-  private lastStatsResult: any | null = null; // AnalyzeStatsResponse
-  private pendingStatsRequests = new Set<string>(); // Multiple stats requests possible
-  private pendingSuggestionsRequest: string | null = null; // Only one suggestions request at a time
 
   // Rating detection tracking
   private initialRatingDetectionDone = false;
@@ -108,9 +115,6 @@ class Chessr {
         if (!prevState.settings.autoDetectTargetElo && state.settings.autoDetectTargetElo) {
           this.autoDetectRatingsIfNeeded(0);
         }
-        if (!prevState.settings.autoDetectOpponentElo && state.settings.autoDetectOpponentElo) {
-          this.autoDetectRatingsIfNeeded(0);
-        }
       }
       // Re-analyze when player color changes (via toggle or redetect)
       if (state.boardConfig?.playerColor !== prevState.boardConfig?.playerColor) {
@@ -118,10 +122,11 @@ class Chessr {
         if (state.boardConfig?.playerColor) {
           this.moveTracker.setPlayerColor(state.boardConfig.playerColor);
         }
-        // Update overlay with new isFlipped value
+        // Update overlay and eval bar with new isFlipped value
         if (state.boardConfig) {
           const newIsFlipped = state.boardConfig.playerColor === 'black';
           this.overlay.setFlipped(newIsFlipped);
+          this.evalBar.setFlipped(newIsFlipped);
         }
         // Re-analyze current position
         const currentFEN = this.moveTracker.getCurrentFEN();
@@ -219,14 +224,14 @@ class Chessr {
 
     // Set up message handler for analysis results
     this.wsClient.onMessage((message) => {
-      if (message.type === 'analyze_result') {
-        this.onAnalyzeResult(message);
-      } else if (message.type === 'analyze_stats_result') {
-        this.onStatsResult(message);
-      } else if (message.type === 'analyze_suggestions_result') {
-        this.onSuggestionsResult(message);
-      } else if (message.type === 'analyze_error') {
-        this.onAnalyzeError(message);
+      if (message.type === 'suggestion_result') {
+        this.onSuggestionResult(message);
+      } else if (message.type === 'suggestion_error') {
+        this.onSuggestionError(message);
+      } else if (message.type === 'analysis_result') {
+        this.onAnalysisResult(message);
+      } else if (message.type === 'analysis_error') {
+        this.onAnalysisError(message);
       }
     });
 
@@ -271,10 +276,10 @@ class Chessr {
     // Initialize eval bar
     if (store.settings.showEvalBar) {
       this.evalBar.initialize(config.boardElement);
+      this.evalBar.setFlipped(config.playerColor === 'black');
     }
 
-    // Start tracking moves with player color
-    this.moveTracker.start(config.boardElement, config.playerColor);
+    // Register callbacks BEFORE starting (so initial position is captured)
     this.moveTracker.onPositionChange((fen) => this.onPositionChange(fen));
     this.moveTracker.onMoveDetected((move) => {
       this.onMoveDetected(move);
@@ -282,11 +287,75 @@ class Chessr {
       const feedbackStore = useFeedbackStore.getState();
       feedbackStore.handlePlayerMove(move);
     });
+
+    // Start tracking moves with player color
+    this.moveTracker.start(config.boardElement, config.playerColor);
   }
 
   private onMoveDetected(move: string) {
     // Forward move to opening tracker
     this.openingTracker.onMove(move);
+
+    // Send analysis request if we have the FEN before the move
+    if (this.lastFenBeforeMove && this.wsClient?.getConnectionStatus()) {
+      const store = useAppStore.getState();
+      const { settings, boardConfig } = store;
+
+      if (!settings.enabled || !boardConfig) {
+        return;
+      }
+
+      const fenAfter = this.moveTracker.getCurrentFEN();
+      const moveHistory = this.adapter?.getMoveHistory?.() || [];
+      const playerColor = boardConfig.playerColor === 'white' ? 'w' : 'b';
+
+      // Validate that the fenBefore is for the player's turn
+      // This prevents analyzing opponent's moves with wrong FEN
+      const fenBeforeSide = this.lastFenBeforeMove.split(' ')[1] as 'w' | 'b';
+      if (fenBeforeSide !== playerColor) {
+        console.log('[Chessr] Skipping analysis - fenBefore is for opponent turn:', {
+          move,
+          fenBeforeSide,
+          playerColor,
+        });
+        // Don't clear lastFenBeforeMove - it's still valid for the player's next move
+        return;
+      }
+
+      // IMPORTANT: moveHistory already includes the just-played move (from DOM)
+      // For analysis, we need the history BEFORE the move was played
+      // Server will add the move back when analyzing fenAfter: [...movesBeforeMove, move]
+      const movesBeforeMove = moveHistory.slice(0, -1);
+
+      // Send analysis request
+      const requestId = generateShortRequestId();
+      this.pendingAnalysisRequests.add(requestId);
+
+      // DEBUG: Log FEN details
+      const fenAfterSide = fenAfter.split(' ')[1];
+      console.log('[Chessr] Sending analysis:', {
+        move,
+        requestId,
+        fenBeforeSide,  // Should match who played (w if White played)
+        fenAfterSide,   // Should be opposite of fenBeforeSide
+        playerColor,
+        'boardConfig.playerColor': boardConfig.playerColor,
+        movesBeforeCount: movesBeforeMove.length,
+      });
+
+      this.wsClient.analyzeNew(
+        this.lastFenBeforeMove,
+        fenAfter,
+        move,
+        movesBeforeMove,
+        playerColor,
+        settings.targetElo,
+        requestId
+      );
+
+      // Clear lastFenBeforeMove to prevent duplicate analysis
+      this.lastFenBeforeMove = null;
+    }
   }
 
   /**
@@ -303,8 +372,8 @@ class Chessr {
       return;
     }
 
-    // Only auto-detect if at least one option is enabled
-    if (!settings.autoDetectTargetElo && !settings.autoDetectOpponentElo) {
+    // Only auto-detect if enabled
+    if (!settings.autoDetectTargetElo) {
       this.initialRatingDetectionDone = true;
       return;
     }
@@ -319,11 +388,6 @@ class Chessr {
       if (settings.autoDetectTargetElo && ratings.playerRating) {
         updates.userElo = ratings.playerRating;
         updates.targetElo = ratings.playerRating + 150;  // Target = User ELO + 150
-      }
-
-      // Update opponent ELO if auto-detect is enabled and rating is found
-      if (settings.autoDetectOpponentElo && ratings.opponentRating) {
-        updates.opponentElo = ratings.opponentRating;
       }
 
       // Apply updates if any
@@ -359,7 +423,7 @@ class Chessr {
     }
 
     // Wait for initial rating detection before first analysis
-    if (!this.initialRatingDetectionDone && (settings.autoDetectTargetElo || settings.autoDetectOpponentElo)) {
+    if (!this.initialRatingDetectionDone && settings.autoDetectTargetElo) {
       this.pendingPositionForAnalysis = fen;
       return;
     }
@@ -375,99 +439,70 @@ class Chessr {
 
     console.log('[Chessr] Position change - Player:', currentBoardConfig.playerColor, '(' + playerColor + ')', 'Side to move:', sideToMove, 'Moves:', moveHistory.length);
 
-    // Detect new game (reset accumulated stats and pending requests)
+    // Detect new game (reset accumulated stats)
     const currentFirstMove = moveHistory.length > 0 ? moveHistory[0] : null;
     const isNewGame =
       (moveHistory.length < this.lastMoveHistoryLength) || // Move count decreased
       (currentFirstMove !== null && currentFirstMove !== this.lastFirstMove); // Different opening
 
     if (isNewGame && this.lastMoveHistoryLength > 0) {
-      console.log('[Chessr] 🎮 New game detected - resetting stats cache and pending requests');
+      console.log('[Chessr] 🎮 New game detected - resetting stats');
       const feedbackStore = useFeedbackStore.getState();
       feedbackStore.reset();
+      feedbackStore.resetNewAccuracy();
       this.openingTracker.reset();
-
-      // Clear pending requests - all in-flight responses will be ignored
-      this.pendingStatsRequests.clear();
-      this.pendingSuggestionsRequest = null;
-      this.lastStatsResult = null;
-      this.lastRequestId = null;
+      this.lastSuggestionRequestId = null;
+      this.pendingAnalysisRequests.clear();
+      this.lastFenBeforeMove = null;
     }
 
     // Update tracking for next detection
     this.lastMoveHistoryLength = moveHistory.length;
     this.lastFirstMove = currentFirstMove;
 
-    // Retrieve cache from store
-    const { accuracyCache } = useFeedbackStore.getState();
-
-    // CASE 1: Opponent's turn → Request stats (background, no UI update)
+    // Opponent's turn → Clear arrows, no suggestions
     if (sideToMove !== playerColor) {
-      console.log('[Chessr] Opponent turn - requesting stats (background)');
+      console.log('[Chessr] Opponent turn - clearing UI');
       this.overlay.clearArrows();
       store.setAnalysis(null);
-
-      // Clear pending suggestions (no longer relevant)
-      this.pendingSuggestionsRequest = null;
-      this.lastRequestId = null;
-
-      // Request stats analysis in background
-      const statsRequestId = generateShortRequestId();
-      this.pendingStatsRequests.add(statsRequestId);
-      const playerColorSide = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
-      this.wsClient.analyzeStats(moveHistory, statsRequestId, accuracyCache, playerColorSide);
+      this.lastSuggestionRequestId = null;
       return;
     }
 
-    // CASE 2: Player's turn → Request suggestions (fast, using cached stats if available)
-    console.log('[Chessr] Player turn - checking for cached stats');
+    // Player's turn → Capture FEN before move and request suggestions
+    const currentFen = this.moveTracker.getCurrentFEN();
+    this.lastFenBeforeMove = currentFen; // Save for analysis when player moves
 
-    // Check if cached stats are valid
-    if (!this.lastStatsResult || this.shouldInvalidateStatsCache(moveHistory.length)) {
-      console.log('[Chessr] No valid cached stats - requesting stats first');
-
-      // No cached stats or cache is stale → request stats first, then auto-trigger suggestions
-      const statsRequestId = generateShortRequestId();
-      this.pendingStatsRequests.add(statsRequestId);
-      const playerColorSide = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
-      this.wsClient.analyzeStats(moveHistory, statsRequestId, accuracyCache, playerColorSide);
-      // Note: Suggestions will be auto-triggered in onStatsResult() when stats arrive
+    // Skip if playing Black and no moves yet (waiting for White's first move)
+    if (playerColor === 'b' && moveHistory.length === 0) {
+      console.log('[Chessr] Skipping - waiting for White first move');
       return;
     }
 
-    // Cached stats available → request suggestions immediately
-    console.log('[Chessr] ✓ Cached stats available - requesting suggestions (fast)', moveHistory.length);
-    const suggestionsRequestId = generateShortRequestId();
-    this.pendingSuggestionsRequest = suggestionsRequestId;
-    this.lastRequestId = suggestionsRequestId;
-    this.wsClient.analyzeSuggestions(moveHistory, settings, this.lastStatsResult, suggestionsRequestId);
+    console.log('[Chessr] Player turn - requesting suggestions', {
+      fen: currentFen,
+      movesCount: moveHistory.length,
+      targetElo: settings.targetElo,
+      personality: settings.personality,
+      multiPV: settings.multiPV,
+      riskTaking: settings.riskTaking,
+    });
+    const requestId = generateShortRequestId();
+    this.lastSuggestionRequestId = requestId;
+
+    this.wsClient.suggestion(currentFen, moveHistory, settings, requestId);
   }
 
   /**
-   * Check if cached stats should be invalidated.
+   * Handler for suggestion results.
+   * Updates UI with move suggestions and arrows.
    */
-  private shouldInvalidateStatsCache(currentMoveCount: number): boolean {
-    if (!this.lastStatsResult) return true;
+  private onSuggestionResult(result: SuggestionResult) {
+    console.log('[Chessr] Suggestion result received', result.requestId);
 
-    const statsPayload = this.lastStatsResult.payload.accuracy;
-    const statsMoveCount = statsPayload.window.startPlyIndex + statsPayload.window.analyzedPlies;
-
-    // Invalidate if:
-    // 1. Move count decreased (new game or takeback) - already handled by detectNewGame
-    if (currentMoveCount < statsMoveCount) return true;
-
-    // 2. Cache too old (> 10 moves behind)
-    if (currentMoveCount - statsMoveCount > 10) return true;
-
-    return false;
-  }
-
-  private onAnalyzeResult(result: AnalyzeResultResponse) {
-    console.log('[Chessr] Analyze result received, requestId:', result.requestId);
-
-    // Anti-stale: ignore if not the latest request
-    if (result.requestId !== this.lastRequestId) {
-      console.log('[Chessr] Stale result ignored');
+    // Anti-stale: ignore if not the latest suggestion request
+    if (result.requestId !== this.lastSuggestionRequestId) {
+      console.log('[Chessr] Stale suggestion result ignored');
       return;
     }
 
@@ -475,128 +510,94 @@ class Chessr {
     const currentFen = this.moveTracker.getCurrentFEN();
     const moveHistory = this.adapter?.getMoveHistory?.() || [];
 
-    // Forward to feedback store
+    // Update feedback store
     const feedbackStore = useFeedbackStore.getState();
-    feedbackStore.handleAnalyzeResult(result, currentFen, moveHistory);
+    feedbackStore.handleNewSuggestionResult(result, currentFen, moveHistory);
 
     // Update arrows if enabled
     const store = useAppStore.getState();
-    if (store.settings.showArrows && result.payload.suggestions.suggestions.length > 0) {
-      this.updateArrowsFromSuggestions(result.payload.suggestions.suggestions);
+    if (store.settings.showArrows && result.suggestions.length > 0) {
+      this.updateArrowsFromSuggestions(result.suggestions);
     }
 
-    // Update eval bar if enabled
-    if (store.settings.showEvalBar) {
-      const bestSuggestion = result.payload.suggestions.suggestions[0];
-      if (bestSuggestion) {
-        // Convert score to player POV (scores are in White POV by default)
-        const isBlackPlayer = store.boardConfig?.playerColor === 'black';
-        const scoreMultiplier = isBlackPlayer ? -1 : 1;
+    // Update eval bar from suggestion data (either positionEval or mateIn must be defined)
+    const hasEvalData = result.positionEval !== undefined || result.mateIn !== undefined;
+    if (store.settings.showEvalBar && this.evalBar && hasEvalData) {
+      const sideToMove = currentFen.split(' ')[1] as 'w' | 'b';
 
-        if (bestSuggestion.score.type === 'mate') {
-          this.evalBar.update(0, bestSuggestion.score.value * scoreMultiplier);
-        } else {
-          this.evalBar.update((bestSuggestion.score.value / 100) * scoreMultiplier);
-        }
-      }
+      // positionEval is in centipawns from side-to-move perspective
+      // Convert to White POV for consistent handling
+      const evalWhitePov = result.positionEval !== undefined
+        ? (sideToMove === 'w' ? result.positionEval : -result.positionEval)
+        : 0;
+      const evalInPawns = evalWhitePov / 100;
+
+      // mateIn is already in White POV from the server (no conversion needed)
+      const mateInWhitePov = result.mateIn;
+
+      // winRate is from side-to-move perspective, convert to White POV
+      const winRateSideToMove = result.winRate ?? 50;
+      const winRate = sideToMove === 'w' ? winRateSideToMove : (100 - winRateSideToMove);
+
+      console.log('[Chessr] Eval bar update from suggestion:', {
+        positionEval: result.positionEval,
+        evalWhitePov,
+        evalInPawns,
+        mateIn: result.mateIn,
+        mateInWhitePov,
+        winRate,
+        mode: store.settings.evalBarMode,
+      });
+
+      this.evalBar.update(evalInPawns, mateInWhitePov, store.settings.evalBarMode, winRate);
     }
   }
 
   /**
-   * Handler for stats-only results (Phase A + B, opponent's turn).
-   * Caches stats and auto-triggers suggestions if it's now player's turn.
+   * Handler for suggestion errors.
    */
-  private onStatsResult(result: any) {
-    console.log('[Chessr] Stats result received, requestId:', result.requestId);
+  private onSuggestionError(error: SuggestionError) {
+    console.error('[Chessr] Suggestion error:', error.error);
+    const feedbackStore = useFeedbackStore.getState();
+    feedbackStore.handleNewSuggestionError(error);
+  }
 
-    // Anti-stale check: Is this request still pending?
-    if (!this.pendingStatsRequests.has(result.requestId)) {
-      console.log('[Chessr] Stale or unknown stats ignored', result.requestId);
+  /**
+   * Handler for analysis results (move accuracy).
+   */
+  private onAnalysisResult(result: AnalysisNewResult) {
+    console.log('[Chessr] Analysis result received', result.requestId, result.classification);
+
+    // Anti-stale: ignore if not a pending request
+    if (!this.pendingAnalysisRequests.has(result.requestId)) {
+      console.log('[Chessr] Stale analysis result ignored');
       return;
     }
 
     // Remove from pending set
-    this.pendingStatsRequests.delete(result.requestId);
+    this.pendingAnalysisRequests.delete(result.requestId);
 
-    // Cache stats result
-    this.lastStatsResult = result;
-
-    // Get current position info
-    const currentFen = this.moveTracker.getCurrentFEN();
-    const moveHistory = this.adapter?.getMoveHistory?.() || [];
-
-    // Update feedback store with stats (accuracy data)
+    // Update feedback store with analysis
     const feedbackStore = useFeedbackStore.getState();
-    feedbackStore.handleStatsResult(result, currentFen, moveHistory);
+    feedbackStore.handleNewAnalysisResult(result);
 
-    console.log('[Chessr] Stats cached, ready for player turn');
-
-    // Check if it's now player's turn (stats were requested while waiting)
-    const store = useAppStore.getState();
-    const currentBoardConfig = store.boardConfig || this.boardConfig;
-    if (!currentBoardConfig) return;
-
-    const sideToMove = currentFen.split(' ')[1] as 'w' | 'b';
-    const playerColor = currentBoardConfig.playerColor === 'white' ? 'w' : 'b';
-
-    if (sideToMove === playerColor) {
-      console.log('[Chessr] Player turn detected after stats - sending suggestions now');
-      const suggestionsRequestId = generateShortRequestId();
-      this.pendingSuggestionsRequest = suggestionsRequestId;
-      this.lastRequestId = suggestionsRequestId;
-      this.wsClient.analyzeSuggestions(moveHistory, store.settings, result, suggestionsRequestId);
-    }
+    // Note: Eval bar is now updated from suggestion results (onSuggestionResult)
+    // Analysis results are used for accuracy tracking only
   }
 
   /**
-   * Handler for suggestions-only results (Phase C, player's turn).
-   * Updates UI with move suggestions and arrows.
+   * Handler for analysis errors.
    */
-  private onSuggestionsResult(result: any) {
-    // Anti-stale check: Is this request still pending?
-    if (result.requestId !== this.pendingSuggestionsRequest) {
-      console.log('[Chessr] Stale or unknown suggestions ignored', result.requestId);
-      return;
+  private onAnalysisError(error: AnalysisNewError) {
+    console.error('[Chessr] Analysis error:', error.error);
+
+    // Remove from pending set if present
+    if (error.requestId) {
+      this.pendingAnalysisRequests.delete(error.requestId);
     }
 
-    // Clear pending request
-    this.pendingSuggestionsRequest = null;
-
-    // Get current position info
-    const currentFen = this.moveTracker.getCurrentFEN();
-    const moveHistory = this.adapter?.getMoveHistory?.() || [];
-
-    // Update feedback store with suggestions
     const feedbackStore = useFeedbackStore.getState();
-    feedbackStore.handleSuggestionsResult(result, currentFen, moveHistory);
-
-    // Update arrows if enabled
-    const store = useAppStore.getState();
-    if (store.settings.showArrows && result.payload.suggestions.suggestions.length > 0) {
-      this.updateArrowsFromSuggestions(result.payload.suggestions.suggestions);
-    }
-
-    // Update eval bar if enabled
-    if (store.settings.showEvalBar) {
-      const bestSuggestion = result.payload.suggestions.suggestions[0];
-      if (bestSuggestion) {
-        // Convert score to player POV (scores are in White POV by default)
-        const isBlackPlayer = store.boardConfig?.playerColor === 'black';
-        const scoreMultiplier = isBlackPlayer ? -1 : 1;
-
-        if (bestSuggestion.score.type === 'mate') {
-          this.evalBar.update(0, bestSuggestion.score.value * scoreMultiplier);
-        } else {
-          this.evalBar.update((bestSuggestion.score.value / 100) * scoreMultiplier);
-        }
-      }
-    }
-  }
-
-  private onAnalyzeError(error: AnalyzeErrorResponse) {
-    console.error('[Chessr] Analyze error:', error.error);
-    const feedbackStore = useFeedbackStore.getState();
-    feedbackStore.handleAnalyzeError(error);
+    feedbackStore.handleNewAnalysisError(error);
   }
 
   private updateArrowsFromSuggestions(suggestions: SuggestionMove[]) {
@@ -648,10 +649,10 @@ class Chessr {
 
           // Effect badges
           const isEffectBadge =
-            badge.startsWith('#') ||   // Mate
-            badge.startsWith('+') ||   // Check
-            badge.startsWith('x ') ||  // Capture
-            badge.includes('Promo');   // Promotion
+            badge.startsWith('Mate') || // Mate
+            badge === 'Check' ||        // Check
+            badge.startsWith('x ') ||   // Capture
+            badge.includes('Promo');    // Promotion
 
           return (showQualityLabels && isQualityBadge) || (showEffectLabels && isEffectBadge);
         });
@@ -680,10 +681,14 @@ class Chessr {
       this.wsClient.disconnect();
       this.wsClient = new WebSocketClient(settings.serverUrl);
       this.wsClient.onMessage((message) => {
-        if (message.type === 'analyze_result') {
-          this.onAnalyzeResult(message);
-        } else if (message.type === 'analyze_error') {
-          this.onAnalyzeError(message);
+        if (message.type === 'suggestion_result') {
+          this.onSuggestionResult(message);
+        } else if (message.type === 'suggestion_error') {
+          this.onSuggestionError(message);
+        } else if (message.type === 'analysis_result') {
+          this.onAnalysisResult(message);
+        } else if (message.type === 'analysis_error') {
+          this.onAnalysisError(message);
         }
       });
       this.wsClient.onConnectionChange((connected) => {
@@ -707,9 +712,8 @@ class Chessr {
     const analysisSettingsChanged =
       settings.targetElo !== prevSettings.targetElo ||
       settings.personality !== prevSettings.personality ||
-      settings.depth !== prevSettings.depth ||
+      settings.riskTaking !== prevSettings.riskTaking ||
       settings.moveTime !== prevSettings.moveTime ||
-      settings.searchMode !== prevSettings.searchMode ||
       settings.multiPV !== prevSettings.multiPV;
 
     if (analysisSettingsChanged) {

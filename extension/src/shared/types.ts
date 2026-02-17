@@ -37,21 +37,22 @@ export interface ArrowColors {
 // Komodo Dragon Personalities
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 
+// Eval Bar display mode
+export type EvalBarMode = 'eval' | 'winrate';
+
 export interface Settings {
   enabled: boolean;
   serverUrl: string;
   userElo: number;  // User's base ELO (detected or manual)
   targetElo: number;  // Target ELO for engine (userElo + 150)
-  opponentElo: number;  // Opponent's ELO for contempt calculation
   autoDetectTargetElo: boolean;  // Auto-detect target ELO from page
-  autoDetectOpponentElo: boolean;  // Auto-detect opponent ELO from page
   personality: Personality;
-  searchMode: 'depth' | 'time';
-  depth: number;
+  riskTaking: number;  // Risk taking slider 0-100 (maps to Komodo contempt 0-200cp)
   moveTime: number;  // in milliseconds
   multiPV: number;
   showArrows: boolean;
   showEvalBar: boolean;
+  evalBarMode: EvalBarMode;  // Display mode: 'eval' (pawns) or 'winrate' (percentage)
   blunderThreshold: number;
   selectedOpening: string;  // Opening key or empty
   useDifferentArrowColors: boolean;  // true = different colors per arrow, false = single color

@@ -18,7 +18,6 @@ export const de: Translations = {
     centipawns: 'Hundertstel',
     move: 'Zug',
     mateIn: 'Matt in',
-    depth: 'Tiefe',
     reanalyze: 'Neu analysieren',
   },
 
@@ -68,8 +67,8 @@ export const de: Translations = {
 
   engine: {
     title: 'Engine-Einstellungen',
-    searchMode: 'Suchmodus',
-    depth: 'Tiefe',
+    riskTaking: 'Risikobereitschaft',
+    riskTakingDesc: 'Akzeptiertes Risikoniveau für Gewinnchancen',
     timePerMove: 'Zeit',
     analysisLines: 'Analyselinien',
   },
@@ -78,6 +77,9 @@ export const de: Translations = {
     title: 'Anzeige',
     showArrows: 'Pfeile Anzeigen',
     showEvalBar: 'Bewertungsleiste Anzeigen',
+    evalBarMode: 'Anzeigemodus',
+    evalBarModeEval: 'Bewertung',
+    evalBarModeWinrate: '% Gewinn',
     blunderThreshold: 'Fehler-Schwellenwert',
   },
 

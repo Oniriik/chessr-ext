@@ -18,7 +18,6 @@ export const en: Translations = {
     centipawns: 'Centipawns',
     move: 'Move',
     mateIn: 'Mate in',
-    depth: 'Depth',
     reanalyze: 'Re-analyze',
   },
 
@@ -68,8 +67,8 @@ export const en: Translations = {
 
   engine: {
     title: 'Engine Settings',
-    searchMode: 'Search Mode',
-    depth: 'Depth',
+    riskTaking: 'Risk Taking',
+    riskTakingDesc: 'How much risk to accept for winning chances',
     timePerMove: 'Time',
     analysisLines: 'Analysis Lines',
   },
@@ -78,6 +77,9 @@ export const en: Translations = {
     title: 'Display',
     showArrows: 'Show Arrows',
     showEvalBar: 'Show Eval Bar',
+    evalBarMode: 'Eval Bar Mode',
+    evalBarModeEval: 'Evaluation',
+    evalBarModeWinrate: 'Win %',
     blunderThreshold: 'Blunder Threshold',
   },
 

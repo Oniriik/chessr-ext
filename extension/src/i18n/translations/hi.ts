@@ -18,7 +18,6 @@ export const hi: Translations = {
     centipawns: 'सेंटीपॉन',
     move: 'चाल',
     mateIn: 'मात में',
-    depth: 'गहराई',
     reanalyze: 'पुनः विश्लेषण करें',
   },
 
@@ -68,8 +67,8 @@ export const hi: Translations = {
 
   engine: {
     title: 'इंजन सेटिंग्स',
-    searchMode: 'खोज मोड',
-    depth: 'गहराई',
+    riskTaking: 'जोखिम लेना',
+    riskTakingDesc: 'जीतने की संभावनाओं के लिए स्वीकृत जोखिम स्तर',
     timePerMove: 'समय',
     analysisLines: 'विश्लेषण लाइनें',
   },
@@ -78,6 +77,9 @@ export const hi: Translations = {
     title: 'प्रदर्शन',
     showArrows: 'तीर दिखाएं',
     showEvalBar: 'मूल्यांकन बार दिखाएं',
+    evalBarMode: 'प्रदर्शन मोड',
+    evalBarModeEval: 'मूल्यांकन',
+    evalBarModeWinrate: '% जीत',
     blunderThreshold: 'गंभीर गलती सीमा',
   },
 

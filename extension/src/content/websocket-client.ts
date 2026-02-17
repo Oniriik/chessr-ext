@@ -1,14 +1,18 @@
 import { Settings } from '../shared/types';
-import { AnalyzeResultResponse, AnalyzeErrorResponse, AccuracyCache, AccuracyPly } from '../domain/analysis/feedback-types';
+import {
+  SuggestionResult,
+  SuggestionError,
+  AnalysisNewResult,
+  AnalysisNewError,
+} from '../domain/analysis/feedback-types';
 import { getCurrentVersion } from '../shared/version';
-import { DEFAULT_LAST_MOVES } from '../shared/defaults';
 
 export interface VersionInfo {
   minVersion: string;
   downloadUrl?: string;
 }
 
-type MessageHandler = (message: AnalyzeResultResponse | AnalyzeErrorResponse | any) => void;
+type MessageHandler = (message: SuggestionResult | SuggestionError | AnalysisNewResult | AnalysisNewError) => void;
 type ConnectionHandler = (connected: boolean) => void;
 type VersionHandler = (version: VersionInfo) => void;
 type VersionErrorHandler = (version: VersionInfo) => void;
@@ -92,84 +96,50 @@ export class WebSocketClient {
     }
   }
 
-  analyze(movesUci: string[], settings: Settings, requestId?: string, accuracyCache?: AccuracyCache, playerColor?: 'w' | 'b') {
-    // Convert cache Map to array (or empty if no cache)
-    const cachedAccuracy: AccuracyPly[] = accuracyCache && accuracyCache.analyzedPlies.size > 0
-      ? Array.from(accuracyCache.analyzedPlies.values())
-      : [];
-
-    this.send({
-      type: 'analyze',
-      requestId,
-      payload: {
-        movesUci,
-        playerColor,
-        review: {
-          lastMoves: DEFAULT_LAST_MOVES,
-          cachedAccuracy,
-        },
-        user: {
-          targetElo: settings.targetElo,
-          personality: settings.personality,
-          multiPV: settings.multiPV,
-          opponentElo: settings.opponentElo,
-          disableLimitStrength: settings.disableLimitStrength,
-        },
-      },
-    });
-  }
-
   /**
-   * Request stats-only analysis (Phase A + B) - executed on opponent's turn (background).
-   * This computes accuracy review without suggestions.
+   * Request suggestions for a position.
+   * Uses FEN directly instead of replaying all moves.
    */
-  analyzeStats(movesUci: string[], requestId?: string, accuracyCache?: AccuracyCache, playerColor?: 'w' | 'b') {
-    // Convert cache Map to array (or empty if no cache)
-    const cachedAccuracy: AccuracyPly[] = accuracyCache && accuracyCache.analyzedPlies.size > 0
-      ? Array.from(accuracyCache.analyzedPlies.values())
-      : [];
-
-    this.send({
-      type: 'analyze_stats',
-      requestId,
-      payload: {
-        movesUci,
-        playerColor,
-        review: {
-          lastMoves: DEFAULT_LAST_MOVES,
-          cachedAccuracy,
-        },
-      },
-    });
-  }
-
-  /**
-   * Request suggestions-only analysis (Phase C) - executed on player's turn (fast).
-   * Requires cached stats from a previous analyzeStats() call.
-   */
-  analyzeSuggestions(
-    movesUci: string[],
+  suggestion(
+    fen: string,
+    moves: string[],
     settings: Settings,
-    cachedStatsResult: any, // AnalyzeStatsResponse
-    requestId?: string
+    requestId: string
   ) {
     this.send({
-      type: 'analyze_suggestions',
+      type: 'suggestion',
       requestId,
-      payload: {
-        movesUci,
-        cachedStats: {
-          accuracy: cachedStatsResult.payload.accuracy,
-          reviewTimingMs: cachedStatsResult.meta.timings.reviewMs,
-        },
-        user: {
-          targetElo: settings.targetElo,
-          personality: settings.personality,
-          multiPV: settings.multiPV,
-          opponentElo: settings.opponentElo,
-          disableLimitStrength: settings.disableLimitStrength,
-        },
-      },
+      fen,
+      moves,
+      targetElo: settings.targetElo,
+      personality: settings.personality,
+      multiPv: settings.multiPV,
+      contempt: settings.riskTaking,
+    });
+  }
+
+  /**
+   * Request move analysis using new architecture.
+   * Independent analysis using fenBefore/fenAfter.
+   */
+  analyzeNew(
+    fenBefore: string,
+    fenAfter: string,
+    move: string,
+    moves: string[],
+    playerColor: 'w' | 'b',
+    targetElo: number,
+    requestId: string
+  ) {
+    this.send({
+      type: 'analyze_new',
+      requestId,
+      fenBefore,
+      fenAfter,
+      move,
+      moves,
+      playerColor,
+      targetElo,
     });
   }
 
@@ -197,6 +167,7 @@ export class WebSocketClient {
 
   private send(message: object) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      console.log('[Chessr WS] Sending:', JSON.stringify(message).slice(0, 200));
       this.ws.send(JSON.stringify(message));
     } else {
       console.error('[Chessr WS] Cannot send - WebSocket not open');
@@ -205,10 +176,10 @@ export class WebSocketClient {
 
   private handleMessage(message: any) {
     if (
-      message.type === 'analyze_result' ||
-      message.type === 'analyze_stats_result' ||
-      message.type === 'analyze_suggestions_result' ||
-      message.type === 'analyze_error'
+      message.type === 'suggestion_result' ||
+      message.type === 'suggestion_error' ||
+      message.type === 'analysis_result' ||
+      message.type === 'analysis_error'
     ) {
       this.messageHandlers.forEach(handler => handler(message));
     } else if (message.type === 'auth_success') {

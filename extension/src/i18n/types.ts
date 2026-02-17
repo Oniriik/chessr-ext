@@ -19,7 +19,6 @@ export interface Translations {
     centipawns: string;
     move: string;
     mateIn: string;
-    depth: string;
     reanalyze: string;
   };
 
@@ -72,8 +71,8 @@ export interface Translations {
   // Engine settings
   engine: {
     title: string;
-    searchMode: string;
-    depth: string;
+    riskTaking: string;
+    riskTakingDesc: string;
     timePerMove: string;
     analysisLines: string;
   };
@@ -83,6 +82,9 @@ export interface Translations {
     title: string;
     showArrows: string;
     showEvalBar: string;
+    evalBarMode: string;
+    evalBarModeEval: string;
+    evalBarModeWinrate: string;
     blunderThreshold: string;
   };
 

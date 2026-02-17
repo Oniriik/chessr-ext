@@ -107,8 +107,10 @@ export function buildBadges(s: SuggestionMove): string[] {
   }
 
   // Sub-badges
-  if (s.flags?.isMate) badges.push('# Mate');
-  if (s.flags?.isCheck) badges.push('+ Check');
+  if (s.flags?.isMate && s.score?.type === 'mate') {
+    badges.push(`Mate ${Math.abs(s.score.value)}`);
+  }
+  if (s.flags?.isCheck) badges.push('Check');
 
   // Capture badge with piece symbol if available
   if (s.flags?.isCapture) {
