@@ -9,10 +9,11 @@ import SSHTerminal from '@/components/ssh-terminal'
 import DockerLogs from '@/components/docker-logs'
 import DockerControls from '@/components/docker-controls'
 import TestPanel from '@/components/test-panel'
+import UsersPanel from '@/components/users-panel'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent } from '@/components/ui/card'
-import { LogOut, LayoutDashboard, Terminal, ScrollText, FlaskConical } from 'lucide-react'
+import { LogOut, LayoutDashboard, Terminal, ScrollText, FlaskConical, Users } from 'lucide-react'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -85,10 +86,14 @@ export default function DashboardPage() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
             <TabsTrigger value="overview" className="gap-2">
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="users" className="gap-2">
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Users</span>
             </TabsTrigger>
             <TabsTrigger value="terminal" className="gap-2">
               <Terminal className="w-4 h-4" />
@@ -109,6 +114,10 @@ export default function DashboardPage() {
               <MetricsPanel />
               <DockerControls />
             </div>
+          </TabsContent>
+
+          <TabsContent value="users">
+            <UsersPanel />
           </TabsContent>
 
           <TabsContent value="terminal">
