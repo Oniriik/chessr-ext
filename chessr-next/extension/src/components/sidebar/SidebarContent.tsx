@@ -9,9 +9,11 @@ import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
 import { MoveListDisplay } from './MoveListDisplay';
 import { EloSettings } from './EloSettings';
+import { OpeningRepertoireSelector } from './OpeningRepertoireSelector';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
 import { useGameDetection } from '../../hooks/useGameDetection';
+import { useOpeningTrigger } from '../../hooks/useOpeningTrigger';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 
@@ -116,13 +118,16 @@ function SidebarHeader({
 function AuthenticatedContent() {
   // Initialize game detection (waits for move list, observes changes)
   useGameDetection();
+  // Initialize opening book features
+  useOpeningTrigger();
+
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const compactBadge = containerWidth > 0 && containerWidth < 350;
   const [showSettings, setShowSettings] = useState(false);
 
   return (
-    <div className="tw-h-full" ref={containerRef}>
-      <Card className="tw-p-4 tw-text-foreground tw-h-full tw-space-y-4">
+    <div className="tw-h-full tw-flex tw-flex-col" ref={containerRef}>
+      <Card className="tw-p-4 tw-text-foreground tw-h-full tw-flex tw-flex-col">
         <SidebarHeader
           compactBadge={compactBadge}
           showSettings={showSettings}
@@ -131,22 +136,23 @@ function AuthenticatedContent() {
         {showSettings ? (
           <SettingsView />
         ) : (
-          <>
+          <div className="tw-flex tw-flex-col tw-flex-1 tw-overflow-hidden tw-space-y-4">
             <GameStatusCard />
-            <Tabs defaultValue="game" className="tw-w-full">
-              <TabsList className="tw-w-full">
+            <Tabs defaultValue="game" className="tw-w-full tw-flex-1 tw-flex tw-flex-col tw-overflow-hidden">
+              <TabsList className="tw-w-full tw-flex-shrink-0">
                 <TabsTrigger value="game" className="tw-flex-1">Game Infos</TabsTrigger>
                 <TabsTrigger value="engine" className="tw-flex-1">Engine</TabsTrigger>
               </TabsList>
-              <TabsContent value="game">
+              <TabsContent value="game" className="tw-flex-1 tw-overflow-y-auto tw-space-y-4">
                 <GameStatsCard />
                 <MoveListDisplay />
               </TabsContent>
-              <TabsContent value="engine">
+              <TabsContent value="engine" className="tw-flex-1 tw-overflow-y-auto tw-space-y-4">
                 <EloSettings />
+                <OpeningRepertoireSelector />
               </TabsContent>
             </Tabs>
-          </>
+          </div>
         )}
       </Card>
     </div>
