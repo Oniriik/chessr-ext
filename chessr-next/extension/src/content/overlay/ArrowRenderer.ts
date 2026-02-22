@@ -178,8 +178,11 @@ export class ArrowRenderer {
     let currentY = squareTop + squarePadding;
     const rankElements: Map<number, { rect: SVGRectElement; text: SVGTextElement; y: number }> = new Map();
 
+    // Sort ranks to display in order #1, #2, #3
+    const sortedRanks = [...info.ranks].sort((a, b) => a - b);
+
     // Draw rank badges for each move
-    for (const rank of info.ranks) {
+    for (const rank of sortedRanks) {
       const arrowColor = info.color.get(rank) || 'rgba(107, 114, 128, 0.95)';
       const isActive = (rank - 1) === this.selectedIndex; // rank is 1-based, selectedIndex is 0-based
       const badgeColor = isActive ? arrowColor : disabledColor;
@@ -205,7 +208,7 @@ export class ArrowRenderer {
     }
 
     // Add hover events to make rank badges interactive
-    for (const rank of info.ranks) {
+    for (const rank of sortedRanks) {
       const arrowColor = info.color.get(rank) || 'rgba(107, 114, 128, 0.95)';
       const badges = info.badges.get(rank) || [];
       const elem = rankElements.get(rank);
