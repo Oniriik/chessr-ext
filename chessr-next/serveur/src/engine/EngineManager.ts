@@ -27,6 +27,7 @@ export interface RawSuggestion {
   drawRate: number;
   lossRate: number;
   mateScore: number | null;
+  pv: string[];  // Full principal variation (all moves)
 }
 
 export class EngineManager extends EventEmitter {
@@ -267,10 +268,12 @@ export class EngineManager extends EventEmitter {
       const multipvMatch = line.match(/\bmultipv\s+(\d+)/);
       const multipv = multipvMatch ? parseInt(multipvMatch[1]) : 1;
 
-      // Extract move from pv
-      const pvMatch = line.match(/\bpv\s+(\S+)/);
+      // Extract full PV (all moves after "pv")
+      const pvMatch = line.match(/\bpv\s+(.+)$/);
       if (!pvMatch) return null;
-      const move = pvMatch[1];
+      const pvMoves = pvMatch[1].split(/\s+/).filter(m => m.length >= 4);
+      if (pvMoves.length === 0) return null;
+      const move = pvMoves[0];
 
       // Extract depth
       const depthMatch = line.match(/\bdepth\s+(\d+)/);
@@ -328,6 +331,7 @@ export class EngineManager extends EventEmitter {
         drawRate: Math.round(drawRate * 10) / 10,
         lossRate: Math.round(lossRate * 10) / 10,
         mateScore,
+        pv: pvMoves,
       };
     } catch {
       return null;
