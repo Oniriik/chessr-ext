@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Chess } from 'chess.js';
-import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
+import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, useSetHoveredSuggestionIndex, useShowingPvIndex, useSetShowingPvIndex, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
 import { useGameStore } from '../../stores/gameStore';
-import { Loader2 } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 // Confidence label display config with background colors like old version
 const CONFIDENCE_CONFIG: Record<ConfidenceLabel, { label: string; bgClass: string; textClass: string }> = {
@@ -88,38 +89,57 @@ function convertPvToSan(fen: string, pvUci: string[]): string[] {
   }
 }
 
-function formatEval(evaluation: number, mateScore?: number): string {
-  if (mateScore !== undefined && mateScore !== null) {
-    const prefix = mateScore > 0 ? '+' : '';
-    return `${prefix}M${Math.abs(mateScore)}`;
+function formatEval(evaluation: number, mateScore: number | undefined, playerColor: 'white' | 'black' | null): string {
+  // Flip eval to player's perspective (positive = good for player)
+  const isBlack = playerColor === 'black';
+  // Convert from centipawns to pawns (divide by 100)
+  const evalInPawns = evaluation / 100;
+  const adjustedEval = isBlack ? -evalInPawns : evalInPawns;
+  const adjustedMate = mateScore !== undefined && mateScore !== null ? (isBlack ? -mateScore : mateScore) : undefined;
+
+  if (adjustedMate !== undefined) {
+    return `M${Math.abs(adjustedMate)}`;
   }
   // Regular eval in pawns
-  if (Math.abs(evaluation) < 0.05) {
+  if (Math.abs(adjustedEval) < 0.05) {
     return '0.0';
   }
-  const sign = evaluation > 0 ? '+' : '';
-  return `${sign}${evaluation.toFixed(1)}`;
+  const sign = adjustedEval > 0 ? '+' : '';
+  return `${sign}${adjustedEval.toFixed(1)}`;
 }
 
-function getEvalColorClass(evaluation: number, mateScore?: number): string {
+function getEvalColorClass(evaluation: number, mateScore: number | undefined, playerColor: 'white' | 'black' | null): string {
+  // When playing black, flip the color logic (negative = good for black)
+  const isBlack = playerColor === 'black';
+
   if (mateScore !== undefined && mateScore !== null) {
-    return mateScore > 0 ? 'tw-text-green-400' : 'tw-text-red-400';
+    const isGood = isBlack ? mateScore < 0 : mateScore > 0;
+    return isGood ? 'tw-text-green-400' : 'tw-text-red-400';
   }
-  if (Math.abs(evaluation) < 0.05) return 'tw-text-gray-400';
-  if (evaluation > 0) return 'tw-text-green-400';
-  return 'tw-text-red-400';
+  // Evaluation is in centipawns, 5cp threshold for "equal"
+  if (Math.abs(evaluation) < 5) return 'tw-text-gray-400';
+
+  const isGood = isBlack ? evaluation < 0 : evaluation > 0;
+  return isGood ? 'tw-text-green-400' : 'tw-text-red-400';
 }
 
 interface SuggestionCardProps {
   suggestion: Suggestion;
   rank: number;
   isSelected: boolean;
+  isShowingPv: boolean;
   flags: MoveFlags;
   fen: string;
+  playerColor: 'white' | 'black' | null;
   onSelect: () => void;
+  onHoverStart: () => void;
+  onHoverEnd: () => void;
+  onTogglePv: () => void;
+  onPvHoverStart: () => void;
+  onPvHoverEnd: () => void;
 }
 
-function SuggestionCard({ suggestion, rank, isSelected, flags, fen, onSelect }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd }: SuggestionCardProps) {
   const config = CONFIDENCE_CONFIG[suggestion.confidenceLabel];
 
   // Convert PV to SAN notation
@@ -169,6 +189,8 @@ function SuggestionCard({ suggestion, rank, isSelected, flags, fen, onSelect }: 
           : 'tw-border-border hover:tw-border-primary/50'
       }`}
       onClick={onSelect}
+      onMouseEnter={onHoverStart}
+      onMouseLeave={onHoverEnd}
     >
       {/* Header with move, badges, and eval */}
       <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
@@ -193,16 +215,40 @@ function SuggestionCard({ suggestion, rank, isSelected, flags, fen, onSelect }: 
             </span>
           ))}
         </div>
-        <span className={`tw-text-sm tw-font-mono tw-font-semibold tw-shrink-0 ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore)}`}>
-          {formatEval(suggestion.evaluation, suggestion.mateScore)}
-        </span>
+        <div className="tw-flex tw-items-center tw-gap-1.5 tw-shrink-0">
+          {suggestion.pv && suggestion.pv.length > 1 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePv();
+              }}
+              onMouseEnter={(e) => {
+                e.stopPropagation();
+                onPvHoverStart();
+              }}
+              onMouseLeave={(e) => {
+                e.stopPropagation();
+                onPvHoverEnd();
+              }}
+              className={`tw-h-6 tw-w-6 ${isShowingPv ? 'tw-text-accent-foreground tw-bg-accent' : 'tw-text-muted-foreground'}`}
+              title={isShowingPv ? 'Hide line on board' : 'Show line on board'}
+            >
+              {isShowingPv ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
+            </Button>
+          )}
+          <span className={`tw-text-sm tw-font-mono tw-font-semibold ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)}`}>
+            {formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
+          </span>
+        </div>
       </div>
 
       {/* PV Line */}
       {pvSan.length > 1 && (
         <div className="tw-flex tw-items-center tw-gap-1 tw-mt-1.5 tw-flex-wrap">
           <span className="tw-text-[10px] tw-text-muted-foreground tw-uppercase tw-tracking-wide">
-            Line
+            Next
           </span>
           {pvSan.slice(1).map((move, i) => {
             const isWhiteMove = fen.includes(' w ') ? (i % 2 === 1) : (i % 2 === 0);
@@ -223,12 +269,44 @@ function SuggestionCard({ suggestion, rank, isSelected, flags, fen, onSelect }: 
 }
 
 export function MoveListDisplay() {
-  const { isGameStarted } = useGameStore();
+  const { isGameStarted, playerColor } = useGameStore();
   const suggestions = useSuggestions();
   const suggestedFen = useSuggestedFen();
   const isLoading = useIsSuggestionLoading();
   const selectedIndex = useSelectedSuggestionIndex();
   const setSelectedIndex = useSetSelectedSuggestionIndex();
+  const setHoveredIndex = useSetHoveredSuggestionIndex();
+  const showingPvIndex = useShowingPvIndex();
+  const setShowingPvIndex = useSetShowingPvIndex();
+
+  // Track if PV is "locked" (clicked) vs just hover preview
+  const lockedPvIndexRef = useRef<number | null>(null);
+
+  const handlePvToggle = (index: number) => {
+    if (lockedPvIndexRef.current === index) {
+      // Unlock
+      lockedPvIndexRef.current = null;
+      setShowingPvIndex(null);
+    } else {
+      // Lock to this index
+      lockedPvIndexRef.current = index;
+      setShowingPvIndex(index);
+    }
+  };
+
+  const handlePvHoverStart = (index: number) => {
+    // Only show preview if not locked to a different index
+    if (lockedPvIndexRef.current === null) {
+      setShowingPvIndex(index);
+    }
+  };
+
+  const handlePvHoverEnd = () => {
+    // Only hide if not locked
+    if (lockedPvIndexRef.current === null) {
+      setShowingPvIndex(null);
+    }
+  };
 
   // Compute flags for all suggestions
   const suggestionsWithFlags = useMemo(() => {
@@ -265,9 +343,16 @@ export function MoveListDisplay() {
               suggestion={suggestion}
               rank={index + 1}
               isSelected={selectedIndex === index}
+              isShowingPv={showingPvIndex === index}
               flags={flags}
               fen={suggestedFen || ''}
+              playerColor={playerColor}
               onSelect={() => setSelectedIndex(index)}
+              onHoverStart={() => setHoveredIndex(index)}
+              onHoverEnd={() => setHoveredIndex(null)}
+              onTogglePv={() => handlePvToggle(index)}
+              onPvHoverStart={() => handlePvHoverStart(index)}
+              onPvHoverEnd={handlePvHoverEnd}
             />
           ))}
         </div>
