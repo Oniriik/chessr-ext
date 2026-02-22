@@ -119,7 +119,7 @@ function isBoardFlipped(): boolean {
 export function useArrowRenderer() {
   const { isGameStarted, playerColor, currentTurn, chessInstance } =
     useGameStore();
-  const { suggestions, suggestedFen, selectedIndex } = useSuggestionStore();
+  const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex } = useSuggestionStore();
   const {
     numberOfSuggestions,
     useSameColorForAllArrows,
@@ -250,19 +250,62 @@ export function useArrowRenderer() {
     // Sort by length descending (longest first, so shortest appears on top)
     arrowData.sort((a, b) => b.length - a.length);
 
-    // Set the selected index for conflict handling
+    // Set the selected/hovered index for conflict handling
     renderer.setSelectedIndex(selectedIndex);
+    renderer.setHoveredIndex(hoveredIndex);
 
-    // Draw arrows in sorted order
-    for (const arrow of arrowData) {
-      renderer.drawArrow({
-        from: arrow.from,
-        to: arrow.to,
-        color: arrow.color,
-        opacity: arrow.opacity,
-        badges: arrow.badges,
-        rank: arrow.rank,
-      });
+    // If showing PV, only draw PV arrows (hide suggestion arrows)
+    if (showingPvIndex !== null && suggestions[showingPvIndex]?.pv && currentFen) {
+      const pvMoves = suggestions[showingPvIndex].pv!;
+      try {
+        const chess = new Chess(currentFen);
+        // Determine if it's white to move at the start
+        let isWhiteToMove = currentFen.includes(' w ');
+
+        for (let i = 0; i < pvMoves.length; i++) {
+          const uciMove = pvMoves[i];
+          const from = uciMove.slice(0, 2);
+          const to = uciMove.slice(2, 4);
+          const promotion = uciMove.length === 5 ? uciMove[4] : undefined;
+
+          // Try to make the move to validate it
+          const move = chess.move({ from, to, promotion });
+          if (!move) break;
+
+          // Draw arrow with white/black color based on who's moving
+          const arrowColor = isWhiteToMove ? 'rgba(255, 255, 255, 0.95)' : 'rgba(40, 40, 40, 0.95)';
+          const textColor = isWhiteToMove ? 'black' : 'white';
+          const moveNumber = i + 1;
+
+          renderer.drawPvArrow({
+            from,
+            to,
+            color: arrowColor,
+            textColor,
+            moveNumber,
+          });
+
+          // Toggle turn
+          isWhiteToMove = !isWhiteToMove;
+        }
+
+        // Draw all circles on top of arrows
+        renderer.flushPvCircles();
+      } catch {
+        // Ignore errors in PV drawing
+      }
+    } else {
+      // Draw regular suggestion arrows
+      for (const arrow of arrowData) {
+        renderer.drawArrow({
+          from: arrow.from,
+          to: arrow.to,
+          color: arrow.color,
+          opacity: arrow.opacity,
+          badges: arrow.badges,
+          rank: arrow.rank,
+        });
+      }
     }
   }, [
     suggestions,
@@ -278,6 +321,8 @@ export function useArrowRenderer() {
     playerColor,
     currentTurn,
     selectedIndex,
+    hoveredIndex,
+    showingPvIndex,
   ]);
 
   // Update overlay when player color changes (board flip)
