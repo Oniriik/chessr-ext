@@ -43,12 +43,12 @@ export function GeneralTab() {
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Display Options</Label>
 
-        {/* Show Detailed Move Suggestion */}
+        {/* Show Move Labels on Board */}
         <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
           <div className="tw-space-y-0.5">
-            <Label className="tw-text-sm tw-font-medium">Show detailed move suggestion</Label>
+            <Label className="tw-text-sm tw-font-medium">Show move labels on board</Label>
             <p className="tw-text-xs tw-text-muted-foreground">
-              Move quality and effects card
+              Display quality and effect badges on arrows
             </p>
           </div>
           <Switch

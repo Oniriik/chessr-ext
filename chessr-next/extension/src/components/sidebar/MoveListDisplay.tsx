@@ -23,6 +23,14 @@ const PIECE_SYMBOLS: Record<string, string> = {
   k: '♚',
 };
 
+// Piece names for promotion badges
+const PIECE_NAMES: Record<string, string> = {
+  q: 'Queen',
+  r: 'Rook',
+  b: 'Bishop',
+  n: 'Knight',
+};
+
 interface MoveFlags {
   isCheck: boolean;
   isMate: boolean;
@@ -147,7 +155,7 @@ function SuggestionCard({ suggestion, rank, isSelected, flags, fen, onSelect }: 
 
   if (flags.isPromotion && flags.promotionPiece) {
     effectBadges.push({
-      label: `♛ ${flags.promotionPiece.toUpperCase()}`,
+      label: `${PIECE_SYMBOLS[flags.promotionPiece] || '♛'} ${PIECE_NAMES[flags.promotionPiece] || 'Queen'}`,
       bgClass: 'tw-bg-indigo-500/20',
       textClass: 'tw-text-indigo-400',
     });
