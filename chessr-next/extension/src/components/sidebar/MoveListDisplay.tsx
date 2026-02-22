@@ -1,7 +1,9 @@
 import { useMemo, useRef } from 'react';
 import { Chess } from 'chess.js';
-import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, useSetHoveredSuggestionIndex, useShowingPvIndex, useSetShowingPvIndex, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
+import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, useSetHoveredSuggestionIndex, useShowingPvIndex, useSetShowingPvIndex, useShowingOpeningMoves, useToggleShowingOpeningMoves, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
 import { useGameStore } from '../../stores/gameStore';
+import { useOpeningTracker } from '../../hooks/useOpeningTracker';
+import { OpeningSuggestionCard } from './OpeningSuggestionCard';
 import { Button } from '../ui/button';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 
@@ -278,9 +280,35 @@ export function MoveListDisplay() {
   const setHoveredIndex = useSetHoveredSuggestionIndex();
   const showingPvIndex = useShowingPvIndex();
   const setShowingPvIndex = useSetShowingPvIndex();
+  const showingOpeningMoves = useShowingOpeningMoves();
+  const toggleShowingOpeningMoves = useToggleShowingOpeningMoves();
+  const openingTracker = useOpeningTracker();
 
   // Track if PV is "locked" (clicked) vs just hover preview
   const lockedPvIndexRef = useRef<number | null>(null);
+
+  // Store stable opening values that only update when suggestions are refreshed
+  const stableOpeningRef = useRef<{
+    openingMoves: string[];
+    nextMove: string | null;
+    currentMoveIndex: number;
+    lastSuggestedFen: string | null;
+  }>({
+    openingMoves: [],
+    nextMove: null,
+    currentMoveIndex: 0,
+    lastSuggestedFen: null,
+  });
+
+  // Update stable values only when suggestedFen changes (new suggestions arrived)
+  if (suggestedFen && suggestedFen !== stableOpeningRef.current.lastSuggestedFen) {
+    stableOpeningRef.current = {
+      openingMoves: openingTracker.openingMoves,
+      nextMove: openingTracker.nextOpeningMove,
+      currentMoveIndex: openingTracker.currentMoveIndex,
+      lastSuggestedFen: suggestedFen,
+    };
+  }
 
   const handlePvToggle = (index: number) => {
     if (lockedPvIndexRef.current === index) {
@@ -323,9 +351,30 @@ export function MoveListDisplay() {
     return null;
   }
 
+  // Show opening card if: has selected opening, not complete, and not deviated
+  const showOpeningCard =
+    openingTracker.selectedOpening &&
+    !openingTracker.isOpeningComplete &&
+    !openingTracker.hasDeviated;
+
   return (
     <div className="tw-mt-3">
       <div className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-mb-2">Suggested moves</div>
+
+      {/* Opening suggestion card - shown before engine suggestions */}
+      {showOpeningCard && openingTracker.selectedOpening && (
+        <OpeningSuggestionCard
+          opening={openingTracker.selectedOpening}
+          openingMoves={stableOpeningRef.current.openingMoves}
+          nextMove={stableOpeningRef.current.nextMove}
+          currentMoveIndex={stableOpeningRef.current.currentMoveIndex}
+          isFollowing={openingTracker.isFollowingOpening}
+          hasDeviated={openingTracker.hasDeviated}
+          isShowingMoves={showingOpeningMoves}
+          onToggleShowMoves={toggleShowingOpeningMoves}
+        />
+      )}
+
       {isLoading && suggestions.length === 0 ? (
         <div className="tw-flex tw-items-center tw-justify-center tw-py-3 tw-text-muted-foreground">
           <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
