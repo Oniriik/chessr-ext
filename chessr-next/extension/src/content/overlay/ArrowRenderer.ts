@@ -169,10 +169,14 @@ export class ArrowRenderer {
     // Sort ranks to display in order #1, #2, #3
     const sortedRanks = [...info.ranks].sort((a, b) => a - b);
 
+    // Determine which rank is active (selected if it targets this square, otherwise first)
+    const selectedRank = this.selectedIndex + 1;
+    const activeRank = info.ranks.includes(selectedRank) ? selectedRank : sortedRanks[0];
+
     // Draw rank badges for each move
     for (const rank of sortedRanks) {
       const arrowColor = info.color.get(rank) || 'rgba(107, 114, 128, 0.95)';
-      const isActive = (rank - 1) === this.selectedIndex; // rank is 1-based, selectedIndex is 0-based
+      const isActive = rank === activeRank;
       const badgeColor = isActive ? arrowColor : disabledColor;
 
       const { rect, text, height } = this.createRankBadge(
@@ -189,11 +193,8 @@ export class ArrowRenderer {
       currentY += height + spacing;
     }
 
-    // Draw active badges on the left for the selected rank
-    const selectedRank = this.selectedIndex + 1; // Convert to 1-based
-    if (info.ranks.includes(selectedRank)) {
-      this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(selectedRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
-    }
+    // Draw active badges on the left for the active rank
+    this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(activeRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
 
     // Add hover events to make rank badges interactive
     for (const rank of sortedRanks) {
@@ -227,20 +228,20 @@ export class ArrowRenderer {
       });
 
       rect.addEventListener('mouseleave', () => {
-        // Restore based on selectedIndex
-        const selectedRank = this.selectedIndex + 1;
+        // Restore based on selectedIndex (or first available if selected doesn't target this square)
+        const currentSelectedRank = this.selectedIndex + 1;
+        const restoreRank = info.ranks.includes(currentSelectedRank) ? currentSelectedRank : sortedRanks[0];
+
         for (const [r, e] of rankElements) {
-          const isSelected = r === selectedRank;
-          e.rect.setAttribute('fill', isSelected ? (info.color.get(r) || disabledColor) : disabledColor);
+          const isActive = r === restoreRank;
+          e.rect.setAttribute('fill', isActive ? (info.color.get(r) || disabledColor) : disabledColor);
         }
 
-        // Restore left badges to show selected rank's badges
+        // Restore left badges to show active rank's badges
         while (activeBadgesGroup.firstChild) {
           activeBadgesGroup.removeChild(activeBadgesGroup.firstChild);
         }
-        if (info.ranks.includes(selectedRank)) {
-          this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(selectedRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
-        }
+        this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(restoreRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
       });
     }
 
