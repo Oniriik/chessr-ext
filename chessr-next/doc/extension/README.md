@@ -28,32 +28,61 @@ Technical documentation for the Chessr Chrome Extension v2.
 extension/
 ├── src/
 │   ├── content/
-│   │   └── index.tsx          # Content script entry point
+│   │   ├── index.tsx          # Content script entry point
+│   │   └── overlay/           # Board overlay system
+│   │       ├── OverlayManager.ts   # SVG overlay management
+│   │       ├── ArrowRenderer.ts    # Arrow drawing (suggestions, PV)
+│   │       └── EvalBar.ts          # Evaluation bar
 │   ├── components/
 │   │   ├── ui/                # shadcn/ui components
 │   │   │   ├── button.tsx
 │   │   │   ├── card.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── label.tsx
-│   │   │   └── dropdown-menu.tsx
+│   │   │   ├── slider.tsx
+│   │   │   ├── tabs.tsx
+│   │   │   └── ...
 │   │   ├── auth/              # Authentication components
 │   │   │   ├── AuthForm.tsx
 │   │   │   ├── AuthGuard.tsx
 │   │   │   └── index.ts
 │   │   └── sidebar/           # Sidebar components
+│   │       ├── SidebarContent.tsx     # Main content with tabs
+│   │       ├── SidebarMount.tsx       # Trigger + Portal
+│   │       ├── SidebarPortal.tsx      # Replaces original sidebar
+│   │       ├── SidebarTrigger.tsx     # Styled trigger button
+│   │       ├── BaseSidebarTrigger.tsx # Nav sidebar trigger
+│   │       ├── FloatingSidebar.tsx    # Floating panel
+│   │       ├── GameStatusCard.tsx     # Game info display
+│   │       ├── GameStatsCard.tsx      # Accuracy stats
+│   │       ├── MoveListDisplay.tsx    # Suggested moves list
+│   │       ├── EloSettings.tsx        # Target ELO settings
+│   │       └── PersonalitySelect.tsx  # Engine personality
 │   ├── platforms/
 │   │   ├── chesscom/          # chess.com adapter
 │   │   ├── lichess/           # lichess adapter
 │   │   ├── types.ts           # Shared types
 │   │   └── index.ts           # Platform exports
 │   ├── stores/                # Zustand stores
-│   │   ├── sidebarStore.ts
-│   │   └── authStore.ts
+│   │   ├── sidebarStore.ts    # Sidebar open/close state
+│   │   ├── authStore.ts       # Authentication state
+│   │   ├── gameStore.ts       # Game detection & state
+│   │   ├── engineStore.ts     # Engine settings (ELO, personality)
+│   │   ├── suggestionStore.ts # Move suggestions from server
+│   │   ├── accuracyStore.ts   # Move accuracy analysis
+│   │   ├── settingsStore.ts   # User preferences
+│   │   └── webSocketStore.ts  # WebSocket connection state
 │   ├── hooks/                 # React hooks
-│   ├── contexts/              # React contexts
+│   │   ├── useSidebar.ts          # Sidebar state hook
+│   │   ├── useGameDetection.ts    # Detect game start/moves
+│   │   ├── useSuggestionTrigger.ts # Request suggestions
+│   │   ├── useAnalysisTrigger.ts  # Request move analysis
+│   │   ├── useArrowRenderer.ts    # Draw arrows on board
+│   │   ├── useEvalBar.ts          # Manage eval bar
+│   │   └── useContainerWidth.ts   # Responsive width
 │   ├── lib/
 │   │   ├── utils.ts           # Utilities (cn, etc.)
-│   │   └── supabase.ts        # Supabase client
+│   │   ├── supabase.ts        # Supabase client
+│   │   ├── webSocket.ts       # WebSocket connection
+│   │   └── logger.ts          # Debug logging
 │   └── styles/
 │       └── content.css        # Global styles + theme
 ├── public/
