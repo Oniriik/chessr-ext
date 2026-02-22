@@ -12,12 +12,10 @@ import {
 export function GeneralTab() {
   const {
     language,
-    showGameStatistics,
     showDetailedMoveSuggestion,
     showEvalBar,
     evalBarMode,
     setLanguage,
-    setShowGameStatistics,
     setShowDetailedMoveSuggestion,
     setShowEvalBar,
     setEvalBarMode,
@@ -44,20 +42,6 @@ export function GeneralTab() {
       {/* Display Options */}
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Display Options</Label>
-
-        {/* Show Game Statistics */}
-        <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
-          <div className="tw-space-y-0.5">
-            <Label className="tw-text-sm tw-font-medium">Show game statistics</Label>
-            <p className="tw-text-xs tw-text-muted-foreground">
-              Accuracy and move classification card
-            </p>
-          </div>
-          <Switch
-            checked={showGameStatistics}
-            onCheckedChange={setShowGameStatistics}
-          />
-        </div>
 
         {/* Show Detailed Move Suggestion */}
         <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">

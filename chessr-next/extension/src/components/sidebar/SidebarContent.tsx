@@ -3,6 +3,7 @@ import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
@@ -131,8 +132,18 @@ function AuthenticatedContent() {
         ) : (
           <>
             <GameStatusCard />
-            <GameStatsCard />
-            <EloSettings />
+            <Tabs defaultValue="game" className="tw-w-full">
+              <TabsList className="tw-w-full">
+                <TabsTrigger value="game" className="tw-flex-1">Game Infos</TabsTrigger>
+                <TabsTrigger value="engine" className="tw-flex-1">Engine</TabsTrigger>
+              </TabsList>
+              <TabsContent value="game">
+                <GameStatsCard />
+              </TabsContent>
+              <TabsContent value="engine">
+                <EloSettings />
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </Card>

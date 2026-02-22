@@ -26,8 +26,8 @@ export const PERSONALITIES: Personality[] = [
 
 export const PERSONALITY_INFO: Record<Personality, { label: string; description: string }> = {
   Default: {
-    label: 'Default',
-    description: 'Strongest personality with full control over Contempt setting.',
+    label: 'Engine',
+    description: 'Plays like an engine with minimal errors.',
   },
   Aggressive: {
     label: 'Aggressive',
@@ -55,18 +55,18 @@ export const PERSONALITY_INFO: Record<Personality, { label: string; description:
   },
   Human: {
     label: 'Human',
-    description: 'Mimics human-like play with occasional inaccuracies.',
+    description: 'Optimized to play like strong human players.',
   },
 };
 
 // Risk Taking labels (maps to Komodo contempt 0-200)
 export const RISK_LEVELS = [
-  { threshold: 0, label: 'Safe' },          // 0cp - accept draws
-  { threshold: 20, label: 'Cautious' },     // 40cp - vs Super GM
-  { threshold: 40, label: 'Moderate' },     // 80cp - vs GM
-  { threshold: 60, label: 'Bold' },         // 120cp - vs IM
-  { threshold: 80, label: 'Aggressive' },   // 160cp - vs Master
-  { threshold: 100, label: 'Reckless' },    // 200cp - vs Amateur
+  { threshold: 0, label: 'Passive' },
+  { threshold: 20, label: 'Cautious' },
+  { threshold: 40, label: 'Moderate' },
+  { threshold: 60, label: 'Bold' },
+  { threshold: 80, label: 'Aggressive' },
+  { threshold: 100, label: 'Overconfident' },
 ] as const;
 
 export function getRiskLabel(value: number): string {

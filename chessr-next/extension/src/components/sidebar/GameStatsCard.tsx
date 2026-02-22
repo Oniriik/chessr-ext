@@ -74,30 +74,27 @@ export function GameStatsCard() {
     [moveAnalyses]
   );
 
-  if (!isGameStarted) {
-    return null;
-  }
-
   const moveCount = moveAnalyses.length;
+  const isIdle = !isGameStarted;
 
   return (
-    <Card className="tw-bg-muted/50 tw-p-4">
+    <Card className={`tw-bg-muted/50 tw-p-4 ${isIdle ? 'tw-opacity-50' : ''}`}>
       <CardContent>
         {/* Header */}
         <div className="tw-flex tw-items-center tw-justify-between tw-mb-4">
-          <span className="tw-text-sm tw-font-medium">Game Statistics</span>
-          <span className="tw-text-xs tw-text-muted-foreground">
-            {moveCount} analyzed
+          <span className="tw-text-sm tw-font-medium">Accuracy</span>
+          <span className={`tw-text-xs ${isIdle ? 'tw-text-muted-foreground' : 'tw-text-primary tw-font-medium'}`}>
+            {isIdle ? 'Waiting for game...' : `${moveCount} analyzed`}
           </span>
         </div>
 
         <div className="tw-flex tw-gap-4">
           {/* Accuracy display */}
           <div className="tw-flex tw-items-center tw-gap-2">
-            <span className={`tw-text-5xl tw-font-bold ${getAccuracyColor(accuracy)}`}>
-              {Math.round(accuracy)}
+            <span className={`tw-text-5xl tw-font-bold ${isIdle ? 'tw-text-muted-foreground' : getAccuracyColor(accuracy)}`}>
+              {isIdle ? '-' : Math.round(accuracy)}
             </span>
-            <TrendIcon trend={trend} />
+            {!isIdle && <TrendIcon trend={trend} />}
           </div>
 
           {/* Classification grid */}
@@ -107,18 +104,20 @@ export function GameStatsCard() {
                 key={config.key}
                 label={config.label}
                 count={
-                  config.key in counts
-                    ? counts[config.key as MoveClassification]
-                    : 0
+                  isIdle
+                    ? 0
+                    : config.key in counts
+                      ? counts[config.key as MoveClassification]
+                      : 0
                 }
-                colorClass={config.colorClass}
+                colorClass={isIdle ? 'tw-text-muted-foreground' : config.colorClass}
               />
             ))}
           </div>
         </div>
 
         {/* Phase stats (collapsible later) */}
-        {moveCount > 0 && (
+        {!isIdle && moveCount > 0 && (
           <div className="tw-mt-4 tw-pt-3 tw-border-t tw-border-border">
             <div className="tw-grid tw-grid-cols-3 tw-gap-2 tw-text-center">
               {(['opening', 'middlegame', 'endgame'] as const).map((phase) => {

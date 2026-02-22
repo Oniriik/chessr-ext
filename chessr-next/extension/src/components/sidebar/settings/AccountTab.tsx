@@ -3,10 +3,84 @@ import { useAuthStore } from '../../../stores/authStore';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { CheckCircle, AlertCircle, Loader2, Crown } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock } from 'lucide-react';
+import type { Plan } from '../../ui/plan-badge';
+
+function formatExpiryDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+function getDaysUntilExpiry(date: Date): number {
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+interface PlanInfo {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  showUpgrade?: boolean;
+}
+
+function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
+  switch (plan) {
+    case 'lifetime':
+      return {
+        title: 'Lifetime Access',
+        description: 'You have permanent access.',
+        icon: <Sparkles className="tw-w-5 tw-h-5 tw-text-yellow-500" />,
+        iconBg: 'tw-bg-yellow-500/20',
+      };
+    case 'beta':
+      return {
+        title: 'Beta Tester',
+        description: 'Thank you for being an early supporter! Enjoy lifetime access.',
+        icon: <Crown className="tw-w-5 tw-h-5 tw-text-purple-500" />,
+        iconBg: 'tw-bg-purple-500/20',
+      };
+    case 'premium':
+      const premiumDays = expiry ? getDaysUntilExpiry(expiry) : 0;
+      return {
+        title: 'Premium',
+        description: expiry
+          ? `Your subscription renews on ${formatExpiryDate(expiry)}${premiumDays <= 7 ? ` (${premiumDays} days left)` : ''}`
+          : 'Premium subscription active.',
+        icon: <Crown className="tw-w-5 tw-h-5 tw-text-primary" />,
+        iconBg: 'tw-bg-primary/20',
+      };
+    case 'freetrial':
+      const trialDays = expiry ? getDaysUntilExpiry(expiry) : 0;
+      return {
+        title: 'Free Trial',
+        description: expiry
+          ? `${trialDays > 0 ? `${trialDays} days remaining` : 'Trial expired'} - Ends ${formatExpiryDate(expiry)}`
+          : 'Trial period active.',
+        icon: <Clock className="tw-w-5 tw-h-5 tw-text-orange-500" />,
+        iconBg: 'tw-bg-orange-500/20',
+        showUpgrade: true,
+      };
+    case 'free':
+    default:
+      return {
+        title: 'Free Plan',
+        description: 'Upgrade to unlock all features and boost your game.',
+        icon: <Lock className="tw-w-5 tw-h-5 tw-text-muted-foreground" />,
+        iconBg: 'tw-bg-muted',
+        showUpgrade: true,
+      };
+  }
+}
+
+const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
 
 export function AccountTab() {
-  const { user, changePassword, loading } = useAuthStore();
+  const { user, plan, planExpiry, changePassword, loading } = useAuthStore();
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,6 +95,8 @@ export function AccountTab() {
         day: 'numeric',
       })
     : null;
+
+  const planInfo = getPlanInfo(plan, planExpiry);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,18 +216,29 @@ export function AccountTab() {
 
       {/* Billing Section */}
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
-        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Billing</Label>
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Subscription</Label>
         <div className="tw-flex tw-items-center tw-gap-3 tw-p-3 tw-rounded-lg tw-bg-muted">
-          <div className="tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full tw-bg-primary/20">
-            <Crown className="tw-w-5 tw-h-5 tw-text-primary" />
+          <div className={`tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full ${planInfo.iconBg}`}>
+            {planInfo.icon}
           </div>
-          <div>
-            <p className="tw-text-sm tw-font-medium tw-text-foreground">Beta Tester</p>
+          <div className="tw-flex-1">
+            <p className="tw-text-sm tw-font-medium tw-text-foreground">{planInfo.title}</p>
             <p className="tw-text-xs tw-text-muted-foreground">
-              Enjoy full access during the beta period
+              {planInfo.description}
             </p>
           </div>
         </div>
+        {planInfo.showUpgrade && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="tw-w-full"
+            onClick={() => window.open(UPGRADE_URL, '_blank')}
+          >
+            <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
+            Upgrade Now
+          </Button>
+        )}
       </div>
     </div>
   );

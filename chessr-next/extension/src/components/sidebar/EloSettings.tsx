@@ -30,19 +30,10 @@ function TargetEloSection() {
   const targetElo = getTargetElo();
 
   return (
-    <div className="tw-space-y-3">
-      <p className="tw-text-sm tw-font-medium">Target ELO</p>
+    <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <label className="tw-flex tw-items-center tw-gap-2 tw-cursor-pointer">
-          <Checkbox
-            checked={targetEloAuto}
-            onCheckedChange={(checked) => setTargetEloAuto(checked === true)}
-          />
-          <span className="tw-text-xs tw-text-muted-foreground">
-            {targetEloAuto ? `${userElo} + 150` : 'Auto'}
-          </span>
-        </label>
-        <span className="tw-text-xl tw-font-bold tw-text-primary">
+        <p className="tw-text-sm tw-font-medium">Target ELO</p>
+        <span className="tw-text-base tw-font-bold tw-text-primary">
           {targetElo}
         </span>
       </div>
@@ -55,6 +46,15 @@ function TargetEloSection() {
         disabled={targetEloAuto}
         className={targetEloAuto ? 'tw-opacity-50' : ''}
       />
+      <label className="tw-flex tw-items-center tw-gap-2 tw-cursor-pointer">
+        <Checkbox
+          checked={targetEloAuto}
+          onCheckedChange={(checked) => setTargetEloAuto(checked === true)}
+        />
+        <span className="tw-text-xs tw-text-muted-foreground">
+          Auto ({userElo} + 150)
+        </span>
+      </label>
     </div>
   );
 }
@@ -66,26 +66,26 @@ function RiskSection() {
   const { riskTaking, setRiskTaking } = useEngineStore();
 
   return (
-    <div className="tw-space-y-3">
-      <div>
-        <p className="tw-text-sm tw-font-medium">Risk Taking</p>
-        <p className="tw-text-xs tw-text-muted-foreground">
-          How much risk to accept for winning chances
-        </p>
-      </div>
+    <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <span className="tw-text-xs tw-text-muted-foreground">{riskTaking}%</span>
-        <span className="tw-text-xl tw-font-bold tw-text-primary">
-          {getRiskLabel(riskTaking)}
-        </span>
+        <p className="tw-text-sm tw-font-medium">Risk Taking</p>
+        <div className="tw-flex tw-items-center tw-gap-2">
+          <span className="tw-text-xs tw-text-muted-foreground">{riskTaking}%</span>
+          <span className="tw-text-base tw-font-bold tw-text-primary">
+            {getRiskLabel(riskTaking)}
+          </span>
+        </div>
       </div>
       <Slider
         value={[riskTaking]}
         onValueChange={([value]) => setRiskTaking(value)}
         min={0}
         max={100}
-        step={5}
+        step={1}
       />
+      <p className="tw-text-xs tw-text-muted-foreground">
+        Too low plays passively, too high makes errors
+      </p>
     </div>
   );
 }
@@ -97,18 +97,15 @@ function SkillSection() {
   const { skill, setSkill } = useEngineStore();
 
   return (
-    <div className="tw-space-y-3">
-      <div>
-        <p className="tw-text-sm tw-font-medium">Skill Level</p>
-        <p className="tw-text-xs tw-text-muted-foreground">
-          Komodo engine skill (1-25)
-        </p>
-      </div>
+    <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <span className="tw-text-xs tw-text-muted-foreground">{skill}</span>
-        <span className="tw-text-xl tw-font-bold tw-text-primary">
-          {getSkillLabel(skill)}
-        </span>
+        <p className="tw-text-sm tw-font-medium">Skill Level</p>
+        <div className="tw-flex tw-items-center tw-gap-2">
+          <span className="tw-text-xs tw-text-muted-foreground">{skill}</span>
+          <span className="tw-text-base tw-font-bold tw-text-primary">
+            {getSkillLabel(skill)}
+          </span>
+        </div>
       </div>
       <Slider
         value={[skill]}
@@ -117,6 +114,9 @@ function SkillSection() {
         max={25}
         step={1}
       />
+      <p className="tw-text-xs tw-text-muted-foreground">
+        Engine playing strength level
+      </p>
     </div>
   );
 }
