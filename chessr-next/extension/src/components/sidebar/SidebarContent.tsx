@@ -7,6 +7,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
+import { MoveListDisplay } from './MoveListDisplay';
 import { EloSettings } from './EloSettings';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
@@ -139,6 +140,7 @@ function AuthenticatedContent() {
               </TabsList>
               <TabsContent value="game">
                 <GameStatsCard />
+                <MoveListDisplay />
               </TabsContent>
               <TabsContent value="engine">
                 <EloSettings />
