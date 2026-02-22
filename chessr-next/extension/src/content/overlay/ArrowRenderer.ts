@@ -238,17 +238,18 @@ export class ArrowRenderer {
     const popupGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     popupGroup.setAttribute('class', 'badge-popup');
     popupGroup.style.display = 'none';
+    popupGroup.style.pointerEvents = 'auto';
 
     const squareSize = this.overlay.getSquareSize();
     const squarePadding = Math.max(2, Math.round(4 * scale));
     const spacing = Math.max(1, Math.round(1 * scale));
-    const squareRight = toPos.x + squareSize / 2;
+    const squareLeft = toPos.x - squareSize / 2;
     let popupY = position.y;
 
     for (const badgeText of badges) {
       const colors = this.getBadgeColor(badgeText);
-      const popupBadge = this.drawBadgeElement(
-        { x: squareRight - squarePadding, y: popupY },
+      const popupBadge = this.drawBadgeElementLeft(
+        { x: squareLeft + squarePadding, y: popupY },
         badgeText,
         colors.bg,
         colors.text,
@@ -278,9 +279,9 @@ export class ArrowRenderer {
   }
 
   /**
-   * Draw a badge element (helper for popup)
+   * Draw a badge element aligned to left (for hover popup)
    */
-  private drawBadgeElement(
+  private drawBadgeElementLeft(
     position: { x: number; y: number },
     text: string,
     badgeColor: string,
@@ -308,7 +309,8 @@ export class ArrowRenderer {
     layer.removeChild(textElement);
 
     const rectHeight = bbox.height + padding * 2;
-    const rectX = position.x - bbox.width - padding * 2;
+    // Position from left edge
+    const rectX = position.x;
 
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', rectX.toString());
