@@ -31,6 +31,8 @@ export interface MoveAnalysis {
   weightedImpact: number;
   phase: GamePhase;
   bestMove: string;
+  evalAfter: number;      // Position eval after move (in pawns, white POV)
+  mateInAfter?: number;   // Mate in X (positive = white mates, negative = black)
 }
 
 interface AccuracyState {

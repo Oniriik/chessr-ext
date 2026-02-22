@@ -17,6 +17,7 @@ export interface Suggestion {
   mateScore?: number;
   confidence: number;
   confidenceLabel: ConfidenceLabel;
+  pv?: string[];  // Principal variation (UCI moves)
 }
 
 interface SuggestionState {
