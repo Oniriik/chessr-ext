@@ -27,6 +27,7 @@ interface SquareBadgeInfo {
   badges: Map<number, string[]>; // rank -> badges
   color: Map<number, string>; // rank -> color
   currentY: number;
+  openingBadgeHeight?: number; // Height reserved for opening badge at top
 }
 
 export class ArrowRenderer {
@@ -133,8 +134,8 @@ export class ArrowRenderer {
     const info = this.squareBadges.get(toSquare);
     if (!info) return;
 
-    // Remove existing badges for this square
-    const existingBadges = layer.querySelectorAll(`[data-square="${toSquare}"]`);
+    // Remove existing badges for this square (but NOT opening badges)
+    const existingBadges = layer.querySelectorAll(`[data-square="${toSquare}"]:not(.opening-badge)`);
     existingBadges.forEach(el => el.remove());
 
     const squareSize = this.overlay.getSquareSize();
@@ -147,6 +148,9 @@ export class ArrowRenderer {
 
     const isConflict = info.ranks.length > 1;
 
+    // Offset for opening badge if present (applies to both single and conflict cases)
+    const openingOffset = info.openingBadgeHeight || 0;
+
     if (!isConflict) {
       // Single arrow - just draw badges on right
       const rank = info.ranks[0];
@@ -157,7 +161,7 @@ export class ArrowRenderer {
       // Append to layer first so getBBox() works correctly
       layer.appendChild(badgesGroup);
 
-      let currentY = squareTop + squarePadding;
+      let currentY = squareTop + squarePadding + openingOffset;
       for (const badgeText of badges) {
         const colors = this.getBadgeColor(badgeText);
         const badgeGroup = this.drawBadge(
@@ -197,13 +201,16 @@ export class ArrowRenderer {
     let currentY = squareTop + squarePadding;
     const rankElements: Map<number, { rect: SVGRectElement; text: SVGTextElement; y: number }> = new Map();
 
-    // Sort ranks to display in order #1, #2, #3
+    // Sort ranks to display in order #1, #2, #3 (opening badge is drawn separately)
     const sortedRanks = [...info.ranks].sort((a, b) => a - b);
 
     // Determine which rank is active (hovered/selected if it targets this square, otherwise first)
     const activeIndex = this.getActiveIndex();
     const activeRankFromIndex = activeIndex + 1;
     const activeRank = info.ranks.includes(activeRankFromIndex) ? activeRankFromIndex : sortedRanks[0];
+
+    // Apply opening offset (already declared above)
+    currentY += openingOffset;
 
     // Draw rank badges for each move
     for (const rank of sortedRanks) {
@@ -819,6 +826,172 @@ export class ArrowRenderer {
 
     layer.appendChild(path);
     return path;
+  }
+
+  /**
+   * Draw an opening book arrow (uses same badge system as engine arrows)
+   * Opening arrow uses rank 0 and takes priority in conflicts
+   */
+  drawOpeningArrow(options: {
+    from: string;
+    to: string;
+    color: string;
+    winRate: number;
+    label?: string; // Optional label to display instead of winrate (e.g., "Opening")
+  }): SVGElement | null {
+    const { from, to, color, label } = options;
+
+    const layer = this.overlay.getArrowsLayer();
+    if (!layer) return null;
+
+    const fromPos = this.overlay.getSquareCenter(from);
+    const toPos = this.overlay.getSquareCenter(to);
+
+    // Scale thickness based on square size (same as engine arrows)
+    const squareSize = this.overlay.getSquareSize();
+    const scale = squareSize / 100;
+    const thickness = Math.max(5, Math.round(10 * scale)); // Same size as engine arrows
+    const opacity = 0.85; // Same opacity as engine arrows
+    const shortenAmount = thickness + Math.max(3, Math.round(5 * scale));
+
+    // Create unique marker for this color
+    const markerId = `opening-arrow-marker-${color.replace('#', '').replace(/[^a-zA-Z0-9]/g, '')}`;
+    this.ensureMarker(markerId, color);
+
+    let arrow: SVGElement;
+
+    // Check if this is a knight move - use L-shaped arrow
+    if (this.isKnightMove(from, to)) {
+      arrow = this.drawLShapedArrow(fromPos, toPos, color, thickness, opacity, markerId, layer, shortenAmount);
+      arrow.setAttribute('class', 'opening-arrow');
+    } else {
+      // Straight arrow for non-knight moves
+      const dx = toPos.x - fromPos.x;
+      const dy = toPos.y - fromPos.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      const ratio = (length - shortenAmount) / length;
+
+      const endX = fromPos.x + dx * ratio;
+      const endY = fromPos.y + dy * ratio;
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', fromPos.x.toString());
+      line.setAttribute('y1', fromPos.y.toString());
+      line.setAttribute('x2', endX.toString());
+      line.setAttribute('y2', endY.toString());
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', thickness.toString());
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('opacity', opacity.toString());
+      line.setAttribute('marker-end', `url(#${markerId})`);
+      line.setAttribute('class', 'opening-arrow');
+
+      layer.appendChild(line);
+      arrow = line;
+    }
+
+    // Use rank 0 for opening arrows (displays before #1, #2, #3)
+    // Badge displays "Opening" label instead of rank number
+    const badges = [label || 'Opening'];
+    this.drawOpeningBadges(to, toPos, badges, color);
+
+    return arrow;
+  }
+
+  /**
+   * Draw opening badge at position 0 (top of the stack)
+   * Just draws a simple violet badge, no complex conflict handling
+   */
+  private drawOpeningBadges(
+    toSquare: string,
+    toPos: { x: number; y: number },
+    badges: string[],
+    arrowColor: string
+  ): void {
+    const layer = this.overlay.getArrowsLayer();
+    if (!layer || badges.length === 0) return;
+
+    const squareSize = this.overlay.getSquareSize();
+    const scale = squareSize / 100;
+    const squarePadding = Math.max(2, Math.round(4 * scale));
+    const squareTop = toPos.y - squareSize / 2;
+    const squareRight = toPos.x + squareSize / 2;
+    const spacing = Math.max(1, Math.round(1 * scale));
+
+    const fontSize = Math.max(8, Math.round(11 * scale));
+    const padding = Math.max(2, Math.round(3 * scale));
+    const borderRadius = Math.max(2, Math.round(3 * scale));
+
+    // Create opening badge group
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.setAttribute('class', 'opening-badge');
+    group.setAttribute('data-square', toSquare);
+
+    // Badge text
+    const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    textElement.setAttribute('dominant-baseline', 'central');
+    textElement.setAttribute('font-size', fontSize.toString());
+    textElement.setAttribute('font-weight', 'bold');
+    textElement.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+    textElement.setAttribute('fill', 'white');
+    textElement.textContent = badges[0];
+
+    // Measure text
+    layer.appendChild(textElement);
+    const bbox = textElement.getBBox();
+    layer.removeChild(textElement);
+
+    const rectHeight = bbox.height + padding * 2;
+    const rectX = squareRight - squarePadding - bbox.width - padding * 2;
+    const rectY = squareTop + squarePadding;
+
+    // Background rect
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', rectX.toString());
+    rect.setAttribute('y', rectY.toString());
+    rect.setAttribute('width', (bbox.width + padding * 2).toString());
+    rect.setAttribute('height', rectHeight.toString());
+    rect.setAttribute('rx', borderRadius.toString());
+    rect.setAttribute('ry', borderRadius.toString());
+    rect.setAttribute('fill', arrowColor);
+
+    // Position text
+    textElement.setAttribute('text-anchor', 'start');
+    textElement.setAttribute('x', (rectX + padding).toString());
+    textElement.setAttribute('y', (rectY + rectHeight / 2).toString());
+
+    group.appendChild(rect);
+    group.appendChild(textElement);
+    layer.appendChild(group);
+
+    // Record height for engine badges to offset
+    let info = this.squareBadges.get(toSquare);
+    if (!info) {
+      info = {
+        ranks: [],
+        badges: new Map(),
+        color: new Map(),
+        currentY: squareTop + squarePadding,
+      };
+      this.squareBadges.set(toSquare, info);
+    }
+    info.openingBadgeHeight = rectHeight + spacing;
+  }
+
+  /**
+   * Clear only opening arrows (not engine arrows)
+   */
+  clearOpeningArrows(): void {
+    const layer = this.overlay.getArrowsLayer();
+    if (!layer) return;
+
+    // Remove opening arrows
+    const openingArrows = layer.querySelectorAll('.opening-arrow');
+    openingArrows.forEach((el) => el.remove());
+
+    // Remove opening badges
+    const openingBadges = layer.querySelectorAll('.opening-badge');
+    openingBadges.forEach((el) => el.remove());
   }
 
   /**

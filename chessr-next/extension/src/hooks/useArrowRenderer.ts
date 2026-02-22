@@ -8,6 +8,8 @@ import { Chess } from 'chess.js';
 import { useGameStore } from '../stores/gameStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSuggestionStore, type Suggestion, type ConfidenceLabel } from '../stores/suggestionStore';
+import { useOpeningStore } from '../stores/openingStore';
+import { useOpeningTracker } from './useOpeningTracker';
 import { OverlayManager } from '../content/overlay/OverlayManager';
 import { ArrowRenderer } from '../content/overlay/ArrowRenderer';
 import { logger } from '../lib/logger';
@@ -119,7 +121,7 @@ function isBoardFlipped(): boolean {
 export function useArrowRenderer() {
   const { isGameStarted, playerColor, currentTurn, chessInstance } =
     useGameStore();
-  const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex } = useSuggestionStore();
+  const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex, showingOpeningMoves } = useSuggestionStore();
   const {
     numberOfSuggestions,
     useSameColorForAllArrows,
@@ -129,6 +131,8 @@ export function useArrowRenderer() {
     thirdArrowColor,
     showDetailedMoveSuggestion,
   } = useSettingsStore();
+  const { showOpeningArrows, openingArrowColor } = useOpeningStore();
+  const openingTracker = useOpeningTracker();
 
   const overlayRef = useRef<OverlayManager | null>(null);
   const rendererRef = useRef<ArrowRenderer | null>(null);
@@ -185,6 +189,7 @@ export function useArrowRenderer() {
 
     // Clear previous arrows
     renderer.clear();
+    renderer.clearOpeningArrows();
 
     // Only show arrows on player's turn
     const isPlayerTurn = playerColor === currentTurn;
@@ -198,6 +203,74 @@ export function useArrowRenderer() {
     if (!currentFen || suggestedFen !== currentFen) {
       logger.log('Suggestions are stale, waiting for new ones');
       return;
+    }
+
+    // Helper function to draw PV-style arrows (used for both engine PV and opening sequence)
+    const drawPvSequence = (moves: { from: string; to: string }[], startingFen: string) => {
+      let isWhiteToMove = startingFen.includes(' w ');
+      for (let i = 0; i < moves.length; i++) {
+        const { from, to } = moves[i];
+        const arrowColor = isWhiteToMove ? 'rgba(255, 255, 255, 0.95)' : 'rgba(40, 40, 40, 0.95)';
+        const textColor = isWhiteToMove ? 'black' : 'white';
+        renderer.drawPvArrow({ from, to, color: arrowColor, textColor, moveNumber: i + 1 });
+        isWhiteToMove = !isWhiteToMove;
+      }
+      renderer.flushPvCircles();
+    };
+
+    // Check if we're showing a PV sequence (engine or opening) - these are mutually exclusive with regular arrows
+    const isShowingEnginePv = showingPvIndex !== null && suggestions[showingPvIndex]?.pv;
+    const isShowingOpeningSequence = showingOpeningMoves && showOpeningArrows && openingTracker.isFollowingOpening && !openingTracker.hasDeviated && openingTracker.openingMoves;
+
+    // If showing any PV sequence, draw it and skip everything else
+    if (isShowingEnginePv || isShowingOpeningSequence) {
+      try {
+        const chess = new Chess(currentFen);
+        const pvMoves: { from: string; to: string }[] = [];
+
+        if (isShowingEnginePv) {
+          // Engine PV - parse UCI moves
+          const uciMoves = suggestions[showingPvIndex!].pv!;
+          for (const uciMove of uciMoves) {
+            const from = uciMove.slice(0, 2);
+            const to = uciMove.slice(2, 4);
+            const promotion = uciMove.length === 5 ? uciMove[4] : undefined;
+            const move = chess.move({ from, to, promotion });
+            if (!move) break;
+            pvMoves.push({ from: move.from, to: move.to });
+          }
+        } else {
+          // Opening sequence - parse SAN moves
+          const remainingMoves = openingTracker.openingMoves!.slice(openingTracker.currentMoveIndex);
+          for (const sanMove of remainingMoves) {
+            const move = chess.move(sanMove);
+            if (!move) break;
+            pvMoves.push({ from: move.from, to: move.to });
+          }
+        }
+
+        if (pvMoves.length > 0) {
+          drawPvSequence(pvMoves, currentFen);
+        }
+      } catch {
+        // Ignore errors in PV drawing
+      }
+      return; // Don't draw regular arrows when showing PV
+    }
+
+    // Draw opening arrow (single arrow for next move)
+    if (showOpeningArrows && openingTracker.isFollowingOpening && !openingTracker.hasDeviated && openingTracker.nextOpeningMoveUci) {
+      const openingParsed = parseUciMove(openingTracker.nextOpeningMoveUci);
+      if (openingParsed) {
+        logger.log(`[opening-arrow] Drawing arrow for ${openingTracker.nextOpeningMove} (${openingParsed.from} → ${openingParsed.to})`);
+        renderer.drawOpeningArrow({
+          from: openingParsed.from,
+          to: openingParsed.to,
+          color: openingArrowColor,
+          winRate: 0,
+          label: 'Opening',
+        });
+      }
     }
 
     // Get arrow colors based on settings
@@ -254,58 +327,16 @@ export function useArrowRenderer() {
     renderer.setSelectedIndex(selectedIndex);
     renderer.setHoveredIndex(hoveredIndex);
 
-    // If showing PV, only draw PV arrows (hide suggestion arrows)
-    if (showingPvIndex !== null && suggestions[showingPvIndex]?.pv && currentFen) {
-      const pvMoves = suggestions[showingPvIndex].pv!;
-      try {
-        const chess = new Chess(currentFen);
-        // Determine if it's white to move at the start
-        let isWhiteToMove = currentFen.includes(' w ');
-
-        for (let i = 0; i < pvMoves.length; i++) {
-          const uciMove = pvMoves[i];
-          const from = uciMove.slice(0, 2);
-          const to = uciMove.slice(2, 4);
-          const promotion = uciMove.length === 5 ? uciMove[4] : undefined;
-
-          // Try to make the move to validate it
-          const move = chess.move({ from, to, promotion });
-          if (!move) break;
-
-          // Draw arrow with white/black color based on who's moving
-          const arrowColor = isWhiteToMove ? 'rgba(255, 255, 255, 0.95)' : 'rgba(40, 40, 40, 0.95)';
-          const textColor = isWhiteToMove ? 'black' : 'white';
-          const moveNumber = i + 1;
-
-          renderer.drawPvArrow({
-            from,
-            to,
-            color: arrowColor,
-            textColor,
-            moveNumber,
-          });
-
-          // Toggle turn
-          isWhiteToMove = !isWhiteToMove;
-        }
-
-        // Draw all circles on top of arrows
-        renderer.flushPvCircles();
-      } catch {
-        // Ignore errors in PV drawing
-      }
-    } else {
-      // Draw regular suggestion arrows
-      for (const arrow of arrowData) {
-        renderer.drawArrow({
-          from: arrow.from,
-          to: arrow.to,
-          color: arrow.color,
-          opacity: arrow.opacity,
-          badges: arrow.badges,
-          rank: arrow.rank,
-        });
-      }
+    // Draw regular suggestion arrows
+    for (const arrow of arrowData) {
+      renderer.drawArrow({
+        from: arrow.from,
+        to: arrow.to,
+        color: arrow.color,
+        opacity: arrow.opacity,
+        badges: arrow.badges,
+        rank: arrow.rank,
+      });
     }
   }, [
     suggestions,
@@ -323,6 +354,15 @@ export function useArrowRenderer() {
     selectedIndex,
     hoveredIndex,
     showingPvIndex,
+    showingOpeningMoves,
+    showOpeningArrows,
+    openingArrowColor,
+    openingTracker.isFollowingOpening,
+    openingTracker.nextOpeningMoveUci,
+    openingTracker.hasDeviated,
+    openingTracker.nextOpeningMove,
+    openingTracker.openingMoves,
+    openingTracker.currentMoveIndex,
   ]);
 
   // Update overlay when player color changes (board flip)
