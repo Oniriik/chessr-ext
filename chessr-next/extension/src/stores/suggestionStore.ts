@@ -44,6 +44,12 @@ interface SuggestionState {
   // Selected suggestion index (0-based, for sidebar selection)
   selectedIndex: number;
 
+  // Hovered suggestion index (0-based, null when not hovering)
+  hoveredIndex: number | null;
+
+  // Index of suggestion whose PV is being shown on board (null = none)
+  showingPvIndex: number | null;
+
   // Actions
   requestSuggestions: (
     fen: string,
@@ -62,6 +68,9 @@ interface SuggestionState {
   receiveError: (requestId: string, error: string) => void;
   clearSuggestions: () => void;
   setSelectedIndex: (index: number) => void;
+  setHoveredIndex: (index: number | null) => void;
+  toggleShowingPv: (index: number) => void;
+  setShowingPvIndex: (index: number | null) => void;
 
   // Validation
   isValidResponse: (requestId: string) => boolean;
@@ -84,6 +93,8 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   error: null,
   suggestedFen: null,
   selectedIndex: 0,
+  hoveredIndex: null,
+  showingPvIndex: null,
 
   /**
    * Request new suggestions - returns the requestId
@@ -128,6 +139,8 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       isLoading: false,
       error: null,
       selectedIndex: 0, // Reset to first suggestion
+      hoveredIndex: null,
+      showingPvIndex: null,
     });
   },
 
@@ -164,6 +177,8 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       error: null,
       suggestedFen: null,
       selectedIndex: 0,
+      hoveredIndex: null,
+      showingPvIndex: null,
     });
   },
 
@@ -172,6 +187,28 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
    */
   setSelectedIndex: (index) => {
     set({ selectedIndex: index });
+  },
+
+  /**
+   * Set the hovered suggestion index
+   */
+  setHoveredIndex: (index) => {
+    set({ hoveredIndex: index });
+  },
+
+  /**
+   * Toggle showing PV for a suggestion
+   */
+  toggleShowingPv: (index) => {
+    const { showingPvIndex } = get();
+    set({ showingPvIndex: showingPvIndex === index ? null : index });
+  },
+
+  /**
+   * Set the showing PV index directly (for hover preview)
+   */
+  setShowingPvIndex: (index) => {
+    set({ showingPvIndex: index });
   },
 
   /**
@@ -201,3 +238,13 @@ export const useSelectedSuggestionIndex = () =>
   useSuggestionStore((state) => state.selectedIndex);
 export const useSetSelectedSuggestionIndex = () =>
   useSuggestionStore((state) => state.setSelectedIndex);
+export const useHoveredSuggestionIndex = () =>
+  useSuggestionStore((state) => state.hoveredIndex);
+export const useSetHoveredSuggestionIndex = () =>
+  useSuggestionStore((state) => state.setHoveredIndex);
+export const useShowingPvIndex = () =>
+  useSuggestionStore((state) => state.showingPvIndex);
+export const useToggleShowingPv = () =>
+  useSuggestionStore((state) => state.toggleShowingPv);
+export const useSetShowingPvIndex = () =>
+  useSuggestionStore((state) => state.setShowingPvIndex);
