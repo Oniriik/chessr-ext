@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Chess } from 'chess.js';
-import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
+import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
 import { useGameStore } from '../../stores/gameStore';
 import { Loader2 } from 'lucide-react';
 
@@ -227,7 +227,8 @@ export function MoveListDisplay() {
   const suggestions = useSuggestions();
   const suggestedFen = useSuggestedFen();
   const isLoading = useIsSuggestionLoading();
-  const [selectedIndex, setSelectedIndex] = useState<number>(0);
+  const selectedIndex = useSelectedSuggestionIndex();
+  const setSelectedIndex = useSetSelectedSuggestionIndex();
 
   // Compute flags for all suggestions
   const suggestionsWithFlags = useMemo(() => {

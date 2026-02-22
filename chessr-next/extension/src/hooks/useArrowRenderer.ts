@@ -119,7 +119,7 @@ function isBoardFlipped(): boolean {
 export function useArrowRenderer() {
   const { isGameStarted, playerColor, currentTurn, chessInstance } =
     useGameStore();
-  const { suggestions, suggestedFen } = useSuggestionStore();
+  const { suggestions, suggestedFen, selectedIndex } = useSuggestionStore();
   const {
     numberOfSuggestions,
     useSameColorForAllArrows,
@@ -250,6 +250,9 @@ export function useArrowRenderer() {
     // Sort by length descending (longest first, so shortest appears on top)
     arrowData.sort((a, b) => b.length - a.length);
 
+    // Set the selected index for conflict handling
+    renderer.setSelectedIndex(selectedIndex);
+
     // Draw arrows in sorted order
     for (const arrow of arrowData) {
       renderer.drawArrow({
@@ -274,6 +277,7 @@ export function useArrowRenderer() {
     showDetailedMoveSuggestion,
     playerColor,
     currentTurn,
+    selectedIndex,
   ]);
 
   // Update overlay when player color changes (board flip)

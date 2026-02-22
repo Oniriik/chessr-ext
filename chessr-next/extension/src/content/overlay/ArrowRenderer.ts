@@ -24,9 +24,17 @@ interface SquareBadgeInfo {
 export class ArrowRenderer {
   private overlay: OverlayManager;
   private squareBadges: Map<string, SquareBadgeInfo> = new Map();
+  private selectedIndex: number = 0; // 0-based index of selected suggestion
 
   constructor(overlay: OverlayManager) {
     this.overlay = overlay;
+  }
+
+  /**
+   * Set the selected suggestion index (from sidebar)
+   */
+  setSelectedIndex(index: number): void {
+    this.selectedIndex = index;
   }
 
   /**
@@ -133,6 +141,7 @@ export class ArrowRenderer {
 
   /**
    * Redraw badges for a square with rank indicators (conflict mode)
+   * Shows all rank badges with active/disabled states based on selection
    */
   private redrawSquareBadges(toSquare: string, toPos: { x: number; y: number }): void {
     const layer = this.overlay.getArrowsLayer();
@@ -150,59 +159,121 @@ export class ArrowRenderer {
     const squarePadding = Math.max(2, Math.round(4 * scale));
     const spacing = Math.max(1, Math.round(1 * scale));
     const squareRight = toPos.x + squareSize / 2;
+    const squareLeft = toPos.x - squareSize / 2;
     const squareTop = toPos.y - squareSize / 2;
 
+    // Disabled badge color (gray like sidebar)
+    const disabledColor = 'rgba(75, 85, 99, 0.8)';
+
+    // Container for rank badges (right side)
+    const rankBadgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    rankBadgesGroup.setAttribute('data-square', toSquare);
+    rankBadgesGroup.setAttribute('class', 'rank-badges-container');
+
+    // Container for active badges (left side) - shared across all ranks
+    const activeBadgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    activeBadgesGroup.setAttribute('data-square', toSquare);
+    activeBadgesGroup.setAttribute('class', 'active-badges-container');
+
     let currentY = squareTop + squarePadding;
+    const rankElements: Map<number, { rect: SVGRectElement; text: SVGTextElement; y: number }> = new Map();
 
     // Draw rank badges for each move
     for (const rank of info.ranks) {
-      const color = info.color.get(rank) || 'rgba(107, 114, 128, 0.95)';
-      const badges = info.badges.get(rank) || [];
+      const arrowColor = info.color.get(rank) || 'rgba(107, 114, 128, 0.95)';
+      const isActive = (rank - 1) === this.selectedIndex; // rank is 1-based, selectedIndex is 0-based
+      const badgeColor = isActive ? arrowColor : disabledColor;
 
-      const badgeGroup = this.drawRankBadgeWithHover(
+      const { rect, text, height } = this.createRankBadge(
         { x: squareRight - squarePadding, y: currentY },
         rank,
-        badges,
-        color,
-        scale,
-        toSquare,
-        toPos
+        badgeColor,
+        scale
       );
-      layer.appendChild(badgeGroup);
 
-      const bbox = badgeGroup.getBBox();
-      currentY += bbox.height + spacing;
+      rankBadgesGroup.appendChild(rect);
+      rankBadgesGroup.appendChild(text);
+      rankElements.set(rank, { rect, text, y: currentY });
+
+      currentY += height + spacing;
     }
+
+    // Draw active badges on the left for the selected rank
+    const selectedRank = this.selectedIndex + 1; // Convert to 1-based
+    if (info.ranks.includes(selectedRank)) {
+      this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(selectedRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
+    }
+
+    // Add hover events to make rank badges interactive
+    for (const rank of info.ranks) {
+      const arrowColor = info.color.get(rank) || 'rgba(107, 114, 128, 0.95)';
+      const badges = info.badges.get(rank) || [];
+      const elem = rankElements.get(rank);
+      if (!elem) continue;
+
+      const { rect } = elem;
+
+      // Make clickable area
+      rect.style.cursor = 'pointer';
+      rect.style.pointerEvents = 'auto';
+
+      rect.addEventListener('mouseenter', () => {
+        // Highlight this badge as active
+        rect.setAttribute('fill', arrowColor);
+
+        // Update left badges to show this rank's badges
+        while (activeBadgesGroup.firstChild) {
+          activeBadgesGroup.removeChild(activeBadgesGroup.firstChild);
+        }
+        this.drawActiveBadgesLeft(activeBadgesGroup, badges, squareLeft + squarePadding, squareTop + squarePadding, scale);
+
+        // Dim other rank badges
+        for (const [otherRank, otherElem] of rankElements) {
+          if (otherRank !== rank) {
+            otherElem.rect.setAttribute('fill', disabledColor);
+          }
+        }
+      });
+
+      rect.addEventListener('mouseleave', () => {
+        // Restore based on selectedIndex
+        const selectedRank = this.selectedIndex + 1;
+        for (const [r, e] of rankElements) {
+          const isSelected = r === selectedRank;
+          e.rect.setAttribute('fill', isSelected ? (info.color.get(r) || disabledColor) : disabledColor);
+        }
+
+        // Restore left badges to show selected rank's badges
+        while (activeBadgesGroup.firstChild) {
+          activeBadgesGroup.removeChild(activeBadgesGroup.firstChild);
+        }
+        if (info.ranks.includes(selectedRank)) {
+          this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(selectedRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
+        }
+      });
+    }
+
+    layer.appendChild(rankBadgesGroup);
+    layer.appendChild(activeBadgesGroup);
 
     info.currentY = currentY;
   }
 
   /**
-   * Draw a rank badge with hover behavior to show full badges
+   * Create a rank badge element (#1, #2, etc.)
    */
-  private drawRankBadgeWithHover(
+  private createRankBadge(
     position: { x: number; y: number },
     rank: number,
-    badges: string[],
     color: string,
-    scale: number,
-    toSquare: string,
-    toPos: { x: number; y: number }
-  ): SVGGElement {
-    const layer = this.overlay.getArrowsLayer();
-    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    group.setAttribute('data-square', toSquare);
-    group.setAttribute('data-rank', rank.toString());
-    group.style.cursor = 'pointer';
-    group.style.pointerEvents = 'auto'; // Enable hover on this element even though SVG has pointer-events: none
-
-    if (!layer) return group;
+    scale: number
+  ): { rect: SVGRectElement; text: SVGTextElement; height: number } {
+    const layer = this.overlay.getArrowsLayer()!;
 
     const fontSize = Math.max(8, Math.round(11 * scale));
     const padding = Math.max(2, Math.round(3 * scale));
     const borderRadius = Math.max(2, Math.round(3 * scale));
 
-    // Draw rank number badge
     const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     textElement.setAttribute('dominant-baseline', 'central');
     textElement.setAttribute('font-size', fontSize.toString());
@@ -231,51 +302,38 @@ export class ArrowRenderer {
     textElement.setAttribute('x', (rectX + padding).toString());
     textElement.setAttribute('y', (position.y + rectHeight / 2).toString());
 
-    group.appendChild(rect);
-    group.appendChild(textElement);
+    return { rect, text: textElement, height: rectHeight };
+  }
 
-    // Create hover popup group (hidden by default)
-    const popupGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    popupGroup.setAttribute('class', 'badge-popup');
-    popupGroup.style.display = 'none';
-    popupGroup.style.pointerEvents = 'auto';
+  /**
+   * Draw active badges on the left side of the square
+   */
+  private drawActiveBadgesLeft(
+    container: SVGGElement,
+    badges: string[],
+    startX: number,
+    startY: number,
+    scale: number
+  ): void {
+    const layer = this.overlay.getArrowsLayer();
+    if (!layer) return;
 
-    const squareSize = this.overlay.getSquareSize();
-    const squarePadding = Math.max(2, Math.round(4 * scale));
     const spacing = Math.max(1, Math.round(1 * scale));
-    const squareLeft = toPos.x - squareSize / 2;
-    let popupY = position.y;
+    let currentY = startY;
 
     for (const badgeText of badges) {
       const colors = this.getBadgeColor(badgeText);
-      const popupBadge = this.drawBadgeElementLeft(
-        { x: squareLeft + squarePadding, y: popupY },
+      const badgeGroup = this.drawBadgeElementLeft(
+        { x: startX, y: currentY },
         badgeText,
         colors.bg,
         colors.text,
         scale
       );
-      popupGroup.appendChild(popupBadge);
-      const popupBbox = popupBadge.getBBox();
-      popupY += popupBbox.height + spacing;
+      container.appendChild(badgeGroup);
+      const bbox = badgeGroup.getBBox();
+      currentY += bbox.height + spacing;
     }
-
-    group.appendChild(popupGroup);
-
-    // Add hover events
-    group.addEventListener('mouseenter', () => {
-      rect.style.display = 'none';
-      textElement.style.display = 'none';
-      popupGroup.style.display = 'block';
-    });
-
-    group.addEventListener('mouseleave', () => {
-      rect.style.display = 'block';
-      textElement.style.display = 'block';
-      popupGroup.style.display = 'none';
-    });
-
-    return group;
   }
 
   /**

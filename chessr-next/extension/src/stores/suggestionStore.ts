@@ -41,6 +41,9 @@ interface SuggestionState {
   // The FEN for which we have suggestions
   suggestedFen: string | null;
 
+  // Selected suggestion index (0-based, for sidebar selection)
+  selectedIndex: number;
+
   // Actions
   requestSuggestions: (
     fen: string,
@@ -58,6 +61,7 @@ interface SuggestionState {
   ) => void;
   receiveError: (requestId: string, error: string) => void;
   clearSuggestions: () => void;
+  setSelectedIndex: (index: number) => void;
 
   // Validation
   isValidResponse: (requestId: string) => boolean;
@@ -79,6 +83,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   isLoading: false,
   error: null,
   suggestedFen: null,
+  selectedIndex: 0,
 
   /**
    * Request new suggestions - returns the requestId
@@ -122,6 +127,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       suggestedFen: fen,
       isLoading: false,
       error: null,
+      selectedIndex: 0, // Reset to first suggestion
     });
   },
 
@@ -157,7 +163,15 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       isLoading: false,
       error: null,
       suggestedFen: null,
+      selectedIndex: 0,
     });
+  },
+
+  /**
+   * Set the selected suggestion index
+   */
+  setSelectedIndex: (index) => {
+    set({ selectedIndex: index });
   },
 
   /**
@@ -183,3 +197,7 @@ export const useSuggestionError = () =>
   useSuggestionStore((state) => state.error);
 export const useSuggestedFen = () =>
   useSuggestionStore((state) => state.suggestedFen);
+export const useSelectedSuggestionIndex = () =>
+  useSuggestionStore((state) => state.selectedIndex);
+export const useSetSelectedSuggestionIndex = () =>
+  useSuggestionStore((state) => state.setSelectedIndex);
