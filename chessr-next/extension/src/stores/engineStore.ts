@@ -78,6 +78,27 @@ export function getRiskLabel(value: number): string {
   return RISK_LEVELS[0].label;
 }
 
+// Skill levels (Komodo Skill 1-25)
+export const SKILL_LEVELS = [
+  { threshold: 1, label: 'Casual' },
+  { threshold: 6, label: 'Solid' },
+  { threshold: 11, label: 'Sharp' },
+  { threshold: 16, label: 'Precise' },
+  { threshold: 21, label: 'Ruthless' },
+] as const;
+
+export function getSkillLabel(value: number): string {
+  for (let i = SKILL_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= SKILL_LEVELS[i].threshold) {
+      return SKILL_LEVELS[i].label;
+    }
+  }
+  return SKILL_LEVELS[0].label;
+}
+
+// Armageddon mode
+export type ArmageddonMode = 'off' | 'white' | 'black';
+
 interface EngineState {
   // Detected user ELO
   userElo: number;
@@ -91,8 +112,17 @@ interface EngineState {
   // Risk taking (0-100)
   riskTaking: number;
 
+  // Skill level (1-25)
+  skill: number;
+
   // Personality
   personality: Personality;
+
+  // Armageddon mode
+  armageddon: ArmageddonMode;
+
+  // Disable limit strength (unlock full power at 3500 ELO)
+  disableLimitStrength: boolean;
 
   // Computed getter
   getTargetElo: () => number;
@@ -102,7 +132,10 @@ interface EngineState {
   setTargetEloAuto: (auto: boolean) => void;
   setTargetEloManual: (elo: number) => void;
   setRiskTaking: (value: number) => void;
+  setSkill: (value: number) => void;
   setPersonality: (personality: Personality) => void;
+  setArmageddon: (mode: ArmageddonMode) => void;
+  setDisableLimitStrength: (value: boolean) => void;
 
   // Auto-detect from DOM
   detectFromDOM: () => void;
@@ -116,7 +149,10 @@ export const useEngineStore = create<EngineState>()(
       targetEloAuto: true,
       targetEloManual: 1650,
       riskTaking: 0,
+      skill: 10,
       personality: 'Default',
+      armageddon: 'off',
+      disableLimitStrength: false,
 
       // Target ELO: auto = userElo + 150, manual = slider value
       getTargetElo: () => {
@@ -129,7 +165,10 @@ export const useEngineStore = create<EngineState>()(
       setTargetEloAuto: (auto) => set({ targetEloAuto: auto }),
       setTargetEloManual: (elo) => set({ targetEloManual: elo }),
       setRiskTaking: (value: number) => set({ riskTaking: value }),
+      setSkill: (value: number) => set({ skill: value }),
       setPersonality: (personality) => set({ personality }),
+      setArmageddon: (mode) => set({ armageddon: mode }),
+      setDisableLimitStrength: (value) => set({ disableLimitStrength: value }),
 
       // Detect ratings from Chess.com DOM
       detectFromDOM: () => {
@@ -146,7 +185,10 @@ export const useEngineStore = create<EngineState>()(
         targetEloAuto: state.targetEloAuto,
         targetEloManual: state.targetEloManual,
         riskTaking: state.riskTaking,
+        skill: state.skill,
         personality: state.personality,
+        armageddon: state.armageddon,
+        disableLimitStrength: state.disableLimitStrength,
       }),
     }
   )

@@ -6,17 +6,21 @@
 import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import type { Plan } from '../components/ui/plan-badge';
 
 interface AuthState {
   // User state
   user: User | null;
   session: Session | null;
+  plan: Plan;
+  planExpiry: Date | null;
   initializing: boolean; // true only during initial auth check
   loading: boolean; // true during actions (login, signup, etc.)
   error: string | null;
 
   // Actions
   initialize: () => Promise<void>;
+  fetchPlan: (userId: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
@@ -26,9 +30,11 @@ interface AuthState {
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   session: null,
+  plan: 'free',
+  planExpiry: null,
   initializing: true,
   loading: false,
   error: null,
@@ -80,11 +86,41 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         session,
         user: session?.user ?? null,
-        initializing: false,
       });
+
+      // Fetch plan status if user is logged in, then set initializing to false
+      if (session?.user) {
+        await get().fetchPlan(session.user.id);
+      }
+
+      set({ initializing: false });
 
     } catch {
       set({ initializing: false, error: 'Failed to initialize auth' });
+    }
+  },
+
+  fetchPlan: async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_settings')
+        .select('plan, plan_expiry')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        console.error('[Auth] fetchPlan error:', error);
+        set({ plan: 'free', planExpiry: null });
+        return;
+      }
+
+      set({
+        plan: data?.plan ?? 'free',
+        planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null,
+      });
+    } catch (e) {
+      console.error('[Auth] fetchPlan error:', e);
+      set({ plan: 'free', planExpiry: null });
     }
   },
 
@@ -130,6 +166,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         loading: false,
       });
 
+      // Fetch plan status
+      get().fetchPlan(data.user.id);
+
       return { success: true };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Sign in failed';
@@ -146,6 +185,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({
         user: null,
         session: null,
+        plan: 'free',
+        planExpiry: null,
         loading: false,
       });
     } catch (error: unknown) {

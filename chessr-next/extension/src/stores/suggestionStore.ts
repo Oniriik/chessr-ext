@@ -82,7 +82,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   /**
    * Request new suggestions - returns the requestId
    */
-  requestSuggestions: (fen, targetElo, personality, multiPv) => {
+  requestSuggestions: (_fen, _targetElo, _personality, _multiPv) => {
     const requestId = generateRequestId();
 
     logger.log(`Requesting suggestions, id=${requestId}`);

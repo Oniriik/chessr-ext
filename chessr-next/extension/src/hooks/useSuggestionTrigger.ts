@@ -22,7 +22,7 @@ const DEBOUNCE_MS = 300;
 export function useSuggestionTrigger() {
   const { isGameStarted, playerColor, currentTurn, chessInstance, getUciMoves } =
     useGameStore();
-  const { getTargetElo, personality, riskTaking, targetEloAuto, targetEloManual, userElo } = useEngineStore();
+  const { getTargetElo, personality, riskTaking, skill, armageddon, disableLimitStrength, targetEloAuto, targetEloManual, userElo } = useEngineStore();
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected, send } = useWebSocketStore();
@@ -78,6 +78,9 @@ export function useSuggestionTrigger() {
         personality,
         multiPv: numberOfSuggestions,
         contempt: riskTaking,
+        skill,
+        armageddon,
+        limitStrength: !disableLimitStrength,
       });
     };
 
@@ -104,6 +107,9 @@ export function useSuggestionTrigger() {
     getUciMoves,
     personality,
     riskTaking,
+    skill,
+    armageddon,
+    disableLimitStrength,
     targetEloAuto,
     targetEloManual,
     userElo,

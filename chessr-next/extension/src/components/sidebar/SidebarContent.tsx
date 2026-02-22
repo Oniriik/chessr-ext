@@ -7,7 +7,6 @@ import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
 import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
 import { EloSettings } from './EloSettings';
-import { PersonalitySelect } from './PersonalitySelect';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
 import { useGameDetection } from '../../hooks/useGameDetection';
@@ -23,8 +22,7 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
  * ✓ PlanBadge             → Plan status badge (lifetime/beta/premium/freetrial/free)
  *                           Responsive: compact mode (icon + tooltip) when < 350px
  * ✓ GameStatusCard        → Game detection status display
- * ✓ EloSettings           → ELO configuration sliders
- * ✓ PersonalitySelect     → Engine personality selector (native select)
+ * ✓ EloSettings           → Target ELO, Risk, Skill, Personality, Armageddon, Unlock ELO
  * ✓ Tooltip               → CSS-based tooltip (no portals, avoids DOM shifts)
  * ✓ useContainerWidth     → ResizeObserver hook for responsive behavior
  *
@@ -49,7 +47,7 @@ function SidebarHeader({
   showSettings: boolean;
   onSettingsToggle: () => void;
 }) {
-  const { signOut } = useAuthStore();
+  const { signOut, plan, planExpiry } = useAuthStore();
   const { toggle } = useSidebar();
 
   return (
@@ -85,7 +83,7 @@ function SidebarHeader({
             >
               <Settings className="tw-h-4 tw-w-4" />
             </Button>
-            <PlanBadge plan="beta" compact={compactBadge} />
+            <PlanBadge plan={plan} expiry={planExpiry} compact={compactBadge} />
           </>
         )}
       </div>
@@ -135,7 +133,6 @@ function AuthenticatedContent() {
             <GameStatusCard />
             <GameStatsCard />
             <EloSettings />
-            <PersonalitySelect />
           </>
         )}
       </Card>
