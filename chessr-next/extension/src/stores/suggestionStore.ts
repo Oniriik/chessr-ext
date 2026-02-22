@@ -50,6 +50,9 @@ interface SuggestionState {
   // Index of suggestion whose PV is being shown on board (null = none)
   showingPvIndex: number | null;
 
+  // Whether opening moves are being shown on board
+  showingOpeningMoves: boolean;
+
   // Actions
   requestSuggestions: (
     fen: string,
@@ -71,6 +74,8 @@ interface SuggestionState {
   setHoveredIndex: (index: number | null) => void;
   toggleShowingPv: (index: number) => void;
   setShowingPvIndex: (index: number | null) => void;
+  toggleShowingOpeningMoves: () => void;
+  setShowingOpeningMoves: (showing: boolean) => void;
 
   // Validation
   isValidResponse: (requestId: string) => boolean;
@@ -95,6 +100,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   selectedIndex: 0,
   hoveredIndex: null,
   showingPvIndex: null,
+  showingOpeningMoves: false,
 
   /**
    * Request new suggestions - returns the requestId
@@ -179,6 +185,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       selectedIndex: 0,
       hoveredIndex: null,
       showingPvIndex: null,
+      showingOpeningMoves: false,
     });
   },
 
@@ -209,6 +216,21 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
    */
   setShowingPvIndex: (index) => {
     set({ showingPvIndex: index });
+  },
+
+  /**
+   * Toggle showing opening moves on board
+   */
+  toggleShowingOpeningMoves: () => {
+    const { showingOpeningMoves } = get();
+    set({ showingOpeningMoves: !showingOpeningMoves });
+  },
+
+  /**
+   * Set showing opening moves directly
+   */
+  setShowingOpeningMoves: (showing) => {
+    set({ showingOpeningMoves: showing });
   },
 
   /**
@@ -248,3 +270,9 @@ export const useToggleShowingPv = () =>
   useSuggestionStore((state) => state.toggleShowingPv);
 export const useSetShowingPvIndex = () =>
   useSuggestionStore((state) => state.setShowingPvIndex);
+export const useShowingOpeningMoves = () =>
+  useSuggestionStore((state) => state.showingOpeningMoves);
+export const useToggleShowingOpeningMoves = () =>
+  useSuggestionStore((state) => state.toggleShowingOpeningMoves);
+export const useSetShowingOpeningMoves = () =>
+  useSuggestionStore((state) => state.setShowingOpeningMoves);
