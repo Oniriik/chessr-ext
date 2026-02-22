@@ -76,10 +76,8 @@ export class ArrowRenderer {
     const squarePadding = Math.max(2, Math.round(4 * scale));
     const squareTop = toPos.y - squareSize / 2;
 
-    // Check if this square already has badges
+    // Get or create badge info for this square
     let info = this.squareBadges.get(toSquare);
-    const isConflict = info !== undefined;
-
     if (!info) {
       info = {
         ranks: [],
@@ -94,54 +92,14 @@ export class ArrowRenderer {
     info.badges.set(rank, badges);
     info.color.set(rank, arrowColor);
 
-    if (isConflict) {
-      // Multiple moves to same square - redraw with rank indicators
-      this.redrawSquareBadges(toSquare, toPos);
-    } else {
-      // First move to this square - draw full badges
-      this.drawFullBadges(toSquare, toPos, badges, info);
-    }
+    // Always redraw badges for this square (handles both single and multiple arrows)
+    this.redrawSquareBadges(toSquare, toPos);
   }
 
   /**
-   * Draw full badges for a square (when no conflict)
-   */
-  private drawFullBadges(
-    toSquare: string,
-    toPos: { x: number; y: number },
-    badges: string[],
-    info: SquareBadgeInfo
-  ): void {
-    const layer = this.overlay.getArrowsLayer();
-    if (!layer) return;
-
-    const squareSize = this.overlay.getSquareSize();
-    const scale = squareSize / 100;
-    const squarePadding = Math.max(2, Math.round(4 * scale));
-    const spacing = Math.max(1, Math.round(1 * scale));
-    const squareRight = toPos.x + squareSize / 2;
-
-    for (const badgeText of badges) {
-      const colors = this.getBadgeColor(badgeText);
-      const badgeGroup = this.drawBadge(
-        { x: squareRight - squarePadding, y: info.currentY },
-        badgeText,
-        colors.bg,
-        colors.text,
-        scale
-      );
-      // Add data-square attribute so we can remove them on conflict
-      badgeGroup.setAttribute('data-square', toSquare);
-      layer.appendChild(badgeGroup);
-
-      const bbox = badgeGroup.getBBox();
-      info.currentY += bbox.height + spacing;
-    }
-  }
-
-  /**
-   * Redraw badges for a square with rank indicators (conflict mode)
-   * Shows all rank badges with active/disabled states based on selection
+   * Redraw badges for a square
+   * For single arrow: show badges on right
+   * For multiple arrows (conflict): show rank badges on right, active badges on left
    */
   private redrawSquareBadges(toSquare: string, toPos: { x: number; y: number }): void {
     const layer = this.overlay.getArrowsLayer();
@@ -162,6 +120,36 @@ export class ArrowRenderer {
     const squareLeft = toPos.x - squareSize / 2;
     const squareTop = toPos.y - squareSize / 2;
 
+    const isConflict = info.ranks.length > 1;
+
+    if (!isConflict) {
+      // Single arrow - just draw badges on right
+      const rank = info.ranks[0];
+      const badges = info.badges.get(rank) || [];
+      const badgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      badgesGroup.setAttribute('data-square', toSquare);
+
+      let currentY = squareTop + squarePadding;
+      for (const badgeText of badges) {
+        const colors = this.getBadgeColor(badgeText);
+        const badgeGroup = this.drawBadge(
+          { x: squareRight - squarePadding, y: currentY },
+          badgeText,
+          colors.bg,
+          colors.text,
+          scale
+        );
+        badgesGroup.appendChild(badgeGroup);
+        const bbox = badgeGroup.getBBox();
+        currentY += bbox.height + spacing;
+      }
+
+      layer.appendChild(badgesGroup);
+      info.currentY = currentY;
+      return;
+    }
+
+    // Multiple arrows (conflict mode)
     // Disabled badge color (gray like sidebar)
     const disabledColor = 'rgba(75, 85, 99, 0.8)';
 
