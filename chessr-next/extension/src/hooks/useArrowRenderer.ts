@@ -23,6 +23,15 @@ function parseUciMove(uciMove: string): { from: string; to: string } | null {
 }
 
 /**
+ * Calculate arrow length (in squares) for sorting
+ */
+function getArrowLength(from: string, to: string): number {
+  const fileDiff = Math.abs(from.charCodeAt(0) - to.charCodeAt(0));
+  const rankDiff = Math.abs(parseInt(from[1]) - parseInt(to[1]));
+  return Math.sqrt(fileDiff * fileDiff + rankDiff * rankDiff);
+}
+
+/**
  * Find the chess board element on Chess.com
  */
 function findBoardElement(): HTMLElement | null {
@@ -150,19 +159,34 @@ export function useArrowRenderer() {
       `Drawing ${suggestionsToShow.length} arrows (numberOfSuggestions: ${numberOfSuggestions}, total suggestions: ${suggestions.length})`
     );
 
+    // Build arrow data with length for sorting
+    const arrowData: { from: string; to: string; color: string; opacity: number; length: number }[] = [];
+
     suggestionsToShow.forEach((suggestion, index) => {
       const parsed = parseUciMove(suggestion.move);
       if (!parsed) return;
 
-      const color = getArrowColor(index);
-
-      renderer.drawArrow({
+      arrowData.push({
         from: parsed.from,
         to: parsed.to,
-        color,
-        opacity: 0.85 - index * 0.15, // Decrease opacity for lower-ranked suggestions
+        color: getArrowColor(index),
+        opacity: 0.85 - index * 0.15,
+        length: getArrowLength(parsed.from, parsed.to),
       });
     });
+
+    // Sort by length descending (longest first, so shortest appears on top)
+    arrowData.sort((a, b) => b.length - a.length);
+
+    // Draw arrows in sorted order
+    for (const arrow of arrowData) {
+      renderer.drawArrow({
+        from: arrow.from,
+        to: arrow.to,
+        color: arrow.color,
+        opacity: arrow.opacity,
+      });
+    }
   }, [
     suggestions,
     suggestedFen,
