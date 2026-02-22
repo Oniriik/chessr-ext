@@ -165,7 +165,7 @@ class WebSocketManager {
           } else if (data.type === 'analysis_result') {
             // Handle analysis response
             logger.log(
-              `Received analysis: ${data.classification} (CPL: ${data.cpl})`
+              `Received analysis: ${data.classification} (CPL: ${data.cpl}, eval: ${data.evalAfter})`
             );
             useAccuracyStore.getState().receiveAnalysis(data.requestId, {
               move: data.move,
@@ -175,6 +175,8 @@ class WebSocketManager {
               weightedImpact: data.weightedImpact,
               phase: data.phase,
               bestMove: data.bestMove,
+              evalAfter: data.evalAfter,
+              mateInAfter: data.mateInAfter,
             });
           } else if (data.type === 'analysis_error') {
             // Handle analysis error
