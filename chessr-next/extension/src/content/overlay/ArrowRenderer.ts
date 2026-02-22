@@ -14,6 +14,14 @@ export interface ArrowOptions {
   rank?: number; // Move rank (1, 2, 3...)
 }
 
+export interface PvArrowOptions {
+  from: string;
+  to: string;
+  color: string;
+  textColor: string;
+  moveNumber: number;
+}
+
 interface SquareBadgeInfo {
   ranks: number[];
   badges: Map<number, string[]>; // rank -> badges
@@ -25,6 +33,9 @@ export class ArrowRenderer {
   private overlay: OverlayManager;
   private squareBadges: Map<string, SquareBadgeInfo> = new Map();
   private selectedIndex: number = 0; // 0-based index of selected suggestion
+  private hoveredIndex: number | null = null; // 0-based index of hovered suggestion (from sidebar)
+  private pendingPvCircles: { to: string; color: string; textColor: string; moveNumber: number }[] = []; // Store circle data to draw on top after all arrows
+  private pvSquareCount: Map<string, number> = new Map(); // Track how many circles per square for stacking
 
   constructor(overlay: OverlayManager) {
     this.overlay = overlay;
@@ -35,6 +46,20 @@ export class ArrowRenderer {
    */
   setSelectedIndex(index: number): void {
     this.selectedIndex = index;
+  }
+
+  /**
+   * Set the hovered suggestion index (from sidebar hover)
+   */
+  setHoveredIndex(index: number | null): void {
+    this.hoveredIndex = index;
+  }
+
+  /**
+   * Get the effective active index (hovered takes priority over selected)
+   */
+  private getActiveIndex(): number {
+    return this.hoveredIndex !== null ? this.hoveredIndex : this.selectedIndex;
   }
 
   /**
@@ -129,6 +154,9 @@ export class ArrowRenderer {
       const badgesGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       badgesGroup.setAttribute('data-square', toSquare);
 
+      // Append to layer first so getBBox() works correctly
+      layer.appendChild(badgesGroup);
+
       let currentY = squareTop + squarePadding;
       for (const badgeText of badges) {
         const colors = this.getBadgeColor(badgeText);
@@ -144,7 +172,6 @@ export class ArrowRenderer {
         currentY += bbox.height + spacing;
       }
 
-      layer.appendChild(badgesGroup);
       info.currentY = currentY;
       return;
     }
@@ -163,15 +190,20 @@ export class ArrowRenderer {
     activeBadgesGroup.setAttribute('data-square', toSquare);
     activeBadgesGroup.setAttribute('class', 'active-badges-container');
 
+    // Append to layer first so getBBox() works correctly
+    layer.appendChild(rankBadgesGroup);
+    layer.appendChild(activeBadgesGroup);
+
     let currentY = squareTop + squarePadding;
     const rankElements: Map<number, { rect: SVGRectElement; text: SVGTextElement; y: number }> = new Map();
 
     // Sort ranks to display in order #1, #2, #3
     const sortedRanks = [...info.ranks].sort((a, b) => a - b);
 
-    // Determine which rank is active (selected if it targets this square, otherwise first)
-    const selectedRank = this.selectedIndex + 1;
-    const activeRank = info.ranks.includes(selectedRank) ? selectedRank : sortedRanks[0];
+    // Determine which rank is active (hovered/selected if it targets this square, otherwise first)
+    const activeIndex = this.getActiveIndex();
+    const activeRankFromIndex = activeIndex + 1;
+    const activeRank = info.ranks.includes(activeRankFromIndex) ? activeRankFromIndex : sortedRanks[0];
 
     // Draw rank badges for each move
     for (const rank of sortedRanks) {
@@ -228,9 +260,10 @@ export class ArrowRenderer {
       });
 
       rect.addEventListener('mouseleave', () => {
-        // Restore based on selectedIndex (or first available if selected doesn't target this square)
-        const currentSelectedRank = this.selectedIndex + 1;
-        const restoreRank = info.ranks.includes(currentSelectedRank) ? currentSelectedRank : sortedRanks[0];
+        // Restore based on active index (hovered or selected, or first available)
+        const currentActiveIndex = this.getActiveIndex();
+        const currentActiveRank = currentActiveIndex + 1;
+        const restoreRank = info.ranks.includes(currentActiveRank) ? currentActiveRank : sortedRanks[0];
 
         for (const [r, e] of rankElements) {
           const isActive = r === restoreRank;
@@ -244,9 +277,6 @@ export class ArrowRenderer {
         this.drawActiveBadgesLeft(activeBadgesGroup, info.badges.get(restoreRank) || [], squareLeft + squarePadding, squareTop + squarePadding, scale);
       });
     }
-
-    layer.appendChild(rankBadgesGroup);
-    layer.appendChild(activeBadgesGroup);
 
     info.currentY = currentY;
   }
@@ -535,6 +565,205 @@ export class ArrowRenderer {
   }
 
   /**
+   * Draw a PV arrow with move number circle at the end (destination)
+   * Circles are stored and drawn later via flushPvCircles() to ensure they appear on top
+   */
+  drawPvArrow(options: PvArrowOptions): SVGElement | null {
+    const { from, to, color, textColor, moveNumber } = options;
+
+    const layer = this.overlay.getArrowsLayer();
+    if (!layer) return null;
+
+    const fromPos = this.overlay.getSquareCenter(from);
+    const toPos = this.overlay.getSquareCenter(to);
+
+    const squareSize = this.overlay.getSquareSize();
+    const scale = squareSize / 100;
+    const thickness = Math.max(4, Math.round(8 * scale));
+
+    // Track how many arrows go to each square (for conflict detection in flush)
+    this.pvSquareCount.set(to, (this.pvSquareCount.get(to) || 0) + 1);
+
+    // Arrow always goes from center to center (circles drawn on top later)
+    const dx = toPos.x - fromPos.x;
+    const dy = toPos.y - fromPos.y;
+    const length = Math.sqrt(dx * dx + dy * dy);
+
+    // Shorten slightly so arrow doesn't poke through circle
+    const circleRadius = Math.max(8, Math.round(12 * scale));
+    const endOffset = circleRadius + 2;
+    const endRatio = (length - endOffset) / length;
+    const endX = fromPos.x + dx * endRatio;
+    const endY = fromPos.y + dy * endRatio;
+
+    // Check if this is a white arrow (needs black border for visibility)
+    const isWhiteArrow = color.includes('255, 255, 255');
+
+    // Draw arrow line (center to center)
+    if (this.isKnightMove(from, to)) {
+      // L-shaped for knight
+      let cornerX: number, cornerY: number;
+      if (Math.abs(dx) > Math.abs(dy)) {
+        cornerX = toPos.x;
+        cornerY = fromPos.y;
+      } else {
+        cornerX = fromPos.x;
+        cornerY = toPos.y;
+      }
+
+      // Recalculate endpoint for L-shape
+      const lastDx = toPos.x - cornerX;
+      const lastDy = toPos.y - cornerY;
+      const lastLength = Math.sqrt(lastDx * lastDx + lastDy * lastDy);
+      const lastRatio = lastLength > 0 ? (lastLength - endOffset) / lastLength : 1;
+      const lEndX = cornerX + lastDx * lastRatio;
+      const lEndY = cornerY + lastDy * lastRatio;
+
+      const pathD = `M ${fromPos.x} ${fromPos.y} L ${cornerX} ${cornerY} L ${lEndX} ${lEndY}`;
+
+      // Draw black border first for white arrows
+      if (isWhiteArrow) {
+        const borderPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        borderPath.setAttribute('d', pathD);
+        borderPath.setAttribute('stroke', 'rgba(0, 0, 0, 0.5)');
+        borderPath.setAttribute('stroke-width', (thickness + 2).toString());
+        borderPath.setAttribute('stroke-linejoin', 'round');
+        borderPath.setAttribute('stroke-linecap', 'round');
+        borderPath.setAttribute('fill', 'none');
+        borderPath.setAttribute('opacity', '0.85');
+        layer.appendChild(borderPath);
+      }
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', pathD);
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', thickness.toString());
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('opacity', '0.85');
+      layer.appendChild(path);
+    } else {
+      // Straight line - draw black border first for white arrows
+      if (isWhiteArrow) {
+        const borderLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        borderLine.setAttribute('x1', fromPos.x.toString());
+        borderLine.setAttribute('y1', fromPos.y.toString());
+        borderLine.setAttribute('x2', endX.toString());
+        borderLine.setAttribute('y2', endY.toString());
+        borderLine.setAttribute('stroke', 'rgba(0, 0, 0, 0.5)');
+        borderLine.setAttribute('stroke-width', (thickness + 2).toString());
+        borderLine.setAttribute('stroke-linecap', 'round');
+        borderLine.setAttribute('opacity', '0.85');
+        layer.appendChild(borderLine);
+      }
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', fromPos.x.toString());
+      line.setAttribute('y1', fromPos.y.toString());
+      line.setAttribute('x2', endX.toString());
+      line.setAttribute('y2', endY.toString());
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', thickness.toString());
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('opacity', '0.85');
+      layer.appendChild(line);
+    }
+
+    // Store circle data to be drawn on top after all arrows (positions calculated in flush)
+    this.pendingPvCircles.push({ to, color, textColor, moveNumber });
+
+    return null;
+  }
+
+  /**
+   * Draw all pending PV circles on top of arrows
+   * Call this after all drawPvArrow calls are complete
+   */
+  flushPvCircles(): void {
+    const layer = this.overlay.getArrowsLayer();
+    if (!layer) return;
+
+    const squareSize = this.overlay.getSquareSize();
+    const scale = squareSize / 100;
+
+    // Circle sizes
+    const normalRadius = Math.max(8, Math.round(12 * scale));
+    const smallerRadius = Math.max(6, Math.round(9 * scale));
+    const stackSpacing = smallerRadius * 2 + 2;
+
+    // Track current stack index per square
+    const currentStackIndex: Map<string, number> = new Map();
+
+    for (const { to, color, textColor, moveNumber } of this.pendingPvCircles) {
+      const toPos = this.overlay.getSquareCenter(to);
+      const totalOnSquare = this.pvSquareCount.get(to) || 1;
+      const hasConflict = totalOnSquare > 1;
+
+      // Get stack index for this circle
+      const stackIndex = currentStackIndex.get(to) || 0;
+      currentStackIndex.set(to, stackIndex + 1);
+
+      const actualRadius = hasConflict ? smallerRadius : normalRadius;
+
+      // Circle position: center if no conflict, stacked on right if conflict
+      let circleX: number, circleY: number;
+      if (hasConflict) {
+        const squareRight = toPos.x + squareSize / 2;
+        const squareTop = toPos.y - squareSize / 2;
+        circleX = squareRight - smallerRadius - 2;
+        circleY = squareTop + smallerRadius + 2 + (stackIndex * stackSpacing);
+      } else {
+        circleX = toPos.x;
+        circleY = toPos.y;
+      }
+
+      // Create circle group
+      const circleGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+
+      // For white circles, add a dark shadow/outline for visibility
+      const isWhiteCircle = color.includes('255, 255, 255');
+
+      if (isWhiteCircle) {
+        const shadow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        shadow.setAttribute('cx', circleX.toString());
+        shadow.setAttribute('cy', circleY.toString());
+        shadow.setAttribute('r', (actualRadius + 2).toString());
+        shadow.setAttribute('fill', 'rgba(0, 0, 0, 0.6)');
+        circleGroup.appendChild(shadow);
+      }
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', circleX.toString());
+      circle.setAttribute('cy', circleY.toString());
+      circle.setAttribute('r', actualRadius.toString());
+      circle.setAttribute('fill', color);
+      circle.setAttribute('stroke', isWhiteCircle ? 'rgba(0, 0, 0, 0.5)' : textColor);
+      circle.setAttribute('stroke-width', isWhiteCircle ? '2' : '1');
+      circleGroup.appendChild(circle);
+
+      // Draw move number text
+      const fontSize = hasConflict ? Math.max(8, Math.round(11 * scale)) : Math.max(10, Math.round(14 * scale));
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', circleX.toString());
+      text.setAttribute('y', circleY.toString());
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'central');
+      text.setAttribute('font-size', fontSize.toString());
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+      text.setAttribute('fill', textColor);
+      text.textContent = moveNumber.toString();
+      circleGroup.appendChild(text);
+
+      layer.appendChild(circleGroup);
+    }
+
+    this.pendingPvCircles = [];
+    this.pvSquareCount.clear();
+  }
+
+  /**
    * Draw an L-shaped arrow for knight moves
    */
   private drawLShapedArrow(
@@ -598,5 +827,7 @@ export class ArrowRenderer {
   clear(): void {
     this.overlay.clearArrows();
     this.squareBadges.clear();
+    this.pendingPvCircles = [];
+    this.pvSquareCount.clear();
   }
 }
