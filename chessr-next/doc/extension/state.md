@@ -258,15 +258,17 @@ interface AuthState {
   // Actions
   initialize: () => Promise<void>;
   fetchPlan: (userId: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (email: string, password: string) => Promise<Result>;
+  signIn: (email: string, password: string) => Promise<Result>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
-  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
-  resendConfirmationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<Result>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<Result>;
+  resendConfirmationEmail: (email: string) => Promise<Result>;
   clearError: () => void;
 }
 ```
+
+Plan is fetched from `user_settings` table in Supabase after successful login.
 
 ### openingStore
 

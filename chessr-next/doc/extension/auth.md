@@ -75,15 +75,19 @@ export const supabase = createClient(URL, ANON_KEY, {
 interface AuthState {
   user: User | null;
   session: Session | null;
+  plan: Plan;           // 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime'
+  planExpiry: Date | null;
   initializing: boolean;
   loading: boolean;
   error: string | null;
 
   initialize: () => Promise<void>;
+  fetchPlan: (userId: string) => Promise<void>;
   signIn: (email, password) => Promise<Result>;
   signUp: (email, password) => Promise<Result>;
   signOut: () => Promise<void>;
   resetPassword: (email) => Promise<Result>;
+  changePassword: (oldPassword, newPassword) => Promise<Result>;
   resendConfirmationEmail: (email) => Promise<Result>;
   clearError: () => void;
 }
@@ -91,14 +95,30 @@ interface AuthState {
 
 ## AuthGuard Component
 
-Wraps content to show login form or authenticated content:
+Wraps content to show login form or authenticated content. Also initializes WebSocket connection and core hooks when authenticated:
 
 ```typescript
 // components/auth/AuthGuard.tsx
 export function AuthGuard({ children }) {
   const { user, initializing, initialize } = useAuthStore();
+  const { init: initWebSocket, connect: connectWebSocket } = useWebSocketStore();
 
+  // Initialize auth
   useEffect(() => { initialize(); }, []);
+
+  // Initialize WebSocket when user is authenticated
+  useEffect(() => {
+    if (user) {
+      initWebSocket();
+      connectWebSocket();
+    }
+  }, [user]);
+
+  // Initialize core hooks
+  useSuggestionTrigger();  // Auto-trigger suggestions on player turn
+  useAnalysisTrigger();    // Auto-trigger analysis after player moves
+  useArrowRenderer();      // Draw suggestion arrows on board
+  useEvalBar();            // Show eval bar next to board
 
   if (initializing) return <Loader />;
   if (!user) return <AuthForm />;
@@ -114,10 +134,14 @@ Single form with 3 modes:
 - **reset** - Email only
 
 Features:
+
+- Gradient header with Chessr logo (blue fading to background)
 - Client-side validation (password min 6 chars, password match)
-- Email confirmation flow
-- Error/success states
-- Resend confirmation email
+- Email confirmation flow with resend button
+- Error/success states with contextual messages
+- External links section:
+  - Website button (chessr.io)
+  - Discord button (join community)
 
 ## Usage
 

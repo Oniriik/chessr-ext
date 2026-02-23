@@ -44,8 +44,9 @@ extension/
 │   │   │   ├── select.tsx
 │   │   │   ├── dropdown-menu.tsx
 │   │   │   ├── collapsible.tsx
-│   │   │   ├── plan-badge.tsx     # Plan status badge
-│   │   │   └── ...
+│   │   │   ├── checkbox.tsx
+│   │   │   ├── badge.tsx
+│   │   │   └── plan-badge.tsx     # Plan status badge
 │   │   ├── auth/              # Authentication components
 │   │   │   ├── AuthForm.tsx
 │   │   │   ├── AuthGuard.tsx

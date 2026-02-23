@@ -204,20 +204,29 @@ Container with 3 tabs:
 
 ### AccountTab
 
-- Email display
-- Change password form
+- Email display with verification status (verified/not verified badge)
+- Member since date
+- Change password form (current password, new password, confirm)
+- Subscription section:
+  - Plan badge with icon (Lifetime, Beta, Premium, Free Trial, Free)
+  - Plan description and expiry info
+  - Upgrade button for free/trial plans
 
 ### GeneralTab
 
 - Language selector (English, more coming soon)
-- Show move labels on board (toggle)
-- Show Eval bar (toggle + mode selector: Eval/Win%)
+- Display options:
+  - Show move labels on board (toggle) - Display quality and effect badges on arrows
+  - Show Eval bar (toggle + mode selector: Eval/Win%)
 
 ### SuggestionsTab
 
 - Number of suggestions (1-3)
-- Use same color for all arrows (toggle)
-- Arrow color pickers (single or per-rank)
+- Arrow colors:
+  - Use same color for all arrows (toggle)
+  - Arrow color pickers (single or per-rank based on toggle)
+- Opening color:
+  - Opening arrow & card color picker
 
 ## Opening Components
 
