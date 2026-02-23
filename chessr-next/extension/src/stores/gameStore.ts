@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import { extractMovesFromDOM, replayMoves, getChessState, type ChessState } from '../lib/chess';
+import { detectPlayerColor, detectCurrentTurn } from '../platforms/chesscom';
 
 interface GameState {
   // Core state
@@ -20,6 +21,7 @@ interface GameState {
   // Chess actions
   syncFromDOM: () => void;
   reset: () => void;
+  redetect: () => void;
 
   // Selectors (computed from chessInstance)
   getChessState: () => ChessState | null;
@@ -82,6 +84,15 @@ export const useGameStore = create<GameState>()((set, get) => ({
       chessInstance: null,
       moveHistory: [],
     }),
+
+  /**
+   * Re-detect player color and current turn from DOM
+   */
+  redetect: () => {
+    const playerColor = detectPlayerColor();
+    const currentTurn = detectCurrentTurn();
+    set({ playerColor, currentTurn });
+  },
 
   /**
    * Get computed chess state

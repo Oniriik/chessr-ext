@@ -69,6 +69,9 @@ export function useSuggestionTrigger() {
 
       // Send WebSocket message with moves for game context
       // Contempt is from side-to-move perspective (no inversion needed)
+      // Armageddon: convert boolean + playerColor to 'off' | 'white' | 'black'
+      const armageddonMode = armageddon && playerColor ? playerColor : 'off';
+
       send({
         type: 'suggestion',
         requestId,
@@ -79,7 +82,7 @@ export function useSuggestionTrigger() {
         multiPv: numberOfSuggestions,
         contempt: riskTaking,
         skill,
-        armageddon,
+        armageddon: armageddonMode,
         limitStrength: !disableLimitStrength,
       });
     };

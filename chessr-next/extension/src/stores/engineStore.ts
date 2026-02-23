@@ -96,8 +96,8 @@ export function getSkillLabel(value: number): string {
   return SKILL_LEVELS[0].label;
 }
 
-// Armageddon mode
-export type ArmageddonMode = 'off' | 'white' | 'black';
+// Armageddon mode (on/off - uses player color from gameStore when enabled)
+export type ArmageddonMode = boolean;
 
 interface EngineState {
   // Detected user ELO
@@ -118,8 +118,8 @@ interface EngineState {
   // Personality
   personality: Personality;
 
-  // Armageddon mode
-  armageddon: ArmageddonMode;
+  // Armageddon mode (enabled = must win with player's color)
+  armageddon: boolean;
 
   // Disable limit strength (unlock full power at 3500 ELO)
   disableLimitStrength: boolean;
@@ -134,7 +134,7 @@ interface EngineState {
   setRiskTaking: (value: number) => void;
   setSkill: (value: number) => void;
   setPersonality: (personality: Personality) => void;
-  setArmageddon: (mode: ArmageddonMode) => void;
+  setArmageddon: (enabled: boolean) => void;
   setDisableLimitStrength: (value: boolean) => void;
 
   // Auto-detect from DOM
@@ -151,7 +151,7 @@ export const useEngineStore = create<EngineState>()(
       riskTaking: 0,
       skill: 10,
       personality: 'Default',
-      armageddon: 'off',
+      armageddon: false,
       disableLimitStrength: false,
 
       // Target ELO: auto = userElo + 150, manual = slider value
@@ -167,7 +167,7 @@ export const useEngineStore = create<EngineState>()(
       setRiskTaking: (value: number) => set({ riskTaking: value }),
       setSkill: (value: number) => set({ skill: value }),
       setPersonality: (personality) => set({ personality }),
-      setArmageddon: (mode) => set({ armageddon: mode }),
+      setArmageddon: (enabled) => set({ armageddon: enabled }),
       setDisableLimitStrength: (value) => set({ disableLimitStrength: value }),
 
       // Detect ratings from Chess.com DOM

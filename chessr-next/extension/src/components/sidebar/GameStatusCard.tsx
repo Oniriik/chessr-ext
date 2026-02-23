@@ -1,4 +1,4 @@
-import { Gamepad2 } from 'lucide-react';
+import { Gamepad2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { useGameStore } from '../../stores/gameStore';
 
@@ -25,7 +25,7 @@ function PieceIndicator({ color, isActive = false, size = 'md' }: PieceIndicator
 }
 
 export function GameStatusCard() {
-  const { isGameStarted, playerColor, currentTurn } = useGameStore();
+  const { isGameStarted, playerColor, currentTurn, redetect } = useGameStore();
 
   // Waiting state - friendly and minimal
   if (!isGameStarted) {
@@ -57,12 +57,21 @@ export function GameStatusCard() {
     <Card className="tw-bg-muted/50">
       <CardContent className="tw-py-3 tw-px-4">
         <div className="tw-flex tw-items-center tw-justify-between">
-          {/* Your color */}
+          {/* Your color with refresh button */}
           <div className="tw-flex tw-items-center tw-gap-2.5">
-            <PieceIndicator
-              color={playerColor || 'white'}
-              isActive={isYourTurn}
-            />
+            <button
+              onClick={redetect}
+              className="tw-relative tw-group tw-bg-transparent tw-border-0 tw-p-0 tw-cursor-pointer"
+              title="Refresh detection"
+            >
+              <PieceIndicator
+                color={playerColor || 'white'}
+                isActive={isYourTurn}
+              />
+              <div className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center tw-bg-black/40 tw-rounded-sm tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity">
+                <RefreshCw className="tw-w-3 tw-h-3 tw-text-white" />
+              </div>
+            </button>
             <div className="tw-leading-tight">
               <p className="tw-text-xs tw-text-muted-foreground">You play</p>
               <p className="tw-text-sm tw-font-semibold">
