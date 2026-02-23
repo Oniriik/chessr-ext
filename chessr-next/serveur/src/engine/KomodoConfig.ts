@@ -43,25 +43,51 @@ export interface EngineConfigParams {
   personality: string;
   multiPv: number;
   contempt?: number;
+  limitStrength?: boolean;
+  skill?: number;
+  puzzleMode?: boolean;
 }
 
 /**
  * Get UCI options for standard engine search with MultiPV
  */
-export function getEngineConfig({ targetElo, personality, multiPv, contempt }: EngineConfigParams): Record<string, string> {
-  const elo = Math.max(800, Math.min(3200, targetElo || 1500));
+export function getEngineConfig({ targetElo, personality, multiPv, contempt, limitStrength, skill, puzzleMode }: EngineConfigParams): Record<string, string> {
+  const elo = Math.max(800, Math.min(3500, targetElo || 1500));
   const pv = Math.max(1, Math.min(3, multiPv || 1));
   const personalityValue = PERSONALITY_MAP[personality as Personality] || 'Default';
   // Map winIntent (0-100) to Komodo contempt (0-200)
   // 0 = neutral, 50 = ~GM level (100cp), 100 = amateur level (200cp)
   const contemptValue = Math.max(0, Math.min(250, (contempt ?? 0) * 2));
+  // Whether to limit strength (default true for game mode, false for puzzle mode)
+  const shouldLimitStrength = limitStrength !== false;
+  // Skill level (0-20, default 20 = max)
+  const skillValue = Math.max(0, Math.min(20, skill ?? 20));
+
+  // Puzzle mode has different config
+  if (puzzleMode) {
+    return {
+      'Personality': 'Default',
+      'MultiPV': pv.toString(),
+      'UCI_ShowWDL': 'true',
+      'UCI_LimitStrength': 'false',
+      'Skill Level': '20',
+      'Contempt': '0',
+      'White Contempt': 'false',
+      'Use MCTS': 'false',
+      'Use LMR and Null Move Pruning': 'true',
+      'Threads': '1',
+      'Hash': '512',
+      ...(SYZYGY_PATH ? { 'SyzygyPath': SYZYGY_PATH } : {}),
+    };
+  }
 
   const config: Record<string, string> = {
     'Personality': personalityValue,
     'MultiPV': pv.toString(),
     'UCI_ShowWDL': 'true',
-    'UCI_LimitStrength': 'true',
+    'UCI_LimitStrength': shouldLimitStrength ? 'true' : 'false',
     'UCI_Elo': elo.toString(),
+    'Skill Level': skillValue.toString(),
     'Contempt': contemptValue.toString(),
     'Threads': '1',
     'Hash': '512',

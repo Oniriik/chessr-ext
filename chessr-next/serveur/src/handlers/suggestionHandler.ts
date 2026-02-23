@@ -25,6 +25,10 @@ export interface SuggestionMessage {
   personality?: string;
   multiPv?: number;
   contempt?: number; // Win intent (0-100) from side-to-move perspective
+  puzzleMode?: boolean; // True for puzzle suggestions (max power, no ELO limit)
+  limitStrength?: boolean; // Whether to limit engine strength (default true)
+  skill?: number; // Skill level 0-20 (default 20)
+  armageddon?: 'off' | 'white' | 'black'; // Armageddon mode (not used yet)
 }
 
 // Engine pool instance
@@ -120,7 +124,7 @@ function startProcessingLoop(): void {
  * Handle suggestion request message
  */
 export function handleSuggestionRequest(message: SuggestionMessage, client: Client): void {
-  const { requestId, fen, moves, targetElo, personality, multiPv, contempt } = message;
+  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, puzzleMode, limitStrength, skill } = message;
 
   // Validate required fields
   if (!requestId || !fen) {
@@ -146,7 +150,8 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     return;
   }
 
-  console.log(`[SuggestionHandler] Request ${requestId} from ${client.user.email}`);
+  const modeLabel = puzzleMode ? 'puzzle' : 'game';
+  console.log(`[SuggestionHandler] Request ${requestId} (${modeLabel}) from ${client.user.email}`);
 
   // Prepare config (standard search with MultiPV)
   const pvCount = Math.min(3, Math.max(1, multiPv || 1));
@@ -155,6 +160,9 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     personality: personality || 'Default',
     multiPv: pvCount,
     contempt: contempt ?? 0,
+    limitStrength: limitStrength,
+    skill: skill,
+    puzzleMode: puzzleMode,
   });
 
   // Add to queue
@@ -166,8 +174,11 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       // Configure engine for this request
       await engine.configure(config);
 
-      // Run search with MultiPV (pass moves for game context)
-      const rawSuggestions = await engine.search(fen, pvCount, { nodes: SEARCH_NODES, moves });
+      // Run search: 2M nodes for puzzles, 700k nodes for games
+      const searchOptions = puzzleMode
+        ? { nodes: 2000000, moves }
+        : { nodes: SEARCH_NODES, moves };
+      const rawSuggestions = await engine.search(fen, pvCount, searchOptions);
 
       // Label suggestions
       const suggestions = labelSuggestions(rawSuggestions);
@@ -181,7 +192,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       // Win rate from best move
       const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
 
-      return { fen, personality: personality || 'Default', suggestions, positionEval, mateIn, winRate };
+      return { fen, personality: personality || 'Default', suggestions, positionEval, mateIn, winRate, puzzleMode: !!puzzleMode };
     },
 
     callback: (error, result) => {
@@ -212,6 +223,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
             mateIn: result.mateIn,
             winRate: result.winRate,
             suggestions: result.suggestions,
+            puzzleMode: result.puzzleMode,
           })
         );
       }

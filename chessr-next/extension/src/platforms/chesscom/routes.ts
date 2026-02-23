@@ -28,6 +28,16 @@ export function detectRoute(url: URL): RouteId {
     return 'analysis';
   }
 
+  // /puzzles or /puzzles/... (puzzle pages)
+  if (/^(\/[a-z]{2})?\/puzzles/.test(path)) {
+    return 'puzzle';
+  }
+
+  // /daily or /daily/... (daily puzzle pages)
+  if (/^(\/[a-z]{2})?\/daily/.test(path)) {
+    return 'puzzle';
+  }
+
   // Home page
   if (path === '/' || path === '/home') {
     return 'home';

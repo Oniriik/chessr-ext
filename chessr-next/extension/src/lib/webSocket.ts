@@ -6,6 +6,7 @@
 import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
+import { usePuzzleStore } from '../stores/puzzleStore';
 import { useAccuracyStore } from '../stores/accuracyStore';
 import { logger } from './logger';
 
@@ -34,6 +35,7 @@ class WebSocketManager {
   private inactivityTimeout: ReturnType<typeof setTimeout> | null = null;
   private visibilityHandler: (() => void) | null = null;
   private gameStoreUnsubscribe: (() => void) | null = null;
+  private puzzleStoreUnsubscribe: (() => void) | null = null;
 
   get isConnected(): boolean {
     return this._isConnected;
@@ -59,6 +61,15 @@ class WebSocketManager {
         this.checkActivity();
       }
     });
+
+    // Subscribe to puzzle store changes
+    let prevIsPuzzleStarted = usePuzzleStore.getState().isStarted;
+    this.puzzleStoreUnsubscribe = usePuzzleStore.subscribe((state) => {
+      if (state.isStarted !== prevIsPuzzleStarted) {
+        prevIsPuzzleStarted = state.isStarted;
+        this.checkActivity();
+      }
+    });
   }
 
   /**
@@ -71,6 +82,9 @@ class WebSocketManager {
     if (this.gameStoreUnsubscribe) {
       this.gameStoreUnsubscribe();
     }
+    if (this.puzzleStoreUnsubscribe) {
+      this.puzzleStoreUnsubscribe();
+    }
     this.disconnect();
   }
 
@@ -80,6 +94,7 @@ class WebSocketManager {
   checkActivity(): void {
     const isTabVisible = !document.hidden;
     const isGameActive = useGameStore.getState().isGameStarted;
+    const isPuzzleActive = usePuzzleStore.getState().isStarted;
     const hasUser = !!useAuthStore.getState().user;
 
     if (!hasUser) {
@@ -89,8 +104,8 @@ class WebSocketManager {
       return;
     }
 
-    if (isTabVisible && isGameActive) {
-      // Client is active
+    if (isTabVisible && (isGameActive || isPuzzleActive)) {
+      // Client is active (game or puzzle)
       this.cancelInactivityTimeout();
 
       // Reconnect if disconnected
@@ -154,9 +169,24 @@ class WebSocketManager {
             logger.log(
               `Received ${data.suggestions?.length || 0} suggestions for requestId: ${data.requestId}, eval: ${data.positionEval}, mate: ${data.mateIn}, winRate: ${data.winRate}`
             );
-            useSuggestionStore
-              .getState()
-              .receiveSuggestions(data.requestId, data.fen, data.positionEval, data.mateIn, data.winRate, data.suggestions);
+
+            // Route to puzzle store if puzzle mode, otherwise to suggestion store
+            if (data.puzzleMode && data.suggestions?.length > 0) {
+              usePuzzleStore
+                .getState()
+                .receiveSuggestions(
+                  data.requestId,
+                  data.suggestions.map((s: { move: string; evaluation?: number; winRate?: number }) => ({
+                    move: s.move,
+                    evaluation: s.evaluation,
+                    winRate: s.winRate,
+                  }))
+                );
+            } else {
+              useSuggestionStore
+                .getState()
+                .receiveSuggestions(data.requestId, data.fen, data.positionEval, data.mateIn, data.winRate, data.suggestions);
+            }
           } else if (data.type === 'suggestion_error') {
             // Handle suggestion error
             useSuggestionStore

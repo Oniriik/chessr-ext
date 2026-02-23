@@ -2,6 +2,7 @@ import { MountPoint } from '../types';
 import { SidebarMount } from '../../components/sidebar/SidebarMount';
 import { BaseSidebarTrigger } from '../../components/sidebar/BaseSidebarTrigger';
 import { FloatingSidebar } from '../../components/sidebar/FloatingSidebar';
+import { PuzzleSidebar } from '../../components/sidebar/PuzzleSidebar';
 
 export function getMountPoints(): MountPoint[] {
   return [
@@ -62,6 +63,14 @@ export function getMountPoints(): MountPoint[] {
       parentStyles: {
         gap: '8px',
       },
+    },
+    // Puzzle pages
+    {
+      id: 'puzzle-sidebar',
+      route: 'puzzle',
+      selector: '#board-layout-sidebar',
+      position: 'append',
+      component: PuzzleSidebar,
     },
   ];
 }

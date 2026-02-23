@@ -8,6 +8,7 @@ export type RouteId =
   | 'play-computer'
   | 'play-online'
   | 'analysis'
+  | 'puzzle'
   | 'home'
   | 'unknown';
 

@@ -13,6 +13,7 @@ export interface SuggestionResult {
   positionEval: number;
   mateIn: number | null;
   winRate: number;
+  puzzleMode: boolean;
 }
 
 export interface SuggestionRequest {
