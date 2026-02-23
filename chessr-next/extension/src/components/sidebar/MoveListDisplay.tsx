@@ -1,11 +1,25 @@
-import { useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Chess } from 'chess.js';
-import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, useSetHoveredSuggestionIndex, useShowingPvIndex, useSetShowingPvIndex, useShowingOpeningMoves, useToggleShowingOpeningMoves, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
+import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, useSetHoveredSuggestionIndex, useShowingPvIndex, useSetShowingPvIndex, useShowingOpeningMoves, useSetShowingOpeningMoves, useShowingAlternativeIndex, useSetShowingAlternativeIndex, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
 import { useGameStore } from '../../stores/gameStore';
+import { useOpeningStore, type SavedOpening } from '../../stores/openingStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { useOpeningTracker } from '../../hooks/useOpeningTracker';
+import { useAlternativeOpenings } from '../../hooks/useAlternativeOpenings';
 import { OpeningSuggestionCard } from './OpeningSuggestionCard';
 import { Button } from '../ui/button';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
+import type { OpeningWithStats } from '../../lib/openingsDatabase';
+
+/**
+ * Convert hex color to rgba
+ */
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 // Confidence label display config with background colors like old version
 const CONFIDENCE_CONFIG: Record<ConfidenceLabel, { label: string; bgClass: string; textClass: string }> = {
@@ -133,6 +147,7 @@ interface SuggestionCardProps {
   flags: MoveFlags;
   fen: string;
   playerColor: 'white' | 'black' | null;
+  arrowColor: string;
   onSelect: () => void;
   onHoverStart: () => void;
   onHoverEnd: () => void;
@@ -141,7 +156,8 @@ interface SuggestionCardProps {
   onPvHoverEnd: () => void;
 }
 
-function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, arrowColor, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd }: SuggestionCardProps) {
+  const [isHovered, setIsHovered] = useState(false);
   const config = CONFIDENCE_CONFIG[suggestion.confidenceLabel];
 
   // Convert PV to SAN notation
@@ -185,22 +201,24 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
 
   return (
     <div
-      className={`tw-p-2 tw-rounded-md tw-border tw-cursor-pointer tw-transition-colors tw-bg-muted/50 ${
-        isSelected
-          ? 'tw-border-primary'
-          : 'tw-border-border hover:tw-border-primary/50'
-      }`}
+      className="tw-p-2 tw-rounded-md tw-border tw-cursor-pointer tw-transition-colors tw-bg-muted/50"
+      style={{
+        borderColor: isSelected ? arrowColor : isHovered ? hexToRgba(arrowColor, 0.6) : hexToRgba(arrowColor, 0.3),
+      }}
       onClick={onSelect}
-      onMouseEnter={onHoverStart}
-      onMouseLeave={onHoverEnd}
+      onMouseEnter={() => { setIsHovered(true); onHoverStart(); }}
+      onMouseLeave={() => { setIsHovered(false); onHoverEnd(); }}
     >
       {/* Header with move, badges, and eval */}
       <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
         <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-wrap">
-          <span className="tw-text-xs tw-px-1 tw-py-0.5 tw-rounded tw-font-medium tw-bg-muted tw-text-muted-foreground">
+          <span
+            className="tw-text-xs tw-px-1 tw-py-0.5 tw-rounded tw-font-medium"
+            style={{ backgroundColor: hexToRgba(arrowColor, 0.2), color: arrowColor }}
+          >
             {rank}
           </span>
-          <span className="tw-text-sm tw-font-medium tw-text-primary">
+          <span className="tw-text-sm tw-font-medium" style={{ color: arrowColor }}>
             {suggestion.move}
           </span>
           {/* Quality badge inline */}
@@ -218,6 +236,9 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           ))}
         </div>
         <div className="tw-flex tw-items-center tw-gap-1.5 tw-shrink-0">
+          <span className={`tw-text-sm tw-font-mono tw-font-semibold ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)}`}>
+            {formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
+          </span>
           {suggestion.pv && suggestion.pv.length > 1 && (
             <Button
               variant="ghost"
@@ -240,9 +261,6 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
               {isShowingPv ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
             </Button>
           )}
-          <span className={`tw-text-sm tw-font-mono tw-font-semibold ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)}`}>
-            {formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
-          </span>
         </div>
       </div>
 
@@ -271,7 +289,15 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
 }
 
 export function MoveListDisplay() {
-  const { isGameStarted, playerColor } = useGameStore();
+  const { isGameStarted, playerColor, moveHistory } = useGameStore();
+  const { setWhiteOpening, setBlackOpening, openingArrowColor } = useOpeningStore();
+  const {
+    useSameColorForAllArrows,
+    singleArrowColor,
+    firstArrowColor,
+    secondArrowColor,
+    thirdArrowColor,
+  } = useSettingsStore();
   const suggestions = useSuggestions();
   const suggestedFen = useSuggestedFen();
   const isLoading = useIsSuggestionLoading();
@@ -281,32 +307,152 @@ export function MoveListDisplay() {
   const showingPvIndex = useShowingPvIndex();
   const setShowingPvIndex = useSetShowingPvIndex();
   const showingOpeningMoves = useShowingOpeningMoves();
-  const toggleShowingOpeningMoves = useToggleShowingOpeningMoves();
+  const setShowingOpeningMoves = useSetShowingOpeningMoves();
+  const showingAlternativeIndex = useShowingAlternativeIndex();
+  const setShowingAlternativeIndex = useSetShowingAlternativeIndex();
   const openingTracker = useOpeningTracker();
+
+  // Fetch alternative openings when deviated
+  const { alternatives, isLoading: isLoadingAlternatives } = useAlternativeOpenings(
+    openingTracker.hasDeviated
+  );
+
+  // Handler for selecting an alternative opening
+  const handleSelectAlternative = useCallback(
+    (opening: OpeningWithStats) => {
+      const saved: SavedOpening = {
+        name: opening.name,
+        moves: opening.moves,
+        eco: opening.eco,
+        totalGames: opening.totalGames,
+      };
+
+      if (playerColor === 'white') {
+        setWhiteOpening(saved);
+      } else {
+        setBlackOpening(saved);
+      }
+      // Clear the preview when selecting
+      setShowingAlternativeIndex(null);
+    },
+    [playerColor, setWhiteOpening, setBlackOpening, setShowingAlternativeIndex]
+  );
+
+  // Track if alternative preview is "locked" (clicked) vs just hover preview
+  const lockedAlternativeIndexRef = useRef<number | null>(null);
+
+  // Handler for toggling alternative preview (click)
+  const handleToggleAlternativePreview = useCallback(
+    (index: number) => {
+      if (lockedAlternativeIndexRef.current === index) {
+        // Unlock
+        lockedAlternativeIndexRef.current = null;
+        setShowingAlternativeIndex(null);
+      } else {
+        // Lock to this index
+        lockedAlternativeIndexRef.current = index;
+        setShowingAlternativeIndex(index);
+      }
+    },
+    [setShowingAlternativeIndex]
+  );
+
+  // Handler for alternative hover start
+  const handleHoverAlternativeStart = useCallback(
+    (index: number) => {
+      if (lockedAlternativeIndexRef.current === null) {
+        setShowingAlternativeIndex(index);
+      }
+    },
+    [setShowingAlternativeIndex]
+  );
+
+  // Handler for alternative hover end
+  const handleHoverAlternativeEnd = useCallback(() => {
+    if (lockedAlternativeIndexRef.current === null) {
+      setShowingAlternativeIndex(null);
+    }
+  }, [setShowingAlternativeIndex]);
+
+  // Auto-accept alternative when player plays its next move
+  useEffect(() => {
+    // Only check when deviated and we have alternatives
+    if (!openingTracker.hasDeviated || alternatives.length === 0 || moveHistory.length === 0) {
+      return;
+    }
+
+    // Get the last move played
+    const lastMove = moveHistory[moveHistory.length - 1];
+    if (!lastMove) return;
+
+    // Check each alternative to see if the last move matches its next expected move
+    for (const alt of alternatives) {
+      const altMoves = alt.moves
+        .replace(/\d+\.\s*/g, '')
+        .split(/\s+/)
+        .filter((m: string) => m.length > 0);
+
+      // Get the expected next move for this alternative (at currentMoveIndex)
+      const nextMoveIndex = openingTracker.currentMoveIndex;
+      if (nextMoveIndex < altMoves.length) {
+        const expectedMove = altMoves[nextMoveIndex];
+        if (lastMove === expectedMove) {
+          // Player played this alternative's move - auto-accept it
+          const saved: SavedOpening = {
+            name: alt.name,
+            moves: alt.moves,
+            eco: alt.eco,
+            totalGames: alt.totalGames,
+          };
+
+          if (playerColor === 'white') {
+            setWhiteOpening(saved);
+          } else {
+            setBlackOpening(saved);
+          }
+          // Clear the preview
+          setShowingAlternativeIndex(null);
+          break; // Only accept the first matching alternative
+        }
+      }
+    }
+  }, [moveHistory, openingTracker.hasDeviated, openingTracker.currentMoveIndex, alternatives, playerColor, setWhiteOpening, setBlackOpening, setShowingAlternativeIndex]);
 
   // Track if PV is "locked" (clicked) vs just hover preview
   const lockedPvIndexRef = useRef<number | null>(null);
 
+  // Track if opening moves preview is "locked" (clicked) vs just hover preview
+  const lockedOpeningMovesRef = useRef<boolean>(false);
+
   // Store stable opening values that only update when suggestions are refreshed
+  // or when the selected opening changes (e.g., user selects an alternative)
   const stableOpeningRef = useRef<{
     openingMoves: string[];
     nextMove: string | null;
     currentMoveIndex: number;
     lastSuggestedFen: string | null;
+    lastOpeningName: string | null;
   }>({
     openingMoves: [],
     nextMove: null,
     currentMoveIndex: 0,
     lastSuggestedFen: null,
+    lastOpeningName: null,
   });
 
-  // Update stable values only when suggestedFen changes (new suggestions arrived)
-  if (suggestedFen && suggestedFen !== stableOpeningRef.current.lastSuggestedFen) {
+  // Update stable values when suggestedFen changes (new suggestions arrived)
+  // OR when the selected opening changes (user selected an alternative)
+  const currentOpeningName = openingTracker.selectedOpening?.name ?? null;
+  const openingChanged = currentOpeningName !== stableOpeningRef.current.lastOpeningName;
+  const fenChanged = suggestedFen && suggestedFen !== stableOpeningRef.current.lastSuggestedFen;
+
+  if (fenChanged || openingChanged) {
     stableOpeningRef.current = {
       openingMoves: openingTracker.openingMoves,
       nextMove: openingTracker.nextOpeningMove,
       currentMoveIndex: openingTracker.currentMoveIndex,
       lastSuggestedFen: suggestedFen,
+      lastOpeningName: currentOpeningName,
     };
   }
 
@@ -336,6 +482,33 @@ export function MoveListDisplay() {
     }
   };
 
+  // Opening moves toggle (click)
+  const handleOpeningMovesToggle = () => {
+    if (lockedOpeningMovesRef.current) {
+      // Unlock
+      lockedOpeningMovesRef.current = false;
+      setShowingOpeningMoves(false);
+    } else {
+      // Lock
+      lockedOpeningMovesRef.current = true;
+      setShowingOpeningMoves(true);
+    }
+  };
+
+  // Opening moves hover start
+  const handleOpeningMovesHoverStart = () => {
+    if (!lockedOpeningMovesRef.current) {
+      setShowingOpeningMoves(true);
+    }
+  };
+
+  // Opening moves hover end
+  const handleOpeningMovesHoverEnd = () => {
+    if (!lockedOpeningMovesRef.current) {
+      setShowingOpeningMoves(false);
+    }
+  };
+
   // Compute flags for all suggestions
   const suggestionsWithFlags = useMemo(() => {
     if (!suggestedFen) return suggestions.map(s => ({ suggestion: s, flags: { isCheck: false, isMate: false, isCapture: false, isPromotion: false } as MoveFlags }));
@@ -351,11 +524,11 @@ export function MoveListDisplay() {
     return null;
   }
 
-  // Show opening card if: has selected opening, not complete, and not deviated
+  // Show opening card if: has selected opening and not complete
+  // (show even when deviated to display alternatives)
   const showOpeningCard =
     openingTracker.selectedOpening &&
-    !openingTracker.isOpeningComplete &&
-    !openingTracker.hasDeviated;
+    !openingTracker.isOpeningComplete;
 
   return (
     <div className="tw-mt-3">
@@ -371,7 +544,18 @@ export function MoveListDisplay() {
           isFollowing={openingTracker.isFollowingOpening}
           hasDeviated={openingTracker.hasDeviated}
           isShowingMoves={showingOpeningMoves}
-          onToggleShowMoves={toggleShowingOpeningMoves}
+          onToggleShowMoves={handleOpeningMovesToggle}
+          onHoverShowMovesStart={handleOpeningMovesHoverStart}
+          onHoverShowMovesEnd={handleOpeningMovesHoverEnd}
+          alternatives={alternatives}
+          isLoadingAlternatives={isLoadingAlternatives}
+          onSelectAlternative={handleSelectAlternative}
+          playerColor={playerColor}
+          showingAlternativeIndex={showingAlternativeIndex}
+          onToggleAlternativePreview={handleToggleAlternativePreview}
+          onHoverAlternativeStart={handleHoverAlternativeStart}
+          onHoverAlternativeEnd={handleHoverAlternativeEnd}
+          openingColor={openingArrowColor}
         />
       )}
 
@@ -386,24 +570,36 @@ export function MoveListDisplay() {
         </div>
       ) : (
         <div className="tw-space-y-1.5">
-          {suggestionsWithFlags.map(({ suggestion, flags }, index) => (
-            <SuggestionCard
-              key={suggestion.move}
-              suggestion={suggestion}
-              rank={index + 1}
-              isSelected={selectedIndex === index}
-              isShowingPv={showingPvIndex === index}
-              flags={flags}
-              fen={suggestedFen || ''}
-              playerColor={playerColor}
-              onSelect={() => setSelectedIndex(index)}
-              onHoverStart={() => setHoveredIndex(index)}
-              onHoverEnd={() => setHoveredIndex(null)}
-              onTogglePv={() => handlePvToggle(index)}
-              onPvHoverStart={() => handlePvHoverStart(index)}
-              onPvHoverEnd={handlePvHoverEnd}
-            />
-          ))}
+          {suggestionsWithFlags.map(({ suggestion, flags }, index) => {
+            // Get arrow color based on index and settings
+            const arrowColor = useSameColorForAllArrows
+              ? singleArrowColor
+              : index === 0
+                ? firstArrowColor
+                : index === 1
+                  ? secondArrowColor
+                  : thirdArrowColor;
+
+            return (
+              <SuggestionCard
+                key={suggestion.move}
+                suggestion={suggestion}
+                rank={index + 1}
+                isSelected={selectedIndex === index}
+                isShowingPv={showingPvIndex === index}
+                flags={flags}
+                fen={suggestedFen || ''}
+                playerColor={playerColor}
+                arrowColor={arrowColor}
+                onSelect={() => setSelectedIndex(index)}
+                onHoverStart={() => setHoveredIndex(index)}
+                onHoverEnd={() => setHoveredIndex(null)}
+                onTogglePv={() => handlePvToggle(index)}
+                onPvHoverStart={() => handlePvHoverStart(index)}
+                onPvHoverEnd={handlePvHoverEnd}
+              />
+            );
+          })}
         </div>
       )}
     </div>

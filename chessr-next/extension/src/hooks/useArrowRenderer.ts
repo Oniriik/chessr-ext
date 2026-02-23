@@ -3,13 +3,14 @@
  * Listens to suggestionStore and draws arrows when suggestions are available
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Chess } from 'chess.js';
 import { useGameStore } from '../stores/gameStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSuggestionStore, type Suggestion, type ConfidenceLabel } from '../stores/suggestionStore';
 import { useOpeningStore } from '../stores/openingStore';
 import { useOpeningTracker } from './useOpeningTracker';
+import { useAlternativeOpenings } from './useAlternativeOpenings';
 import { OverlayManager } from '../content/overlay/OverlayManager';
 import { ArrowRenderer } from '../content/overlay/ArrowRenderer';
 import { logger } from '../lib/logger';
@@ -121,7 +122,7 @@ function isBoardFlipped(): boolean {
 export function useArrowRenderer() {
   const { isGameStarted, playerColor, currentTurn, chessInstance } =
     useGameStore();
-  const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex, showingOpeningMoves } = useSuggestionStore();
+  const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex, showingOpeningMoves, showingAlternativeIndex } = useSuggestionStore();
   const {
     numberOfSuggestions,
     useSameColorForAllArrows,
@@ -133,16 +134,26 @@ export function useArrowRenderer() {
   } = useSettingsStore();
   const { showOpeningArrows, openingArrowColor } = useOpeningStore();
   const openingTracker = useOpeningTracker();
+  const { alternatives } = useAlternativeOpenings(openingTracker.hasDeviated);
 
   const overlayRef = useRef<OverlayManager | null>(null);
   const rendererRef = useRef<ArrowRenderer | null>(null);
   const isInitializedRef = useRef(false);
+
+  // Counter to trigger re-render when board resizes
+  const [resizeCounter, setResizeCounter] = useState(0);
+
+  // Callback for resize events
+  const handleResize = useCallback(() => {
+    setResizeCounter(c => c + 1);
+  }, []);
 
   // Initialize overlay when game starts
   useEffect(() => {
     if (!isGameStarted) {
       // Clean up when game ends
       if (overlayRef.current) {
+        overlayRef.current.offResize(handleResize);
         overlayRef.current.destroy();
         overlayRef.current = null;
         rendererRef.current = null;
@@ -160,6 +171,9 @@ export function useArrowRenderer() {
       const overlay = new OverlayManager();
       const isFlipped = isBoardFlipped();
       overlay.initialize(boardElement, isFlipped);
+
+      // Register resize callback
+      overlay.onResize(handleResize);
 
       overlayRef.current = overlay;
       rendererRef.current = new ArrowRenderer(overlay);
@@ -191,19 +205,8 @@ export function useArrowRenderer() {
     renderer.clear();
     renderer.clearOpeningArrows();
 
-    // Only show arrows on player's turn
-    const isPlayerTurn = playerColor === currentTurn;
-    if (!isPlayerTurn) return;
-
-    // No suggestions to draw
-    if (!suggestions || suggestions.length === 0) return;
-
-    // Check if suggestions are for current position
+    // Get current FEN for various checks
     const currentFen = chessInstance?.fen();
-    if (!currentFen || suggestedFen !== currentFen) {
-      logger.log('Suggestions are stale, waiting for new ones');
-      return;
-    }
 
     // Helper function to draw PV-style arrows (used for both engine PV and opening sequence)
     const drawPvSequence = (moves: { from: string; to: string }[], startingFen: string) => {
@@ -217,6 +220,99 @@ export function useArrowRenderer() {
       }
       renderer.flushPvCircles();
     };
+
+    // Check if we're showing an alternative opening preview (independent of turn/suggestions)
+    const isShowingAlternative = showingAlternativeIndex !== null && alternatives[showingAlternativeIndex];
+
+    // Draw alternative opening preview arrows (works regardless of turn or suggestions)
+    if (isShowingAlternative && currentFen) {
+      try {
+        const chess = new Chess(currentFen);
+        const pvMoves: { from: string; to: string }[] = [];
+
+        const altOpening = alternatives[showingAlternativeIndex!];
+        const altMoves = altOpening.moves
+          .replace(/\d+\.\s*/g, '')
+          .split(/\s+/)
+          .filter((m: string) => m.length > 0);
+        // Start from current move index (skip already played moves)
+        const remainingMoves = altMoves.slice(openingTracker.currentMoveIndex);
+        for (const sanMove of remainingMoves) {
+          const move = chess.move(sanMove);
+          if (!move) break;
+          pvMoves.push({ from: move.from, to: move.to });
+        }
+
+        if (pvMoves.length > 0) {
+          drawPvSequence(pvMoves, currentFen);
+        }
+      } catch {
+        // Ignore errors in alternative PV drawing
+      }
+      return; // Don't draw regular arrows when showing alternative preview
+    }
+
+    // Draw alternative opening arrows when deviated (numbered arrows for each alternative's next move)
+    // Uses opening arrow style - simple stacking without hover conflict handling
+    // Only show when it's the player's turn
+    const isPlayerTurn = playerColor === currentTurn;
+    if (openingTracker.hasDeviated && alternatives.length > 0 && currentFen && isPlayerTurn) {
+      const altArrowData: { from: string; to: string; rank: number; length: number }[] = [];
+
+      for (let i = 0; i < alternatives.length; i++) {
+        const alt = alternatives[i];
+        const altMoves = alt.moves
+          .replace(/\d+\.\s*/g, '')
+          .split(/\s+/)
+          .filter((m: string) => m.length > 0);
+
+        // Get the next move to play (at currentMoveIndex)
+        const nextMoveIndex = openingTracker.currentMoveIndex;
+        if (nextMoveIndex < altMoves.length) {
+          const nextMoveSan = altMoves[nextMoveIndex];
+          try {
+            const chess = new Chess(currentFen);
+            const move = chess.move(nextMoveSan);
+            if (move) {
+              altArrowData.push({
+                from: move.from,
+                to: move.to,
+                rank: i + 1,
+                length: getArrowLength(move.from, move.to),
+              });
+            }
+          } catch {
+            // Ignore errors
+          }
+        }
+      }
+
+      // Sort by length descending (longest first, so shortest appears on top)
+      altArrowData.sort((a, b) => b.length - a.length);
+
+      // Draw the alternative arrows using opening arrow color from settings
+      for (const arrow of altArrowData) {
+        renderer.drawOpeningArrow({
+          from: arrow.from,
+          to: arrow.to,
+          color: openingArrowColor,
+          winRate: 0,
+          label: showDetailedMoveSuggestion ? `Alt ${arrow.rank}` : undefined, // Alt 1, Alt 2, Alt 3
+        });
+      }
+    }
+
+    // Only show engine arrows on player's turn
+    if (!isPlayerTurn) return;
+
+    // No suggestions to draw
+    if (!suggestions || suggestions.length === 0) return;
+
+    // Check if suggestions are for current position
+    if (!currentFen || suggestedFen !== currentFen) {
+      logger.log('Suggestions are stale, waiting for new ones');
+      return;
+    }
 
     // Check if we're showing a PV sequence (engine or opening) - these are mutually exclusive with regular arrows
     const isShowingEnginePv = showingPvIndex !== null && suggestions[showingPvIndex]?.pv;
@@ -268,7 +364,7 @@ export function useArrowRenderer() {
           to: openingParsed.to,
           color: openingArrowColor,
           winRate: 0,
-          label: 'Opening',
+          label: showDetailedMoveSuggestion ? 'Opening' : undefined,
         });
       }
     }
@@ -355,6 +451,8 @@ export function useArrowRenderer() {
     hoveredIndex,
     showingPvIndex,
     showingOpeningMoves,
+    showingAlternativeIndex,
+    alternatives,
     showOpeningArrows,
     openingArrowColor,
     openingTracker.isFollowingOpening,
@@ -363,6 +461,7 @@ export function useArrowRenderer() {
     openingTracker.nextOpeningMove,
     openingTracker.openingMoves,
     openingTracker.currentMoveIndex,
+    resizeCounter, // Trigger redraw when board resizes
   ]);
 
   // Update overlay when player color changes (board flip)

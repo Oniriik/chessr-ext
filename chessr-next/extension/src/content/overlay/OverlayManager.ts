@@ -9,6 +9,7 @@ export class OverlayManager {
   private isFlipped = false;
   private squareSize = 0;
   private resizeObserver: ResizeObserver | null = null;
+  private resizeCallbacks: Set<() => void> = new Set();
 
   /**
    * Initialize the overlay on a board element
@@ -78,8 +79,24 @@ export class OverlayManager {
 
     this.resizeObserver = new ResizeObserver(() => {
       this.createSVG();
+      // Notify listeners that resize happened (arrows need to be redrawn)
+      this.resizeCallbacks.forEach(callback => callback());
     });
     this.resizeObserver.observe(this.boardElement);
+  }
+
+  /**
+   * Register a callback for resize events
+   */
+  onResize(callback: () => void): void {
+    this.resizeCallbacks.add(callback);
+  }
+
+  /**
+   * Unregister a resize callback
+   */
+  offResize(callback: () => void): void {
+    this.resizeCallbacks.delete(callback);
   }
 
   /**
@@ -150,6 +167,7 @@ export class OverlayManager {
    */
   destroy(): void {
     this.resizeObserver?.disconnect();
+    this.resizeCallbacks.clear();
     this.svg?.remove();
     this.svg = null;
     this.boardElement = null;

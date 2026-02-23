@@ -1,0 +1,46 @@
+/**
+ * useAlternativeOpenings - Fetches compatible openings when player deviates
+ * Returns openings that match the moves already played, sorted by win rate
+ */
+
+import { useState, useEffect } from 'react';
+import { useGameStore } from '../stores/gameStore';
+import { findCompatibleOpenings, type OpeningWithStats } from '../lib/openingsDatabase';
+
+export function useAlternativeOpenings(hasDeviated: boolean) {
+  const moveHistory = useGameStore((state) => state.moveHistory);
+  const playerColor = useGameStore((state) => state.playerColor);
+  const [alternatives, setAlternatives] = useState<OpeningWithStats[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // Only fetch alternatives when deviated
+    if (!hasDeviated || !playerColor || moveHistory.length === 0) {
+      setAlternatives([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+
+    findCompatibleOpenings(moveHistory, playerColor, 3)
+      .then((results) => {
+        if (!cancelled) {
+          setAlternatives(results);
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAlternatives([]);
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hasDeviated, moveHistory, playerColor]);
+
+  return { alternatives, isLoading };
+}

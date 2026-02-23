@@ -1,4 +1,5 @@
 import { useSettingsStore } from '../../../stores/settingsStore';
+import { useOpeningStore } from '../../../stores/openingStore';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
 
@@ -41,6 +42,8 @@ export function SuggestionsTab() {
     setSecondArrowColor,
     setThirdArrowColor,
   } = useSettingsStore();
+
+  const { openingArrowColor, setOpeningArrowColor } = useOpeningStore();
 
   return (
     <div className="tw-space-y-6">
@@ -114,6 +117,18 @@ export function SuggestionsTab() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Opening Arrow Color Section */}
+      <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
+          Opening Color
+        </Label>
+        <ColorPicker
+          label="Opening arrow & card color"
+          value={openingArrowColor}
+          onChange={setOpeningArrowColor}
+        />
       </div>
     </div>
   );

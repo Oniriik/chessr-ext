@@ -53,6 +53,9 @@ interface SuggestionState {
   // Whether opening moves are being shown on board
   showingOpeningMoves: boolean;
 
+  // Index of alternative opening whose moves are being shown (null = none)
+  showingAlternativeIndex: number | null;
+
   // Actions
   requestSuggestions: (
     fen: string,
@@ -76,6 +79,7 @@ interface SuggestionState {
   setShowingPvIndex: (index: number | null) => void;
   toggleShowingOpeningMoves: () => void;
   setShowingOpeningMoves: (showing: boolean) => void;
+  setShowingAlternativeIndex: (index: number | null) => void;
 
   // Validation
   isValidResponse: (requestId: string) => boolean;
@@ -101,6 +105,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   hoveredIndex: null,
   showingPvIndex: null,
   showingOpeningMoves: false,
+  showingAlternativeIndex: null,
 
   /**
    * Request new suggestions - returns the requestId
@@ -186,6 +191,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       hoveredIndex: null,
       showingPvIndex: null,
       showingOpeningMoves: false,
+      showingAlternativeIndex: null,
     });
   },
 
@@ -234,6 +240,13 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   },
 
   /**
+   * Set showing alternative opening index (for deviation previews)
+   */
+  setShowingAlternativeIndex: (index) => {
+    set({ showingAlternativeIndex: index });
+  },
+
+  /**
    * Check if a response is still valid
    */
   isValidResponse: (requestId) => {
@@ -276,3 +289,7 @@ export const useToggleShowingOpeningMoves = () =>
   useSuggestionStore((state) => state.toggleShowingOpeningMoves);
 export const useSetShowingOpeningMoves = () =>
   useSuggestionStore((state) => state.setShowingOpeningMoves);
+export const useShowingAlternativeIndex = () =>
+  useSuggestionStore((state) => state.showingAlternativeIndex);
+export const useSetShowingAlternativeIndex = () =>
+  useSuggestionStore((state) => state.setShowingAlternativeIndex);

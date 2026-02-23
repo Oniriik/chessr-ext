@@ -401,6 +401,60 @@ export async function getOpeningsWithStats(openings: Opening[]): Promise<Opening
 }
 
 // ============================================
+// FIND COMPATIBLE OPENINGS (for deviation alternatives)
+// ============================================
+
+/**
+ * Find openings compatible with the moves already played
+ * Returns openings where the move sequence starts with the given moves
+ * Sorted by win rate for the player's color
+ */
+export async function findCompatibleOpenings(
+  moveHistory: string[],
+  playerColor: 'white' | 'black',
+  limit: number = 3
+): Promise<OpeningWithStats[]> {
+  if (moveHistory.length === 0) return [];
+
+  const openings = await loadOpenings();
+
+  // Filter openings that match the move history prefix
+  const compatible = openings.filter(opening => {
+    // Parse opening moves
+    const openingMoves = opening.moves
+      .replace(/\d+\.\s*/g, '')
+      .split(/\s+/)
+      .filter(m => m.length > 0);
+
+    // Opening must be at least as long as move history
+    if (openingMoves.length < moveHistory.length) return false;
+
+    // Check if all played moves match the opening
+    for (let i = 0; i < moveHistory.length; i++) {
+      if (moveHistory[i] !== openingMoves[i]) return false;
+    }
+
+    // Filter by player color
+    if (playerColor === 'white') {
+      return opening.category === 'white';
+    } else {
+      return opening.category?.startsWith('black-');
+    }
+  });
+
+  // Get stats for top candidates and sort by win rate
+  const withStats = await getOpeningsWithStats(compatible.slice(0, 10));
+
+  return withStats
+    .sort((a, b) => {
+      const aRate = playerColor === 'white' ? a.whiteWinRate : a.blackWinRate;
+      const bRate = playerColor === 'white' ? b.whiteWinRate : b.blackWinRate;
+      return bRate - aRate;
+    })
+    .slice(0, limit);
+}
+
+// ============================================
 // LOCAL FALLBACK DATA (Most popular openings)
 // ============================================
 
