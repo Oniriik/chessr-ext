@@ -7,7 +7,6 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { useOpeningTracker } from '../../hooks/useOpeningTracker';
 import { useAlternativeOpenings } from '../../hooks/useAlternativeOpenings';
 import { OpeningSuggestionCard } from './OpeningSuggestionCard';
-import { Button } from '../ui/button';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import type { OpeningWithStats } from '../../lib/openingsDatabase';
 
@@ -21,13 +20,13 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-// Confidence label display config with background colors like old version
-const CONFIDENCE_CONFIG: Record<ConfidenceLabel, { label: string; bgClass: string; textClass: string }> = {
-  very_reliable: { label: 'Best', bgClass: 'tw-bg-green-500/20', textClass: 'tw-text-green-400' },
-  reliable: { label: 'Safe', bgClass: 'tw-bg-blue-500/20', textClass: 'tw-text-blue-400' },
-  playable: { label: 'OK', bgClass: 'tw-bg-gray-500/20', textClass: 'tw-text-gray-300' },
-  risky: { label: 'Risky', bgClass: 'tw-bg-orange-500/20', textClass: 'tw-text-orange-400' },
-  speculative: { label: 'Risky', bgClass: 'tw-bg-red-500/20', textClass: 'tw-text-red-400' },
+// Confidence label display config - coherent color palette
+const CONFIDENCE_CONFIG: Record<ConfidenceLabel, { label: string; bgClass: string; textClass: string; emoji?: string }> = {
+  very_reliable: { label: 'Best', bgClass: 'tw-bg-emerald-500/15', textClass: 'tw-text-emerald-400', emoji: '✓' },
+  reliable: { label: 'Good', bgClass: 'tw-bg-sky-500/15', textClass: 'tw-text-sky-400' },
+  playable: { label: 'OK', bgClass: 'tw-bg-slate-500/15', textClass: 'tw-text-slate-300' },
+  risky: { label: 'Sharp', bgClass: 'tw-bg-amber-500/15', textClass: 'tw-text-amber-400' },
+  speculative: { label: 'Risky', bgClass: 'tw-bg-rose-500/15', textClass: 'tw-text-rose-400' },
 };
 
 // Piece symbols for capture badges
@@ -40,13 +39,6 @@ const PIECE_SYMBOLS: Record<string, string> = {
   k: '♚',
 };
 
-// Piece names for promotion badges
-const PIECE_NAMES: Record<string, string> = {
-  q: 'Queen',
-  r: 'Rook',
-  b: 'Bishop',
-  n: 'Knight',
-};
 
 interface MoveFlags {
   isCheck: boolean;
@@ -171,78 +163,84 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
 
   if (suggestion.mateScore !== undefined && suggestion.mateScore !== null) {
     effectBadges.push({
-      label: `Mate ${Math.abs(suggestion.mateScore)}`,
-      bgClass: 'tw-bg-yellow-500/20',
-      textClass: 'tw-text-yellow-400',
+      label: `M${Math.abs(suggestion.mateScore)}`,
+      bgClass: 'tw-bg-amber-500/15',
+      textClass: 'tw-text-amber-400',
     });
   } else if (flags.isCheck) {
     effectBadges.push({
-      label: 'Check',
-      bgClass: 'tw-bg-yellow-500/20',
-      textClass: 'tw-text-yellow-400',
+      label: '+',
+      bgClass: 'tw-bg-amber-500/15',
+      textClass: 'tw-text-amber-400',
     });
   }
 
   if (flags.isCapture && flags.capturedPiece) {
     effectBadges.push({
-      label: `x ${PIECE_SYMBOLS[flags.capturedPiece] || ''}`,
-      bgClass: 'tw-bg-white',
-      textClass: 'tw-text-black',
+      label: `×${PIECE_SYMBOLS[flags.capturedPiece] || ''}`,
+      bgClass: 'tw-bg-white/10',
+      textClass: 'tw-text-white/80',
     });
   }
 
   if (flags.isPromotion && flags.promotionPiece) {
     effectBadges.push({
-      label: `${PIECE_SYMBOLS[flags.promotionPiece] || '♛'} ${PIECE_NAMES[flags.promotionPiece] || 'Queen'}`,
-      bgClass: 'tw-bg-indigo-500/20',
-      textClass: 'tw-text-indigo-400',
+      label: `=${PIECE_SYMBOLS[flags.promotionPiece] || '♛'}`,
+      bgClass: 'tw-bg-violet-500/15',
+      textClass: 'tw-text-violet-400',
     });
   }
 
   return (
     <div
-      className="tw-p-2 tw-rounded-md tw-border tw-cursor-pointer tw-transition-colors tw-bg-muted/50"
+      className="tw-p-2.5 tw-rounded-lg tw-cursor-pointer tw-transition-all tw-bg-muted/30 hover:tw-bg-muted/50"
       style={{
-        borderColor: isSelected ? arrowColor : isHovered ? hexToRgba(arrowColor, 0.6) : hexToRgba(arrowColor, 0.3),
+        boxShadow: isSelected
+          ? `inset 0 0 0 1.5px ${arrowColor}`
+          : isHovered
+            ? `inset 0 0 0 1px ${hexToRgba(arrowColor, 0.4)}`
+            : 'none',
       }}
       onClick={onSelect}
       onMouseEnter={() => { setIsHovered(true); onHoverStart(); }}
       onMouseLeave={() => { setIsHovered(false); onHoverEnd(); }}
     >
-      {/* Header with move, badges, and eval */}
+      {/* Header: Rank + Move + Badges | Eval + Eye */}
       <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
-        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-wrap">
+        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-wrap tw-flex-1 tw-min-w-0">
+          {/* Rank indicator - small colored dot */}
           <span
-            className="tw-text-xs tw-px-1 tw-py-0.5 tw-rounded tw-font-medium"
+            className="tw-w-5 tw-h-5 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-text-[10px] tw-font-bold tw-flex-shrink-0"
             style={{ backgroundColor: hexToRgba(arrowColor, 0.2), color: arrowColor }}
           >
             {rank}
           </span>
-          <span className="tw-text-sm tw-font-medium" style={{ color: arrowColor }}>
+          {/* Move name */}
+          <span className="tw-text-sm tw-font-semibold" style={{ color: arrowColor }}>
             {suggestion.move}
           </span>
-          {/* Quality badge inline */}
-          <span className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-medium ${config.bgClass} ${config.textClass}`}>
+          {/* Quality badge */}
+          <span className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded-md tw-font-medium ${config.bgClass} ${config.textClass}`}>
             {config.label}
           </span>
-          {/* Effect badges inline */}
+          {/* Effect badges */}
           {effectBadges.map((badge, i) => (
             <span
               key={i}
-              className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-medium ${badge.bgClass} ${badge.textClass}`}
+              className={`tw-text-[10px] tw-px-1 tw-py-0.5 tw-rounded-md tw-font-medium ${badge.bgClass} ${badge.textClass}`}
             >
               {badge.label}
             </span>
           ))}
         </div>
-        <div className="tw-flex tw-items-center tw-gap-1.5 tw-shrink-0">
-          <span className={`tw-text-sm tw-font-mono tw-font-semibold ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)}`}>
+        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-shrink-0">
+          {/* Evaluation */}
+          <span className={`tw-text-sm tw-font-mono tw-font-bold tw-tabular-nums ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)}`}>
             {formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
           </span>
+          {/* PV toggle button */}
           {suggestion.pv && suggestion.pv.length > 1 && (
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 onTogglePv();
@@ -255,29 +253,33 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
                 e.stopPropagation();
                 onPvHoverEnd();
               }}
-              className={`tw-h-6 tw-w-6 ${isShowingPv ? 'tw-text-accent-foreground tw-bg-accent' : 'tw-text-muted-foreground'}`}
-              title={isShowingPv ? 'Hide line on board' : 'Show line on board'}
+              className={`tw-h-6 tw-w-6 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-transition-colors ${
+                isShowingPv
+                  ? 'tw-bg-primary/20 tw-text-primary'
+                  : 'tw-bg-transparent tw-text-muted-foreground hover:tw-bg-muted'
+              }`}
+              title={isShowingPv ? 'Hide line' : 'Show line'}
             >
               {isShowingPv ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
-            </Button>
+            </button>
           )}
         </div>
       </div>
 
-      {/* PV Line */}
+      {/* PV Line - move chips matching OpeningRepertoireSelector style */}
       {pvSan.length > 1 && (
-        <div className="tw-flex tw-items-center tw-gap-1 tw-mt-1.5 tw-flex-wrap">
-          <span className="tw-text-[10px] tw-text-muted-foreground tw-uppercase tw-tracking-wide">
-            Next
-          </span>
+        <div className="tw-flex tw-items-center tw-gap-0.5 tw-mt-2 tw-flex-wrap">
           {pvSan.slice(1).map((move, i) => {
             const isWhiteMove = fen.includes(' w ') ? (i % 2 === 1) : (i % 2 === 0);
             return (
               <span
                 key={i}
-                className="tw-inline-flex tw-items-center tw-gap-0.5 tw-text-[10px] tw-px-1 tw-py-0.5 tw-rounded tw-bg-muted tw-text-muted-foreground tw-font-mono"
+                className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-mono ${
+                  isWhiteMove
+                    ? 'tw-bg-white/10 tw-text-white/80'
+                    : 'tw-bg-zinc-700/50 tw-text-zinc-400'
+                }`}
               >
-                <span className={`tw-w-1.5 tw-h-1.5 tw-rounded-full ${isWhiteMove ? 'tw-bg-white' : 'tw-bg-gray-600'}`} />
                 {move}
               </span>
             );
@@ -531,9 +533,7 @@ export function MoveListDisplay() {
     !openingTracker.isOpeningComplete;
 
   return (
-    <div className="tw-mt-3">
-      <div className="tw-text-xs tw-font-medium tw-text-muted-foreground tw-mb-2">Suggested moves</div>
-
+    <div className="tw-space-y-3">
       {/* Opening suggestion card - shown before engine suggestions */}
       {showOpeningCard && openingTracker.selectedOpening && (
         <OpeningSuggestionCard
@@ -559,18 +559,24 @@ export function MoveListDisplay() {
         />
       )}
 
-      {isLoading && suggestions.length === 0 ? (
-        <div className="tw-flex tw-items-center tw-justify-center tw-py-3 tw-text-muted-foreground">
-          <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
-          <span className="tw-text-sm">Analyzing...</span>
+      {/* Engine suggestions section */}
+      <div>
+        <div className="tw-text-[10px] tw-font-medium tw-text-muted-foreground tw-uppercase tw-tracking-wide tw-mb-2">
+          Engine Analysis
         </div>
-      ) : suggestions.length === 0 ? (
-        <div className="tw-text-center tw-py-3 tw-text-sm tw-text-muted-foreground">
-          No suggestions yet
-        </div>
-      ) : (
-        <div className="tw-space-y-1.5">
-          {suggestionsWithFlags.map(({ suggestion, flags }, index) => {
+
+        {isLoading && suggestions.length === 0 ? (
+          <div className="tw-flex tw-items-center tw-justify-center tw-py-6 tw-text-muted-foreground">
+            <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
+            <span className="tw-text-xs">Analyzing...</span>
+          </div>
+        ) : suggestions.length === 0 ? (
+          <div className="tw-text-center tw-py-6">
+            <p className="tw-text-xs tw-text-muted-foreground">Waiting for position</p>
+          </div>
+        ) : (
+          <div className="tw-space-y-1.5">
+            {suggestionsWithFlags.map(({ suggestion, flags }, index) => {
             // Get arrow color based on index and settings
             const arrowColor = useSameColorForAllArrows
               ? singleArrowColor
@@ -599,9 +605,10 @@ export function MoveListDisplay() {
                 onPvHoverEnd={handlePvHoverEnd}
               />
             );
-          })}
-        </div>
-      )}
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

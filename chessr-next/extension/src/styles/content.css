@@ -101,6 +101,11 @@
 
 #chessr-root button {
   cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
 }
 
 /* Custom scrollbar */

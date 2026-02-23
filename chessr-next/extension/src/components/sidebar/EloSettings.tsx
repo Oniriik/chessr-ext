@@ -3,7 +3,7 @@ import { Card, CardContent } from '../ui/card';
 import { Slider } from '../ui/slider';
 import { Checkbox } from '../ui/checkbox';
 import { Switch } from '../ui/switch';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import {
   useEngineStore,
   getRiskLabel,
@@ -216,61 +216,49 @@ function UnlockEloSection() {
 // ============================================================================
 export function EloSettings() {
   const [expanded, setExpanded] = useState(true);
-  const { getTargetElo, riskTaking, skill, personality } = useEngineStore();
+  const { getTargetElo, personality } = useEngineStore();
 
   const targetElo = getTargetElo();
   const personalityLabel = PERSONALITY_INFO[personality].label;
 
   return (
-    <Card className="tw-bg-muted/50">
+    <Card className="tw-bg-muted/50 tw-overflow-hidden">
       {/* Collapsible Header */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className={`tw-w-full tw-flex tw-items-center tw-justify-between tw-p-4 tw-cursor-pointer hover:tw-bg-muted/30 tw-transition-colors ${expanded ? 'tw-rounded-t-lg' : 'tw-rounded-lg'} tw-bg-transparent`}
+        className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-4 tw-cursor-pointer hover:tw-bg-muted/30 tw-transition-all tw-duration-200 tw-bg-transparent tw-rounded-lg"
       >
-        <div className="tw-flex tw-flex-col tw-items-start tw-gap-2 tw-flex-1">
-          {expanded && (
-            <span className="tw-text-sm tw-font-semibold">Engine Settings</span>
-          )}
+        <div className="tw-flex tw-items-center tw-gap-3 tw-flex-1">
+          <span className="tw-text-sm tw-font-semibold">Engine Settings</span>
           {!expanded && (
-            <div className="tw-flex tw-flex-wrap tw-gap-x-6 tw-gap-y-2">
-              <div>
-                <p className="tw-text-xs tw-text-muted-foreground tw-uppercase tw-tracking-wide">Target ELO</p>
-                <p className="tw-text-base tw-font-bold tw-text-primary">{targetElo}</p>
-              </div>
-              <div>
-                <p className="tw-text-xs tw-text-muted-foreground tw-uppercase tw-tracking-wide">Risk</p>
-                <p className="tw-text-base tw-font-bold tw-text-primary">{riskTaking}%</p>
-              </div>
-              <div>
-                <p className="tw-text-xs tw-text-muted-foreground tw-uppercase tw-tracking-wide">Skill</p>
-                <p className="tw-text-base tw-font-bold tw-text-primary">{skill}</p>
-              </div>
-              <div>
-                <p className="tw-text-xs tw-text-muted-foreground tw-uppercase tw-tracking-wide">Personality</p>
-                <p className="tw-text-base tw-font-bold tw-text-primary">{personalityLabel}</p>
-              </div>
+            <div className="tw-flex tw-items-center tw-gap-2 tw-text-xs tw-text-muted-foreground">
+              <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded-full tw-font-medium">
+                {targetElo} ELO
+              </span>
+              <span className="tw-px-2 tw-py-0.5 tw-bg-muted tw-rounded-full">
+                {personalityLabel}
+              </span>
             </div>
           )}
         </div>
-        {expanded ? (
-          <ChevronUp className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
-        ) : (
+        <div className={`tw-transition-transform tw-duration-200 ${expanded ? 'tw-rotate-180' : ''}`}>
           <ChevronDown className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
-        )}
+        </div>
       </button>
 
-      {/* Expandable Content */}
-      {expanded && (
-        <CardContent className="tw-p-4 tw-pt-0 tw-space-y-5">
-          <TargetEloSection />
-          <RiskSection />
-          <SkillSection />
-          <PersonalitySection />
-          <ArmageddonSection />
-          <UnlockEloSection />
-        </CardContent>
-      )}
+      {/* Expandable Content with animation */}
+      <div className={`tw-grid tw-transition-all tw-duration-200 ${expanded ? 'tw-grid-rows-[1fr]' : 'tw-grid-rows-[0fr]'}`}>
+        <div className="tw-overflow-hidden">
+          <CardContent className="tw-p-4 tw-pt-0 tw-space-y-5">
+            <TargetEloSection />
+            <RiskSection />
+            <SkillSection />
+            <PersonalitySection />
+            <ArmageddonSection />
+            <UnlockEloSection />
+          </CardContent>
+        </div>
+      </div>
     </Card>
   );
 }

@@ -9,11 +9,10 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Loader2, X, Check } from 'lucide-react';
+import { Search, Loader2, X, Check, ChevronDown, BookOpen } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
 import { useOpeningStore, type SavedOpening } from '../../stores/openingStore';
 import {
   searchOpenings,
@@ -140,15 +139,18 @@ function MoveChips({ moves }: { moves: string }) {
     .filter(m => m.length > 0);
 
   return (
-    <div className="tw-flex tw-items-center tw-gap-1 tw-flex-wrap">
+    <div className="tw-flex tw-items-center tw-gap-0.5 tw-flex-wrap">
       {moveList.map((move, i) => {
         const isWhiteMove = i % 2 === 0;
         return (
           <span
             key={i}
-            className="tw-inline-flex tw-items-center tw-gap-0.5 tw-text-[10px] tw-px-1 tw-py-0.5 tw-rounded tw-bg-muted tw-text-muted-foreground tw-font-mono"
+            className={`tw-inline-flex tw-items-center tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-mono ${
+              isWhiteMove
+                ? 'tw-bg-white/10 tw-text-white/80'
+                : 'tw-bg-zinc-700/50 tw-text-zinc-400'
+            }`}
           >
-            <span className={`tw-w-1.5 tw-h-1.5 tw-rounded-full ${isWhiteMove ? 'tw-bg-white' : 'tw-bg-gray-600'}`} />
             {move}
           </span>
         );
@@ -164,15 +166,15 @@ function MoveChips({ moves }: { moves: string }) {
 function WinRateBar({ white, draw, black }: { white: number; draw: number; black: number }) {
   return (
     <div className="tw-flex tw-items-center tw-gap-2">
-      <div className="tw-flex tw-h-2 tw-rounded-full tw-overflow-hidden tw-bg-muted tw-flex-1">
-        <div className="tw-bg-white tw-border-r tw-border-border/30" style={{ width: `${white}%` }} />
-        <div className="tw-bg-zinc-400" style={{ width: `${draw}%` }} />
+      <div className="tw-flex tw-h-1.5 tw-rounded-full tw-overflow-hidden tw-bg-muted tw-flex-1">
+        <div className="tw-bg-white" style={{ width: `${white}%` }} />
+        <div className="tw-bg-zinc-500" style={{ width: `${draw}%` }} />
         <div className="tw-bg-zinc-800" style={{ width: `${black}%` }} />
       </div>
-      <div className="tw-flex tw-gap-2 tw-text-xs tw-flex-shrink-0">
-        <span className="tw-text-white/80">{white.toFixed(0)}%</span>
-        <span className="tw-text-zinc-400">{draw.toFixed(0)}%</span>
-        <span className="tw-text-zinc-500">{black.toFixed(0)}%</span>
+      <div className="tw-flex tw-gap-1.5 tw-text-[10px] tw-tabular-nums tw-flex-shrink-0">
+        <span className="tw-text-white/70">{white.toFixed(0)}</span>
+        <span className="tw-text-zinc-500">{draw.toFixed(0)}</span>
+        <span className="tw-text-zinc-600">{black.toFixed(0)}</span>
       </div>
     </div>
   );
@@ -190,37 +192,40 @@ interface SelectedOpeningProps {
 }
 
 function SelectedOpening({ label, opening, onClear, color }: SelectedOpeningProps) {
-  const bgColor = color === 'white' ? 'tw-bg-white' : 'tw-bg-zinc-800';
+  const pieceColor = color === 'white' ? 'tw-bg-white' : 'tw-bg-zinc-800';
+  const ringColor = color === 'white' ? 'tw-ring-white/30' : 'tw-ring-zinc-600/30';
 
   return (
     <div className="tw-flex-1 tw-min-w-0">
-      <div className="tw-flex tw-items-center tw-gap-2 tw-mb-1">
-        <div className={`tw-w-4 tw-h-4 tw-rounded-sm ${bgColor} tw-border tw-border-border`} />
-        <span className="tw-text-xs tw-text-white">{label}</span>
+      <div className="tw-flex tw-items-center tw-gap-1.5 tw-mb-1.5">
+        <div className={`tw-w-3 tw-h-3 tw-rounded-sm ${pieceColor} tw-ring-1 ${ringColor}`} />
+        <span className="tw-text-xs tw-font-medium tw-text-muted-foreground">{label}</span>
       </div>
       {opening ? (
-        <div className="tw-px-2 tw-py-1.5 tw-rounded-md tw-bg-muted/50 tw-border tw-border-border/50">
-          <div className="tw-flex tw-items-center tw-gap-1">
-            <Badge variant="outline" className="tw-font-mono tw-text-xs tw-flex-shrink-0">
-              {opening.eco}
-            </Badge>
-            <span className="tw-text-xs tw-truncate">{opening.name}</span>
+        <div className="tw-group tw-relative tw-px-2.5 tw-py-2 tw-rounded-lg tw-bg-muted/40 hover:tw-bg-muted/60 tw-transition-colors">
+          <div className="tw-flex tw-items-start tw-gap-2">
+            <div className="tw-flex-1 tw-min-w-0">
+              <div className="tw-flex tw-items-center tw-gap-1.5">
+                <span className="tw-text-[10px] tw-font-mono tw-text-muted-foreground">{opening.eco}</span>
+                <span className="tw-text-xs tw-font-medium tw-truncate">{opening.name}</span>
+              </div>
+              <div className="tw-mt-1">
+                <MoveChips moves={opening.moves} />
+              </div>
+            </div>
             <Button
               variant="ghost"
               size="icon"
-              className="tw-h-4 tw-w-4 tw-flex-shrink-0 tw-ml-auto"
+              className="tw-h-5 tw-w-5 tw-opacity-0 group-hover:tw-opacity-100 tw-transition-opacity tw-flex-shrink-0"
               onClick={onClear}
             >
               <X className="tw-h-3 tw-w-3" />
             </Button>
           </div>
-          <div className="tw-mt-1">
-            <MoveChips moves={opening.moves} />
-          </div>
         </div>
       ) : (
-        <div className="tw-flex tw-items-center tw-px-2 tw-py-3 tw-rounded-md tw-bg-muted/30 tw-border tw-border-dashed tw-border-border/50">
-          <span className="tw-text-xs tw-text-muted-foreground tw-italic">Not selected</span>
+        <div className="tw-flex tw-items-center tw-justify-center tw-px-2 tw-py-3 tw-rounded-lg tw-bg-muted/20 tw-border tw-border-dashed tw-border-border/40">
+          <span className="tw-text-[11px] tw-text-muted-foreground/70">Search below</span>
         </div>
       )}
     </div>
@@ -257,54 +262,60 @@ function OpeningRow({
   const isBlackCompatible = opening.category?.startsWith('black-') ?? false;
 
   return (
-    <div className="tw-p-2 tw-rounded-md tw-bg-muted/30 hover:tw-bg-muted/50 tw-transition-colors">
-      {/* Line 1: Name, games count, select buttons */}
-      <div className="tw-flex tw-items-center tw-justify-between tw-gap-2 tw-mb-2">
-        <div className="tw-flex tw-items-center tw-gap-2 tw-flex-1 tw-min-w-0">
-          <Badge variant="outline" className="tw-font-mono tw-text-xs tw-flex-shrink-0">
-            {opening.eco}
-          </Badge>
-          <span className="tw-text-sm tw-truncate">{opening.name}</span>
-        </div>
-        <div className="tw-flex tw-items-center tw-gap-2 tw-flex-shrink-0">
-          <span className="tw-text-xs tw-text-muted-foreground">
-            {formatGames(opening.totalGames)}
-          </span>
-          <Button
-            variant={isWhiteSelected ? 'default' : 'outline'}
-            size="sm"
-            className="tw-h-7 tw-px-2 tw-text-xs"
-            onClick={onSelectWhite}
-            disabled={!isWhiteCompatible}
-            title={isWhiteCompatible ? "Select as White opening" : "This opening is for Black only"}
-          >
-            {isWhiteSelected ? <Check className="tw-h-3 tw-w-3 tw-mr-1" /> : null}
-            W
-          </Button>
-          <Button
-            variant={isBlackSelected ? 'default' : 'outline'}
-            size="sm"
-            className="tw-h-7 tw-px-2 tw-text-xs"
-            onClick={onSelectBlack}
-            disabled={!isBlackCompatible}
-            title={isBlackCompatible ? "Select as Black opening" : "This opening is for White only"}
-          >
-            {isBlackSelected ? <Check className="tw-h-3 tw-w-3 tw-mr-1" /> : null}
-            B
-          </Button>
-        </div>
+    <div className="tw-p-2.5 tw-rounded-lg tw-bg-muted/30 hover:tw-bg-muted/50 tw-transition-colors tw-group">
+      {/* Header: ECO + Name + Games */}
+      <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
+        <span className="tw-text-[10px] tw-font-mono tw-text-muted-foreground tw-flex-shrink-0">
+          {opening.eco}
+        </span>
+        <span className="tw-text-sm tw-font-medium tw-truncate tw-flex-1">{opening.name}</span>
+        <span className="tw-text-[10px] tw-text-muted-foreground tw-flex-shrink-0">
+          {formatGames(opening.totalGames)} games
+        </span>
       </div>
 
-      {/* Line 2: Winrate bar */}
-      <WinRateBar
-        white={opening.whiteWinRate}
-        draw={opening.drawRate}
-        black={opening.blackWinRate}
-      />
+      {/* Winrate bar - compact */}
+      <div className="tw-mb-2">
+        <WinRateBar
+          white={opening.whiteWinRate}
+          draw={opening.drawRate}
+          black={opening.blackWinRate}
+        />
+      </div>
 
-      {/* Line 3: Moves */}
-      <div className="tw-mt-1">
-        <MoveChips moves={opening.moves} />
+      {/* Moves + Select buttons */}
+      <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
+        <div className="tw-flex-1 tw-min-w-0">
+          <MoveChips moves={opening.moves} />
+        </div>
+        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-shrink-0">
+          {isWhiteCompatible && (
+            <button
+              onClick={onSelectWhite}
+              className={`tw-flex tw-items-center tw-justify-center tw-w-6 tw-h-6 tw-rounded-md tw-transition-all ${
+                isWhiteSelected
+                  ? 'tw-bg-white tw-text-zinc-900 tw-ring-2 tw-ring-primary'
+                  : 'tw-bg-white/90 tw-text-zinc-700 hover:tw-ring-2 hover:tw-ring-white/50'
+              }`}
+              title="Use as White"
+            >
+              {isWhiteSelected && <Check className="tw-h-3.5 tw-w-3.5" />}
+            </button>
+          )}
+          {isBlackCompatible && (
+            <button
+              onClick={onSelectBlack}
+              className={`tw-flex tw-items-center tw-justify-center tw-w-6 tw-h-6 tw-rounded-md tw-transition-all ${
+                isBlackSelected
+                  ? 'tw-bg-zinc-800 tw-text-white tw-ring-2 tw-ring-primary'
+                  : 'tw-bg-zinc-700 tw-text-zinc-300 hover:tw-ring-2 hover:tw-ring-zinc-500/50'
+              }`}
+              title="Use as Black"
+            >
+              {isBlackSelected && <Check className="tw-h-3.5 tw-w-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -319,12 +330,16 @@ const WHITE_MOVES = ['e4', 'd4', 'c4', 'nf3', 'g3', 'b3', 'f4'];
 
 export function OpeningRepertoireSelector() {
   const { repertoire, setWhiteOpening, setBlackOpening } = useOpeningStore();
+  const [expanded, setExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [colorFilter, setColorFilter] = useState<'white' | 'black' | null>(null);
   const [counterMode, setCounterMode] = useState(false);
   const [results, setResults] = useState<OpeningWithStats[]>(POPULAR_OPENINGS);
   const [isLoading, setIsLoading] = useState(false);
   const [isWhiteSearch, setIsWhiteSearch] = useState(false);
+
+  // Count selected openings for collapsed state badge
+  const selectedCount = (repertoire.white ? 1 : 0) + (repertoire.black ? 1 : 0);
 
   // Detect if search is for a white move or white opening
   const normalizedQuery = searchQuery.toLowerCase().trim();
@@ -514,118 +529,139 @@ export function OpeningRepertoireSelector() {
   }, [setBlackOpening]);
 
   return (
-    <Card className="tw-bg-muted/50">
-      <CardContent className="tw-p-4 tw-space-y-4">
-        <span className="tw-text-sm tw-font-semibold">Opening Repertoire</span>
-        {/* Current selections: White and Black side by side */}
-        <div className="tw-flex tw-gap-4">
-          <SelectedOpening
-            label="White Open"
-            opening={repertoire.white}
-            onClear={handleClearWhite}
-            color="white"
-          />
-          <SelectedOpening
-            label="Black Open"
-            opening={repertoire.black}
-            onClear={handleClearBlack}
-            color="black"
-          />
+    <Card className="tw-bg-muted/50 tw-overflow-hidden">
+      {/* Collapsible Header */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-4 tw-cursor-pointer hover:tw-bg-muted/30 tw-transition-all tw-duration-200 tw-bg-transparent tw-rounded-lg"
+      >
+        <div className="tw-flex tw-items-center tw-gap-3 tw-flex-1">
+          <BookOpen className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
+          <span className="tw-text-sm tw-font-semibold">Opening Repertoire</span>
+          {!expanded && selectedCount > 0 && (
+            <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded-full tw-text-xs tw-font-medium">
+              {selectedCount} selected
+            </span>
+          )}
         </div>
-
-        {/* Search bar with color filter */}
-        <div className="tw-flex tw-gap-2">
-          <div className="tw-relative tw-flex-1">
-            <Search className="tw-absolute tw-left-3 tw-top-1/2 tw--translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Name, ECO (B20), or e4/d4"
-              className="tw-pl-9 tw-pr-9 tw-h-9"
-            />
-            {searchQuery && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="tw-absolute tw-right-1 tw-top-1/2 tw--translate-y-1/2 tw-h-7 tw-w-7"
-                onClick={() => setSearchQuery('')}
-              >
-                <X className="tw-h-4 tw-w-4" />
-              </Button>
-            )}
-          </div>
-          <Button
-            variant={counterMode ? 'default' : 'outline'}
-            size="sm"
-            className="tw-h-9 tw-px-2 tw-text-xs"
-            onClick={() => setCounterMode(!counterMode)}
-            disabled={!canUseCounter}
-            title={canUseCounter ? 'Show best black counters' : 'Search a white move or opening to find counters'}
-          >
-            Counter
-          </Button>
-          <Button
-            variant={colorFilter === 'white' && !counterMode ? 'default' : 'outline'}
-            size="sm"
-            className="tw-h-9 tw-px-2"
-            onClick={() => { setColorFilter(colorFilter === 'white' ? null : 'white'); setCounterMode(false); }}
-            title="Filter White openings"
-          >
-            W
-          </Button>
-          <Button
-            variant={colorFilter === 'black' && !counterMode ? 'default' : 'outline'}
-            size="sm"
-            className="tw-h-9 tw-px-2"
-            onClick={() => { setColorFilter(colorFilter === 'black' ? null : 'black'); setCounterMode(false); }}
-            title="Filter Black openings"
-          >
-            B
-          </Button>
+        <div className={`tw-transition-transform tw-duration-200 ${expanded ? 'tw-rotate-180' : ''}`}>
+          <ChevronDown className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
         </div>
+      </button>
 
-        {/* Search results */}
-        {isLoading ? (
-          <div className="tw-flex tw-items-center tw-justify-center tw-py-4">
-            <Loader2 className="tw-h-5 tw-w-5 tw-animate-spin tw-text-muted-foreground" />
-          </div>
-        ) : results.length === 0 ? (
-          <p className="tw-text-sm tw-text-muted-foreground tw-text-center tw-py-4">
-            No openings found for "{searchQuery}"
-          </p>
-        ) : (
-          <div className="tw-space-y-2 tw-max-h-72 tw-overflow-y-auto">
-            {results.map((opening) => (
-              <OpeningRow
-                key={`${opening.eco}-${opening.name}`}
-                opening={opening}
-                isWhiteSelected={repertoire.white?.eco === opening.eco}
-                isBlackSelected={repertoire.black?.eco === opening.eco}
-                onSelectWhite={() => handleSelectWhite(opening)}
-                onSelectBlack={() => handleSelectBlack(opening)}
+      {/* Expandable Content */}
+      <div className={`tw-grid tw-transition-all tw-duration-200 ${expanded ? 'tw-grid-rows-[1fr]' : 'tw-grid-rows-[0fr]'}`}>
+        <div className="tw-overflow-hidden">
+          <CardContent className="tw-p-4 tw-pt-0 tw-space-y-4">
+            {/* Current selections: White and Black side by side */}
+            <div className="tw-flex tw-gap-3">
+              <SelectedOpening
+                label="White"
+                opening={repertoire.white}
+                onClear={handleClearWhite}
+                color="white"
               />
-            ))}
-          </div>
-        )}
+              <SelectedOpening
+                label="Black"
+                opening={repertoire.black}
+                onClear={handleClearBlack}
+                color="black"
+              />
+            </div>
 
-        {/* Legend */}
-        {results.length > 0 && (
-          <div className="tw-flex tw-items-center tw-justify-center tw-gap-3 tw-text-xs tw-text-muted-foreground tw-pt-2 tw-border-t tw-border-border">
-            <span className="tw-flex tw-items-center tw-gap-1">
-              <div className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-white tw-border tw-border-border/50" />
-              White wins
-            </span>
-            <span className="tw-flex tw-items-center tw-gap-1">
-              <div className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-zinc-400" />
-              Draw
-            </span>
-            <span className="tw-flex tw-items-center tw-gap-1">
-              <div className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-zinc-800" />
-              Black wins
-            </span>
-          </div>
-        )}
-      </CardContent>
+            {/* Search bar */}
+            <div className="tw-space-y-2">
+              <div className="tw-relative">
+                <Search className="tw-absolute tw-left-3 tw-top-1/2 tw--translate-y-1/2 tw-h-4 tw-w-4 tw-text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search Italian, Sicilian, e4..."
+                  className="tw-pl-9 tw-pr-9 tw-h-9"
+                />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="tw-absolute tw-right-1 tw-top-1/2 tw--translate-y-1/2 tw-h-7 tw-w-7"
+                    onClick={() => setSearchQuery('')}
+                  >
+                    <X className="tw-h-4 tw-w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Filter buttons - cleaner design */}
+              <div className="tw-flex tw-gap-1.5">
+                <button
+                  onClick={() => { setColorFilter(colorFilter === 'white' ? null : 'white'); setCounterMode(false); }}
+                  className={`tw-flex tw-items-center tw-gap-1.5 tw-px-2.5 tw-py-1 tw-rounded-md tw-text-xs tw-font-medium tw-transition-all ${
+                    colorFilter === 'white' && !counterMode
+                      ? 'tw-bg-white tw-text-zinc-900'
+                      : 'tw-bg-muted/50 tw-text-muted-foreground hover:tw-bg-muted'
+                  }`}
+                >
+                  <div className="tw-w-2.5 tw-h-2.5 tw-rounded-sm tw-bg-white tw-ring-1 tw-ring-zinc-300" />
+                  White
+                </button>
+                <button
+                  onClick={() => { setColorFilter(colorFilter === 'black' ? null : 'black'); setCounterMode(false); }}
+                  className={`tw-flex tw-items-center tw-gap-1.5 tw-px-2.5 tw-py-1 tw-rounded-md tw-text-xs tw-font-medium tw-transition-all ${
+                    colorFilter === 'black' && !counterMode
+                      ? 'tw-bg-zinc-700 tw-text-white'
+                      : 'tw-bg-muted/50 tw-text-muted-foreground hover:tw-bg-muted'
+                  }`}
+                >
+                  <div className="tw-w-2.5 tw-h-2.5 tw-rounded-sm tw-bg-zinc-800 tw-ring-1 tw-ring-zinc-600" />
+                  Black
+                </button>
+                {canUseCounter && (
+                  <button
+                    onClick={() => setCounterMode(!counterMode)}
+                    className={`tw-flex tw-items-center tw-gap-1 tw-px-2.5 tw-py-1 tw-rounded-md tw-text-xs tw-font-medium tw-transition-all tw-ml-auto ${
+                      counterMode
+                        ? 'tw-bg-amber-500/20 tw-text-amber-400'
+                        : 'tw-bg-muted/50 tw-text-muted-foreground hover:tw-bg-muted'
+                    }`}
+                    title="Find Black responses to this opening"
+                  >
+                    Counter
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Search results */}
+            {isLoading ? (
+              <div className="tw-flex tw-items-center tw-justify-center tw-py-6">
+                <Loader2 className="tw-h-5 tw-w-5 tw-animate-spin tw-text-muted-foreground" />
+              </div>
+            ) : results.length === 0 ? (
+              <div className="tw-text-center tw-py-6">
+                <p className="tw-text-sm tw-text-muted-foreground">
+                  No openings found
+                </p>
+                <p className="tw-text-xs tw-text-muted-foreground/70 tw-mt-1">
+                  Try a different search term
+                </p>
+              </div>
+            ) : (
+              <div className="tw-space-y-2 tw-max-h-64 tw-overflow-y-auto tw-pr-1">
+                {results.map((opening) => (
+                  <OpeningRow
+                    key={`${opening.eco}-${opening.name}`}
+                    opening={opening}
+                    isWhiteSelected={repertoire.white?.eco === opening.eco}
+                    isBlackSelected={repertoire.black?.eco === opening.eco}
+                    onSelectWhite={() => handleSelectWhite(opening)}
+                    onSelectBlack={() => handleSelectBlack(opening)}
+                  />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </div>
+      </div>
     </Card>
   );
 }

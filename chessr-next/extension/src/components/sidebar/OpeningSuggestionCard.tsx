@@ -7,7 +7,6 @@
 import type { SavedOpening } from '../../stores/openingStore';
 import type { OpeningWithStats } from '../../lib/openingsDatabase';
 import { BookOpen, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { Button } from '../ui/button';
 
 /**
  * Convert hex color to rgba
@@ -45,9 +44,9 @@ interface OpeningSuggestionCardProps {
 }
 
 /**
- * Compact move chips for displaying opening moves
+ * Compact move chips for displaying opening moves - matching Engine tab style
  */
-function MoveChipsCompact({ moves, color }: { moves: string; color: string }) {
+function MoveChipsCompact({ moves }: { moves: string }) {
   const moveList = moves
     .replace(/\d+\.\s*/g, '')
     .split(/\s+/)
@@ -60,12 +59,12 @@ function MoveChipsCompact({ moves, color }: { moves: string; color: string }) {
         return (
           <span
             key={i}
-            className="tw-inline-flex tw-items-center tw-gap-0.5 tw-text-[9px] tw-px-0.5 tw-rounded tw-font-mono"
-            style={{ backgroundColor: hexToRgba(color, 0.1), color: hexToRgba(color, 0.7) }}
+            className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-mono ${
+              isWhiteMove
+                ? 'tw-bg-white/10 tw-text-white/80'
+                : 'tw-bg-zinc-700/50 tw-text-zinc-400'
+            }`}
           >
-            <span
-              className={`tw-w-1 tw-h-1 tw-rounded-full ${isWhiteMove ? 'tw-bg-white' : 'tw-bg-gray-600'}`}
-            />
             {move}
           </span>
         );
@@ -75,11 +74,10 @@ function MoveChipsCompact({ moves, color }: { moves: string; color: string }) {
 }
 
 /**
- * Alternative opening row in the deviation section
+ * Alternative opening row in the deviation section - matching Engine tab style
  */
 function AlternativeOpeningRow({
   opening,
-  rank,
   playerColor,
   isShowingPreview,
   onSelect,
@@ -89,7 +87,6 @@ function AlternativeOpeningRow({
   color,
 }: {
   opening: OpeningWithStats;
-  rank: number;
   playerColor: 'white' | 'black' | null;
   isShowingPreview: boolean;
   onSelect: () => void;
@@ -102,35 +99,23 @@ function AlternativeOpeningRow({
 
   return (
     <div
-      className="tw-p-1.5 tw-rounded tw-bg-muted/30 hover:tw-bg-muted/50 tw-cursor-pointer tw-transition-colors tw-border"
+      className="tw-p-2.5 tw-rounded-lg tw-bg-muted/30 hover:tw-bg-muted/50 tw-cursor-pointer tw-transition-all"
       style={{
-        borderColor: isShowingPreview ? hexToRgba(color, 0.5) : 'transparent',
+        boxShadow: isShowingPreview ? `inset 0 0 0 1.5px ${hexToRgba(color, 0.5)}` : 'none',
       }}
       onClick={onSelect}
     >
-      {/* Rank + ECO + Name + Eye + WinRate */}
-      <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
-        <div className="tw-flex tw-items-center tw-gap-1.5 tw-min-w-0">
-          {/* Rank badge */}
-          <span
-            className="tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-medium tw-whitespace-nowrap"
-            style={{ backgroundColor: hexToRgba(color, 0.2), color }}
-          >
-            Alt {rank}
-          </span>
-          <span className="tw-font-mono tw-text-[10px] tw-px-1 tw-py-0 tw-rounded tw-bg-muted">
-            {opening.eco}
-          </span>
-          <span className="tw-text-xs tw-truncate">{opening.name}</span>
-        </div>
-        <div className="tw-flex tw-items-center tw-gap-1 tw-shrink-0">
-          {/* WinRate then Eye button */}
-          <span className="tw-text-[10px] tw-font-medium" style={{ color }}>
+      {/* Header: ECO + Name + WinRate + Eye */}
+      <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
+        <span className="tw-text-[10px] tw-font-mono tw-text-muted-foreground tw-flex-shrink-0">
+          {opening.eco}
+        </span>
+        <span className="tw-text-sm tw-font-medium tw-truncate tw-flex-1">{opening.name}</span>
+        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-shrink-0">
+          <span className="tw-text-xs tw-font-medium" style={{ color }}>
             {winRate.toFixed(0)}%
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
+          <button
             onClick={(e) => {
               e.stopPropagation();
               onTogglePreview();
@@ -143,28 +128,34 @@ function AlternativeOpeningRow({
               e.stopPropagation();
               onHoverPreviewEnd();
             }}
-            className={`tw-h-5 tw-w-5 ${isShowingPreview ? '' : 'tw-text-muted-foreground'}`}
-            style={isShowingPreview ? { color, backgroundColor: hexToRgba(color, 0.2) } : undefined}
-            title={isShowingPreview ? 'Hide moves on board' : 'Show moves on board'}
+            className={`tw-h-6 tw-w-6 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-transition-colors ${
+              isShowingPreview
+                ? 'tw-bg-primary/20 tw-text-primary'
+                : 'tw-text-muted-foreground hover:tw-bg-muted'
+            }`}
+            title={isShowingPreview ? 'Hide moves' : 'Show moves'}
           >
-            {isShowingPreview ? (
-              <Eye className="tw-w-3 tw-h-3" />
-            ) : (
-              <EyeOff className="tw-w-3 tw-h-3" />
-            )}
-          </Button>
+            {isShowingPreview ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
+          </button>
         </div>
       </div>
 
-      {/* Winrate bar compact */}
-      <div className="tw-flex tw-h-1 tw-rounded-full tw-overflow-hidden tw-bg-muted tw-mt-1">
-        <div className="tw-bg-white" style={{ width: `${opening.whiteWinRate}%` }} />
-        <div className="tw-bg-zinc-400" style={{ width: `${opening.drawRate}%` }} />
-        <div className="tw-bg-zinc-800" style={{ width: `${opening.blackWinRate}%` }} />
+      {/* Winrate bar */}
+      <div className="tw-flex tw-items-center tw-gap-2 tw-mb-2">
+        <div className="tw-flex tw-h-1.5 tw-rounded-full tw-overflow-hidden tw-bg-muted tw-flex-1">
+          <div className="tw-bg-white" style={{ width: `${opening.whiteWinRate}%` }} />
+          <div className="tw-bg-zinc-500" style={{ width: `${opening.drawRate}%` }} />
+          <div className="tw-bg-zinc-800" style={{ width: `${opening.blackWinRate}%` }} />
+        </div>
+        <div className="tw-flex tw-gap-1.5 tw-text-[10px] tw-tabular-nums tw-flex-shrink-0">
+          <span className="tw-text-white/70">{opening.whiteWinRate.toFixed(0)}</span>
+          <span className="tw-text-zinc-500">{opening.drawRate.toFixed(0)}</span>
+          <span className="tw-text-zinc-600">{opening.blackWinRate.toFixed(0)}</span>
+        </div>
       </div>
 
       {/* Move chips */}
-      <MoveChipsCompact moves={opening.moves} color={color} />
+      <MoveChipsCompact moves={opening.moves} />
     </div>
   );
 }
@@ -191,105 +182,93 @@ export function OpeningSuggestionCard({
   openingColor = '#a855f7',
 }: OpeningSuggestionCardProps) {
   // Find the index of the next player move in the opening sequence
-  // nextMove is the next move the player should play (may be at currentMoveIndex or currentMoveIndex+1)
   const nextMoveIndex =
     nextMove && isFollowing
       ? openingMoves.findIndex((m, i) => i >= currentMoveIndex && m === nextMove)
       : null;
 
-  // Get remaining moves after the next move (for "Next" section like engine cards)
+  // Get remaining moves after the next move
   const remainingMoves =
     nextMoveIndex !== null && nextMoveIndex >= 0 ? openingMoves.slice(nextMoveIndex + 1) : [];
 
-  // Compute border color based on state
-  const borderColor = hasDeviated
-    ? 'rgba(239, 68, 68, 0.5)' // red-500/50
-    : isFollowing
-      ? hexToRgba(openingColor, 0.5)
-      : undefined;
-
   return (
     <div
-      className="tw-p-2 tw-rounded-md tw-border tw-mb-1.5 tw-transition-colors tw-bg-muted/50 tw-border-border"
-      style={borderColor ? { borderColor } : undefined}
+      className="tw-p-2.5 tw-rounded-lg tw-transition-all tw-bg-muted/30 hover:tw-bg-muted/50"
+      style={{
+        boxShadow: hasDeviated
+          ? 'inset 0 0 0 1.5px rgba(239, 68, 68, 0.4)'
+          : isFollowing
+            ? `inset 0 0 0 1.5px ${hexToRgba(openingColor, 0.4)}`
+            : 'none',
+      }}
     >
-      {/* Header with opening badge, name, eye button */}
+      {/* Header: Badge + Move + ECO | Eye */}
       <div className="tw-flex tw-items-center tw-justify-between tw-gap-2">
-        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-wrap">
-          {/* Opening badge instead of rank */}
+        <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-wrap tw-flex-1 tw-min-w-0">
+          {/* Opening badge */}
           <span
-            className="tw-inline-flex tw-items-center tw-gap-1 tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-medium"
-            style={{ backgroundColor: hexToRgba(openingColor, 0.2), color: openingColor }}
+            className="tw-inline-flex tw-items-center tw-gap-1 tw-w-5 tw-h-5 tw-rounded-md tw-justify-center tw-flex-shrink-0"
+            style={{ backgroundColor: hexToRgba(openingColor, 0.2) }}
           >
-            <BookOpen className="tw-w-3 tw-h-3" />
-            Opening
+            <BookOpen className="tw-w-3 tw-h-3" style={{ color: openingColor }} />
           </span>
-          {/* Next move (like engine suggestion move) */}
+          {/* Next move to play */}
           {nextMove && isFollowing && !hasDeviated && (
-            <span className="tw-text-sm tw-font-medium" style={{ color: openingColor }}>{nextMove}</span>
+            <span className="tw-text-sm tw-font-semibold" style={{ color: openingColor }}>{nextMove}</span>
           )}
           {/* ECO code */}
-          <span className="tw-text-[10px] tw-px-1 tw-py-0.5 tw-rounded tw-font-mono tw-bg-muted tw-text-muted-foreground">
+          <span className="tw-text-[10px] tw-font-mono tw-text-muted-foreground">
             {opening.eco}
           </span>
           {/* Deviation badge */}
           {hasDeviated && (
-            <span className="tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-medium tw-bg-red-500/20 tw-text-red-400">
+            <span className="tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded-md tw-font-medium tw-bg-rose-500/15 tw-text-rose-400">
               Deviated
             </span>
           )}
         </div>
-        {/* Eye button to show moves on board */}
+        {/* Eye button */}
         {!hasDeviated && (
-          <div className="tw-flex tw-items-center tw-gap-1.5 tw-shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleShowMoves();
-              }}
-              onMouseEnter={(e) => {
-                e.stopPropagation();
-                onHoverShowMovesStart?.();
-              }}
-              onMouseLeave={(e) => {
-                e.stopPropagation();
-                onHoverShowMovesEnd?.();
-              }}
-              className={`tw-h-6 tw-w-6 ${isShowingMoves ? '' : 'tw-text-muted-foreground'}`}
-              style={isShowingMoves ? { color: openingColor, backgroundColor: hexToRgba(openingColor, 0.2) } : undefined}
-              title={isShowingMoves ? 'Hide opening moves on board' : 'Show opening moves on board'}
-            >
-              {isShowingMoves ? (
-                <Eye className="tw-w-3.5 tw-h-3.5" />
-              ) : (
-                <EyeOff className="tw-w-3.5 tw-h-3.5" />
-              )}
-            </Button>
-          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleShowMoves();
+            }}
+            onMouseEnter={(e) => {
+              e.stopPropagation();
+              onHoverShowMovesStart?.();
+            }}
+            onMouseLeave={(e) => {
+              e.stopPropagation();
+              onHoverShowMovesEnd?.();
+            }}
+            className={`tw-h-6 tw-w-6 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-transition-colors tw-flex-shrink-0 ${
+              isShowingMoves
+                ? 'tw-bg-primary/20 tw-text-primary'
+                : 'tw-bg-transparent tw-text-muted-foreground hover:tw-bg-muted'
+            }`}
+            title={isShowingMoves ? 'Hide moves' : 'Show moves'}
+          >
+            {isShowingMoves ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
+          </button>
         )}
       </div>
 
-      {/* Next moves sequence (like engine PV line) */}
+      {/* Remaining moves - using consistent chip style */}
       {remainingMoves.length > 0 && isFollowing && !hasDeviated && (
-        <div className="tw-flex tw-items-center tw-gap-1 tw-mt-1.5 tw-flex-wrap">
-          <span className="tw-text-[10px] tw-text-muted-foreground tw-uppercase tw-tracking-wide">
-            Next
-          </span>
+        <div className="tw-flex tw-items-center tw-gap-0.5 tw-mt-2 tw-flex-wrap">
           {remainingMoves.map((move, i) => {
-            // Determine if this is a white or black move based on position
             const actualIndex = nextMoveIndex !== null ? nextMoveIndex + 1 + i : i;
             const isWhiteMove = actualIndex % 2 === 0;
             return (
               <span
                 key={i}
-                className="tw-inline-flex tw-items-center tw-gap-0.5 tw-text-[10px] tw-px-1 tw-py-0.5 tw-rounded tw-font-mono"
-                style={{ backgroundColor: hexToRgba(openingColor, 0.1), color: hexToRgba(openingColor, 0.7) }}
+                className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded tw-font-mono ${
+                  isWhiteMove
+                    ? 'tw-bg-white/10 tw-text-white/80'
+                    : 'tw-bg-zinc-700/50 tw-text-zinc-400'
+                }`}
               >
-                <span
-                  className={`tw-w-1.5 tw-h-1.5 tw-rounded-full ${isWhiteMove ? 'tw-bg-white' : 'tw-bg-gray-600'}`}
-                />
                 {move}
               </span>
             );
@@ -297,26 +276,25 @@ export function OpeningSuggestionCard({
         </div>
       )}
 
-      {/* Opening name below */}
+      {/* Opening name */}
       {!hasDeviated && (
         <div className="tw-mt-1.5 tw-text-[10px] tw-text-muted-foreground">{opening.name}</div>
       )}
 
       {/* Alternative openings section when deviated */}
       {hasDeviated && (
-        <div className="tw-mt-2 tw-pt-2 tw-border-t tw-border-red-500/20">
-          <div className="tw-text-[10px] tw-text-muted-foreground tw-uppercase tw-tracking-wide tw-mb-1.5">
-            Compatible Openings
+        <div className="tw-mt-3 tw-pt-2 tw-border-t tw-border-rose-500/20">
+          <div className="tw-text-[10px] tw-font-medium tw-text-muted-foreground tw-uppercase tw-tracking-wide tw-mb-2">
+            Alternative Openings
           </div>
 
           {isLoadingAlternatives ? (
-            <div className="tw-flex tw-items-center tw-gap-1.5 tw-text-xs tw-text-muted-foreground">
-              <Loader2 className="tw-w-3 tw-h-3 tw-animate-spin" />
-              Finding alternatives...
+            <div className="tw-flex tw-items-center tw-justify-center tw-py-4">
+              <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-text-muted-foreground" />
             </div>
           ) : alternatives.length === 0 ? (
-            <div className="tw-text-xs tw-text-muted-foreground tw-italic">
-              No compatible openings found
+            <div className="tw-text-center tw-py-3">
+              <p className="tw-text-xs tw-text-muted-foreground">No alternatives found</p>
             </div>
           ) : (
             <div className="tw-space-y-1.5">
@@ -324,7 +302,6 @@ export function OpeningSuggestionCard({
                 <AlternativeOpeningRow
                   key={`${alt.eco}-${alt.name}`}
                   opening={alt}
-                  rank={index + 1}
                   playerColor={playerColor ?? null}
                   isShowingPreview={showingAlternativeIndex === index}
                   onSelect={() => onSelectAlternative?.(alt)}
