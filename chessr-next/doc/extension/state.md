@@ -36,6 +36,12 @@ State is managed with **Zustand** stores. Some are persisted to **localStorage**
 │  │ (runtime)        │     │ (persisted)      │              │
 │  └──────────────────┘     └──────────────────┘              │
 │                                                              │
+│  Opening Book                                                │
+│  ┌──────────────────┐                                       │
+│  │ openingStore     │                                       │
+│  │ (partial persist)│                                       │
+│  └──────────────────┘                                       │
+│                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -56,21 +62,41 @@ interface SidebarState {
 
 ### gameStore
 
-Tracks the current game state (detected from chess.com DOM).
+Tracks the current game state (detected from chess.com DOM). Includes chess.js instance for move validation and state computation.
 
 ```typescript
 interface GameState {
+  // Core state
   isGameStarted: boolean;
   playerColor: 'white' | 'black' | null;
   currentTurn: 'white' | 'black';
-  chessInstance: Chess | null;  // chess.js instance
 
+  // Chess.js state
+  chessInstance: Chess | null;
+  moveHistory: string[];  // SAN moves
+
+  // Basic setters
   setGameStarted: (started: boolean) => void;
   setPlayerColor: (color: 'white' | 'black' | null) => void;
   setCurrentTurn: (turn: 'white' | 'black') => void;
-  setChessInstance: (chess: Chess | null) => void;
-  resetGame: () => void;
+
+  // Chess actions
+  syncFromDOM: () => void;  // Sync chess.js from DOM move list
+  reset: () => void;
+
+  // Computed selectors
+  getChessState: () => ChessState | null;
+  getUciMoves: () => string[];  // UCI format (e2e4, g1f3, etc.)
 }
+```
+
+Convenience selectors:
+
+```typescript
+export const useChessState = () => useGameStore((state) => state.getChessState());
+export const useFEN = () => useGameStore((state) => state.chessInstance?.fen() ?? null);
+export const useIsCheck = () => useGameStore((state) => state.chessInstance?.isCheck() ?? false);
+export const useLegalMoves = () => useGameStore((state) => state.chessInstance?.moves({ verbose: true }) ?? []);
 ```
 
 ### engineStore
@@ -165,17 +191,34 @@ interface AccuracyState {
 User preferences for display. **Persisted**.
 
 ```typescript
+type EvalBarMode = 'eval' | 'winrate';
+
 interface SettingsState {
-  numberOfSuggestions: number;      // 1-3
+  // Language
+  language: string;
+
+  // Display settings
+  showGameStatistics: boolean;
+  showDetailedMoveSuggestion: boolean;
+  showEvalBar: boolean;
+  evalBarMode: EvalBarMode;
+
+  // Arrow settings
+  numberOfSuggestions: 1 | 2 | 3;
   useSameColorForAllArrows: boolean;
   singleArrowColor: string;
   firstArrowColor: string;
   secondArrowColor: string;
   thirdArrowColor: string;
-  showDetailedMoveSuggestion: boolean;
 
-  setNumberOfSuggestions: (n: number) => void;
-  // ... setters for each setting
+  // Actions
+  setLanguage: (language: string) => void;
+  setShowGameStatistics: (show: boolean) => void;
+  setShowDetailedMoveSuggestion: (show: boolean) => void;
+  setShowEvalBar: (show: boolean) => void;
+  setEvalBarMode: (mode: EvalBarMode) => void;
+  setNumberOfSuggestions: (num: 1 | 2 | 3) => void;
+  // ... setters for arrow colors
 }
 ```
 
@@ -197,18 +240,99 @@ interface WebSocketState {
 
 ### authStore
 
-Authentication state. **Persisted**.
+Authentication state with plan management. **Persisted via chrome.storage**.
 
 ```typescript
+type Plan = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime';
+
 interface AuthState {
+  // User state
   user: User | null;
   session: Session | null;
-  isLoading: boolean;
+  plan: Plan;
+  planExpiry: Date | null;
+  initializing: boolean;  // true only during initial auth check
+  loading: boolean;       // true during actions (login, signup, etc.)
+  error: string | null;
 
-  setUser: (user: User | null) => void;
-  setSession: (session: Session | null) => void;
+  // Actions
+  initialize: () => Promise<void>;
+  fetchPlan: (userId: string) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  resendConfirmationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  clearError: () => void;
 }
+```
+
+### openingStore
+
+Manages opening book state and user's opening repertoire. **Partially persisted** (repertoire and settings only).
+
+```typescript
+interface SavedOpening {
+  name: string;
+  moves: string;  // SAN format: "1. e4 e5 2. Nf3 Nc6"
+  eco: string;
+  totalGames: number;
+}
+
+interface OpeningRepertoire {
+  white: SavedOpening | null;
+  black: SavedOpening | null;
+}
+
+interface OpeningState {
+  // Current position info (runtime)
+  isInBook: boolean;
+  openingName: string | null;
+  eco: string | null;
+  bookMoves: BookMove[];
+  totalGames: number;
+
+  // Tracking
+  leftBookAtMove: number | null;
+  previousOpeningName: string | null;
+  deviationDetected: boolean;
+  deviationMove: string | null;
+
+  // Loading state
+  isLoading: boolean;
+  error: string | null;
+
+  // User repertoire (persisted)
+  repertoire: OpeningRepertoire;
+
+  // Settings (persisted)
+  showOpeningArrows: boolean;
+  showOpeningCard: boolean;
+  openingArrowColor: string;
+
+  // Actions
+  setOpeningData: (data: { opening, moves, isInBook, totalGames }) => void;
+  markOutOfBook: (moveNumber: number) => void;
+  setDeviation: (move: string | null) => void;
+  reset: () => void;
+  setWhiteOpening: (opening: SavedOpening | null) => void;
+  setBlackOpening: (opening: SavedOpening | null) => void;
+  clearRepertoire: () => void;
+  setShowOpeningArrows: (show: boolean) => void;
+  setShowOpeningCard: (show: boolean) => void;
+  setOpeningArrowColor: (color: string) => void;
+}
+```
+
+Convenience selectors:
+
+```typescript
+export const useIsInBook = () => useOpeningStore((state) => state.isInBook);
+export const useOpeningName = () => useOpeningStore((state) => state.openingName);
+export const useBookMoves = () => useOpeningStore((state) => state.bookMoves);
+export const useRepertoire = () => useOpeningStore((state) => state.repertoire);
+export const useShowOpeningArrows = () => useOpeningStore((state) => state.showOpeningArrows);
 ```
 
 ## Selectors

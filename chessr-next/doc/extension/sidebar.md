@@ -8,7 +8,7 @@ The sidebar system has multiple components for different scenarios:
 
 ```
 components/sidebar/
-├── SidebarContent.tsx      # Main sidebar content (tabs, widgets)
+├── SidebarContent.tsx      # Main sidebar content (tabs, widgets, settings toggle)
 ├── SidebarMount.tsx        # Trigger + Portal (replaces original sidebar)
 ├── SidebarPortal.tsx       # Portal that replaces original sidebar
 ├── SidebarTrigger.tsx      # Standalone trigger button (styled)
@@ -18,7 +18,17 @@ components/sidebar/
 ├── GameStatsCard.tsx       # Accuracy statistics
 ├── MoveListDisplay.tsx     # Suggested moves with PV preview
 ├── EloSettings.tsx         # Target ELO configuration
-└── PersonalitySelect.tsx   # Engine personality selector
+├── PersonalitySelect.tsx   # Engine personality selector
+├── OpeningCard.tsx         # Current opening info display
+├── OpeningSuggestionCard.tsx    # Opening move suggestion card
+├── OpeningRepertoireSelector.tsx # Opening repertoire picker
+├── settings/               # Settings panel
+│   ├── SettingsView.tsx    # Settings tabs container
+│   ├── AccountTab.tsx      # Account & password settings
+│   ├── GeneralTab.tsx      # Display settings (language, eval bar)
+│   ├── SuggestionsTab.tsx  # Arrow colors settings
+│   └── index.ts
+└── index.ts
 ```
 
 ## Component Hierarchy
@@ -46,28 +56,47 @@ components/sidebar/
 
 ## SidebarContent
 
-The main content with tabs for different features.
+The main content with header, settings toggle, and tabs for different features.
 
 ```typescript
 // Structure
-<Tabs defaultValue="game">
-  <TabsList>
-    <TabsTrigger value="game">Game Infos</TabsTrigger>
-    <TabsTrigger value="engine">Engine</TabsTrigger>
-  </TabsList>
+<Card>
+  <SidebarHeader />  {/* Logo, PlanBadge, settings button, logout, close */}
 
-  <TabsContent value="game">
-    <GameStatusCard />
-    <GameStatsCard />
-    <MoveListDisplay />
-  </TabsContent>
+  {showSettings ? (
+    <SettingsView />  {/* Account, General, Suggestions tabs */}
+  ) : (
+    <>
+      <GameStatusCard />
+      <Tabs defaultValue="game">
+        <TabsList>
+          <TabsTrigger value="game">Game Infos</TabsTrigger>
+          <TabsTrigger value="engine">Engine</TabsTrigger>
+        </TabsList>
 
-  <TabsContent value="engine">
-    <EloSettings />
-    <PersonalitySelect />
-  </TabsContent>
-</Tabs>
+        <TabsContent value="game">
+          <GameStatsCard />
+          <MoveListDisplay />
+        </TabsContent>
+
+        <TabsContent value="engine">
+          <EloSettings />
+          <OpeningRepertoireSelector />
+        </TabsContent>
+      </Tabs>
+    </>
+  )}
+</Card>
 ```
+
+### SidebarHeader
+
+Header with responsive layout:
+- Logo + "Chessr.io" title
+- Settings button (gear icon)
+- PlanBadge (compact mode when width < 350px)
+- Logout button
+- Close button
 
 ## Game Tab Components
 
@@ -122,6 +151,7 @@ interface SuggestionCard {
 ### EloSettings
 
 Configure target ELO for suggestions:
+
 - Auto mode: Based on user's current rating
 - Manual mode: Slider from 400 to 3500
 - Checkbox to toggle between modes
@@ -129,10 +159,83 @@ Configure target ELO for suggestions:
 ### PersonalitySelect
 
 Select engine playing style:
+
 - Solid (positional, safe moves)
 - Aggressive (tactical, attacking)
 - Tricky (complex positions)
 - etc.
+
+### OpeningRepertoireSelector
+
+Select and manage opening repertoire for White and Black:
+
+- Display current selections (White/Black openings)
+- Search by name, ECO code, or first move (e4, d4, etc.)
+- Color filter buttons (W/B)
+- Counter mode: find best responses to White openings
+- Winrate bar with stats (White wins, Draw, Black wins)
+- Move chips showing the opening moves
+
+Features:
+- Popular openings displayed by default
+- Search integrates with Lichess API for winrates
+- Sort by relevant winrate based on context
+
+## Settings Panel
+
+The settings panel is accessible via the gear icon in the header.
+
+### SettingsView
+
+Container with 3 tabs:
+
+```typescript
+<Tabs defaultValue="account">
+  <TabsList>
+    <TabsTrigger value="account">Account</TabsTrigger>
+    <TabsTrigger value="general">General</TabsTrigger>
+    <TabsTrigger value="suggestions">Suggestions</TabsTrigger>
+  </TabsList>
+  <TabsContent value="account"><AccountTab /></TabsContent>
+  <TabsContent value="general"><GeneralTab /></TabsContent>
+  <TabsContent value="suggestions"><SuggestionsTab /></TabsContent>
+</Tabs>
+```
+
+### AccountTab
+
+- Email display
+- Change password form
+
+### GeneralTab
+
+- Language selector (English, more coming soon)
+- Show move labels on board (toggle)
+- Show Eval bar (toggle + mode selector: Eval/Win%)
+
+### SuggestionsTab
+
+- Number of suggestions (1-3)
+- Use same color for all arrows (toggle)
+- Arrow color pickers (single or per-rank)
+
+## Opening Components
+
+### OpeningCard
+
+Displays current opening information during game:
+
+- ECO code badge
+- Opening name
+- Total games played in this position
+
+### OpeningSuggestionCard
+
+Displays a suggested opening move with:
+
+- Move in SAN notation
+- Popularity percentage
+- Winrate bar
 
 ## Mount Components
 

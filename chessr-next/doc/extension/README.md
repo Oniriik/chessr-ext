@@ -39,6 +39,12 @@ extension/
 │   │   │   ├── card.tsx
 │   │   │   ├── slider.tsx
 │   │   │   ├── tabs.tsx
+│   │   │   ├── tooltip.tsx
+│   │   │   ├── switch.tsx
+│   │   │   ├── select.tsx
+│   │   │   ├── dropdown-menu.tsx
+│   │   │   ├── collapsible.tsx
+│   │   │   ├── plan-badge.tsx     # Plan status badge
 │   │   │   └── ...
 │   │   ├── auth/              # Authentication components
 │   │   │   ├── AuthForm.tsx
@@ -55,7 +61,20 @@ extension/
 │   │       ├── GameStatsCard.tsx      # Accuracy stats
 │   │       ├── MoveListDisplay.tsx    # Suggested moves list
 │   │       ├── EloSettings.tsx        # Target ELO settings
-│   │       └── PersonalitySelect.tsx  # Engine personality
+│   │       ├── PersonalitySelect.tsx  # Engine personality
+│   │       ├── OpeningCard.tsx              # Opening info display
+│   │       ├── OpeningSuggestionCard.tsx    # Opening move suggestion
+│   │       ├── OpeningRepertoireSelector.tsx # Opening repertoire picker
+│   │       ├── settings/              # Settings panel
+│   │       │   ├── SettingsView.tsx   # Settings tabs container
+│   │       │   ├── AccountTab.tsx     # Account settings
+│   │       │   ├── GeneralTab.tsx     # Display settings
+│   │       │   ├── SuggestionsTab.tsx # Arrow colors settings
+│   │       │   └── index.ts
+│   │       └── index.ts
+│   ├── contexts/              # React contexts
+│   │   ├── PlatformContext.tsx       # Platform info context
+│   │   └── PortalContainerContext.tsx # Portal container context
 │   ├── platforms/
 │   │   ├── chesscom/          # chess.com adapter
 │   │   ├── lichess/           # lichess adapter
@@ -63,12 +82,13 @@ extension/
 │   │   └── index.ts           # Platform exports
 │   ├── stores/                # Zustand stores
 │   │   ├── sidebarStore.ts    # Sidebar open/close state
-│   │   ├── authStore.ts       # Authentication state
-│   │   ├── gameStore.ts       # Game detection & state
+│   │   ├── authStore.ts       # Authentication state + plan
+│   │   ├── gameStore.ts       # Game detection & chess.js state
 │   │   ├── engineStore.ts     # Engine settings (ELO, personality)
 │   │   ├── suggestionStore.ts # Move suggestions from server
 │   │   ├── accuracyStore.ts   # Move accuracy analysis
 │   │   ├── settingsStore.ts   # User preferences
+│   │   ├── openingStore.ts    # Opening book & repertoire
 │   │   └── webSocketStore.ts  # WebSocket connection state
 │   ├── hooks/                 # React hooks
 │   │   ├── useSidebar.ts          # Sidebar state hook
@@ -77,12 +97,23 @@ extension/
 │   │   ├── useAnalysisTrigger.ts  # Request move analysis
 │   │   ├── useArrowRenderer.ts    # Draw arrows on board
 │   │   ├── useEvalBar.ts          # Manage eval bar
-│   │   └── useContainerWidth.ts   # Responsive width
+│   │   ├── useContainerWidth.ts   # Responsive width
+│   │   ├── useOpeningTrigger.ts   # Auto-fetch opening data
+│   │   ├── useOpeningArrowRenderer.ts # Draw opening arrows
+│   │   ├── useOpeningTracker.ts   # Track opening deviations
+│   │   └── useAlternativeOpenings.ts  # Alternative opening suggestions
 │   ├── lib/
 │   │   ├── utils.ts           # Utilities (cn, etc.)
 │   │   ├── supabase.ts        # Supabase client
 │   │   ├── webSocket.ts       # WebSocket connection
-│   │   └── logger.ts          # Debug logging
+│   │   ├── logger.ts          # Debug logging
+│   │   ├── openingBook.ts     # Opening book API
+│   │   ├── openingsDatabase.ts # Local openings database
+│   │   └── chess/             # Chess utilities
+│   │       ├── index.ts       # Exports
+│   │       ├── types.ts       # Chess types
+│   │       ├── helpers.ts     # Helper functions
+│   │       └── moveExtractor.ts # Extract moves from DOM
 │   └── styles/
 │       └── content.css        # Global styles + theme
 ├── public/
