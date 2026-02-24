@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
+import { useVersionStore } from '../../stores/versionStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
@@ -10,6 +11,7 @@ import { GameStatsCard } from './GameStatsCard';
 import { MoveListDisplay } from './MoveListDisplay';
 import { EloSettings } from './EloSettings';
 import { OpeningRepertoireSelector } from './OpeningRepertoireSelector';
+import { UpdateRequiredCard } from './UpdateRequiredCard';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
 import { useGameDetection } from '../../hooks/useGameDetection';
@@ -116,6 +118,12 @@ function SidebarHeader({
 }
 
 function AuthenticatedContent() {
+  // Check version on mount
+  const { updateRequired, checkVersion } = useVersionStore();
+  useEffect(() => {
+    checkVersion();
+  }, [checkVersion]);
+
   // Initialize game detection (waits for move list, observes changes)
   useGameDetection();
   // Initialize opening book features
@@ -124,6 +132,24 @@ function AuthenticatedContent() {
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const compactBadge = containerWidth > 0 && containerWidth < 350;
   const [showSettings, setShowSettings] = useState(false);
+
+  // If update required, show only the update card (blocks everything else)
+  if (updateRequired) {
+    return (
+      <div className="tw-h-full tw-flex tw-flex-col" ref={containerRef}>
+        <Card className="tw-p-4 tw-text-foreground tw-h-full tw-flex tw-flex-col">
+          <SidebarHeader
+            compactBadge={compactBadge}
+            showSettings={false}
+            onSettingsToggle={() => {}}
+          />
+          <div className="tw-flex-1 tw-flex tw-flex-col tw-justify-center">
+            <UpdateRequiredCard />
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="tw-h-full tw-flex tw-flex-col" ref={containerRef}>
