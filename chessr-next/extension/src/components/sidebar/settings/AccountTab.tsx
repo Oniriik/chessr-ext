@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useAuthStore } from '../../../stores/authStore';
+import { useLinkedAccountsStore, useLinkedAccounts, useIsLinkingLoading } from '../../../stores/linkedAccountsStore';
+import { webSocketManager } from '../../../lib/webSocket';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock, Link2, Unlink, User } from 'lucide-react';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
@@ -90,6 +92,95 @@ function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
 
 const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
 
+function LinkedAccountsSection() {
+  const linkedAccounts = useLinkedAccounts();
+  const isLoading = useIsLinkingLoading();
+  const { setLoading } = useLinkedAccountsStore();
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
+
+  const handleUnlink = (accountId: string) => {
+    if (unlinkingId) return;
+
+    setUnlinkingId(accountId);
+    setLoading(true);
+    webSocketManager.send({ type: 'unlink_account', accountId });
+
+    // Reset after timeout (in case of no response)
+    setTimeout(() => {
+      setUnlinkingId(null);
+      setLoading(false);
+    }, 10000);
+  };
+
+  if (linkedAccounts.length === 0) {
+    return (
+      <div className="tw-space-y-2 tw-pt-4 tw-border-t tw-border-border">
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Linked Accounts</Label>
+        <div className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted/50 tw-border tw-border-dashed tw-border-border">
+          <Link2 className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
+          <p className="tw-text-sm tw-text-muted-foreground">No accounts linked yet</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tw-space-y-2 tw-pt-4 tw-border-t tw-border-border">
+      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Linked Accounts</Label>
+      <div className="tw-space-y-2">
+        {linkedAccounts.map((account) => {
+          const platformName = account.platform === 'chesscom' ? 'Chess.com' : 'Lichess';
+          const isUnlinking = unlinkingId === account.id;
+
+          return (
+            <div
+              key={account.id}
+              className="tw-flex tw-items-center tw-gap-3 tw-p-3 tw-rounded-lg tw-bg-muted/50"
+            >
+              {/* Avatar or icon */}
+              <div className="tw-flex-shrink-0">
+                {account.avatarUrl ? (
+                  <img
+                    src={account.avatarUrl}
+                    alt={account.platformUsername}
+                    className="tw-w-10 tw-h-10 tw-rounded-full tw-border tw-border-border"
+                  />
+                ) : (
+                  <div className="tw-w-10 tw-h-10 tw-rounded-full tw-bg-muted tw-flex tw-items-center tw-justify-center tw-border tw-border-border">
+                    <User className="tw-w-5 tw-h-5 tw-text-muted-foreground" />
+                  </div>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="tw-flex-1 tw-min-w-0">
+                <p className="tw-text-sm tw-font-medium tw-truncate">{account.platformUsername}</p>
+                <p className="tw-text-xs tw-text-muted-foreground">{platformName}</p>
+              </div>
+
+              {/* Unlink button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="tw-h-8 tw-w-8 tw-flex-shrink-0"
+                onClick={() => handleUnlink(account.id)}
+                disabled={isLoading || isUnlinking}
+                title="Unlink account"
+              >
+                {isUnlinking ? (
+                  <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
+                ) : (
+                  <Unlink className="tw-w-4 tw-h-4" />
+                )}
+              </Button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function AccountTab() {
   const { user, plan, planExpiry, changePassword, loading } = useAuthStore();
   const [oldPassword, setOldPassword] = useState('');
@@ -163,6 +254,9 @@ export function AccountTab() {
           <p className="tw-text-sm tw-text-foreground">{signupDate}</p>
         </div>
       )}
+
+      {/* Linked Accounts Section */}
+      <LinkedAccountsSection />
 
       {/* Change Password Section */}
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">

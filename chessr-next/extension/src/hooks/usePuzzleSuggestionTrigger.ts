@@ -7,6 +7,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { usePuzzleStore } from '../stores/puzzleStore';
 import { useWebSocketStore } from '../stores/webSocketStore';
 import { useAuthStore } from '../stores/authStore';
+import { useNeedsLinking } from '../stores/linkedAccountsStore';
 import { logger } from '../lib/logger';
 import { isPremium, showUpgradeAlert } from '../lib/planUtils';
 
@@ -42,6 +43,7 @@ export function usePuzzleSuggestionTrigger() {
   } = usePuzzleStore();
   const { isConnected, send } = useWebSocketStore();
   const plan = useAuthStore((state) => state.plan);
+  const needsLinking = useNeedsLinking();
 
   const lastFen = useRef<string | null>(null);
   const autoTriggerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,8 +52,8 @@ export function usePuzzleSuggestionTrigger() {
    * Manually trigger a hint request
    */
   const triggerHint = useCallback(() => {
-    if (!currentFen || !isConnected) {
-      logger.log('[puzzle-trigger] Cannot trigger: no FEN or not connected');
+    if (!currentFen || !isConnected || needsLinking) {
+      logger.log('[puzzle-trigger] Cannot trigger: no FEN or not connected or needs linking');
       return;
     }
 
@@ -73,7 +75,7 @@ export function usePuzzleSuggestionTrigger() {
       puzzleMode: true,
       ...PUZZLE_SETTINGS,
     });
-  }, [currentFen, isConnected, requestSuggestion, send, plan]);
+  }, [currentFen, isConnected, needsLinking, requestSuggestion, send, plan]);
 
   // Auto-trigger effect
   useEffect(() => {
@@ -92,6 +94,10 @@ export function usePuzzleSuggestionTrigger() {
     }
     if (!isConnected) {
       logger.log('[puzzle-trigger] Skip: not connected');
+      return;
+    }
+    if (needsLinking) {
+      logger.log('[puzzle-trigger] Skip: needs linking');
       return;
     }
     if (!currentFen) {
@@ -167,6 +173,7 @@ export function usePuzzleSuggestionTrigger() {
     currentFen,
     autoHint,
     isConnected,
+    needsLinking,
     requestSuggestion,
     send,
     plan,

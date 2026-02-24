@@ -6,7 +6,9 @@ import { useSuggestionTrigger } from '../../hooks/useSuggestionTrigger';
 import { useAnalysisTrigger } from '../../hooks/useAnalysisTrigger';
 import { useArrowRenderer } from '../../hooks/useArrowRenderer';
 import { useEvalBar } from '../../hooks/useEvalBar';
+import { useLinkingCheck } from '../../hooks/useLinkingCheck';
 import { AuthForm } from './AuthForm';
+import { LinkAccountModal } from '../LinkAccountModal';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -45,6 +47,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Show eval bar next to board
   useEvalBar();
 
+  // Check if user needs to link their platform account
+  const { shouldShowLinkModal } = useLinkingCheck();
+
   if (initializing) {
     return (
       <div className="tw-flex tw-items-center tw-justify-center tw-h-full tw-min-h-[200px]">
@@ -55,6 +60,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (!user) {
     return <AuthForm />;
+  }
+
+  // Show link modal if user needs to link their account
+  if (shouldShowLinkModal) {
+    return <LinkAccountModal />;
   }
 
   return <>{children}</>;

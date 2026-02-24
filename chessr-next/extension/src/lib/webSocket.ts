@@ -8,6 +8,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { usePuzzleStore } from '../stores/puzzleStore';
 import { useAccuracyStore } from '../stores/accuracyStore';
+import { useLinkedAccountsStore, type LinkedAccount, type LinkErrorCode } from '../stores/linkedAccountsStore';
 import { logger } from './logger';
 
 type MessageHandler = (data: unknown) => void;
@@ -36,6 +37,7 @@ class WebSocketManager {
   private visibilityHandler: (() => void) | null = null;
   private gameStoreUnsubscribe: (() => void) | null = null;
   private puzzleStoreUnsubscribe: (() => void) | null = null;
+  private authStoreUnsubscribe: (() => void) | null = null;
 
   get isConnected(): boolean {
     return this._isConnected;
@@ -70,6 +72,17 @@ class WebSocketManager {
         this.checkActivity();
       }
     });
+
+    // Subscribe to auth store changes - disconnect when user signs out
+    let prevUser = useAuthStore.getState().user;
+    this.authStoreUnsubscribe = useAuthStore.subscribe((state) => {
+      if (prevUser && !state.user) {
+        // User signed out - disconnect WebSocket
+        logger.log('User signed out, disconnecting WebSocket');
+        this.disconnect();
+      }
+      prevUser = state.user;
+    });
   }
 
   /**
@@ -84,6 +97,9 @@ class WebSocketManager {
     }
     if (this.puzzleStoreUnsubscribe) {
       this.puzzleStoreUnsubscribe();
+    }
+    if (this.authStoreUnsubscribe) {
+      this.authStoreUnsubscribe();
     }
     this.disconnect();
   }
@@ -213,6 +229,60 @@ class WebSocketManager {
             useAccuracyStore
               .getState()
               .receiveError(data.requestId, data.error);
+          } else if (data.type === 'linked_accounts') {
+            // Handle linked accounts list
+            logger.log(`Received ${data.accounts?.length || 0} linked accounts`);
+            const store = useLinkedAccountsStore.getState();
+            store.setAccounts(data.accounts || []);
+            // Don't set needsLinking here - let useLinkingCheck handle it
+            // The server doesn't know the current platform context
+            store.setLoading(false);
+          } else if (data.type === 'link_account_success') {
+            // Handle successful account link
+            logger.log(`Linked account: ${data.account?.platformUsername}`);
+            const store = useLinkedAccountsStore.getState();
+            store.addAccount(data.account as LinkedAccount);
+            store.setPendingProfile(null);
+            store.setLoading(false);
+          } else if (data.type === 'link_account_error') {
+            // Handle account link error
+            logger.error('Link account error:', data.error);
+            const store = useLinkedAccountsStore.getState();
+            store.setLinkError({
+              message: data.error,
+              code: data.code as LinkErrorCode,
+              hoursRemaining: data.hoursRemaining,
+            });
+            store.setLoading(false);
+          } else if (data.type === 'unlink_account_success') {
+            // Handle successful account unlink
+            logger.log(`Unlinked account: ${data.accountId}`);
+            const store = useLinkedAccountsStore.getState();
+
+            // Calculate remaining accounts BEFORE removing
+            const remainingAccounts = store.accounts.filter(a => a.id !== data.accountId);
+
+            store.removeAccount(data.accountId);
+            store.setLoading(false);
+
+            // All users need to re-check after unlink (premium users included, they just don't have cooldown)
+            // Set needsLinking to true - this triggers the re-check in useLinkingCheck
+            // If remaining accounts include the current platform, the hook will set it back to false
+            store.setNeedsLinking(true);
+          } else if (data.type === 'linked_accounts_error' || data.type === 'unlink_account_error') {
+            // Handle linked accounts errors
+            logger.error('Linked accounts error:', data.error);
+            useLinkedAccountsStore.getState().setLoading(false);
+          } else if (data.type === 'cooldown_status') {
+            // Handle cooldown check response
+            const store = useLinkedAccountsStore.getState();
+            if (data.hasCooldown) {
+              logger.log(`Cooldown active: ${data.hoursRemaining}h remaining`);
+              store.setCooldownHours(data.hoursRemaining || 48);
+            } else {
+              store.setCooldownHours(null);
+            }
+            store.setLoading(false);
           } else {
             // Dispatch to message handlers
             this.messageHandlers.forEach((h) => h(data));

@@ -9,6 +9,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useWebSocketStore } from '../stores/webSocketStore';
 import { useAuthStore } from '../stores/authStore';
+import { useNeedsLinking } from '../stores/linkedAccountsStore';
 import { logger } from '../lib/logger';
 import { validateEngineSettings, showUpgradeAlert, FREE_LIMITS, isPremium } from '../lib/planUtils';
 
@@ -29,6 +30,7 @@ export function useSuggestionTrigger() {
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected, send } = useWebSocketStore();
   const plan = useAuthStore((state) => state.plan);
+  const needsLinking = useNeedsLinking();
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFen = useRef<string | null>(null);
@@ -36,7 +38,7 @@ export function useSuggestionTrigger() {
   // Combined effect for position and settings changes
   useEffect(() => {
     // Check all conditions
-    if (!isGameStarted || !isConnected || !chessInstance) {
+    if (!isGameStarted || !isConnected || !chessInstance || needsLinking) {
       return;
     }
 
@@ -127,6 +129,7 @@ export function useSuggestionTrigger() {
     currentTurn,
     chessInstance,
     isConnected,
+    needsLinking,
     getTargetElo,
     getUciMoves,
     personality,

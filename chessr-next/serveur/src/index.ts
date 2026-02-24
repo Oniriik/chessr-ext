@@ -7,6 +7,7 @@ import {
   handleSuggestionRequest,
   handleUserDisconnect,
   shutdownEnginePool,
+  getStats,
   type Client,
   type SuggestionMessage,
 } from "./handlers/suggestionHandler.js";
@@ -15,8 +16,19 @@ import {
   handleAnalysisRequest,
   handleAnalysisDisconnect,
   shutdownStockfishPool,
+  getAnalysisStats,
   type AnalysisMessage,
 } from "./handlers/analysisHandler.js";
+import {
+  handleGetLinkedAccounts,
+  handleLinkAccount,
+  handleUnlinkAccount,
+  handleCheckCooldown,
+  type LinkAccountMessage,
+  type UnlinkAccountMessage,
+  type CheckCooldownMessage,
+} from "./handlers/accountHandler.js";
+import { logConnection } from "./utils/logger.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
 const MAX_KOMODO_INSTANCES = parseInt(process.env.MAX_KOMODO_INSTANCES || "2");
@@ -26,7 +38,7 @@ const MAX_STOCKFISH_INSTANCES = parseInt(
 
 // Version info for extension update checks
 const VERSION_INFO = {
-  minVersion: "2.0.0",
+  minVersion: "0.0.0",
   downloadUrl: "https://download.chessr.io",
 };
 
@@ -62,6 +74,30 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Stats endpoint for admin dashboard
+  if (req.url === "/stats" && req.method === "GET") {
+    const suggestionStats = getStats();
+    const analysisStats = getAnalysisStats();
+
+    const stats = {
+      realtime: {
+        connectedUsers: clients.size,
+        connectedClients: wss.clients.size,
+      },
+      queues: {
+        suggestion: suggestionStats.queue,
+        analysis: analysisStats.queue,
+      },
+      pools: {
+        komodo: suggestionStats.pool,
+        stockfish: analysisStats.pool,
+      },
+    };
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(stats));
+    return;
+  }
+
   // 404 for everything else
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: "Not found" }));
@@ -90,7 +126,6 @@ initStockfishPool(MAX_STOCKFISH_INSTANCES).catch((err) => {
 });
 
 wss.on("connection", (ws: WebSocket) => {
-  console.log("New connection");
 
   let userId: string | null = null;
   let isAuthenticated = false;
@@ -147,7 +182,7 @@ wss.on("connection", (ws: WebSocket) => {
           user: { id: user.id, email: user.email || "" },
         });
 
-        console.log(`User authenticated: ${user.email} (${userId})`);
+        logConnection(user.email || userId, 'connected');
         ws.send(
           JSON.stringify({
             type: "auth_success",
@@ -182,6 +217,31 @@ wss.on("connection", (ws: WebSocket) => {
           );
           break;
 
+        case "get_linked_accounts":
+          handleGetLinkedAccounts(clients.get(userId)!);
+          break;
+
+        case "link_account":
+          handleLinkAccount(
+            message as LinkAccountMessage,
+            clients.get(userId)!,
+          );
+          break;
+
+        case "unlink_account":
+          handleUnlinkAccount(
+            message as UnlinkAccountMessage,
+            clients.get(userId)!,
+          );
+          break;
+
+        case "check_cooldown":
+          handleCheckCooldown(
+            message as CheckCooldownMessage,
+            clients.get(userId)!,
+          );
+          break;
+
         default:
           console.log(`Unknown message type from ${userId}:`, message.type);
           ws.send(
@@ -199,13 +259,12 @@ wss.on("connection", (ws: WebSocket) => {
   ws.on("close", () => {
     clearTimeout(authTimeout);
     if (userId) {
+      const client = clients.get(userId);
       // Cancel any pending requests for this user
       handleUserDisconnect(userId);
       handleAnalysisDisconnect(userId);
       clients.delete(userId);
-      console.log(`User disconnected: ${userId}`);
-    } else {
-      console.log("Unauthenticated connection closed");
+      logConnection(client?.user.email || userId, 'disconnected');
     }
   });
 
