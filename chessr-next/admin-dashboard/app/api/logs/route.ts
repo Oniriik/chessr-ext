@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const lines = Math.min(Math.max(parseInt(searchParams.get('lines') || '100'), 1), 1000)
-    const containerName = process.env.DOCKER_CONTAINER_NAME || 'chess-stockfish-server'
+    const containerName = process.env.DOCKER_CONTAINER_NAME || 'chessr-server'
 
     const command = `docker logs --tail ${lines} ${containerName} 2>&1`
     const { stdout, stderr } = await executeCommand(command)
