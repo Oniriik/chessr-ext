@@ -27,6 +27,9 @@ COPY . .
 # Set standalone output
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Create public directory if it doesn't exist
+RUN mkdir -p public
+
 # Build with standalone output
 RUN pnpm build
 
@@ -42,8 +45,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy public assets (if any)
-COPY --from=builder /app/public ./public 2>/dev/null || true
+# Copy public assets
+COPY --from=builder /app/public ./public
 
 # Copy standalone build
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
