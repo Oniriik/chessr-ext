@@ -13,12 +13,15 @@ import {
   type Personality,
 } from '../../stores/engineStore';
 import { useGameStore } from '../../stores/gameStore';
+import { usePlanLimits } from '../../lib/planUtils';
+import { UpgradeButton } from '../ui/plan-badge';
 
 // ============================================================================
 // Target ELO Section
 // ============================================================================
 function TargetEloSection() {
   const {
+    opponentElo,
     userElo,
     targetEloAuto,
     targetEloManual,
@@ -26,22 +29,31 @@ function TargetEloSection() {
     setTargetEloAuto,
     setTargetEloManual,
   } = useEngineStore();
+  const { maxElo } = usePlanLimits();
+  const isLimited = maxElo < 3500;
 
   const targetElo = getTargetElo();
+  // Clamp displayed value to max allowed
+  const displayElo = Math.min(targetElo, maxElo);
+  // Auto label: show opponent ELO if available, otherwise user ELO + 150
+  const autoLabel = opponentElo > 0 ? `opponent: ${opponentElo}` : `${userElo} + 150`;
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <p className="tw-text-sm tw-font-medium">Target ELO</p>
+        <div className="tw-flex tw-items-center tw-gap-1.5">
+          <p className="tw-text-sm tw-font-medium">Target ELO</p>
+          {isLimited && <UpgradeButton tooltip="Unlock ELO 2000-3500" />}
+        </div>
         <span className="tw-text-base tw-font-bold tw-text-primary">
-          {targetElo}
+          {displayElo}
         </span>
       </div>
       <Slider
-        value={[targetEloAuto ? targetElo : targetEloManual]}
+        value={[targetEloAuto ? displayElo : Math.min(targetEloManual, maxElo)]}
         onValueChange={([value]) => !targetEloAuto && setTargetEloManual(value)}
         min={400}
-        max={3500}
+        max={maxElo}
         step={10}
         disabled={targetEloAuto}
         className={targetEloAuto ? 'tw-opacity-50' : ''}
@@ -52,7 +64,7 @@ function TargetEloSection() {
           onCheckedChange={(checked) => setTargetEloAuto(checked === true)}
         />
         <span className="tw-text-xs tw-text-muted-foreground">
-          Auto ({userElo} + 150)
+          Auto ({autoLabel})
         </span>
       </label>
     </div>
@@ -64,24 +76,34 @@ function TargetEloSection() {
 // ============================================================================
 function RiskSection() {
   const { riskTaking, setRiskTaking } = useEngineStore();
+  const { maxRisk } = usePlanLimits();
+  const isLimited = maxRisk < 100;
+
+  // For free users: show fixed value, for premium: show actual value
+  const displayRisk = isLimited ? maxRisk : riskTaking;
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <p className="tw-text-sm tw-font-medium">Risk Taking</p>
+        <div className="tw-flex tw-items-center tw-gap-1.5">
+          <p className="tw-text-sm tw-font-medium">Risk Taking</p>
+          {isLimited && <UpgradeButton tooltip="Unlock risk taking control" />}
+        </div>
         <div className="tw-flex tw-items-center tw-gap-2">
-          <span className="tw-text-xs tw-text-muted-foreground">{riskTaking}%</span>
+          <span className="tw-text-xs tw-text-muted-foreground">{displayRisk}%</span>
           <span className="tw-text-base tw-font-bold tw-text-primary">
-            {getRiskLabel(riskTaking)}
+            {getRiskLabel(displayRisk)}
           </span>
         </div>
       </div>
       <Slider
-        value={[riskTaking]}
-        onValueChange={([value]) => setRiskTaking(value)}
+        value={[displayRisk]}
+        onValueChange={([value]) => !isLimited && setRiskTaking(value)}
         min={0}
         max={100}
         step={1}
+        disabled={isLimited}
+        className={isLimited ? 'tw-opacity-50' : ''}
       />
       <p className="tw-text-xs tw-text-muted-foreground">
         Too low plays passively, too high makes errors
@@ -95,23 +117,33 @@ function RiskSection() {
 // ============================================================================
 function SkillSection() {
   const { skill, setSkill } = useEngineStore();
+  const { maxSkill } = usePlanLimits();
+  const isLimited = maxSkill < 25;
+
+  // For free users: show fixed value, for premium: show actual value
+  const displaySkill = isLimited ? maxSkill : skill;
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <p className="tw-text-sm tw-font-medium">Skill Level</p>
+        <div className="tw-flex tw-items-center tw-gap-1.5">
+          <p className="tw-text-sm tw-font-medium">Skill Level</p>
+          {isLimited && <UpgradeButton tooltip="Unlock skill level control" />}
+        </div>
         <div className="tw-flex tw-items-center tw-gap-2">
-          <span className="tw-text-xs tw-text-muted-foreground">{skill}</span>
+          <span className="tw-text-xs tw-text-muted-foreground">{displaySkill}</span>
           <span className="tw-text-base tw-font-bold tw-text-primary">
-            {getSkillLabel(skill)}
+            {getSkillLabel(displaySkill)}
           </span>
         </div>
       </div>
       <Slider
-        value={[skill]}
-        onValueChange={([value]) => setSkill(value)}
+        value={[displaySkill]}
+        onValueChange={([value]) => !isLimited && setSkill(value)}
         min={1}
         max={25}
+        disabled={isLimited}
+        className={isLimited ? 'tw-opacity-50' : ''}
         step={1}
       />
       <p className="tw-text-xs tw-text-muted-foreground">
@@ -126,22 +158,38 @@ function SkillSection() {
 // ============================================================================
 function PersonalitySection() {
   const { personality, setPersonality } = useEngineStore();
+  const { isPersonalityAllowed } = usePlanLimits();
   const info = PERSONALITY_INFO[personality];
+
+  // Check if current personality is allowed, if not reset to Default
+  const currentAllowed = isPersonalityAllowed(personality);
+
+  const handleChange = (value: string) => {
+    if (isPersonalityAllowed(value)) {
+      setPersonality(value as Personality);
+    }
+  };
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <span className="tw-text-sm tw-font-medium">Personality</span>
+        <div className="tw-flex tw-items-center tw-gap-1.5">
+          <span className="tw-text-sm tw-font-medium">Personality</span>
+          {!isPersonalityAllowed('Human') && <UpgradeButton tooltip="Unlock all 8 personalities" />}
+        </div>
         <select
-          value={personality}
-          onChange={(e) => setPersonality(e.target.value as Personality)}
+          value={currentAllowed ? personality : 'Default'}
+          onChange={(e) => handleChange(e.target.value)}
           className="tw-w-[140px] tw-h-9 tw-px-3 tw-py-1 tw-text-sm tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer tw-appearance-none tw-bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22none%22%20stroke%3D%22%23888%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m2%204%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] tw-bg-[length:12px] tw-bg-[right_8px_center] tw-bg-no-repeat tw-pr-8"
         >
-          {PERSONALITIES.map((p) => (
-            <option key={p} value={p}>
-              {PERSONALITY_INFO[p].label}
-            </option>
-          ))}
+          {PERSONALITIES.map((p) => {
+            const allowed = isPersonalityAllowed(p);
+            return (
+              <option key={p} value={p} disabled={!allowed}>
+                {PERSONALITY_INFO[p].label}{!allowed ? ' 🔒' : ''}
+              </option>
+            );
+          })}
         </select>
       </div>
       <p className="tw-text-xs tw-text-muted-foreground">{info.description}</p>
@@ -155,25 +203,29 @@ function PersonalitySection() {
 function ArmageddonSection() {
   const { armageddon, setArmageddon } = useEngineStore();
   const playerColor = useGameStore((state) => state.playerColor);
+  const { canUseArmageddon } = usePlanLimits();
 
   const colorLabel = playerColor === 'white' ? 'White' : playerColor === 'black' ? 'Black' : 'You';
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <div>
+        <div className="tw-flex tw-items-center tw-gap-1.5">
           <span className="tw-text-sm tw-font-medium">Armageddon</span>
-          {armageddon && (
-            <span className="tw-ml-2 tw-text-xs tw-text-red-400">{colorLabel} must win</span>
+          {!canUseArmageddon && <UpgradeButton tooltip="Unlock Armageddon mode" />}
+          {canUseArmageddon && armageddon && (
+            <span className="tw-text-xs tw-text-red-400">{colorLabel} must win</span>
           )}
         </div>
         <Switch
-          checked={armageddon}
+          checked={canUseArmageddon && armageddon}
           onCheckedChange={setArmageddon}
+          disabled={!canUseArmageddon}
+          className={!canUseArmageddon ? 'tw-opacity-50' : ''}
         />
       </div>
       <p className="tw-text-xs tw-text-muted-foreground">
-        {armageddon
+        {armageddon && canUseArmageddon
           ? 'Engine will play aggressively to avoid draws'
           : 'Enable to force wins — draws count as losses'}
       </p>

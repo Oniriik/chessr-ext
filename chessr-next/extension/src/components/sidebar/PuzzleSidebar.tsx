@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2 } from 'lucide-react';
+import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
@@ -11,6 +11,7 @@ import { extractFenFromBoard, getPlayerColorFromDOM } from '../../lib/chesscom/e
 import { usePuzzleSuggestionTrigger } from '../../hooks/usePuzzleSuggestionTrigger';
 import { usePuzzleArrowRenderer } from '../../hooks/usePuzzleArrowRenderer';
 import { logger } from '../../lib/logger';
+import { usePlanLimits } from '../../lib/planUtils';
 
 /**
  * Hook that detects puzzle state and syncs with puzzle store
@@ -207,12 +208,46 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
   );
 }
 
+const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
+
 function PuzzleControls() {
   const { autoHint, setAutoHint, isLoading, isStarted } = usePuzzleStore();
   const { isConnected } = useWebSocketStore();
   const triggerHint = usePuzzleSuggestionTrigger();
+  const { canUsePuzzleHints } = usePlanLimits();
 
   if (!isStarted) return null;
+
+  // Show upgrade prompt for free users
+  if (!canUsePuzzleHints) {
+    return (
+      <Card className="tw-mt-3 tw-bg-gradient-to-br tw-from-yellow-500/10 tw-to-orange-500/10 tw-border-yellow-500/20">
+        <CardContent className="tw-py-4 tw-px-4 tw-space-y-3">
+          <div className="tw-flex tw-items-center tw-gap-3">
+            <div className="tw-p-2 tw-rounded-lg tw-bg-yellow-500/20">
+              <Lock className="tw-w-5 tw-h-5 tw-text-yellow-500" />
+            </div>
+            <div>
+              <p className="tw-text-sm tw-font-medium tw-text-foreground">
+                Puzzle Hints
+              </p>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                Upgrade to unlock puzzle suggestions
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => window.open(UPGRADE_URL, '_blank')}
+            className="tw-w-full tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-font-medium"
+            size="sm"
+          >
+            <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
+            Upgrade Now
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="tw-mt-3">

@@ -8,7 +8,9 @@ import { useEngineStore } from '../stores/engineStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useWebSocketStore } from '../stores/webSocketStore';
+import { useAuthStore } from '../stores/authStore';
 import { logger } from '../lib/logger';
+import { validateEngineSettings, showUpgradeAlert, FREE_LIMITS, isPremium } from '../lib/planUtils';
 
 const DEBOUNCE_MS = 300;
 
@@ -26,6 +28,7 @@ export function useSuggestionTrigger() {
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected, send } = useWebSocketStore();
+  const plan = useAuthStore((state) => state.plan);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFen = useRef<string | null>(null);
@@ -54,15 +57,33 @@ export function useSuggestionTrigger() {
     const sendRequest = () => {
       const targetElo = getTargetElo();
       const moves = getUciMoves();
+      const premium = isPremium(plan);
 
-      logger.log(`Requesting suggestions for position (contempt: ${riskTaking}, moves: ${moves.length})`);
+      // Validate settings against plan limits
+      const validationError = validateEngineSettings(plan, {
+        targetElo,
+        personality,
+        armageddon,
+      });
+
+      if (validationError) {
+        showUpgradeAlert(validationError);
+        return;
+      }
+
+      // For free users, force risk and skill to their limit values
+      const effectiveRisk = premium ? riskTaking : FREE_LIMITS.maxRisk;
+      const effectiveSkill = premium ? skill : FREE_LIMITS.maxSkill;
+      const effectiveElo = premium ? targetElo : Math.min(targetElo, FREE_LIMITS.maxElo);
+
+      logger.log(`Requesting suggestions for position (contempt: ${effectiveRisk}, moves: ${moves.length})`);
 
       lastFen.current = fen;
 
       // Create request and get ID
       const requestId = requestSuggestions(
         fen,
-        targetElo,
+        effectiveElo,
         personality,
         numberOfSuggestions
       );
@@ -77,11 +98,11 @@ export function useSuggestionTrigger() {
         requestId,
         fen,
         moves,
-        targetElo,
+        targetElo: effectiveElo,
         personality,
         multiPv: numberOfSuggestions,
-        contempt: riskTaking,
-        skill,
+        contempt: effectiveRisk,
+        skill: effectiveSkill,
         armageddon: armageddonMode,
         limitStrength: !disableLimitStrength,
       });
@@ -119,6 +140,7 @@ export function useSuggestionTrigger() {
     numberOfSuggestions,
     requestSuggestions,
     send,
+    plan,
   ]);
 
   // Clear last FEN when game resets

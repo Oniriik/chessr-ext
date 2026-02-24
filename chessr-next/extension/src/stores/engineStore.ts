@@ -117,8 +117,9 @@ export function getSkillLabel(value: number): string {
 export type ArmageddonMode = boolean;
 
 interface EngineState {
-  // Detected user ELO
+  // Detected ELOs
   userElo: number;
+  opponentElo: number;
 
   // Auto mode toggle
   targetEloAuto: boolean;
@@ -146,6 +147,7 @@ interface EngineState {
 
   // Actions
   setUserElo: (elo: number) => void;
+  setOpponentElo: (elo: number) => void;
   setTargetEloAuto: (auto: boolean) => void;
   setTargetEloManual: (elo: number) => void;
   setRiskTaking: (value: number) => void;
@@ -163,6 +165,7 @@ export const useEngineStore = create<EngineState>()(
     (set, get) => ({
       // Initial values
       userElo: 1500,
+      opponentElo: 1500,
       targetEloAuto: true,
       targetEloManual: 1650,
       riskTaking: 0,
@@ -171,14 +174,17 @@ export const useEngineStore = create<EngineState>()(
       armageddon: false,
       disableLimitStrength: false,
 
-      // Target ELO: auto = userElo + 150, manual = slider value
+      // Target ELO: auto = opponentElo (fallback to userElo + 150), manual = slider value
       getTargetElo: () => {
-        const { targetEloAuto, userElo, targetEloManual } = get();
-        return targetEloAuto ? userElo + 150 : targetEloManual;
+        const { targetEloAuto, opponentElo, userElo, targetEloManual } = get();
+        if (!targetEloAuto) return targetEloManual;
+        // Use opponent ELO if detected, otherwise fallback to user ELO + 150
+        return opponentElo > 0 ? opponentElo : userElo + 150;
       },
 
       // Setters
       setUserElo: (elo) => set({ userElo: elo }),
+      setOpponentElo: (elo) => set({ opponentElo: elo }),
       setTargetEloAuto: (auto) => set({ targetEloAuto: auto }),
       setTargetEloManual: (elo) => set({ targetEloManual: elo }),
       setRiskTaking: (value: number) => set({ riskTaking: value }),
@@ -194,6 +200,9 @@ export const useEngineStore = create<EngineState>()(
 
         if (ratings.playerRating) {
           set({ userElo: ratings.playerRating });
+        }
+        if (ratings.opponentRating) {
+          set({ opponentElo: ratings.opponentRating });
         }
       },
     }),

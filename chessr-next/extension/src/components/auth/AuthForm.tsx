@@ -10,6 +10,10 @@ const DISCORD_URL = 'https://discord.gg/72j4dUadTu';
 
 type AuthMode = 'login' | 'signup' | 'reset';
 
+interface AuthFormProps {
+  compact?: boolean;
+}
+
 // Discord icon SVG
 function DiscordIcon({ className }: { className?: string }) {
   return (
@@ -19,7 +23,7 @@ function DiscordIcon({ className }: { className?: string }) {
   );
 }
 
-export function AuthForm() {
+export function AuthForm({ compact = false }: AuthFormProps) {
   const { signIn, signUp, resetPassword, resendConfirmationEmail, loading, error, clearError } = useAuthStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -93,6 +97,100 @@ export function AuthForm() {
   };
 
   const displayError = localError || error;
+
+  // Compact mode for puzzle sidebar
+  if (compact) {
+    return (
+      <div className="tw-flex tw-flex-col tw-h-full">
+        {/* Compact header */}
+        <div className="tw-flex tw-items-center tw-gap-2 tw-mb-4">
+          <img
+            src={chrome.runtime.getURL('icons/icon48.png')}
+            alt="Chessr"
+            className="tw-w-8 tw-h-8"
+          />
+          <div>
+            <span className="tw-text-lg tw-font-semibold">Chessr.io</span>
+            <p className="tw-text-xs tw-text-muted-foreground">
+              {mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Reset password'}
+            </p>
+          </div>
+        </div>
+
+        {/* Compact form */}
+        <form onSubmit={handleSubmit} className="tw-space-y-2 tw-flex-1">
+          <Input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            required
+            className="tw-bg-muted/30 tw-h-9 tw-text-sm"
+          />
+
+          {mode !== 'reset' && (
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              required
+              className="tw-bg-muted/30 tw-h-9 tw-text-sm"
+            />
+          )}
+
+          {mode === 'signup' && (
+            <Input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm password"
+              required
+              className="tw-bg-muted/30 tw-h-9 tw-text-sm"
+            />
+          )}
+
+          {displayError && !needsEmailConfirmation && (
+            <div className="tw-text-destructive tw-text-xs tw-py-1">{displayError}</div>
+          )}
+
+          {successMessage && (
+            <div className="tw-text-success tw-text-xs tw-py-1">{successMessage}</div>
+          )}
+
+          <Button
+            type="submit"
+            size="sm"
+            className="tw-w-full"
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
+            ) : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Sign Up' : 'Reset'}
+          </Button>
+        </form>
+
+        {/* Compact links */}
+        <div className="tw-text-center tw-text-xs tw-mt-3 tw-text-muted-foreground">
+          {mode === 'login' ? (
+            <>
+              <Button variant="link" size="sm" onClick={() => switchMode('signup')} className="tw-h-auto tw-p-0 tw-text-xs">
+                Create account
+              </Button>
+              {' · '}
+              <Button variant="link" size="sm" onClick={() => switchMode('reset')} className="tw-h-auto tw-p-0 tw-text-xs tw-text-muted-foreground">
+                Forgot password?
+              </Button>
+            </>
+          ) : (
+            <Button variant="link" size="sm" onClick={() => switchMode('login')} className="tw-h-auto tw-p-0 tw-text-xs">
+              Back to login
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="tw-h-full">

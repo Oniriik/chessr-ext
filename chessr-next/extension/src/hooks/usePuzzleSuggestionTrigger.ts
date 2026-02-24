@@ -6,7 +6,9 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { usePuzzleStore } from '../stores/puzzleStore';
 import { useWebSocketStore } from '../stores/webSocketStore';
+import { useAuthStore } from '../stores/authStore';
 import { logger } from '../lib/logger';
+import { isPremium, showUpgradeAlert } from '../lib/planUtils';
 
 // Fixed settings for puzzle mode (max power)
 const PUZZLE_SETTINGS = {
@@ -39,6 +41,7 @@ export function usePuzzleSuggestionTrigger() {
     requestSuggestion,
   } = usePuzzleStore();
   const { isConnected, send } = useWebSocketStore();
+  const plan = useAuthStore((state) => state.plan);
 
   const lastFen = useRef<string | null>(null);
   const autoTriggerTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -49,6 +52,12 @@ export function usePuzzleSuggestionTrigger() {
   const triggerHint = useCallback(() => {
     if (!currentFen || !isConnected) {
       logger.log('[puzzle-trigger] Cannot trigger: no FEN or not connected');
+      return;
+    }
+
+    // Check premium access
+    if (!isPremium(plan)) {
+      showUpgradeAlert('Puzzle hints require a premium subscription.');
       return;
     }
 
@@ -64,7 +73,7 @@ export function usePuzzleSuggestionTrigger() {
       puzzleMode: true,
       ...PUZZLE_SETTINGS,
     });
-  }, [currentFen, isConnected, requestSuggestion, send]);
+  }, [currentFen, isConnected, requestSuggestion, send, plan]);
 
   // Auto-trigger effect
   useEffect(() => {
@@ -91,6 +100,11 @@ export function usePuzzleSuggestionTrigger() {
     }
     if (!autoHint) {
       logger.log('[puzzle-trigger] Skip: autoHint disabled');
+      return;
+    }
+    // Check premium access (no alert for auto-trigger, just skip silently)
+    if (!isPremium(plan)) {
+      logger.log('[puzzle-trigger] Skip: premium required');
       return;
     }
 
@@ -155,6 +169,7 @@ export function usePuzzleSuggestionTrigger() {
     isConnected,
     requestSuggestion,
     send,
+    plan,
   ]);
 
   // Clear last FEN when puzzle resets
