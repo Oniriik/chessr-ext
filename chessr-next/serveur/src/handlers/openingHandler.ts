@@ -59,6 +59,7 @@ interface OpeningData {
   moves: BookMove[];
   isInBook: boolean;
   totalGames: number;
+  statsUnavailable?: boolean; // true when Lichess API failed
 }
 
 // Cache entry
@@ -187,6 +188,7 @@ async function fetchFromLichess(fen: string, retryCount = 0): Promise<OpeningDat
         moves: [],
         isInBook: false,
         totalGames: 0,
+        statsUnavailable: true,
       };
     }
 
@@ -265,6 +267,7 @@ async function processQueue(): Promise<void> {
         moves: [],
         isInBook: false,
         totalGames: 0,
+        statsUnavailable: true,
       };
       for (const client of request.clients) {
         sendOpeningResult(client.ws, client.requestId, emptyData);

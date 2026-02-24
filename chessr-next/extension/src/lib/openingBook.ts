@@ -30,6 +30,7 @@ export interface OpeningData {
   moves: BookMove[];
   isInBook: boolean;
   totalGames: number;
+  statsUnavailable?: boolean; // true when Lichess API failed
 }
 
 // Local cache (shorter TTL since server also caches)
@@ -92,6 +93,7 @@ async function fetchViaWebSocket(fen: string): Promise<OpeningData> {
         moves: [],
         isInBook: false,
         totalGames: 0,
+        statsUnavailable: true,
       });
     }, REQUEST_TIMEOUT_MS);
 
@@ -104,6 +106,7 @@ async function fetchViaWebSocket(fen: string): Promise<OpeningData> {
         moves?: BookMove[];
         isInBook?: boolean;
         totalGames?: number;
+        statsUnavailable?: boolean;
         error?: string;
       };
 
@@ -114,6 +117,7 @@ async function fetchViaWebSocket(fen: string): Promise<OpeningData> {
           moves: [],
           isInBook: false,
           totalGames: 0,
+          statsUnavailable: true,
         });
       } else {
         resolve({
@@ -121,6 +125,7 @@ async function fetchViaWebSocket(fen: string): Promise<OpeningData> {
           moves: response.moves || [],
           isInBook: response.isInBook || false,
           totalGames: response.totalGames || 0,
+          statsUnavailable: response.statsUnavailable || false,
         });
       }
     });
@@ -160,6 +165,7 @@ export async function fetchOpeningData(fen: string): Promise<OpeningData> {
       moves: [],
       isInBook: false,
       totalGames: 0,
+      statsUnavailable: true,
     };
   }
 

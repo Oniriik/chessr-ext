@@ -84,6 +84,7 @@ export function OpeningCard() {
     leftBookAtMove,
     isLoading,
     showOpeningCard,
+    statsUnavailable,
   } = useOpeningStore();
 
   // Don't render if setting is disabled
@@ -100,6 +101,25 @@ export function OpeningCard() {
             <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
             <span className="tw-text-sm tw-text-muted-foreground">Loading opening data...</span>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Stats unavailable state (Lichess API failed)
+  if (statsUnavailable) {
+    return (
+      <Card className="tw-bg-muted/50 tw-p-4">
+        <CardHeader className="tw-p-0 tw-pb-2">
+          <CardTitle className="tw-text-sm tw-flex tw-items-center tw-gap-2">
+            <BookOpen className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
+            <span>Opening Book</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="tw-p-0">
+          <p className="tw-text-xs tw-text-muted-foreground">
+            Stats: <span className="tw-font-medium">n/a</span>
+          </p>
         </CardContent>
       </Card>
     );

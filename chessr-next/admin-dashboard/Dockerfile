@@ -51,17 +51,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Install docker CLI for server control panel
 RUN apk add --no-cache docker-cli
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
 # Copy public assets
 COPY --from=builder /app/public ./public
 
 # Copy standalone build
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 
-USER nextjs
+# Run as root for docker socket access (admin dashboard only)
 
 EXPOSE 3000
 

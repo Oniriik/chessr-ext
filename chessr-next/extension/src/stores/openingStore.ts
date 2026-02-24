@@ -29,6 +29,7 @@ interface OpeningState {
   eco: string | null;
   bookMoves: BookMove[];
   totalGames: number;
+  statsUnavailable: boolean; // true when Lichess API failed
 
   // Tracking
   leftBookAtMove: number | null;
@@ -54,6 +55,7 @@ interface OpeningState {
     moves: BookMove[];
     isInBook: boolean;
     totalGames: number;
+    statsUnavailable?: boolean;
   }) => void;
   markOutOfBook: (moveNumber: number) => void;
   setDeviation: (move: string | null) => void;
@@ -86,6 +88,7 @@ export const useOpeningStore = create<OpeningState>()(
       eco: null,
       bookMoves: [],
       totalGames: 0,
+      statsUnavailable: false,
       leftBookAtMove: null,
       previousOpeningName: null,
       deviationDetected: false,
@@ -109,6 +112,7 @@ export const useOpeningStore = create<OpeningState>()(
           eco: data.opening?.eco ?? null,
           bookMoves: data.moves,
           totalGames: data.totalGames,
+          statsUnavailable: data.statsUnavailable ?? false,
           previousOpeningName: previousName,
           isLoading: false,
           error: null,
@@ -141,6 +145,7 @@ export const useOpeningStore = create<OpeningState>()(
           eco: null,
           bookMoves: [],
           totalGames: 0,
+          statsUnavailable: false,
           leftBookAtMove: null,
           previousOpeningName: null,
           deviationDetected: false,
