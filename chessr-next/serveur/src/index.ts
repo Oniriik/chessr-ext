@@ -28,6 +28,11 @@ import {
   type UnlinkAccountMessage,
   type CheckCooldownMessage,
 } from "./handlers/accountHandler.js";
+import {
+  handleOpeningRequest,
+  getOpeningStats,
+  type OpeningMessage,
+} from "./handlers/openingHandler.js";
 import { logConnection } from "./utils/logger.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
@@ -78,6 +83,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   if (req.url === "/stats" && req.method === "GET") {
     const suggestionStats = getStats();
     const analysisStats = getAnalysisStats();
+    const openingStats = getOpeningStats();
 
     const stats = {
       realtime: {
@@ -92,6 +98,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         komodo: suggestionStats.pool,
         stockfish: analysisStats.pool,
       },
+      opening: openingStats,
     };
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(stats));
@@ -238,6 +245,13 @@ wss.on("connection", (ws: WebSocket) => {
         case "check_cooldown":
           handleCheckCooldown(
             message as CheckCooldownMessage,
+            clients.get(userId)!,
+          );
+          break;
+
+        case "get_opening":
+          handleOpeningRequest(
+            message as OpeningMessage,
             clients.get(userId)!,
           );
           break;

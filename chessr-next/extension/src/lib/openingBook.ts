@@ -1,8 +1,10 @@
 /**
- * Opening Book Service - Lichess Opening Explorer API integration
+ * Opening Book Service - Fetches opening data via WebSocket server
+ * Server proxies to Lichess Opening Explorer API with caching and rate limiting
  */
 
 import { logger } from './logger';
+import { webSocketManager } from './webSocket';
 
 // Types
 export interface BookMove {
@@ -30,208 +32,158 @@ export interface OpeningData {
   totalGames: number;
 }
 
-interface LichessMove {
-  uci: string;
-  san: string;
-  white: number;
-  draws: number;
-  black: number;
-  averageRating?: number;
-}
-
-interface LichessResponse {
-  opening?: {
-    eco: string;
-    name: string;
-  };
-  white: number;
-  draws: number;
-  black: number;
-  moves: LichessMove[];
-}
-
-// Cache entry with TTL
+// Local cache (shorter TTL since server also caches)
 interface CacheEntry {
   data: OpeningData;
   timestamp: number;
 }
 
-// Constants
-const API_BASE = 'https://explorer.lichess.ovh/lichess';
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_CACHE_SIZE = 100;
-const DEBOUNCE_MS = 300;
-const RATE_LIMIT_RETRY_MS = 60 * 1000;
+const LOCAL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes local cache
+const MAX_LOCAL_CACHE_SIZE = 50;
+const REQUEST_TIMEOUT_MS = 10000; // 10 second timeout
 
-// Cache and state
-const cache = new Map<string, CacheEntry>();
-let lastRequestTime = 0;
-let pendingRequest: Promise<OpeningData> | null = null;
-let pendingFen: string | null = null;
+const localCache = new Map<string, CacheEntry>();
+const pendingRequests = new Map<string, Promise<OpeningData>>();
+
+let requestCounter = 0;
 
 /**
- * Calculate win rates from raw counts
+ * Generate unique request ID
  */
-function calculateWinRates(white: number, draws: number, black: number): {
-  whiteWinRate: number;
-  drawRate: number;
-  blackWinRate: number;
-  totalGames: number;
-} {
-  const total = white + draws + black;
-  if (total === 0) {
-    return { whiteWinRate: 0, drawRate: 0, blackWinRate: 0, totalGames: 0 };
-  }
-  return {
-    whiteWinRate: (white / total) * 100,
-    drawRate: (draws / total) * 100,
-    blackWinRate: (black / total) * 100,
-    totalGames: total,
-  };
+function generateRequestId(): string {
+  return `opening_${Date.now()}_${++requestCounter}`;
 }
 
 /**
- * Transform Lichess API response to our format
- */
-function transformResponse(response: LichessResponse): OpeningData {
-  const { totalGames } = calculateWinRates(
-    response.white,
-    response.draws,
-    response.black
-  );
-
-  const moves: BookMove[] = response.moves.map((move) => {
-    const rates = calculateWinRates(move.white, move.draws, move.black);
-    return {
-      uci: move.uci,
-      san: move.san,
-      whiteWins: move.white,
-      draws: move.draws,
-      blackWins: move.black,
-      whiteWinRate: rates.whiteWinRate,
-      drawRate: rates.drawRate,
-      blackWinRate: rates.blackWinRate,
-      totalGames: rates.totalGames,
-      averageRating: move.averageRating,
-    };
-  });
-
-  // Sort by total games (most popular first)
-  moves.sort((a, b) => b.totalGames - a.totalGames);
-
-  return {
-    opening: response.opening
-      ? { name: response.opening.name, eco: response.opening.eco }
-      : null,
-    moves,
-    isInBook: moves.length > 0,
-    totalGames,
-  };
-}
-
-/**
- * Clean old cache entries (LRU-style)
- */
-function cleanCache(): void {
-  if (cache.size <= MAX_CACHE_SIZE) return;
-
-  const entries = Array.from(cache.entries());
-  entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
-
-  // Remove oldest entries until we're under the limit
-  const toRemove = entries.slice(0, entries.length - MAX_CACHE_SIZE);
-  for (const [key] of toRemove) {
-    cache.delete(key);
-  }
-}
-
-/**
- * Check if cache entry is still valid
+ * Check if local cache entry is valid
  */
 function isValidCacheEntry(entry: CacheEntry): boolean {
-  return Date.now() - entry.timestamp < CACHE_TTL_MS;
+  return Date.now() - entry.timestamp < LOCAL_CACHE_TTL_MS;
 }
 
 /**
- * Fetch opening data from Lichess API
+ * Clean old local cache entries
  */
-async function fetchFromAPI(fen: string): Promise<OpeningData> {
-  const url = `${API_BASE}?variant=standard&fen=${encodeURIComponent(fen)}`;
+function cleanLocalCache(): void {
+  if (localCache.size <= MAX_LOCAL_CACHE_SIZE) return;
 
-  const response = await fetch(url);
+  const entries = Array.from(localCache.entries());
+  entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
 
-  if (response.status === 429) {
-    logger.warn('[opening] Rate limited, waiting 60s');
-    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_RETRY_MS));
-    return fetchFromAPI(fen);
+  const toRemove = entries.slice(0, entries.length - MAX_LOCAL_CACHE_SIZE);
+  for (const [key] of toRemove) {
+    localCache.delete(key);
   }
-
-  if (!response.ok) {
-    throw new Error(`Lichess API error: ${response.status}`);
-  }
-
-  const data: LichessResponse = await response.json();
-  return transformResponse(data);
 }
 
 /**
- * Fetch opening data with caching and debouncing
+ * Fetch opening data via WebSocket
+ */
+async function fetchViaWebSocket(fen: string): Promise<OpeningData> {
+  const requestId = generateRequestId();
+
+  return new Promise((resolve) => {
+    // Set up timeout
+    const timeout = setTimeout(() => {
+      webSocketManager.openingCallbacks.delete(requestId);
+      logger.warn('[opening] Request timeout for:', fen.split(' ')[0]);
+      resolve({
+        opening: null,
+        moves: [],
+        isInBook: false,
+        totalGames: 0,
+      });
+    }, REQUEST_TIMEOUT_MS);
+
+    // Register callback
+    webSocketManager.openingCallbacks.set(requestId, (data: unknown) => {
+      clearTimeout(timeout);
+      const response = data as {
+        type: string;
+        opening?: OpeningInfo;
+        moves?: BookMove[];
+        isInBook?: boolean;
+        totalGames?: number;
+        error?: string;
+      };
+
+      if (response.type === 'opening_error') {
+        logger.warn('[opening] Server error:', response.error);
+        resolve({
+          opening: null,
+          moves: [],
+          isInBook: false,
+          totalGames: 0,
+        });
+      } else {
+        resolve({
+          opening: response.opening || null,
+          moves: response.moves || [],
+          isInBook: response.isInBook || false,
+          totalGames: response.totalGames || 0,
+        });
+      }
+    });
+
+    // Send request
+    webSocketManager.send({
+      type: 'get_opening',
+      requestId,
+      fen,
+    });
+  });
+}
+
+/**
+ * Fetch opening data with caching
  */
 export async function fetchOpeningData(fen: string): Promise<OpeningData> {
-  // Check cache first
-  const cached = cache.get(fen);
+  // Check local cache first
+  const cached = localCache.get(fen);
   if (cached && isValidCacheEntry(cached)) {
-    logger.log('[opening] Cache hit:', cached.data.opening?.name ?? 'Unknown');
+    logger.log('[opening] Local cache hit:', cached.data.opening?.name ?? 'Unknown');
     return cached.data;
   }
 
-  // If there's already a pending request for this FEN, return it
-  if (pendingFen === fen && pendingRequest) {
-    return pendingRequest;
+  // Check if request is already pending
+  const pending = pendingRequests.get(fen);
+  if (pending) {
+    logger.log('[opening] Reusing pending request');
+    return pending;
   }
 
-  // Debounce: wait if we just made a request
-  const now = Date.now();
-  const timeSinceLastRequest = now - lastRequestTime;
-  if (timeSinceLastRequest < DEBOUNCE_MS) {
-    await new Promise((resolve) =>
-      setTimeout(resolve, DEBOUNCE_MS - timeSinceLastRequest)
-    );
+  // Check if WebSocket is connected
+  if (!webSocketManager.isConnected) {
+    logger.warn('[opening] WebSocket not connected, returning empty');
+    return {
+      opening: null,
+      moves: [],
+      isInBook: false,
+      totalGames: 0,
+    };
   }
 
   // Create new request
-  pendingFen = fen;
-  pendingRequest = fetchFromAPI(fen)
+  const promise = fetchViaWebSocket(fen)
     .then((data) => {
-      // Store in cache
-      cache.set(fen, { data, timestamp: Date.now() });
-      cleanCache();
+      // Store in local cache
+      localCache.set(fen, { data, timestamp: Date.now() });
+      cleanLocalCache();
 
       logger.log(
-        '[opening] Fetched:',
+        '[opening] Received:',
         data.opening?.name ?? 'Unknown position',
         `(${data.moves.length} moves)`
       );
 
       return data;
     })
-    .catch((error) => {
-      logger.error('[opening] API error:', error);
-      // Return empty data on error
-      return {
-        opening: null,
-        moves: [],
-        isInBook: false,
-        totalGames: 0,
-      };
-    })
     .finally(() => {
-      pendingFen = null;
-      pendingRequest = null;
-      lastRequestTime = Date.now();
+      pendingRequests.delete(fen);
     });
 
-  return pendingRequest;
+  pendingRequests.set(fen, promise);
+  return promise;
 }
 
 /**
@@ -264,8 +216,9 @@ export function getWinRateForColor(
 }
 
 /**
- * Clear the cache (useful for testing)
+ * Clear the local cache
  */
 export function clearCache(): void {
-  cache.clear();
+  localCache.clear();
+  pendingRequests.clear();
 }

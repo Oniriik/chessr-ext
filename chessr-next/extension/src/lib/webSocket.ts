@@ -24,6 +24,9 @@ class WebSocketManager {
   private connectHandlers: Set<ConnectionHandler> = new Set();
   private disconnectHandlers: Set<ConnectionHandler> = new Set();
 
+  // Opening request callbacks
+  openingCallbacks: Map<string, (data: unknown) => void> = new Map();
+
   // Connection state
   private _isConnected = false;
   private _isConnecting = false;
@@ -280,6 +283,13 @@ class WebSocketManager {
               store.setCooldownHours(null);
             }
             store.setLoading(false);
+          } else if (data.type === 'opening_result' || data.type === 'opening_error') {
+            // Handle opening data response - dispatch to pending callbacks
+            const callback = this.openingCallbacks.get(data.requestId);
+            if (callback) {
+              this.openingCallbacks.delete(data.requestId);
+              callback(data);
+            }
           } else {
             // Dispatch to message handlers
             this.messageHandlers.forEach((h) => h(data));
