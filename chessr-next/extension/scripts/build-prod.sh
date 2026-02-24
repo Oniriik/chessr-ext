@@ -34,8 +34,8 @@ echo "📋 Copying manifest and icons..."
 cp "$EXTENSION_DIR/public/manifest.json" "$DIST_DIR/"
 cp -r "$EXTENSION_DIR/public/icons" "$DIST_DIR/"
 
-# Get version from manifest
-VERSION=$(grep '"version"' "$DIST_DIR/manifest.json" | sed 's/.*: "\(.*\)".*/\1/')
+# Get version from manifest (exclude manifest_version)
+VERSION=$(grep '"version"' "$DIST_DIR/manifest.json" | grep -v manifest_version | head -1 | sed 's/.*: "\(.*\)".*/\1/')
 
 # Create zip for Chrome Web Store
 echo "📦 Creating zip package..."
