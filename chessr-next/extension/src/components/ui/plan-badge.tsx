@@ -87,7 +87,7 @@ export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) 
     <Badge
       variant="custom"
       className={cn(
-        "tw-select-none",
+        "tw-select-none tw-whitespace-nowrap",
         !compact && "tw-gap-1.5",
         className
       )}

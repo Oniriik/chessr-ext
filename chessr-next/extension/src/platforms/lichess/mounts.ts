@@ -1,23 +1,24 @@
 import { MountPoint } from '../types';
-
-// Placeholder component for now
-const Placeholder = () => null;
+import { FloatingSidebar } from '../../components/sidebar/FloatingSidebar';
+import { LichessSidebarTrigger } from '../../components/sidebar/LichessSidebarTrigger';
 
 export function getMountPoints(): MountPoint[] {
   return [
+    // Sidebar trigger button (fixed position)
     {
-      id: 'game-sidebar',
-      route: 'game',
-      selector: '.rclock-bottom',
-      position: 'after',
-      component: Placeholder,
+      id: 'lichess-sidebar-trigger',
+      route: ['game', 'analysis', 'home', 'unknown'],
+      selector: 'body',
+      position: 'append',
+      component: LichessSidebarTrigger,
     },
+    // Floating sidebar for all pages
     {
-      id: 'analysis-sidebar',
-      route: 'analysis',
-      selector: '.analyse__tools',
-      position: 'after',
-      component: Placeholder,
+      id: 'lichess-floating-sidebar',
+      route: ['game', 'analysis', 'home', 'unknown'],
+      selector: 'body',
+      position: 'append',
+      component: FloatingSidebar,
     },
   ];
 }

@@ -10,9 +10,24 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { EvalBar } from '../content/overlay/EvalBar';
 
 /**
- * Find the chess board element on Chess.com
+ * Detect current platform from hostname
+ */
+function detectPlatform(): 'chesscom' | 'lichess' {
+  const hostname = window.location.hostname;
+  if (hostname.includes('lichess.org')) return 'lichess';
+  return 'chesscom';
+}
+
+/**
+ * Find the chess board element (platform-aware)
  */
 function findBoardElement(): HTMLElement | null {
+  const platform = detectPlatform();
+
+  if (platform === 'lichess') {
+    return document.querySelector('cg-board') as HTMLElement | null;
+  }
+
   return document.querySelector('wc-chess-board, chess-board, .chessboard') as HTMLElement | null;
 }
 

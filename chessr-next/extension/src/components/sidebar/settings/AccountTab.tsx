@@ -24,25 +24,36 @@ interface PlanInfo {
   title: string;
   description: string;
   icon: React.ReactNode;
-  iconBg: string;
+  bgColor: string;
   showUpgrade?: boolean;
 }
 
+// Colors synced with plan-badge.tsx
+const planColors: Record<Plan, { bg: string; text: string }> = {
+  lifetime: { bg: '#8263F1', text: '#3F2F7A' },
+  beta: { bg: '#6366f1', text: '#252972' },
+  premium: { bg: '#60a5fa', text: '#264A70' },
+  freetrial: { bg: '#9c4040', text: '#481A1A' },
+  free: { bg: '#EAB308', text: '#574407' },
+};
+
 function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
+  const colors = planColors[plan];
+
   switch (plan) {
     case 'lifetime':
       return {
         title: 'Lifetime Access',
         description: 'You have permanent access.',
-        icon: <Sparkles className="tw-w-5 tw-h-5 tw-text-yellow-500" />,
-        iconBg: 'tw-bg-yellow-500/20',
+        icon: <Sparkles className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
+        bgColor: `${colors.bg}20`,
       };
     case 'beta':
       return {
         title: 'Beta Tester',
         description: 'Thank you for being an early supporter! Enjoy lifetime access.',
-        icon: <Crown className="tw-w-5 tw-h-5 tw-text-purple-500" />,
-        iconBg: 'tw-bg-purple-500/20',
+        icon: <Crown className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
+        bgColor: `${colors.bg}20`,
       };
     case 'premium':
       const premiumDays = expiry ? getDaysUntilExpiry(expiry) : 0;
@@ -51,8 +62,8 @@ function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
         description: expiry
           ? `Your subscription renews on ${formatExpiryDate(expiry)}${premiumDays <= 7 ? ` (${premiumDays} days left)` : ''}`
           : 'Premium subscription active.',
-        icon: <Crown className="tw-w-5 tw-h-5 tw-text-primary" />,
-        iconBg: 'tw-bg-primary/20',
+        icon: <Crown className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
+        bgColor: `${colors.bg}20`,
       };
     case 'freetrial':
       const trialDays = expiry ? getDaysUntilExpiry(expiry) : 0;
@@ -61,8 +72,8 @@ function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
         description: expiry
           ? `${trialDays > 0 ? `${trialDays} days remaining` : 'Trial expired'} - Ends ${formatExpiryDate(expiry)}`
           : 'Trial period active.',
-        icon: <Clock className="tw-w-5 tw-h-5 tw-text-orange-500" />,
-        iconBg: 'tw-bg-orange-500/20',
+        icon: <Clock className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
+        bgColor: `${colors.bg}20`,
         showUpgrade: true,
       };
     case 'free':
@@ -70,8 +81,8 @@ function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
       return {
         title: 'Free Plan',
         description: 'Upgrade to unlock all features and boost your game.',
-        icon: <Lock className="tw-w-5 tw-h-5 tw-text-muted-foreground" />,
-        iconBg: 'tw-bg-muted',
+        icon: <Lock className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
+        bgColor: `${colors.bg}20`,
         showUpgrade: true,
       };
   }
@@ -218,7 +229,7 @@ export function AccountTab() {
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Subscription</Label>
         <div className="tw-flex tw-items-center tw-gap-3 tw-p-3 tw-rounded-lg tw-bg-muted">
-          <div className={`tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full ${planInfo.iconBg}`}>
+          <div className="tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full" style={{ backgroundColor: planInfo.bgColor }}>
             {planInfo.icon}
           </div>
           <div className="tw-flex-1">

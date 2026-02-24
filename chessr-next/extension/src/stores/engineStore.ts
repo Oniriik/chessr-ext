@@ -1,6 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { detectRatings } from '../platforms/chesscom';
+import * as chesscom from '../platforms/chesscom';
+import * as lichess from '../lib/lichess';
+
+/**
+ * Detect current platform from hostname
+ */
+function detectPlatform(): 'chesscom' | 'lichess' {
+  const hostname = window.location.hostname;
+  if (hostname.includes('lichess.org')) return 'lichess';
+  return 'chesscom';
+}
+
+/**
+ * Get platform-specific detection functions
+ */
+function getPlatformModule() {
+  return detectPlatform() === 'lichess' ? lichess : chesscom;
+}
 
 // Komodo Dragon Personalities
 export type Personality =
@@ -170,9 +187,10 @@ export const useEngineStore = create<EngineState>()(
       setArmageddon: (enabled) => set({ armageddon: enabled }),
       setDisableLimitStrength: (value) => set({ disableLimitStrength: value }),
 
-      // Detect ratings from Chess.com DOM
+      // Detect ratings from DOM (platform-aware)
       detectFromDOM: () => {
-        const ratings = detectRatings();
+        const platformModule = getPlatformModule();
+        const ratings = platformModule.detectRatings();
 
         if (ratings.playerRating) {
           set({ userElo: ratings.playerRating });

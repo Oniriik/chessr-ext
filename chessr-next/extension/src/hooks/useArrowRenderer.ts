@@ -99,16 +99,42 @@ function getArrowLength(from: string, to: string): number {
 }
 
 /**
- * Find the chess board element on Chess.com
+ * Detect current platform from hostname
+ */
+function detectPlatform(): 'chesscom' | 'lichess' {
+  const hostname = window.location.hostname;
+  if (hostname.includes('lichess.org')) return 'lichess';
+  return 'chesscom';
+}
+
+/**
+ * Find the chess board element (platform-aware)
  */
 function findBoardElement(): HTMLElement | null {
+  const platform = detectPlatform();
+
+  if (platform === 'lichess') {
+    // Lichess: cg-board is the actual board element
+    return document.querySelector('cg-board') as HTMLElement | null;
+  }
+
+  // Chess.com
   return document.querySelector('wc-chess-board, chess-board, .chessboard') as HTMLElement | null;
 }
 
 /**
- * Check if the board is flipped (black's perspective)
+ * Check if the board is flipped (black's perspective) - platform-aware
  */
 function isBoardFlipped(): boolean {
+  const platform = detectPlatform();
+
+  if (platform === 'lichess') {
+    // Lichess: check cg-wrap orientation class
+    const cgWrap = document.querySelector('.cg-wrap');
+    return cgWrap?.classList.contains('orientation-black') ?? false;
+  }
+
+  // Chess.com
   const board = findBoardElement();
   if (!board) return false;
 

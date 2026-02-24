@@ -1,9 +1,39 @@
 /**
  * Move extraction utilities for parsing chess moves from DOM
+ * Platform-aware: supports both Chess.com and Lichess
  */
 
-const MOVE_LIST_SELECTOR = '.play-controller-moves, .move-list, [class*="vertical-move-list"]';
-const MOVE_SELECTOR = '.main-line-ply';
+// Platform-specific selectors
+const CHESSCOM_MOVE_LIST_SELECTOR = '.play-controller-moves, .move-list, [class*="vertical-move-list"]';
+const CHESSCOM_MOVE_SELECTOR = '.main-line-ply';
+const LICHESS_MOVE_LIST_SELECTOR = 'rm6, .moves';
+const LICHESS_MOVE_SELECTOR = 'kwdb';
+
+/**
+ * Detect current platform from hostname
+ */
+function detectPlatform(): 'chesscom' | 'lichess' {
+  const hostname = window.location.hostname;
+  if (hostname.includes('lichess.org')) return 'lichess';
+  return 'chesscom';
+}
+
+/**
+ * Get selectors for current platform
+ */
+function getSelectors() {
+  const platform = detectPlatform();
+  if (platform === 'lichess') {
+    return {
+      moveListSelector: LICHESS_MOVE_LIST_SELECTOR,
+      moveSelector: LICHESS_MOVE_SELECTOR,
+    };
+  }
+  return {
+    moveListSelector: CHESSCOM_MOVE_LIST_SELECTOR,
+    moveSelector: CHESSCOM_MOVE_SELECTOR,
+  };
+}
 
 /**
  * Normalize localized piece letters to English SAN notation
@@ -38,13 +68,13 @@ export function normalizePieceLetters(san: string): string {
 }
 
 /**
- * Extract SAN notation from a ply element
+ * Extract SAN notation from a ply element (Chess.com specific)
  * Handles figurine notation (icons for pieces)
  */
 export function extractSanFromPly(ply: Element): string | null {
   let text = ply.textContent?.trim() || '';
 
-  // Handle figurine notation: icon + destination
+  // Handle figurine notation: icon + destination (Chess.com)
   const figurine = ply.querySelector('[data-figurine]');
   if (figurine) {
     const piece = figurine.getAttribute('data-figurine');
@@ -63,16 +93,29 @@ export function extractSanFromPly(ply: Element): string | null {
 
 /**
  * Extract all moves from the DOM move list as SAN strings
+ * Platform-aware: works on both Chess.com and Lichess
  */
 export function extractMovesFromDOM(): string[] {
-  const moveList = document.querySelector(MOVE_LIST_SELECTOR);
+  const platform = detectPlatform();
+  const { moveListSelector, moveSelector } = getSelectors();
+
+  const moveList = document.querySelector(moveListSelector);
   if (!moveList) return [];
 
-  const plyElements = moveList.querySelectorAll(MOVE_SELECTOR);
+  const plyElements = moveList.querySelectorAll(moveSelector);
   const moves: string[] = [];
 
   for (const ply of plyElements) {
-    const san = extractSanFromPly(ply);
+    let san: string | null;
+
+    if (platform === 'lichess') {
+      // Lichess: moves are plain text in kwdb elements
+      san = ply.textContent?.trim() || null;
+    } else {
+      // Chess.com: may have figurine notation
+      san = extractSanFromPly(ply);
+    }
+
     if (san) {
       moves.push(san);
     }
@@ -85,5 +128,6 @@ export function extractMovesFromDOM(): string[] {
  * Get the move list container element
  */
 export function getMoveListElement(): Element | null {
-  return document.querySelector(MOVE_LIST_SELECTOR);
+  const { moveListSelector } = getSelectors();
+  return document.querySelector(moveListSelector);
 }

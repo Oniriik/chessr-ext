@@ -1,7 +1,24 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import { extractMovesFromDOM, replayMoves, getChessState, type ChessState } from '../lib/chess';
-import { detectPlayerColor, detectCurrentTurn } from '../platforms/chesscom';
+import * as chesscom from '../platforms/chesscom';
+import * as lichess from '../lib/lichess';
+
+/**
+ * Detect current platform from hostname
+ */
+function detectPlatform(): 'chesscom' | 'lichess' {
+  const hostname = window.location.hostname;
+  if (hostname.includes('lichess.org')) return 'lichess';
+  return 'chesscom';
+}
+
+/**
+ * Get platform-specific detection functions
+ */
+function getPlatformModule() {
+  return detectPlatform() === 'lichess' ? lichess : chesscom;
+}
 
 interface GameState {
   // Core state
@@ -87,10 +104,12 @@ export const useGameStore = create<GameState>()((set, get) => ({
 
   /**
    * Re-detect player color and current turn from DOM
+   * Platform-aware: works on both Chess.com and Lichess
    */
   redetect: () => {
-    const playerColor = detectPlayerColor();
-    const currentTurn = detectCurrentTurn();
+    const platformModule = getPlatformModule();
+    const playerColor = platformModule.detectPlayerColor();
+    const currentTurn = platformModule.detectCurrentTurn();
     set({ playerColor, currentTurn });
   },
 

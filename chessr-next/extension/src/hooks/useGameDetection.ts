@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useEngineStore } from '../stores/engineStore';
-import {
-  detectGameStarted,
-  detectPlayerColor,
-  detectCurrentTurn,
-} from '../platforms/chesscom';
+import { usePlatform } from '../contexts/PlatformContext';
+import * as chesscom from '../platforms/chesscom';
+import * as lichess from '../platforms/lichess';
 
-const MOVE_LIST_SELECTOR = '.play-controller-moves, .move-list, [class*="vertical-move-list"]';
-const MOVE_SELECTOR = '.main-line-ply';
+// Platform-specific selectors
+const PLATFORM_CONFIG = {
+  chesscom: {
+    moveListSelector: '.play-controller-moves, .move-list, [class*="vertical-move-list"]',
+    moveSelector: '.main-line-ply',
+  },
+  lichess: {
+    moveListSelector: 'rm6, .moves',
+    moveSelector: 'kwdb',
+  },
+} as const;
 
 /**
  * Hook to detect URL changes (SPA navigation)
@@ -51,6 +58,7 @@ function useUrlChange() {
  * 4. Syncs chess.js state from DOM
  */
 export function useGameDetection() {
+  const { platform } = usePlatform();
   const { setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset } =
     useGameStore();
   const { detectFromDOM } = useEngineStore();
@@ -61,22 +69,28 @@ export function useGameDetection() {
   // Track URL changes for SPA navigation
   const currentUrl = useUrlChange();
 
+  // Get platform-specific functions and selectors
+  const platformId = platform.id;
+  const config = PLATFORM_CONFIG[platformId];
+  const platformModule = platformId === 'lichess' ? lichess : chesscom;
+
   useEffect(() => {
-    console.log('[useGameDetection] URL changed or init:', currentUrl);
+    console.log(`[useGameDetection] URL changed or init (${platformId}):`, currentUrl);
 
     // Reset state when URL changes
     reset();
     moveListObserver.current?.disconnect();
     documentObserver.current?.disconnect();
     lastMoveCount.current = 0;
+
     // Try to detect if game is already started
     const initDetection = () => {
-      const isStarted = detectGameStarted();
+      const isStarted = platformModule.detectGameStarted();
 
       if (isStarted) {
         setGameStarted(true);
-        setPlayerColor(detectPlayerColor());
-        setCurrentTurn(detectCurrentTurn());
+        setPlayerColor(platformModule.detectPlayerColor());
+        setCurrentTurn(platformModule.detectCurrentTurn());
 
         // Initial sync of chess.js state
         syncFromDOM();
@@ -92,22 +106,22 @@ export function useGameDetection() {
 
     // Start observing the move list for new moves
     const startMoveListObserver = () => {
-      const moveList = document.querySelector(MOVE_LIST_SELECTOR);
+      const moveList = document.querySelector(config.moveListSelector);
       if (!moveList) return;
 
       // Get initial move count
-      const moves = moveList.querySelectorAll(MOVE_SELECTOR);
+      const moves = moveList.querySelectorAll(config.moveSelector);
       lastMoveCount.current = moves.length;
 
       moveListObserver.current = new MutationObserver(() => {
-        const currentMoves = moveList.querySelectorAll(MOVE_SELECTOR);
+        const currentMoves = moveList.querySelectorAll(config.moveSelector);
 
         // Detect game reset (move count dropped to 0 or 1)
         if (currentMoves.length <= 1 && lastMoveCount.current > 1) {
           console.log('[useGameDetection] Game reset detected');
           reset();
           setGameStarted(true);
-          setPlayerColor(detectPlayerColor());
+          setPlayerColor(platformModule.detectPlayerColor());
         }
 
         if (currentMoves.length !== lastMoveCount.current) {
@@ -144,5 +158,5 @@ export function useGameDetection() {
       moveListObserver.current?.disconnect();
       documentObserver.current?.disconnect();
     };
-  }, [currentUrl, setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset, detectFromDOM]);
+  }, [currentUrl, platformId, config, platformModule, setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset, detectFromDOM]);
 }
