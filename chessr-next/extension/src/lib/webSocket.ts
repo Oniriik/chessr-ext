@@ -259,9 +259,6 @@ class WebSocketManager {
             logger.log(`Unlinked account: ${data.accountId}`);
             const store = useLinkedAccountsStore.getState();
 
-            // Calculate remaining accounts BEFORE removing
-            const remainingAccounts = store.accounts.filter(a => a.id !== data.accountId);
-
             store.removeAccount(data.accountId);
             store.setLoading(false);
 
