@@ -197,22 +197,12 @@ async function canLinkAccount(
  */
 export async function handleGetLinkedAccounts(client: Client): Promise<void> {
   try {
-    // Debug: First fetch ALL accounts for this user to see what's in the DB
-    const { data: allAccounts } = await supabase
-      .from('linked_accounts')
-      .select('id, platform, platform_username, unlinked_at')
-      .eq('user_id', client.user.id);
-
-    console.log(`[AccountHandler] All accounts for user ${client.user.email}:`, JSON.stringify(allAccounts, null, 2));
-
     const { data, error } = await supabase
       .from('linked_accounts')
       .select('id, platform, platform_username, avatar_url, rating_bullet, rating_blitz, rating_rapid, linked_at')
       .eq('user_id', client.user.id)
       .is('unlinked_at', null)
       .order('linked_at', { ascending: false });
-
-    console.log(`[AccountHandler] Filtered accounts (unlinked_at IS NULL):`, JSON.stringify(data, null, 2));
 
     if (error) {
       console.error('[AccountHandler] Error fetching linked accounts:', error);
@@ -239,8 +229,6 @@ export async function handleGetLinkedAccounts(client: Client): Promise<void> {
     // Check if user needs linking (free/freetrial with no linked accounts)
     const userPlan = await getUserPlan(client.user.id);
     const needsLinking = !isPremiumPlan(userPlan.plan) && accounts.length === 0;
-
-    console.log(`[AccountHandler] Sending ${accounts.length} accounts, plan=${userPlan.plan}, needsLinking=${needsLinking}`);
 
     client.ws.send(
       JSON.stringify({
