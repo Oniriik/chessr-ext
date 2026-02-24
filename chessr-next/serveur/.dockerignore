@@ -1,0 +1,33 @@
+# Dependencies (installed in container)
+node_modules
+
+# macOS engines (not needed in Linux container)
+engines/macos
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+*.log
+logs
+
+# Build artifacts
+dist
+build
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore

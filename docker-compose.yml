@@ -1,62 +1,56 @@
+# Chessr Production Docker Compose
+# Usage: docker-compose up -d
+
 services:
-  chess-engine:
+  # ===========================================
+  # WebSocket Server (Chess Engine Backend)
+  # ===========================================
+  server:
     build:
-      context: ./server
+      context: ./chessr-next/serveur
       dockerfile: Dockerfile
-    container_name: chess-engine
+    container_name: chessr-server
     restart: unless-stopped
     ports:
-      - "8080:3000"
-      - "8081:3001"
-    volumes:
-      - ./server/engine/Linux:/engine:ro
-      - ./server/syzygy:/syzygy:ro
+      - "8080:8080"
     environment:
       - NODE_ENV=production
-      - PORT=3000
-      - ENGINE_PATH=/engine/dragon-3.3-linux-avx2
-      - SUPABASE_JWT_SECRET=${SUPABASE_JWT_SECRET}
-      - GRAFANA_INSTANCE_ID=${GRAFANA_INSTANCE_ID}
-      - GRAFANA_API_KEY=${GRAFANA_API_KEY}
-      - GRAFANA_REMOTE_WRITE_URL=${GRAFANA_REMOTE_WRITE_URL}
-      - POOL_MIN_ENGINES=${POOL_MIN_ENGINES}
-      - POOL_MAX_ENGINES=${POOL_MAX_ENGINES}
-      - ENGINE_THREADS=${ENGINE_THREADS}
-      - ENGINE_HASH=${ENGINE_HASH}
-      - SYZYGY_PATH=/syzygy
-    # Limites de ressources
+      - PORT=8080
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-2}
+      - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-1}
+      - SYZYGY_PATH=/app/engines/syzygy
     deploy:
       resources:
         limits:
-          cpus: '2'
-          memory: 2G
+          cpus: '4'
+          memory: 4G
         reservations:
-          cpus: '1'
-          memory: 512M
-    # Logs
+          cpus: '2'
+          memory: 1G
     logging:
       driver: "json-file"
       options:
-        max-size: "10m"
-        max-file: "3"
-    # Health check
+        max-size: "50m"
+        max-file: "5"
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://localhost:8080', (r) => process.exit(r.statusCode === 426 ? 0 : 1)).on('error', () => process.exit(1));"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 5s
+      start_period: 10s
+    networks:
+      - chessr-network
 
-  # Admin Dashboard
-  dashboard:
+  # ===========================================
+  # Landing Page (Next.js)
+  # ===========================================
+  landing:
     build:
-      context: ./dashboard
+      context: ./landing
       dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        - NEXT_PUBLIC_CHESS_SERVER_URL=wss://engine.chessr.io
-    container_name: chess-dashboard
+    container_name: chessr-landing
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -64,15 +58,40 @@ services:
       - NODE_ENV=production
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - ADMIN_EMAILS=${ADMIN_EMAILS}
-      - METRICS_URL=http://chess-engine:3001/metrics
-      - DOCKER_CONTAINER_NAME=chess-engine
-    volumes:
-      # Mount Docker socket to control containers
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    depends_on:
-      - chess-engine
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - chessr-network
+
+  # ===========================================
+  # Admin Dashboard (Next.js)
+  # ===========================================
+  admin:
+    build:
+      context: ./chessr-next/admin-dashboard
+      dockerfile: Dockerfile
+    container_name: chessr-admin
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
     deploy:
       resources:
         limits:
@@ -81,15 +100,17 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
       interval: 30s
-      timeout: 3s
+      timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    networks:
+      - chessr-network
 
 networks:
-  default:
-    name: chess-network
+  chessr-network:
+    driver: bridge
