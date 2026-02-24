@@ -94,6 +94,10 @@ services:
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SERVER_PATH=/opt/chessr/app
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/chessr/app:/opt/chessr/app:ro
     deploy:
       resources:
         limits:

@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button'
 import { InfoPanel } from '@/components/info-panel'
 import { LogsPanel } from '@/components/logs-panel'
 import { UsersPanel } from '@/components/users-panel'
+import { ServerPanel } from '@/components/server-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
-import { LogOut, LayoutDashboard, ScrollText, Users, Loader2 } from 'lucide-react'
+import { LogOut, LayoutDashboard, ScrollText, Users, Server, Loader2 } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -115,10 +116,14 @@ export default function DashboardPage() {
       {/* Main content */}
       <main className="container mx-auto px-4 py-6 relative z-10">
         <Tabs defaultValue="info" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
             <TabsTrigger value="info" className="gap-2">
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">Info</span>
+            </TabsTrigger>
+            <TabsTrigger value="server" className="gap-2">
+              <Server className="w-4 h-4" />
+              <span className="hidden sm:inline">Server</span>
             </TabsTrigger>
             <TabsTrigger value="logs" className="gap-2">
               <ScrollText className="w-4 h-4" />
@@ -132,6 +137,10 @@ export default function DashboardPage() {
 
           <TabsContent value="info">
             <InfoPanel />
+          </TabsContent>
+
+          <TabsContent value="server">
+            <ServerPanel />
           </TabsContent>
 
           <TabsContent value="logs">
