@@ -56,8 +56,8 @@ export async function GET(request: Request) {
 
     // Update max waiting in background (fire and forget)
     if (totalWaiting > 0) {
-      supabase.rpc('update_max_waiting', { current_waiting: totalWaiting }).catch((err) => {
-        console.error('Failed to update max_waiting:', err)
+      supabase.rpc('update_max_waiting', { current_waiting: totalWaiting }).then(({ error }) => {
+        if (error) console.error('Failed to update max_waiting:', error)
       })
     }
 
