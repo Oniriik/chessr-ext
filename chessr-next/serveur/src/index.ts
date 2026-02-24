@@ -43,7 +43,7 @@ const MAX_STOCKFISH_INSTANCES = parseInt(
 
 // Version info for extension update checks
 const VERSION_INFO = {
-  minVersion: "0.0.3",
+  minVersion: "0.0.4",
   downloadUrl: "https://download.chessr.io",
 };
 
