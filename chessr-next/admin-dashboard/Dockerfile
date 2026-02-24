@@ -48,8 +48,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install docker CLI for server control panel
-RUN apk add --no-cache docker-cli
+# Install docker CLI and compose plugin for server control panel
+RUN apk add --no-cache docker-cli docker-cli-compose
 
 # Copy public assets
 COPY --from=builder /app/public ./public
