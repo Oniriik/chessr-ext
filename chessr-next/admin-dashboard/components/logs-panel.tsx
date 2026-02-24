@@ -145,7 +145,7 @@ export function LogsPanel() {
       <CardContent>
         <div className="relative">
           <div
-            className="terminal bg-zinc-950 rounded-lg p-4 h-[500px] overflow-auto border border-border/50"
+            className="terminal bg-zinc-950 rounded-lg p-4 h-[500px] overflow-auto border border-border/50 font-mono text-sm whitespace-pre-wrap break-all"
             dangerouslySetInnerHTML={{ __html: renderLogs() }}
           />
           <div ref={logsEndRef} />
