@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import * as chesscom from '../platforms/chesscom';
 import * as lichess from '../lib/lichess';
+import { FREE_LIMITS, isPremium } from '../lib/planUtils';
+import type { Plan } from '../components/ui/plan-badge';
 
 /**
  * Detect current platform from hostname
@@ -158,6 +160,9 @@ interface EngineState {
 
   // Auto-detect from DOM
   detectFromDOM: () => void;
+
+  // Enforce plan limits (reset settings that exceed free limits)
+  enforcePlanLimits: (plan: Plan) => void;
 }
 
 export const useEngineStore = create<EngineState>()(
@@ -204,6 +209,44 @@ export const useEngineStore = create<EngineState>()(
         }
         if (ratings.opponentRating) {
           set({ opponentElo: ratings.opponentRating });
+        }
+      },
+
+      // Enforce plan limits - reset any settings that exceed free limits
+      enforcePlanLimits: (plan: Plan) => {
+        if (isPremium(plan)) return; // Premium users have no limits
+
+        const state = get();
+        const updates: Partial<EngineState> = {};
+
+        // Check target ELO (manual value)
+        if (state.targetEloManual > FREE_LIMITS.maxElo) {
+          updates.targetEloManual = FREE_LIMITS.maxElo;
+        }
+
+        // Force risk taking to fixed value for free users
+        if (state.riskTaking !== FREE_LIMITS.maxRisk) {
+          updates.riskTaking = FREE_LIMITS.maxRisk;
+        }
+
+        // Force skill level to fixed value for free users
+        if (state.skill !== FREE_LIMITS.maxSkill) {
+          updates.skill = FREE_LIMITS.maxSkill;
+        }
+
+        // Check personality
+        if (!FREE_LIMITS.allowedPersonalities.includes(state.personality as typeof FREE_LIMITS.allowedPersonalities[number])) {
+          updates.personality = 'Default';
+        }
+
+        // Check armageddon
+        if (state.armageddon) {
+          updates.armageddon = false;
+        }
+
+        // Apply updates if any
+        if (Object.keys(updates).length > 0) {
+          set(updates);
         }
       },
     }),

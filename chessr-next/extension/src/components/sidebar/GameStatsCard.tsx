@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import { TrendingDown, TrendingUp, Minus, Lock } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { useGameStore } from '../../stores/gameStore';
 import {
@@ -11,6 +11,7 @@ import {
   type AccuracyTrend,
   type MoveClassification,
 } from '../../stores/accuracyStore';
+import { usePlanLimits } from '../../lib/planUtils';
 
 // Coherent color palette: emerald (good) → sky (ok) → amber (warning) → rose (bad)
 function getAccuracyColor(accuracy: number): string {
@@ -76,6 +77,7 @@ export function GameStatsCard() {
   const trend = useAccuracyTrend();
   const moveAnalyses = useMoveAnalyses();
   const phaseStats = usePhaseStats();
+  const { canSeePhaseAccuracy } = usePlanLimits();
 
   // Memoize classification counts to prevent re-renders
   const counts = useMemo(
@@ -138,24 +140,47 @@ export function GameStatsCard() {
         {/* Phase stats */}
         {!isIdle && moveCount > 0 && (
           <div className="tw-mt-2 tw-pt-2 tw-border-t tw-border-border">
-            <div className="tw-grid tw-grid-cols-3 tw-gap-1 tw-text-center">
-              {(['opening', 'middlegame', 'endgame'] as const).map((phase) => {
-                const stats = phaseStats[phase];
-                if (stats.moves === 0) return null;
-                return (
-                  <div key={phase} className="tw-flex tw-flex-col tw-leading-tight">
-                    <span className="tw-text-[10px] tw-text-muted-foreground tw-capitalize">
-                      {phase}
-                    </span>
-                    <span className={`tw-text-xs tw-font-medium ${stats.accuracy !== null ? getAccuracyColor(stats.accuracy) : ''}`}>
-                      {stats.accuracy !== null ? Math.round(stats.accuracy) : '-'}
-                    </span>
-                    <span className="tw-text-[10px] tw-text-muted-foreground">
-                      {stats.moves} moves
-                    </span>
+            <span className="tw-text-[10px] tw-text-muted-foreground tw-block tw-mb-1">Accuracy by phase</span>
+            <div className="tw-relative">
+              {/* Actual or fake stats */}
+              <div className={`tw-grid tw-grid-cols-3 tw-gap-1 tw-text-center ${!canSeePhaseAccuracy ? 'tw-blur-[3px] tw-select-none' : ''}`}>
+                {(['opening', 'middlegame', 'endgame'] as const).map((phase) => {
+                  const stats = phaseStats[phase];
+                  // Show fake data for free users
+                  const displayAccuracy = canSeePhaseAccuracy
+                    ? (stats.accuracy !== null ? Math.round(stats.accuracy) : null)
+                    : [87, 72, 91][['opening', 'middlegame', 'endgame'].indexOf(phase)];
+                  const displayMoves = canSeePhaseAccuracy
+                    ? stats.moves
+                    : [8, 15, 6][['opening', 'middlegame', 'endgame'].indexOf(phase)];
+
+                  if (canSeePhaseAccuracy && stats.moves === 0) return null;
+
+                  return (
+                    <div key={phase} className="tw-flex tw-flex-col tw-leading-tight">
+                      <span className="tw-text-[10px] tw-text-muted-foreground tw-capitalize">
+                        {phase}
+                      </span>
+                      <span className={`tw-text-xs tw-font-medium ${displayAccuracy !== null ? getAccuracyColor(displayAccuracy) : ''}`}>
+                        {displayAccuracy !== null ? displayAccuracy : '-'}
+                      </span>
+                      <span className="tw-text-[10px] tw-text-muted-foreground">
+                        {displayMoves} moves
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Unlock overlay */}
+              {!canSeePhaseAccuracy && (
+                <div className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center">
+                  <div className="tw-flex tw-items-center tw-gap-1.5 tw-px-2 tw-py-1 tw-rounded-full tw-bg-background/80 tw-backdrop-blur-sm tw-border tw-border-border">
+                    <Lock className="tw-w-3 tw-h-3 tw-text-amber-400" />
+                    <span className="tw-text-[10px] tw-font-medium">Unlock with Premium</span>
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
           </div>
         )}

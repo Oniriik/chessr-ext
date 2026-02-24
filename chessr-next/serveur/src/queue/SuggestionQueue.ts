@@ -33,15 +33,8 @@ export class SuggestionQueue {
    */
   enqueue(request: SuggestionRequest): void {
     // Remove any existing pending requests from the same user
-    const previousLength = this.queue.length;
     this.queue = this.queue.filter((r) => r.userId !== request.userId);
-
-    if (this.queue.length < previousLength) {
-      console.log(`[SuggestionQueue] Superseded request for user ${request.userId}`);
-    }
-
     this.queue.push(request);
-    console.log(`[SuggestionQueue] Enqueued ${request.requestId} (queue: ${this.queue.length})`);
   }
 
   /**

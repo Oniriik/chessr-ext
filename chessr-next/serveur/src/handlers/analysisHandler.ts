@@ -12,6 +12,8 @@ import {
   type MoveClassification,
   type GamePhase,
 } from '../queue/AnalysisQueue.js';
+import { logStart, logEnd, logError } from '../utils/logger.js';
+import { logActivity } from '../utils/activityLogger.js';
 
 export interface Client {
   ws: WebSocket;
@@ -213,7 +215,12 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
     return;
   }
 
-  console.log(`[AnalysisHandler] Request ${requestId} from ${client.user.email}: ${move}`);
+  logStart({
+    requestId,
+    email: client.user.email,
+    type: 'analyze',
+    params: `move=${move}, color=${playerColor}`,
+  });
 
   const config = getAnalysisConfig();
 
@@ -251,16 +258,6 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
 
       const classification = classifyMove(cpl);
 
-      // Log summary
-      console.log(`[Move Analysis]
-  Move: ${move}
-  Classification: ${classification}
-  CPL: ${cpl}
-  Accuracy Impact: ${accuracyImpact}
-  Phase: ${phase}
-  Weighted Impact: ${weightedImpact}
-  Best Move: ${bestMove}`);
-
       return {
         move,
         classification,
@@ -276,7 +273,12 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
 
     callback: (error, result) => {
       if (error) {
-        console.error(`[AnalysisHandler] Error for ${requestId}:`, error.message);
+        logError({
+          requestId,
+          email: client.user.email,
+          type: 'analyze',
+          error: error.message || 'Analysis error',
+        });
         client.ws.send(
           JSON.stringify({
             type: 'analysis_error',
@@ -288,7 +290,12 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
       }
 
       if (result) {
-        console.log(`[AnalysisHandler] Sending analysis for ${requestId}: ${result.classification}`);
+        logEnd({
+          requestId,
+          email: client.user.email,
+          type: 'analyze',
+          result: `${result.move} → ${result.classification}, cpl=${result.cpl}`,
+        });
 
         client.ws.send(
           JSON.stringify({
@@ -297,6 +304,9 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
             ...result,
           })
         );
+
+        // Log activity for admin dashboard metrics
+        logActivity(client.user.id, 'analysis');
       }
     },
   });

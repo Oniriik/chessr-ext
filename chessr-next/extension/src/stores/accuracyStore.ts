@@ -67,7 +67,7 @@ interface AccuracyState {
 }
 
 function generateRequestId(): string {
-  return `analysis-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 /**

@@ -160,15 +160,11 @@ export class EngineManager extends EventEmitter {
    * Configure engine with UCI options
    */
   async configure(options: Record<string, string>): Promise<void> {
-    console.log(`[Engine ${this.id}] Configuring with options:`, options);
     for (const [name, value] of Object.entries(options)) {
-      const cmd = `setoption name ${name} value ${value}`;
-      console.log(`[Engine ${this.id}] ${cmd}`);
-      this.sendCommand(cmd);
+      this.sendCommand(`setoption name ${name} value ${value}`);
     }
     this.sendCommand('isready');
     await this.waitForResponse('readyok');
-    console.log(`[Engine ${this.id}] Configuration complete`);
   }
 
   /**
@@ -199,7 +195,6 @@ export class EngineManager extends EventEmitter {
       const handler = (line: string) => {
         // Parse "info" lines
         if (line.startsWith('info') && line.includes('pv')) {
-          console.log(`[Engine ${this.id}] Info line:`, line);
           const parsed = this.parseInfoLine(line);
           if (parsed) {
             // Normalize scores to white's perspective
@@ -231,7 +226,6 @@ export class EngineManager extends EventEmitter {
             .sort((a, b) => a.multipv - b.multipv)
             .slice(0, multiPv);
 
-          console.log(`[Engine ${this.id}] Final suggestions (${result.length} moves):`, result.map(s => s.move));
           resolve(result);
         }
       };

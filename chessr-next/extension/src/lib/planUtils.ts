@@ -64,6 +64,8 @@ export function usePlanLimits() {
     // Opening limits
     canUseFullOpeningDatabase: premium,
     canSeeAlternativeOpenings: premium,
+    // Accuracy limits
+    canSeePhaseAccuracy: premium,
   };
 }
 

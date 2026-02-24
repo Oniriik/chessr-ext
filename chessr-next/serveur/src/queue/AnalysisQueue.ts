@@ -43,15 +43,8 @@ export class AnalysisQueue {
    * Removes any existing pending request from the same user
    */
   enqueue(request: AnalysisRequest): void {
-    const previousLength = this.queue.length;
     this.queue = this.queue.filter((r) => r.userId !== request.userId);
-
-    if (this.queue.length < previousLength) {
-      console.log(`[AnalysisQueue] Superseded request for user ${request.userId}`);
-    }
-
     this.queue.push(request);
-    console.log(`[AnalysisQueue] Enqueued ${request.requestId} (queue: ${this.queue.length})`);
   }
 
   /**

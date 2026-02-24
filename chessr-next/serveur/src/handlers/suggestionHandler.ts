@@ -7,6 +7,8 @@ import { EnginePool } from '../engine/EnginePool.js';
 import { getEngineConfig, SEARCH_NODES } from '../engine/KomodoConfig.js';
 import { labelSuggestions } from '../engine/MoveLabeler.js';
 import { SuggestionQueue } from '../queue/SuggestionQueue.js';
+import { logStart, logEnd, logError } from '../utils/logger.js';
+import { logActivity } from '../utils/activityLogger.js';
 
 export interface Client {
   ws: WebSocket;
@@ -151,7 +153,12 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
   }
 
   const modeLabel = puzzleMode ? 'puzzle' : 'game';
-  console.log(`[SuggestionHandler] Request ${requestId} (${modeLabel}) from ${client.user.email}`);
+  logStart({
+    requestId,
+    email: client.user.email,
+    type: 'suggestion',
+    params: `mode=${modeLabel}, elo=${targetElo || 1500}, pv=${multiPv || 1}`,
+  });
 
   // Prepare config (standard search with MultiPV)
   const pvCount = Math.min(3, Math.max(1, multiPv || 1));
@@ -197,7 +204,12 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
 
     callback: (error, result) => {
       if (error) {
-        console.error(`[SuggestionHandler] Error for ${requestId}:`, error.message);
+        logError({
+          requestId,
+          email: client.user.email,
+          type: 'suggestion',
+          error: error.message || 'Engine error',
+        });
         client.ws.send(
           JSON.stringify({
             type: 'suggestion_error',
@@ -209,9 +221,12 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       }
 
       if (result) {
-        console.log(
-          `[SuggestionHandler] Sending ${result.suggestions.length} suggestions for ${requestId}`
-        );
+        logEnd({
+          requestId,
+          email: client.user.email,
+          type: 'suggestion',
+          result: `${result.suggestions.length} suggestions, eval=${result.positionEval}`,
+        });
 
         client.ws.send(
           JSON.stringify({
@@ -226,6 +241,9 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
             puzzleMode: result.puzzleMode,
           })
         );
+
+        // Log activity for admin dashboard metrics
+        logActivity(client.user.id, 'suggestion');
       }
     },
   });

@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { Plan } from '../components/ui/plan-badge';
+import { useEngineStore } from './engineStore';
 
 interface AuthState {
   // User state
@@ -111,16 +112,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) {
         console.error('[Auth] fetchPlan error:', error);
         set({ plan: 'free', planExpiry: null });
+        useEngineStore.getState().enforcePlanLimits('free');
         return;
       }
 
+      const plan = data?.plan ?? 'free';
       set({
-        plan: data?.plan ?? 'free',
+        plan,
         planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null,
       });
+
+      // Enforce plan limits on engine settings
+      useEngineStore.getState().enforcePlanLimits(plan);
     } catch (e) {
       console.error('[Auth] fetchPlan error:', e);
       set({ plan: 'free', planExpiry: null });
+      useEngineStore.getState().enforcePlanLimits('free');
     }
   },
 
@@ -189,6 +196,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         planExpiry: null,
         loading: false,
       });
+      // Enforce free limits after sign out
+      useEngineStore.getState().enforcePlanLimits('free');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Sign out failed';
       set({ loading: false, error: message });
