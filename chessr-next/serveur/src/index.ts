@@ -85,10 +85,17 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     const analysisStats = getAnalysisStats();
     const openingStats = getOpeningStats();
 
+    // Get list of connected users
+    const connectedUsersList = Array.from(clients.values()).map((client) => ({
+      id: client.user.id,
+      email: client.user.email,
+    }));
+
     const stats = {
       realtime: {
         connectedUsers: clients.size,
         connectedClients: wss.clients.size,
+        users: connectedUsersList,
       },
       queues: {
         suggestion: suggestionStats.queue,

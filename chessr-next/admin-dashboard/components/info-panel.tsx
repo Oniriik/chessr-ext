@@ -19,10 +19,16 @@ interface PoolStats {
   waiting: number
 }
 
+interface ConnectedUser {
+  id: string
+  email: string
+}
+
 interface Stats {
   realtime: {
     connectedUsers: number
     connectedClients: number
+    users?: ConnectedUser[]
   }
   queues: {
     suggestion: { pending: number; processing: number }
@@ -199,6 +205,35 @@ export function InfoPanel() {
           </Card>
         ))}
       </div>
+
+      {/* Connected Users List */}
+      {stats?.realtime.users && stats.realtime.users.length > 0 && (
+        <Card className="border-border/50 bg-card/50 backdrop-blur">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-400" />
+              <CardTitle>Connected Users</CardTitle>
+            </div>
+            <CardDescription>{stats.realtime.users.length} user(s) currently online</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 max-h-[200px] overflow-auto">
+              {stats.realtime.users.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="text-sm">{user.email}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground font-mono">{user.id.slice(0, 8)}...</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Engine Pools */}
       <Card className="border-border/50 bg-card/50 backdrop-blur">
