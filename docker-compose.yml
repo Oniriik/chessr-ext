@@ -84,6 +84,9 @@ services:
     build:
       context: ./chessr-next/admin-dashboard
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     container_name: chessr-admin
     restart: unless-stopped
     ports:

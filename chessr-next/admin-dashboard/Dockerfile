@@ -27,6 +27,12 @@ COPY . .
 # Set standalone output
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Build args for NEXT_PUBLIC_ variables (must be available at build time)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+
 # Create public directory if it doesn't exist
 RUN mkdir -p public
 
