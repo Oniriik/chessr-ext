@@ -1,15 +1,29 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const getSupabase = () => {
+  if (!_supabase) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Supabase environment variables are not set')
+    }
+    _supabase = createClient(supabaseUrl, supabaseAnonKey)
+  }
+  return _supabase
+}
+
+// For backward compatibility
+export const supabase = typeof window !== 'undefined' ? getSupabase() : (null as unknown as SupabaseClient)
 
 // Server-side client with service role key (admin privileges)
 export const getServiceRoleClient = () => {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set')
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase server environment variables are not set')
   }
   return createClient(supabaseUrl, serviceRoleKey, {
     auth: {
