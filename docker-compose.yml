@@ -98,6 +98,7 @@ services:
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SERVER_PATH=/opt/chessr/app
+      - WS_SERVER_URL=http://chessr-server:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/chessr/app:/opt/chessr/app:ro
