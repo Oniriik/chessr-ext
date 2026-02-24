@@ -6,7 +6,9 @@
 
 import type { SavedOpening } from '../../stores/openingStore';
 import type { OpeningWithStats } from '../../lib/openingsDatabase';
-import { BookOpen, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { BookOpen, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react';
+import { usePlanLimits } from '../../lib/planUtils';
+import { UPGRADE_URL } from '../ui/plan-badge';
 
 /**
  * Convert hex color to rgba
@@ -31,6 +33,7 @@ interface OpeningSuggestionCardProps {
   onHoverShowMovesEnd?: () => void;
   // Alternative openings when deviated
   alternatives?: OpeningWithStats[];
+  alternativesCount?: number; // Count for free users (who can't see details)
   isLoadingAlternatives?: boolean;
   onSelectAlternative?: (opening: OpeningWithStats) => void;
   playerColor?: 'white' | 'black' | null;
@@ -172,6 +175,7 @@ export function OpeningSuggestionCard({
   onHoverShowMovesStart,
   onHoverShowMovesEnd,
   alternatives = [],
+  alternativesCount = 0,
   isLoadingAlternatives = false,
   onSelectAlternative,
   playerColor,
@@ -181,6 +185,7 @@ export function OpeningSuggestionCard({
   onHoverAlternativeEnd,
   openingColor = '#a855f7',
 }: OpeningSuggestionCardProps) {
+  const { canSeeAlternativeOpenings } = usePlanLimits();
   // Find the index of the next player move in the opening sequence
   const nextMoveIndex =
     nextMove && isFollowing
@@ -291,6 +296,30 @@ export function OpeningSuggestionCard({
           {isLoadingAlternatives ? (
             <div className="tw-flex tw-items-center tw-justify-center tw-py-4">
               <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-text-muted-foreground" />
+            </div>
+          ) : !canSeeAlternativeOpenings && (alternatives.length > 0 || alternativesCount > 0) ? (
+            // FREE USER: Show upsell message
+            <div className="tw-py-4 tw-px-3 tw-rounded-lg tw-bg-gradient-to-br tw-from-yellow-500/10 tw-to-orange-500/10">
+              <div className="tw-flex tw-flex-col tw-items-center tw-text-center tw-gap-3">
+                <div className="tw-p-2.5 tw-rounded-xl tw-bg-yellow-500/20">
+                  <BookOpen className="tw-w-6 tw-h-6 tw-text-yellow-500" />
+                </div>
+                <div>
+                  <p className="tw-text-sm tw-font-semibold tw-text-foreground">
+                    {alternatives.length || alternativesCount} Alternatives Found
+                  </p>
+                  <p className="tw-text-xs tw-text-muted-foreground tw-mt-1">
+                    See compatible openings for this position
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => window.open(UPGRADE_URL, '_blank')}
+                className="tw-w-full tw-mt-4 tw-py-2 tw-px-3 tw-rounded-md tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-text-sm tw-font-medium tw-transition-colors tw-flex tw-items-center tw-justify-center tw-gap-2"
+              >
+                <Sparkles className="tw-w-4 tw-h-4" />
+                Upgrade to Unlock
+              </button>
             </div>
           ) : alternatives.length === 0 ? (
             <div className="tw-text-center tw-py-3">

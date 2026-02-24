@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { Search, Loader2, X, Check, ChevronDown, BookOpen } from 'lucide-react';
+import { Search, Loader2, X, Check, ChevronDown, BookOpen, Lock } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -20,6 +20,8 @@ import {
   type OpeningWithStats,
 } from '../../lib/openingsDatabase';
 import { logger } from '../../lib/logger';
+import { usePlanLimits } from '../../lib/planUtils';
+import { UpgradeButton } from '../ui/plan-badge';
 
 // ============================================
 // POPULAR OPENINGS (Default display, no API needed)
@@ -330,6 +332,7 @@ const WHITE_MOVES = ['e4', 'd4', 'c4', 'nf3', 'g3', 'b3', 'f4'];
 
 export function OpeningRepertoireSelector() {
   const { repertoire, setWhiteOpening, setBlackOpening } = useOpeningStore();
+  const { canUseFullOpeningDatabase } = usePlanLimits();
   const [expanded, setExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [colorFilter, setColorFilter] = useState<'white' | 'black' | null>(null);
@@ -337,6 +340,7 @@ export function OpeningRepertoireSelector() {
   const [results, setResults] = useState<OpeningWithStats[]>(POPULAR_OPENINGS);
   const [isLoading, setIsLoading] = useState(false);
   const [isWhiteSearch, setIsWhiteSearch] = useState(false);
+  const [noResultsQuery, setNoResultsQuery] = useState<string | null>(null);
 
   // Count selected openings for collapsed state badge
   const selectedCount = (repertoire.white ? 1 : 0) + (repertoire.black ? 1 : 0);
@@ -360,6 +364,7 @@ export function OpeningRepertoireSelector() {
     // Clear results immediately when filters change (before debounce)
     setResults([]);
     setIsLoading(true);
+    setNoResultsQuery(null);
 
     if (!searchQuery.trim()) {
       // No search: apply color filter to popular openings
@@ -375,6 +380,32 @@ export function OpeningRepertoireSelector() {
       return;
     }
 
+    // FREE USER: Search only in POPULAR_OPENINGS (8 hardcoded openings)
+    if (!canUseFullOpeningDatabase) {
+      const query = searchQuery.toLowerCase().trim();
+      let filtered = POPULAR_OPENINGS.filter(o =>
+        o.name.toLowerCase().includes(query) ||
+        o.eco.toLowerCase().includes(query) ||
+        o.moves.toLowerCase().includes(query)
+      );
+
+      // Apply color filter
+      if (colorFilter === 'white') {
+        filtered = filtered.filter(o => o.category === 'white');
+      } else if (colorFilter === 'black') {
+        filtered = filtered.filter(o => o.category?.startsWith('black-'));
+      }
+
+      if (filtered.length === 0) {
+        setNoResultsQuery(searchQuery);
+      }
+      setResults(filtered);
+      setIsLoading(false);
+      setIsWhiteSearch(false);
+      return;
+    }
+
+    // PREMIUM USER: Search full database
     let cancelled = false;
     const timeoutId = setTimeout(async () => {
 
@@ -492,7 +523,7 @@ export function OpeningRepertoireSelector() {
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [searchQuery, colorFilter, counterMode, normalizedQuery, isWhiteMoveSearch]);
+  }, [searchQuery, colorFilter, counterMode, normalizedQuery, isWhiteMoveSearch, canUseFullOpeningDatabase]);
 
   const handleSelectWhite = useCallback(
     (opening: OpeningWithStats) => {
@@ -538,6 +569,9 @@ export function OpeningRepertoireSelector() {
         <div className="tw-flex tw-items-center tw-gap-3 tw-flex-1">
           <BookOpen className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
           <span className="tw-text-sm tw-font-semibold">Opening Repertoire</span>
+          {!canUseFullOpeningDatabase && (
+            <UpgradeButton tooltip="Unlock 12,000+ openings" />
+          )}
           {!expanded && selectedCount > 0 && (
             <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded-full tw-text-xs tw-font-medium">
               {selectedCount} selected
@@ -638,12 +672,29 @@ export function OpeningRepertoireSelector() {
               </div>
             ) : results.length === 0 ? (
               <div className="tw-text-center tw-py-6">
-                <p className="tw-text-sm tw-text-muted-foreground">
-                  No openings found
-                </p>
-                <p className="tw-text-xs tw-text-muted-foreground/70 tw-mt-1">
-                  Try a different search term
-                </p>
+                {noResultsQuery && !canUseFullOpeningDatabase ? (
+                  <>
+                    <p className="tw-text-sm tw-text-muted-foreground">
+                      No results for "{noResultsQuery}"
+                    </p>
+                    <div className="tw-flex tw-items-center tw-justify-center tw-gap-2 tw-mt-2">
+                      <Lock className="tw-h-3.5 tw-w-3.5 tw-text-yellow-500" />
+                      <p className="tw-text-xs tw-text-yellow-500/90">
+                        Upgrade for 12,000+ openings
+                      </p>
+                      <UpgradeButton tooltip="Unlock full opening database" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="tw-text-sm tw-text-muted-foreground">
+                      No openings found
+                    </p>
+                    <p className="tw-text-xs tw-text-muted-foreground/70 tw-mt-1">
+                      Try a different search term
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="tw-space-y-2 tw-max-h-64 tw-overflow-y-auto tw-pr-1">

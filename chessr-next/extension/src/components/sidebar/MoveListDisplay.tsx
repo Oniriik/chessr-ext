@@ -315,7 +315,7 @@ export function MoveListDisplay() {
   const openingTracker = useOpeningTracker();
 
   // Fetch alternative openings when deviated
-  const { alternatives, isLoading: isLoadingAlternatives } = useAlternativeOpenings(
+  const { alternatives, alternativesCount, isLoading: isLoadingAlternatives } = useAlternativeOpenings(
     openingTracker.hasDeviated
   );
 
@@ -548,6 +548,7 @@ export function MoveListDisplay() {
           onHoverShowMovesStart={handleOpeningMovesHoverStart}
           onHoverShowMovesEnd={handleOpeningMovesHoverEnd}
           alternatives={alternatives}
+          alternativesCount={alternativesCount}
           isLoadingAlternatives={isLoadingAlternatives}
           onSelectAlternative={handleSelectAlternative}
           playerColor={playerColor}

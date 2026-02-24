@@ -16,6 +16,22 @@ export const FREE_LIMITS = {
   allowedPersonalities: ['Default', 'Aggressive'] as const,
 } as const;
 
+// Free openings (8 hardcoded - 4 white, 4 black)
+export const FREE_OPENINGS = [
+  // White openings
+  { eco: 'C50', name: 'Italian Game', moves: 'e4 e5 Nf3 Nc6 Bc4', category: 'white' as const },
+  { eco: 'C60', name: 'Ruy Lopez', moves: 'e4 e5 Nf3 Nc6 Bb5', category: 'white' as const },
+  { eco: 'D06', name: "Queen's Gambit", moves: 'd4 d5 c4', category: 'white' as const },
+  { eco: 'D02', name: 'London System', moves: 'd4 Nf6 Nf3 e6 Bf4', category: 'white' as const },
+  // Black openings
+  { eco: 'B20', name: 'Sicilian Defense', moves: 'e4 c5', category: 'black' as const },
+  { eco: 'C00', name: 'French Defense', moves: 'e4 e6', category: 'black' as const },
+  { eco: 'E60', name: "King's Indian Defense", moves: 'd4 Nf6 c4 g6', category: 'black' as const },
+  { eco: 'D10', name: 'Slav Defense', moves: 'd4 d5 c4 c6', category: 'black' as const },
+] as const;
+
+export type FreeOpening = typeof FREE_OPENINGS[number];
+
 /**
  * Check if a plan has premium access
  */
@@ -45,6 +61,9 @@ export function usePlanLimits() {
     canUsePuzzleHints: premium,
     isPersonalityAllowed: (personality: string) =>
       premium || FREE_LIMITS.allowedPersonalities.includes(personality as typeof FREE_LIMITS.allowedPersonalities[number]),
+    // Opening limits
+    canUseFullOpeningDatabase: premium,
+    canSeeAlternativeOpenings: premium,
   };
 }
 

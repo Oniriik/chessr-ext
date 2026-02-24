@@ -328,6 +328,7 @@ function PuzzleHeader() {
 function AuthenticatedPuzzleContent() {
   const { isStarted, isSolved, playerColor } = usePuzzleDetection();
   const { init, connect } = useWebSocketStore();
+  const { canUsePuzzleHints } = usePlanLimits();
 
   // Initialize WebSocket manager and connect
   useEffect(() => {
@@ -335,8 +336,43 @@ function AuthenticatedPuzzleContent() {
     connect();
   }, [init, connect]);
 
-  // Render hint arrows on the board
+  // Render hint arrows on the board (only for premium)
   usePuzzleArrowRenderer();
+
+  // Free users: show only upgrade card
+  if (!canUsePuzzleHints) {
+    return (
+      <Card className="tw-p-4 tw-text-foreground tw-h-full tw-flex tw-flex-col">
+        <PuzzleHeader />
+        <div className="tw-flex-1 tw-flex tw-flex-col tw-justify-center">
+          <Card className="tw-bg-gradient-to-br tw-from-yellow-500/10 tw-to-orange-500/10 tw-border-yellow-500/20">
+            <CardContent className="tw-py-6 tw-px-4 tw-space-y-4">
+              <div className="tw-flex tw-flex-col tw-items-center tw-text-center tw-gap-3">
+                <div className="tw-p-3 tw-rounded-xl tw-bg-yellow-500/20">
+                  <Puzzle className="tw-w-8 tw-h-8 tw-text-yellow-500" />
+                </div>
+                <div>
+                  <p className="tw-text-base tw-font-semibold tw-text-foreground">
+                    Puzzle Hints
+                  </p>
+                  <p className="tw-text-sm tw-text-muted-foreground tw-mt-1">
+                    Get the best move for any puzzle
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => window.open(UPGRADE_URL, '_blank')}
+                className="tw-w-full tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-font-medium"
+              >
+                <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
+                Upgrade to Unlock
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="tw-p-4 tw-text-foreground tw-h-full tw-flex tw-flex-col">

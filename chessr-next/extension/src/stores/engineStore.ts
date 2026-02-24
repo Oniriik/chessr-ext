@@ -174,12 +174,13 @@ export const useEngineStore = create<EngineState>()(
       armageddon: false,
       disableLimitStrength: false,
 
-      // Target ELO: auto = opponentElo (fallback to userElo + 150), manual = slider value
+      // Target ELO: auto = base ELO + 150 (opponent if detected, otherwise user)
       getTargetElo: () => {
         const { targetEloAuto, opponentElo, userElo, targetEloManual } = get();
         if (!targetEloAuto) return targetEloManual;
-        // Use opponent ELO if detected, otherwise fallback to user ELO + 150
-        return opponentElo > 0 ? opponentElo : userElo + 150;
+        // Use opponent ELO + 150 if detected, otherwise user ELO + 150
+        const baseElo = opponentElo > 0 ? opponentElo : userElo;
+        return baseElo + 150;
       },
 
       // Setters

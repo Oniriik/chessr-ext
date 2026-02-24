@@ -63,7 +63,7 @@ function getExpiryText(expiry: Date): string {
   return `Expires in ${diffDays} days`;
 }
 
-const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
+export const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
 
 export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) {
   const config = planConfig[plan];

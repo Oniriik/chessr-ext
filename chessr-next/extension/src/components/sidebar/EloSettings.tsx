@@ -35,8 +35,8 @@ function TargetEloSection() {
   const targetElo = getTargetElo();
   // Clamp displayed value to max allowed
   const displayElo = Math.min(targetElo, maxElo);
-  // Auto label: show opponent ELO if available, otherwise user ELO + 150
-  const autoLabel = opponentElo > 0 ? `opponent: ${opponentElo}` : `${userElo} + 150`;
+  // Auto label: always +150 from base (opponent or user)
+  const autoLabel = opponentElo > 0 ? `${opponentElo} + 150` : `${userElo} + 150`;
 
   return (
     <div className="tw-space-y-2">
@@ -268,10 +268,16 @@ function UnlockEloSection() {
 // ============================================================================
 export function EloSettings() {
   const [expanded, setExpanded] = useState(true);
-  const { getTargetElo, personality } = useEngineStore();
+  const { getTargetElo, personality, riskTaking, skill, armageddon } = useEngineStore();
+  const { maxRisk, maxSkill, canUseArmageddon } = usePlanLimits();
 
   const targetElo = getTargetElo();
   const personalityLabel = PERSONALITY_INFO[personality].label;
+  const isArmageddonActive = canUseArmageddon && armageddon;
+
+  // For display in collapsed state
+  const displayRisk = maxRisk < 100 ? maxRisk : riskTaking;
+  const displaySkill = maxSkill < 25 ? maxSkill : skill;
 
   return (
     <Card className="tw-bg-muted/50 tw-overflow-hidden">
@@ -280,16 +286,25 @@ export function EloSettings() {
         onClick={() => setExpanded(!expanded)}
         className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-4 tw-cursor-pointer hover:tw-bg-muted/30 tw-transition-all tw-duration-200 tw-bg-transparent tw-rounded-lg"
       >
-        <div className="tw-flex tw-items-center tw-gap-3 tw-flex-1">
+        <div className="tw-flex tw-flex-col tw-items-start tw-gap-1.5 tw-flex-1">
           <span className="tw-text-sm tw-font-semibold">Engine Settings</span>
           {!expanded && (
-            <div className="tw-flex tw-items-center tw-gap-2 tw-text-xs tw-text-muted-foreground">
-              <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded-full tw-font-medium">
-                {targetElo} ELO
-              </span>
-              <span className="tw-px-2 tw-py-0.5 tw-bg-muted tw-rounded-full">
-                {personalityLabel}
-              </span>
+            <div className="tw-flex tw-items-center tw-gap-1.5 tw-text-[11px]">
+              {isArmageddonActive ? (
+                <span className="tw-px-2 tw-py-0.5 tw-bg-red-500/20 tw-text-red-400 tw-rounded tw-font-medium">
+                  Armageddon
+                </span>
+              ) : (
+                <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded tw-font-medium">
+                  {targetElo} ELO
+                </span>
+              )}
+              <span className="tw-text-muted-foreground">•</span>
+              <span className="tw-text-muted-foreground">{displayRisk}% risk</span>
+              <span className="tw-text-muted-foreground">•</span>
+              <span className="tw-text-muted-foreground">Lv.{displaySkill}</span>
+              <span className="tw-text-muted-foreground">•</span>
+              <span className="tw-text-muted-foreground">{personalityLabel}</span>
             </div>
           )}
         </div>
