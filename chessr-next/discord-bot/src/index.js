@@ -174,7 +174,7 @@ async function updateStatsChannels() {
     console.log(`  - Active Users: ${serverStats?.realtime?.connectedUsers || 0}`);
     console.log(`  - Total Suggestions: ${totalSuggestions}`);
     console.log(`  - Status: ${status.text}`);
-    console.log(`  - Premium: ${premiumStats?.totalPremium || 0} (beta: ${premiumStats?.beta || 0}, premium: ${premiumStats?.premium || 0}, lifetime: ${premiumStats?.lifetime || 0})`);
+    console.log(`  - Premium: ${premiumStats?.totalPremium || 0}`);
 
   } catch (error) {
     console.error('[Discord] Update failed:', error);
