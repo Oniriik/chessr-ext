@@ -113,6 +113,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccountsData | null>(null)
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [removingCooldown, setRemovingCooldown] = useState<string | null>(null)
+  const [unlinkingAccount, setUnlinkingAccount] = useState<string | null>(null)
 
   // Debounce search input
   useEffect(() => {
@@ -202,6 +203,34 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
       alert('Failed to remove cooldown')
     } finally {
       setRemovingCooldown(null)
+    }
+  }
+
+  const unlinkAccount = async (accountId: string) => {
+    if (!confirm('Are you sure you want to unlink this account?')) return
+
+    setUnlinkingAccount(accountId)
+    try {
+      const response = await fetch('/api/linked-accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to unlink account')
+      }
+
+      // Refresh linked accounts and user list
+      if (editUser) {
+        await fetchLinkedAccounts(editUser.user_id)
+        await fetchUsers()
+      }
+    } catch (error) {
+      console.error('Failed to unlink account:', error)
+      alert('Failed to unlink account')
+    } finally {
+      setUnlinkingAccount(null)
     }
   }
 
@@ -683,8 +712,23 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                               {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
                             </Badge>
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {account.rating_blitz && `${account.rating_blitz} blitz`}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">
+                              {account.rating_blitz && `${account.rating_blitz} blitz`}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => unlinkAccount(account.id)}
+                              disabled={unlinkingAccount === account.id}
+                              className="h-7 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            >
+                              {unlinkingAccount === account.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Unlink className="w-3 h-3" />
+                              )}
+                            </Button>
                           </div>
                         </div>
                       ))}

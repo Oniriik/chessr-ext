@@ -58,6 +58,40 @@ export async function GET(request: Request) {
 }
 
 /**
+ * PATCH /api/linked-accounts
+ * Unlink an active account (set unlinked_at to now)
+ */
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json()
+    const { accountId } = body
+
+    if (!accountId) {
+      return NextResponse.json({ error: 'accountId is required' }, { status: 400 })
+    }
+
+    const supabase = getServiceRoleClient()
+
+    // Set unlinked_at to now for active accounts
+    const { error } = await supabase
+      .from('linked_accounts')
+      .update({ unlinked_at: new Date().toISOString() })
+      .eq('id', accountId)
+      .is('unlinked_at', null)
+
+    if (error) {
+      console.error('Error unlinking account:', error)
+      return NextResponse.json({ error: 'Failed to unlink account' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('PATCH linked-accounts error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+/**
  * DELETE /api/linked-accounts
  * Remove cooldown by deleting the unlinked account record
  */
