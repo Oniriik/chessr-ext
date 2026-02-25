@@ -1,0 +1,15 @@
+{
+  "name": "chessr-cron",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "check-expirations": "tsx check-expirations.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.7.2"
+  }
+}

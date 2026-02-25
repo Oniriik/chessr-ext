@@ -121,6 +121,31 @@ services:
     networks:
       - chessr-network
 
+  # ===========================================
+  # Cron Service (Plan Expiration Checks)
+  # ===========================================
+  cron:
+    build:
+      context: ./chessr-next/cron
+      dockerfile: Dockerfile
+    container_name: chessr-cron
+    restart: unless-stopped
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - chessr-network
+
 networks:
   chessr-network:
     driver: bridge
