@@ -6,6 +6,8 @@
 import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { isDisposableEmail, isDisposableEmailAsync, DISPOSABLE_EMAIL_ERROR } from '../lib/emailValidator';
+import { isRateLimited, recordFailedAttempt, resetAttempts, RATE_LIMIT_ERROR } from '../lib/rateLimiter';
 import type { Plan } from '../components/ui/plan-badge';
 import { useEngineStore } from './engineStore';
 
@@ -134,6 +136,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signUp: async (email, password) => {
     set({ loading: true, error: null });
 
+    // Check rate limit
+    const rateCheck = await isRateLimited(email);
+    if (rateCheck.limited) {
+      const error = RATE_LIMIT_ERROR(rateCheck.minutesLeft!);
+      set({ loading: false, error });
+      return { success: false, error };
+    }
+
+    // Block disposable email addresses (using API + static list fallback)
+    try {
+      const isDisposable = await isDisposableEmailAsync(email);
+      if (isDisposable) {
+        set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
+        return { success: false, error: DISPOSABLE_EMAIL_ERROR };
+      }
+    } catch {
+      // If validation fails completely, still check static list
+      if (isDisposableEmail(email)) {
+        set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
+        return { success: false, error: DISPOSABLE_EMAIL_ERROR };
+      }
+    }
+
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -145,11 +170,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (error) throw error;
 
+      // Success - reset attempts
+      await resetAttempts(email);
+
       // Don't set user/session - wait for email confirmation
       set({ loading: false });
 
       return { success: true };
     } catch (error: unknown) {
+      // Record failed attempt
+      await recordFailedAttempt(email);
+
       const message = error instanceof Error ? error.message : 'Sign up failed';
       set({ loading: false, error: message });
       return { success: false, error: message };
@@ -159,6 +190,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email, password) => {
     set({ loading: true, error: null });
 
+    // Check rate limit
+    const rateCheck = await isRateLimited(email);
+    if (rateCheck.limited) {
+      const error = RATE_LIMIT_ERROR(rateCheck.minutesLeft!);
+      set({ loading: false, error });
+      return { success: false, error };
+    }
+
+    // Block disposable email addresses
+    if (isDisposableEmail(email)) {
+      set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
+      return { success: false, error: DISPOSABLE_EMAIL_ERROR };
+    }
+
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -166,6 +211,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (error) throw error;
+
+      // Success - reset attempts
+      await resetAttempts(email);
 
       set({
         user: data.user,
@@ -178,6 +226,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (error: unknown) {
+      // Record failed attempt
+      await recordFailedAttempt(email);
+
       const message = error instanceof Error ? error.message : 'Sign in failed';
       set({ loading: false, error: message });
       return { success: false, error: message };
