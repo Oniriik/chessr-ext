@@ -52,13 +52,14 @@ export async function GET() {
 
     const channels = await response.json()
 
-    // Filter to only text channels
+    // Filter to text and announcement channels
     const textChannels = channels
-      .filter((c: { type: number }) => c.type === 0) // 0 = text channel
-      .map((c: { id: string; name: string; parent_id: string | null }) => ({
+      .filter((c: { type: number }) => c.type === 0 || c.type === 5) // 0 = text, 5 = announcement
+      .map((c: { id: string; name: string; parent_id: string | null; type: number }) => ({
         id: c.id,
         name: c.name,
         parentId: c.parent_id,
+        type: c.type === 5 ? 'announcement' : 'text',
       }))
 
     return NextResponse.json({ channels: textChannels })

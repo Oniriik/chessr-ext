@@ -30,6 +30,7 @@ interface Channel {
   id: string
   name: string
   parentId: string | null
+  type: 'text' | 'announcement'
 }
 
 type Template = 'maintenance' | 'maintenanceEnd' | 'update' | 'announcement' | 'custom'
@@ -78,12 +79,18 @@ export function DiscordPanel() {
   const [sending, setSending] = useState(false)
   const [success, setSuccess] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [channelSearch, setChannelSearch] = useState('')
 
   // Form state
   const [selectedChannel, setSelectedChannel] = useState('')
   const [template, setTemplate] = useState<Template>('announcement')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+
+  // Filter channels by search
+  const filteredChannels = channels.filter((c) =>
+    c.name.toLowerCase().includes(channelSearch.toLowerCase())
+  )
 
   useEffect(() => {
     fetchChannels()
@@ -217,11 +224,32 @@ export function DiscordPanel() {
                   <SelectValue placeholder="Select a channel..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {channels.map((channel) => (
-                    <SelectItem key={channel.id} value={channel.id}>
-                      #{channel.name}
-                    </SelectItem>
-                  ))}
+                  <div className="p-2">
+                    <Input
+                      placeholder="Search channels..."
+                      value={channelSearch}
+                      onChange={(e) => setChannelSearch(e.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                  {filteredChannels.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      No channels found
+                    </div>
+                  ) : (
+                    filteredChannels.map((channel) => (
+                      <SelectItem key={channel.id} value={channel.id}>
+                        <span className="flex items-center gap-2">
+                          #{channel.name}
+                          {channel.type === 'announcement' && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                              📢
+                            </Badge>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
