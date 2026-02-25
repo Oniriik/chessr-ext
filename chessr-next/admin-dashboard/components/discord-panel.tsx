@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   MessageSquare,
   Send,
@@ -86,6 +87,7 @@ export function DiscordPanel() {
   const [template, setTemplate] = useState<Template>('announcement')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [pingEveryone, setPingEveryone] = useState(true)
 
   // Filter channels by search
   const filteredChannels = channels.filter((c) =>
@@ -140,6 +142,7 @@ export function DiscordPanel() {
           template,
           title,
           description,
+          pingEveryone,
         }),
       })
 
@@ -161,15 +164,7 @@ export function DiscordPanel() {
     }
   }
 
-  const quickSendMaintenance = async (start: boolean) => {
-    if (!selectedChannel) {
-      setError('Please select a channel first')
-      return
-    }
-
-    const t = start ? 'maintenance' : 'maintenanceEnd'
-    const config = templateConfig[t]
-
+  const quickUpdateStatus = async (maintenance: boolean) => {
     try {
       setSending(true)
       setError(null)
@@ -179,22 +174,20 @@ export function DiscordPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          channelId: selectedChannel,
-          template: t,
-          title: config.defaultTitle,
-          description: config.defaultDescription,
+          template: maintenance ? 'maintenance' : 'maintenanceEnd',
+          statusOnly: true,
         }),
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess(`Maintenance ${start ? 'start' : 'end'} notification sent!`)
+        setSuccess(`Status updated to ${maintenance ? 'Maintenance' : 'Working'}`)
       } else {
-        setError(data.error || 'Failed to send message')
+        setError(data.error || 'Failed to update status')
       }
     } catch {
-      setError('Failed to send message')
+      setError('Failed to update status')
     } finally {
       setSending(false)
     }
@@ -210,17 +203,61 @@ export function DiscordPanel() {
             Quick Actions
           </CardTitle>
           <CardDescription>
-            Send predefined maintenance messages instantly
+            Toggle server status (updates Discord voice channel)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <Label className="text-sm text-muted-foreground mb-2 block">
-                Select Channel
-              </Label>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => quickUpdateStatus(true)}
+              disabled={sending}
+              variant="outline"
+              className="border-orange-500/50 hover:bg-orange-500/20"
+            >
+              {sending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Wrench className="w-4 h-4 mr-2" />
+              )}
+              Start Maintenance
+            </Button>
+            <Button
+              onClick={() => quickUpdateStatus(false)}
+              disabled={sending}
+              variant="outline"
+              className="border-green-500/50 hover:bg-green-500/20"
+            >
+              {sending ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              End Maintenance
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Custom Message */}
+      <Card className="border-border/50 bg-card/50 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-blue-400" />
+            Send Custom Message
+          </CardTitle>
+          <CardDescription>
+            Create and send custom embed messages to Discord
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Channel Selection */}
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">
+              Select Channel
+            </Label>
+            <div className="flex gap-2">
               <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Select a channel..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -252,34 +289,6 @@ export function DiscordPanel() {
                   )}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex gap-2 items-end">
-              <Button
-                onClick={() => quickSendMaintenance(true)}
-                disabled={sending || !selectedChannel}
-                variant="outline"
-                className="border-orange-500/50 hover:bg-orange-500/20"
-              >
-                {sending ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Wrench className="w-4 h-4 mr-2" />
-                )}
-                Start Maintenance
-              </Button>
-              <Button
-                onClick={() => quickSendMaintenance(false)}
-                disabled={sending || !selectedChannel}
-                variant="outline"
-                className="border-green-500/50 hover:bg-green-500/20"
-              >
-                {sending ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                )}
-                End Maintenance
-              </Button>
               <Button
                 onClick={fetchChannels}
                 disabled={loading}
@@ -291,21 +300,7 @@ export function DiscordPanel() {
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Custom Message */}
-      <Card className="border-border/50 bg-card/50 backdrop-blur">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-blue-400" />
-            Send Custom Message
-          </CardTitle>
-          <CardDescription>
-            Create and send custom embed messages to Discord
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
           {/* Template Selection */}
           <div className="flex flex-wrap gap-2">
             {(Object.keys(templateConfig) as Template[]).map((t) => {
@@ -354,9 +349,24 @@ export function DiscordPanel() {
             />
           </div>
 
+          {/* Ping @everyone toggle */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="ping-everyone"
+              checked={pingEveryone}
+              onCheckedChange={(checked) => setPingEveryone(checked === true)}
+            />
+            <Label htmlFor="ping-everyone" className="text-sm cursor-pointer">
+              Ping @everyone
+            </Label>
+          </div>
+
           {/* Preview */}
           <div className="border border-border/50 rounded-lg p-4 bg-[#2f3136]">
             <p className="text-xs text-muted-foreground mb-2">Preview</p>
+            {pingEveryone && (
+              <p className="text-blue-400 mb-2">@everyone</p>
+            )}
             <div className="border-l-4 border-blue-500 pl-3">
               <p className="font-semibold text-white">{title || 'Title'}</p>
               <p className="text-sm text-gray-300 mt-1 whitespace-pre-wrap">

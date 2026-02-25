@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 const DISCORD_WEBHOOK_URL = process.env.DISCORD_WEBHOOK_URL
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID
+const DISCORD_STATS_CATEGORY_ID = process.env.DISCORD_STATS_CHANNEL_ID // Category ID for stats channels
 
 // Predefined embed templates
 const templates = {
@@ -26,6 +27,73 @@ const templates = {
     description: '',
     color: 0x5865f2,
   },
+}
+
+// Update the status voice channel name
+async function updateStatusChannel(maintenance: boolean): Promise<boolean> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID || !DISCORD_STATS_CATEGORY_ID) {
+    console.log('Status channel update skipped: missing config')
+    return false
+  }
+
+  try {
+    // Fetch all channels in the guild
+    const response = await fetch(
+      `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/channels`,
+      {
+        headers: {
+          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        },
+      }
+    )
+
+    if (!response.ok) {
+      console.error('Failed to fetch channels for status update')
+      return false
+    }
+
+    const channels = await response.json()
+
+    // Find the status voice channel in the stats category
+    const statusChannel = channels.find(
+      (c: { parent_id: string | null; type: number; name: string }) =>
+        c.parent_id === DISCORD_STATS_CATEGORY_ID &&
+        c.type === 2 && // Voice channel
+        /status/i.test(c.name)
+    )
+
+    if (!statusChannel) {
+      console.log('Status channel not found')
+      return false
+    }
+
+    // Update the channel name
+    const newName = maintenance ? '🟡 Status: Maintenance' : '🟢 Status: Working'
+
+    const updateResponse = await fetch(
+      `https://discord.com/api/v10/channels/${statusChannel.id}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: newName }),
+      }
+    )
+
+    if (!updateResponse.ok) {
+      const error = await updateResponse.text()
+      console.error('Failed to update status channel:', error)
+      return false
+    }
+
+    console.log(`Status channel updated to: ${newName}`)
+    return true
+  } catch (error) {
+    console.error('Error updating status channel:', error)
+    return false
+  }
 }
 
 // GET - Fetch Discord channels
@@ -69,11 +137,21 @@ export async function GET() {
   }
 }
 
-// POST - Send embed message
+// POST - Send embed message or update status
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { channelId, template, title, description, color, useWebhook } = body
+    const { channelId, template, title, description, color, useWebhook, pingEveryone, statusOnly } = body
+
+    // If statusOnly, just update the status channel without sending a message
+    if (statusOnly && (template === 'maintenance' || template === 'maintenanceEnd')) {
+      const statusUpdated = await updateStatusChannel(template === 'maintenance')
+      if (statusUpdated) {
+        return NextResponse.json({ success: true, statusUpdated: true })
+      } else {
+        return NextResponse.json({ error: 'Failed to update status channel' }, { status: 500 })
+      }
+    }
 
     if (!channelId) {
       return NextResponse.json({ error: 'Channel ID required' }, { status: 400 })
@@ -91,12 +169,21 @@ export async function POST(request: Request) {
       },
     }
 
+    // Build message payload with optional @everyone ping
+    const messagePayload: { content?: string; embeds: typeof embed[] } = {
+      embeds: [embed],
+    }
+
+    if (pingEveryone) {
+      messagePayload.content = '@everyone'
+    }
+
     // Use webhook if configured and requested
     if (useWebhook && DISCORD_WEBHOOK_URL) {
       const response = await fetch(DISCORD_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ embeds: [embed] }),
+        body: JSON.stringify(messagePayload),
       })
 
       if (!response.ok) {
@@ -119,7 +206,7 @@ export async function POST(request: Request) {
           Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ embeds: [embed] }),
+        body: JSON.stringify(messagePayload),
       }
     )
 
