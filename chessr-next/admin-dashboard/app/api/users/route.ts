@@ -218,7 +218,7 @@ export async function PATCH(request: Request) {
             new_plan: plan,
             old_expiry: null,
             new_expiry: planExpiry || null,
-            reason: 'Manual change by admin',
+            reason: adminEmail ? `Manual change by ${adminEmail}` : 'Manual change by admin',
           })
         }
 
@@ -241,7 +241,7 @@ export async function PATCH(request: Request) {
         new_plan: plan,
         old_expiry: oldExpiry,
         new_expiry: planExpiry !== undefined ? planExpiry : oldExpiry,
-        reason: 'Manual change by admin',
+        reason: adminEmail ? `Manual change by ${adminEmail}` : 'Manual change by admin',
       })
     }
 
