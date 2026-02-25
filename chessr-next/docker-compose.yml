@@ -68,6 +68,7 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
       - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - DISCORD_STATS_CHANNEL_ID=${DISCORD_STATS_CHANNEL_ID}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/chessr/app:/opt/chessr/app:ro
