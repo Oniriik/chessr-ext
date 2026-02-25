@@ -1,0 +1,152 @@
+# Chessr Production Docker Compose
+# Usage: docker compose up -d
+
+services:
+  # ===========================================
+  # WebSocket Server (Chess Engine Backend)
+  # ===========================================
+  server:
+    build:
+      context: ./serveur
+      dockerfile: Dockerfile
+    container_name: chessr-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-2}
+      - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-1}
+      - SYZYGY_PATH=/app/engines/syzygy
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4G
+        reservations:
+          cpus: '2'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://localhost:8080', (r) => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - chessr-network
+
+  # ===========================================
+  # Admin Dashboard (Next.js)
+  # ===========================================
+  admin:
+    build:
+      context: ./admin-dashboard
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    container_name: chessr-admin
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SERVER_PATH=/opt/chessr/app
+      - WS_SERVER_URL=http://chessr-server:8080
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/chessr/app:/opt/chessr/app:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - chessr-network
+
+  # ===========================================
+  # Cron Service (Plan Expiration Checks)
+  # ===========================================
+  cron:
+    build:
+      context: ./cron
+      dockerfile: Dockerfile
+    container_name: chessr-cron
+    restart: unless-stopped
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - chessr-network
+
+  # ===========================================
+  # Discord Bot (Stats & Notifications)
+  # ===========================================
+  discord-bot:
+    build:
+      context: ./discord-bot
+      dockerfile: Dockerfile
+    container_name: chessr-discord
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - DISCORD_CHANNEL_ID=${DISCORD_STATS_CHANNEL_ID}
+      - CHESSR_SERVER_URL=http://chessr-server:8080
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - UPDATE_INTERVAL=${DISCORD_UPDATE_INTERVAL:-60}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - server
+    networks:
+      - chessr-network
+
+networks:
+  chessr-network:
+    driver: bridge

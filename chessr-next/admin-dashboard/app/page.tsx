@@ -11,8 +11,9 @@ import { LogsPanel } from '@/components/logs-panel'
 import { UsersPanel } from '@/components/users-panel'
 import { ServerPanel } from '@/components/server-panel'
 import { PlansPanel } from '@/components/plans-panel'
+import { DiscordPanel } from '@/components/discord-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
-import { LogOut, LayoutDashboard, ScrollText, Users, Server, Loader2, Gift } from 'lucide-react'
+import { LogOut, LayoutDashboard, ScrollText, Users, Server, Loader2, Gift, MessageSquare } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -117,7 +118,7 @@ export default function DashboardPage() {
       {/* Main content */}
       <main className="container mx-auto px-4 py-6 relative z-10">
         <Tabs defaultValue="info" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
             <TabsTrigger value="info" className="gap-2">
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">Info</span>
@@ -137,6 +138,10 @@ export default function DashboardPage() {
             <TabsTrigger value="plans" className="gap-2">
               <Gift className="w-4 h-4" />
               <span className="hidden sm:inline">Plans</span>
+            </TabsTrigger>
+            <TabsTrigger value="discord" className="gap-2">
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden sm:inline">Discord</span>
             </TabsTrigger>
           </TabsList>
 
@@ -158,6 +163,10 @@ export default function DashboardPage() {
 
           <TabsContent value="plans">
             <PlansPanel />
+          </TabsContent>
+
+          <TabsContent value="discord">
+            <DiscordPanel />
           </TabsContent>
         </Tabs>
       </main>
