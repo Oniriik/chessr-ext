@@ -22,6 +22,8 @@ import {
   AlertCircle,
   Loader2,
   Terminal,
+  Download,
+  Package,
 } from 'lucide-react'
 
 interface ServiceStatus {
@@ -38,7 +40,7 @@ interface ServerState {
   serverHost: string
 }
 
-type ActionType = 'start' | 'stop' | 'restart'
+type ActionType = 'start' | 'stop' | 'restart' | 'update'
 
 export function ServerPanel() {
   const [state, setState] = useState<ServerState | null>(null)
@@ -46,6 +48,7 @@ export function ServerPanel() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [logs, setLogs] = useState<string | null>(null)
   const [logsService, setLogsService] = useState<string | null>(null)
+  const [updateOutput, setUpdateOutput] = useState<string | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean
     action: ActionType
@@ -85,9 +88,15 @@ export function ServerPanel() {
         body: JSON.stringify({ action, service }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Action failed')
+        throw new Error(data.error || 'Action failed')
+      }
+
+      // Show output for update actions
+      if (action === 'update' && data.output) {
+        setUpdateOutput(data.output)
       }
 
       // Wait a bit for the action to take effect
@@ -96,6 +105,32 @@ export function ServerPanel() {
     } catch (error) {
       console.error('Action failed:', error)
       alert(`Action failed: ${error}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const updateExtension = async () => {
+    setActionLoading('extension')
+    setUpdateOutput('Building extension package...')
+
+    try {
+      const response = await fetch('/api/server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update-extension' }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to build extension')
+      }
+
+      setUpdateOutput(data.output || 'Extension built successfully')
+    } catch (error) {
+      console.error('Extension build failed:', error)
+      setUpdateOutput(`Failed: ${error}`)
     } finally {
       setActionLoading(null)
     }
@@ -125,6 +160,7 @@ export function ServerPanel() {
       start: `Start ${serviceName}?`,
       stop: `Stop ${serviceName}?`,
       restart: `Restart ${serviceName}?`,
+      update: `Update ${serviceName}?`,
     }
     setConfirmDialog({
       open: true,
@@ -184,6 +220,32 @@ export function ServerPanel() {
           <span className="text-sm">{state?.serverHost || 'Loading...'}</span>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => openConfirmDialog('update', null)}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === 'all' ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            Update All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={updateExtension}
+            disabled={!!actionLoading}
+          >
+            {actionLoading === 'extension' ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Package className="w-4 h-4 mr-2" />
+            )}
+            Build Extension
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -271,6 +333,19 @@ export function ServerPanel() {
                   <Terminal className="w-4 h-4" />
                   <span className="ml-2">Logs</span>
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => openConfirmDialog('update', service.Service)}
+                  disabled={actionLoading === service.Service}
+                >
+                  {actionLoading === service.Service ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span className="ml-2">Update</span>
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -309,6 +384,23 @@ export function ServerPanel() {
         </DialogContent>
       </Dialog>
 
+      {/* Update Output Dialog */}
+      <Dialog open={!!updateOutput} onOpenChange={() => setUpdateOutput(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Update Output</DialogTitle>
+          </DialogHeader>
+          <div className="bg-black/50 rounded-lg p-4 overflow-auto max-h-[60vh]">
+            <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+              {updateOutput}
+            </pre>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setUpdateOutput(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Confirmation Dialog */}
       <Dialog
         open={confirmDialog?.open ?? false}
@@ -318,8 +410,17 @@ export function ServerPanel() {
           <DialogHeader>
             <DialogTitle>{confirmDialog?.title}</DialogTitle>
             <DialogDescription>
-              This action will {confirmDialog?.action} the{' '}
-              {confirmDialog?.service || 'all services'} on the production server.
+              {confirmDialog?.action === 'update' ? (
+                <>
+                  This will pull the latest code from git, rebuild and restart{' '}
+                  {confirmDialog?.service || 'all services'}. This may take a few minutes.
+                </>
+              ) : (
+                <>
+                  This action will {confirmDialog?.action} the{' '}
+                  {confirmDialog?.service || 'all services'} on the production server.
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

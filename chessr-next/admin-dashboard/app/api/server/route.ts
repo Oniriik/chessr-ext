@@ -11,10 +11,21 @@ const SERVER_PATH = process.env.SERVER_PATH || '/opt/chessr/app'
 const ALLOWED_SERVICES = ['server', 'admin', 'cron', 'discord-bot']
 
 // Actions that can be performed
-const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'status', 'logs']
+const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'status', 'logs', 'update', 'update-extension']
 
-async function runCommand(command: string): Promise<{ stdout: string; stderr: string }> {
-  return execAsync(command, { timeout: 30000 })
+// Container name mapping
+const CONTAINER_NAMES: Record<string, string> = {
+  server: 'chessr-server',
+  admin: 'chessr-admin',
+  cron: 'chessr-cron',
+  'discord-bot': 'chessr-discord',
+}
+
+async function runCommand(
+  command: string,
+  timeout = 30000
+): Promise<{ stdout: string; stderr: string }> {
+  return execAsync(command, { timeout })
 }
 
 export async function GET() {
@@ -94,6 +105,64 @@ export async function POST(request: Request) {
       case 'logs':
         command = `cd ${SERVER_PATH} && docker compose logs --tail=100 ${serviceArg}`
         break
+      case 'update': {
+        // Pull latest code, rebuild and restart service(s)
+        const pullResult = await runCommand(`cd ${SERVER_PATH} && git pull`, 60000)
+        let buildOutput = pullResult.stdout + '\n'
+
+        if (service) {
+          // Update single service
+          const containerName = CONTAINER_NAMES[service]
+          await runCommand(`cd ${SERVER_PATH} && docker rm -f ${containerName} || true`)
+          const buildResult = await runCommand(
+            `cd ${SERVER_PATH} && docker compose build --no-cache ${service}`,
+            300000
+          )
+          buildOutput += buildResult.stdout + '\n'
+          const upResult = await runCommand(`cd ${SERVER_PATH} && docker compose up -d ${service}`)
+          buildOutput += upResult.stdout
+        } else {
+          // Update all services
+          for (const svc of ALLOWED_SERVICES) {
+            const containerName = CONTAINER_NAMES[svc]
+            await runCommand(`cd ${SERVER_PATH} && docker rm -f ${containerName} || true`)
+          }
+          const buildResult = await runCommand(
+            `cd ${SERVER_PATH} && docker compose build --no-cache`,
+            600000
+          )
+          buildOutput += buildResult.stdout + '\n'
+          const upResult = await runCommand(`cd ${SERVER_PATH} && docker compose up -d`)
+          buildOutput += upResult.stdout
+        }
+
+        return NextResponse.json({
+          success: true,
+          action: 'update',
+          service: service || 'all',
+          output: buildOutput,
+        })
+      }
+      case 'update-extension': {
+        // Build extension package
+        const extPath = `${SERVER_PATH}/chessr-next/extension`
+        const buildScript = `
+          cd ${extPath} && \
+          pnpm install && \
+          pnpm build && \
+          VERSION=$(node -p "require('./package.json').version") && \
+          mkdir -p build && \
+          cd dist && \
+          zip -r "../build/chessr-extension-v\${VERSION}.zip" . && \
+          echo "Built chessr-extension-v\${VERSION}.zip"
+        `
+        const { stdout: extOutput } = await runCommand(buildScript, 120000)
+        return NextResponse.json({
+          success: true,
+          action: 'update-extension',
+          output: extOutput,
+        })
+      }
       default:
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
     }
