@@ -18,11 +18,8 @@ RUN pnpm install
 COPY . .
 
 # Create cron job: run every 10 minutes
-# Format: minute hour day month weekday command
-RUN echo "*/10 * * * * cd /app && pnpm check-expirations >> /var/log/cron.log 2>&1" > /etc/crontabs/root
+# Output to stdout/stderr so docker logs can capture it
+RUN echo "*/10 * * * * cd /app && pnpm check-expirations > /proc/1/fd/1 2>/proc/1/fd/2" > /etc/crontabs/root
 
-# Create log file
-RUN touch /var/log/cron.log
-
-# Run crond in foreground with logging
-CMD crond -f -l 2
+# Run crond in foreground
+CMD ["crond", "-f", "-l", "2"]
