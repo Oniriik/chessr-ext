@@ -8,7 +8,7 @@ const execAsync = promisify(exec)
 const SERVER_PATH = process.env.SERVER_PATH || '/opt/chessr/app'
 
 // Services that can be controlled
-const ALLOWED_SERVICES = ['server', 'admin', 'cron']
+const ALLOWED_SERVICES = ['server', 'admin', 'cron', 'discord-bot']
 
 // Actions that can be performed
 const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'status', 'logs']
