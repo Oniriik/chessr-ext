@@ -19,7 +19,16 @@ COPY . .
 
 # Create cron job: run every 10 minutes
 # Output to stdout/stderr so docker logs can capture it
-RUN echo "*/10 * * * * cd /app && pnpm check-expirations > /proc/1/fd/1 2>/proc/1/fd/2" > /etc/crontabs/root
+RUN echo "*/10 * * * * cd /app && pnpm check-expirations >> /proc/1/fd/1 2>&1" > /etc/crontabs/root
 
-# Run crond in foreground
-CMD ["crond", "-f", "-l", "2"]
+# Create startup script that logs and runs crond
+RUN echo '#!/bin/sh' > /start.sh && \
+    echo 'echo "[CRON] Starting cron service..."' >> /start.sh && \
+    echo 'echo "[CRON] Schedule: every 10 minutes"' >> /start.sh && \
+    echo 'echo "[CRON] Running check-expirations on startup..."' >> /start.sh && \
+    echo 'cd /app && pnpm check-expirations 2>&1 || true' >> /start.sh && \
+    echo 'echo "[CRON] Cron daemon started"' >> /start.sh && \
+    echo 'exec crond -f -l 2' >> /start.sh && \
+    chmod +x /start.sh
+
+CMD ["/start.sh"]
