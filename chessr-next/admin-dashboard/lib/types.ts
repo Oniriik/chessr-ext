@@ -11,6 +11,7 @@ export interface AdminUser {
   created_at: string
   last_sign_in_at: string | null
   linked_count: number
+  last_activity: string | null
 }
 
 export interface AuthState {

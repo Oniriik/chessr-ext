@@ -227,6 +227,22 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
     })
   }
 
+  const formatRelativeTime = (dateString: string | null) => {
+    if (!dateString) return 'Never'
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return formatDate(dateString)
+  }
+
   return (
     <div className="space-y-6">
       {/* Stats */}
@@ -392,6 +408,9 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
                   <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden lg:table-cell">
                     Created
                   </th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden xl:table-cell">
+                    Last Activity
+                  </th>
                   <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
                     Actions
                   </th>
@@ -400,13 +419,13 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center">
+                    <td colSpan={8} className="py-8 text-center">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -435,6 +454,11 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
                       <td className="py-3 px-2 hidden lg:table-cell">
                         <span className="text-sm text-muted-foreground">
                           {formatDate(user.created_at)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-2 hidden xl:table-cell">
+                        <span className="text-sm text-muted-foreground">
+                          {formatRelativeTime(user.last_activity)}
                         </span>
                       </td>
                       <td className="py-3 px-2 text-right">

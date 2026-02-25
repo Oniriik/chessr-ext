@@ -60,6 +60,20 @@ export async function GET(request: Request) {
       linkedCountMap.set(la.user_id, (linkedCountMap.get(la.user_id) || 0) + 1)
     })
 
+    // Get last activity for all users (most recent event per user)
+    const { data: activityData } = await supabase
+      .from('user_activity')
+      .select('user_id, created_at')
+      .order('created_at', { ascending: false })
+
+    // Get latest activity per user
+    const lastActivityMap = new Map<string, string>()
+    activityData?.forEach((activity) => {
+      if (!lastActivityMap.has(activity.user_id)) {
+        lastActivityMap.set(activity.user_id, activity.created_at)
+      }
+    })
+
     // Merge auth users with their settings
     let users = authUsers.users.map((user) => {
       const settings = settingsMap.get(user.id)
@@ -73,6 +87,7 @@ export async function GET(request: Request) {
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at || null,
         linked_count: linkedCountMap.get(user.id) || 0,
+        last_activity: lastActivityMap.get(user.id) || null,
       }
     })
 
