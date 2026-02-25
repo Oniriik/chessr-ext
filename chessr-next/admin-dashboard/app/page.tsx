@@ -10,8 +10,9 @@ import { InfoPanel } from '@/components/info-panel'
 import { LogsPanel } from '@/components/logs-panel'
 import { UsersPanel } from '@/components/users-panel'
 import { ServerPanel } from '@/components/server-panel'
+import { PlansPanel } from '@/components/plans-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
-import { LogOut, LayoutDashboard, ScrollText, Users, Server, Loader2 } from 'lucide-react'
+import { LogOut, LayoutDashboard, ScrollText, Users, Server, Loader2, Gift } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -116,7 +117,7 @@ export default function DashboardPage() {
       {/* Main content */}
       <main className="container mx-auto px-4 py-6 relative z-10">
         <Tabs defaultValue="info" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-flex">
             <TabsTrigger value="info" className="gap-2">
               <LayoutDashboard className="w-4 h-4" />
               <span className="hidden sm:inline">Info</span>
@@ -133,6 +134,10 @@ export default function DashboardPage() {
               <Users className="w-4 h-4" />
               <span className="hidden sm:inline">Users</span>
             </TabsTrigger>
+            <TabsTrigger value="plans" className="gap-2">
+              <Gift className="w-4 h-4" />
+              <span className="hidden sm:inline">Plans</span>
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="info">
@@ -148,7 +153,11 @@ export default function DashboardPage() {
           </TabsContent>
 
           <TabsContent value="users">
-            <UsersPanel userRole={userRole} userId={userId} />
+            <UsersPanel userRole={userRole} userId={userId} userEmail={userEmail} />
+          </TabsContent>
+
+          <TabsContent value="plans">
+            <PlansPanel />
           </TabsContent>
         </Tabs>
       </main>

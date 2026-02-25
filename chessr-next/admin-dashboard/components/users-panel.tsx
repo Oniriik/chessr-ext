@@ -49,6 +49,7 @@ import {
 interface UsersPanelProps {
   userRole: UserRole
   userId: string
+  userEmail: string
 }
 
 interface LinkedAccount {
@@ -72,7 +73,7 @@ interface LinkedAccountsData {
   totalUnlinked: number
 }
 
-export function UsersPanel({ userRole, userId }: UsersPanelProps) {
+export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -189,6 +190,9 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
       const body: Record<string, unknown> = {
         userId: editUser.user_id,
         callerRole: userRole,
+        adminUserId: userId,
+        adminEmail: userEmail,
+        userEmail: editUser.email,
       }
 
       if (editPlan !== editUser.plan) body.plan = editPlan

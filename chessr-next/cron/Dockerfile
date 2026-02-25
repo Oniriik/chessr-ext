@@ -17,9 +17,9 @@ RUN pnpm install
 # Copy source
 COPY . .
 
-# Create cron job: run every hour at minute 0
+# Create cron job: run every 10 minutes
 # Format: minute hour day month weekday command
-RUN echo "0 * * * * cd /app && pnpm check-expirations >> /var/log/cron.log 2>&1" > /etc/crontabs/root
+RUN echo "*/10 * * * * cd /app && pnpm check-expirations >> /var/log/cron.log 2>&1" > /etc/crontabs/root
 
 # Create log file
 RUN touch /var/log/cron.log

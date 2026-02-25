@@ -35,6 +35,13 @@ async function checkExpirations() {
 
     console.log(`[Cron] Found ${expiredUsers.length} expired plan(s)`);
 
+    // Get user emails from auth.users
+    const { data: authUsersData } = await supabase.auth.admin.listUsers();
+    const emailMap = new Map<string, string>();
+    authUsersData?.users?.forEach((u) => {
+      if (u.email) emailMap.set(u.id, u.email);
+    });
+
     // Downgrade each user to free
     for (const user of expiredUsers) {
       const { error: updateError } = await supabase
@@ -49,6 +56,22 @@ async function checkExpirations() {
         console.error(`[Cron] Failed to downgrade user ${user.user_id}:`, updateError.message);
       } else {
         console.log(`[Cron] Downgraded user ${user.user_id} from ${user.plan} to free (expired: ${user.plan_expiry})`);
+
+        // Log the plan change
+        const { error: logError } = await supabase.from('plan_activity_logs').insert({
+          user_id: user.user_id,
+          user_email: emailMap.get(user.user_id) || null,
+          action_type: 'cron_downgrade',
+          old_plan: user.plan,
+          new_plan: 'free',
+          old_expiry: user.plan_expiry,
+          new_expiry: null,
+          reason: 'Plan expired',
+        });
+
+        if (logError) {
+          console.error(`[Cron] Failed to log downgrade for ${user.user_id}:`, logError.message);
+        }
       }
     }
 

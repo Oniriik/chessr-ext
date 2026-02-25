@@ -129,7 +129,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    const { userId, callerRole, plan, role, planExpiry } = body
+    const { userId, callerRole, plan, role, planExpiry, adminUserId, adminEmail, userEmail } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -165,6 +165,16 @@ export async function PATCH(request: Request) {
 
     const supabase = getServiceRoleClient()
 
+    // Get current user settings for logging
+    const { data: currentSettings } = await supabase
+      .from('user_settings')
+      .select('plan, plan_expiry')
+      .eq('user_id', userId)
+      .single()
+
+    const oldPlan = currentSettings?.plan || 'free'
+    const oldExpiry = currentSettings?.plan_expiry || null
+
     // Build update object
     const updateData: Record<string, unknown> = {}
     if (plan !== undefined) updateData.plan = plan
@@ -196,11 +206,43 @@ export async function PATCH(request: Request) {
           return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
         }
 
+        // Log plan change for insert
+        if (plan !== undefined && plan !== 'free') {
+          await supabase.from('plan_activity_logs').insert({
+            user_id: userId,
+            user_email: userEmail || null,
+            action_type: 'admin_change',
+            admin_user_id: adminUserId || null,
+            admin_email: adminEmail || null,
+            old_plan: 'free',
+            new_plan: plan,
+            old_expiry: null,
+            new_expiry: planExpiry || null,
+            reason: 'Manual change by admin',
+          })
+        }
+
         return NextResponse.json(insertData)
       }
 
       console.error('Error updating user settings:', error)
       return NextResponse.json({ error: 'Failed to update user' }, { status: 500 })
+    }
+
+    // Log plan change if plan was modified
+    if (plan !== undefined && plan !== oldPlan) {
+      await supabase.from('plan_activity_logs').insert({
+        user_id: userId,
+        user_email: userEmail || null,
+        action_type: 'admin_change',
+        admin_user_id: adminUserId || null,
+        admin_email: adminEmail || null,
+        old_plan: oldPlan,
+        new_plan: plan,
+        old_expiry: oldExpiry,
+        new_expiry: planExpiry !== undefined ? planExpiry : oldExpiry,
+        reason: 'Manual change by admin',
+      })
     }
 
     return NextResponse.json(data)
