@@ -60,8 +60,8 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
   const contemptValue = Math.max(0, Math.min(250, (contempt ?? 0) * 2));
   // Whether to limit strength (default true for game mode, false for puzzle mode)
   const shouldLimitStrength = limitStrength !== false;
-  // Skill level (0-20, default 20 = max)
-  const skillValue = Math.max(0, Math.min(20, skill ?? 20));
+  // Skill level (0-25 for Komodo Dragon, default 25 = max)
+  const skillValue = Math.max(0, Math.min(25, skill ?? 25));
 
   // Puzzle mode has different config
   if (puzzleMode) {
@@ -70,7 +70,7 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
       'MultiPV': pv.toString(),
       'UCI_ShowWDL': 'true',
       'UCI_LimitStrength': 'false',
-      'Skill Level': '20',
+      'Skill': '25',
       'Contempt': '0',
       'White Contempt': 'false',
       'Use MCTS': 'false',
@@ -87,7 +87,7 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
     'UCI_ShowWDL': 'true',
     'UCI_LimitStrength': shouldLimitStrength ? 'true' : 'false',
     'UCI_Elo': elo.toString(),
-    'Skill Level': skillValue.toString(),
+    'Skill': skillValue.toString(),
     'Contempt': contemptValue.toString(),
     'Threads': '1',
     'Hash': '512',
