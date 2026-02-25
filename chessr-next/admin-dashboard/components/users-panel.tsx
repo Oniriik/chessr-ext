@@ -29,6 +29,10 @@ import {
   Loader2,
   Users,
   Crown,
+  Link2,
+  Unlink,
+  Clock,
+  Trash2,
 } from 'lucide-react'
 import {
   type AdminUser,
@@ -47,6 +51,27 @@ interface UsersPanelProps {
   userId: string
 }
 
+interface LinkedAccount {
+  id: string
+  platform: string
+  platform_username: string
+  avatar_url?: string
+  rating_bullet?: number
+  rating_blitz?: number
+  rating_rapid?: number
+  linked_at: string
+  unlinked_at?: string
+  hasCooldown?: boolean
+  hoursRemaining?: number
+}
+
+interface LinkedAccountsData {
+  active: LinkedAccount[]
+  unlinked: LinkedAccount[]
+  totalActive: number
+  totalUnlinked: number
+}
+
 export function UsersPanel({ userRole, userId }: UsersPanelProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,6 +88,11 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
   const [editRole, setEditRole] = useState<UserRole>('user')
   const [editExpiry, setEditExpiry] = useState<string>('')
   const [saving, setSaving] = useState(false)
+
+  // Linked accounts state
+  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccountsData | null>(null)
+  const [loadingAccounts, setLoadingAccounts] = useState(false)
+  const [removingCooldown, setRemovingCooldown] = useState<string | null>(null)
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
@@ -96,11 +126,52 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
     setPage(1)
   }, [search, roleFilter, planFilter])
 
+  const fetchLinkedAccounts = async (userId: string) => {
+    setLoadingAccounts(true)
+    try {
+      const response = await fetch(`/api/linked-accounts?userId=${userId}`)
+      const data = await response.json()
+      setLinkedAccounts(data)
+    } catch (error) {
+      console.error('Failed to fetch linked accounts:', error)
+      setLinkedAccounts(null)
+    } finally {
+      setLoadingAccounts(false)
+    }
+  }
+
+  const removeCooldown = async (accountId: string) => {
+    setRemovingCooldown(accountId)
+    try {
+      const response = await fetch('/api/linked-accounts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to remove cooldown')
+      }
+
+      // Refresh linked accounts
+      if (editUser) {
+        await fetchLinkedAccounts(editUser.user_id)
+      }
+    } catch (error) {
+      console.error('Failed to remove cooldown:', error)
+      alert('Failed to remove cooldown')
+    } finally {
+      setRemovingCooldown(null)
+    }
+  }
+
   const openEditDialog = (user: AdminUser) => {
     setEditUser(user)
     setEditPlan(user.plan)
     setEditRole(user.role)
     setEditExpiry(user.plan_expiry ? user.plan_expiry.split('T')[0] : '')
+    setLinkedAccounts(null)
+    fetchLinkedAccounts(user.user_id)
   }
 
   const closeEditDialog = () => {
@@ -312,6 +383,9 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
                   <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                     Plan
                   </th>
+                  <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
+                    <Link2 className="w-4 h-4 mx-auto" />
+                  </th>
                   <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden md:table-cell">
                     Expiry
                   </th>
@@ -326,13 +400,13 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center">
+                    <td colSpan={7} className="py-8 text-center">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                     </td>
                   </tr>
                 ) : users.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
                       No users found
                     </td>
                   </tr>
@@ -347,6 +421,11 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
                       </td>
                       <td className="py-3 px-2">
                         <Badge className={planColors[user.plan]}>{planLabels[user.plan]}</Badge>
+                      </td>
+                      <td className="py-3 px-2 text-center">
+                        <span className={`text-sm ${user.linked_count > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
+                          {user.linked_count}
+                        </span>
                       </td>
                       <td className="py-3 px-2 hidden md:table-cell">
                         <span className="text-sm text-muted-foreground">
@@ -467,6 +546,112 @@ export function UsersPanel({ userRole, userId }: UsersPanelProps) {
                 />
               </div>
             )}
+
+            {/* Linked Accounts Section */}
+            <div className="space-y-3 pt-4 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <Link2 className="w-4 h-4" />
+                  Linked Accounts
+                </label>
+                {linkedAccounts && (
+                  <Badge variant="outline" className="text-xs">
+                    {linkedAccounts.totalActive} active
+                  </Badge>
+                )}
+              </div>
+
+              {loadingAccounts ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : linkedAccounts ? (
+                <div className="space-y-3">
+                  {/* Active accounts */}
+                  {linkedAccounts.active.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Active</p>
+                      {linkedAccounts.active.map((account) => (
+                        <div
+                          key={account.id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Link2 className="w-4 h-4 text-emerald-400" />
+                            <span className="text-sm font-medium">{account.platform_username}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {account.rating_blitz && `${account.rating_blitz} blitz`}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Unlinked accounts with cooldown */}
+                  {linkedAccounts.unlinked.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground">Unlinked (with cooldown)</p>
+                      {linkedAccounts.unlinked.map((account) => (
+                        <div
+                          key={account.id}
+                          className={`flex items-center justify-between p-2 rounded-lg ${
+                            account.hasCooldown
+                              ? 'bg-amber-500/10 border border-amber-500/20'
+                              : 'bg-muted/30 border border-border/50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Unlink className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm">{account.platform_username}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
+                            </Badge>
+                            {account.hasCooldown && (
+                              <span className="text-xs text-amber-400 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {account.hoursRemaining}h
+                              </span>
+                            )}
+                          </div>
+                          {account.hasCooldown && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeCooldown(account.id)}
+                              disabled={removingCooldown === account.id}
+                              className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300"
+                            >
+                              {removingCooldown === account.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <Trash2 className="w-3 h-3 mr-1" />
+                                  Remove cooldown
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {linkedAccounts.active.length === 0 && linkedAccounts.unlinked.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      No linked accounts
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Failed to load accounts
+                </p>
+              )}
+            </div>
           </div>
 
           <DialogFooter>

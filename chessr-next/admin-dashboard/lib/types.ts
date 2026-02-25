@@ -10,6 +10,7 @@ export interface AdminUser {
   plan_expiry: string | null
   created_at: string
   last_sign_in_at: string | null
+  linked_count: number
 }
 
 export interface AuthState {

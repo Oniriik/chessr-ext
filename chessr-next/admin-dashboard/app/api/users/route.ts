@@ -48,6 +48,18 @@ export async function GET(request: Request) {
     // Create a map of user settings by user_id
     const settingsMap = new Map(userSettings?.map((s) => [s.user_id, s]) || [])
 
+    // Get linked accounts count for all users
+    const { data: linkedAccountsData } = await supabase
+      .from('linked_accounts')
+      .select('user_id')
+      .is('unlinked_at', null)
+
+    // Count linked accounts per user
+    const linkedCountMap = new Map<string, number>()
+    linkedAccountsData?.forEach((la) => {
+      linkedCountMap.set(la.user_id, (linkedCountMap.get(la.user_id) || 0) + 1)
+    })
+
     // Merge auth users with their settings
     let users = authUsers.users.map((user) => {
       const settings = settingsMap.get(user.id)
@@ -60,6 +72,7 @@ export async function GET(request: Request) {
         plan_expiry: settings?.plan_expiry || null,
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at || null,
+        linked_count: linkedCountMap.get(user.id) || 0,
       }
     })
 
