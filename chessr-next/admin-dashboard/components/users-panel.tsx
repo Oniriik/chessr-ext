@@ -192,6 +192,12 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const saveUser = async () => {
     if (!editUser) return
 
+    // Validate expiry is required for freetrial and premium
+    if ((editPlan === 'freetrial' || editPlan === 'premium') && !editExpiry) {
+      alert('Expiry date is required for Free Trial and Premium plans')
+      return
+    }
+
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
