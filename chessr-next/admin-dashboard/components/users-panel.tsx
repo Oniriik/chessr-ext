@@ -25,6 +25,8 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Pencil,
   Loader2,
   Users,
@@ -73,6 +75,9 @@ interface LinkedAccountsData {
   totalUnlinked: number
 }
 
+type SortField = 'created_at' | 'plan_expiry' | 'last_activity'
+type SortOrder = 'asc' | 'desc'
+
 export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,6 +87,8 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [planFilter, setPlanFilter] = useState<string>('all')
+  const [sortBy, setSortBy] = useState<SortField>('created_at')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
 
   // Edit dialog state
   const [editUser, setEditUser] = useState<AdminUser | null>(null)
@@ -247,6 +254,37 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
     return formatDate(dateString)
   }
 
+  const toggleSort = (field: SortField) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('desc')
+    }
+  }
+
+  const sortedUsers = [...users].sort((a, b) => {
+    const aValue = a[sortBy]
+    const bValue = b[sortBy]
+
+    // Handle null values - put them at the end
+    if (!aValue && !bValue) return 0
+    if (!aValue) return 1
+    if (!bValue) return -1
+
+    const comparison = new Date(aValue).getTime() - new Date(bValue).getTime()
+    return sortOrder === 'asc' ? comparison : -comparison
+  })
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortBy !== field) return null
+    return sortOrder === 'asc' ? (
+      <ChevronUp className="w-3 h-3 ml-1" />
+    ) : (
+      <ChevronDown className="w-3 h-3 ml-1" />
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Stats */}
@@ -406,14 +444,32 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                   <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
                     <Link2 className="w-4 h-4 mx-auto" />
                   </th>
-                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden md:table-cell">
-                    Expiry
+                  <th
+                    className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden md:table-cell cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('plan_expiry')}
+                  >
+                    <span className="flex items-center">
+                      Expiry
+                      <SortIcon field="plan_expiry" />
+                    </span>
                   </th>
-                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden lg:table-cell">
-                    Created
+                  <th
+                    className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden lg:table-cell cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('created_at')}
+                  >
+                    <span className="flex items-center">
+                      Created
+                      <SortIcon field="created_at" />
+                    </span>
                   </th>
-                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden xl:table-cell">
-                    Last Activity
+                  <th
+                    className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden xl:table-cell cursor-pointer hover:text-foreground transition-colors"
+                    onClick={() => toggleSort('last_activity')}
+                  >
+                    <span className="flex items-center">
+                      Last Activity
+                      <SortIcon field="last_activity" />
+                    </span>
                   </th>
                   <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
                     Actions
@@ -434,7 +490,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => (
+                  sortedUsers.map((user) => (
                     <tr key={user.user_id} className="border-b border-border/30 hover:bg-muted/30">
                       <td className="py-3 px-2">
                         <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
