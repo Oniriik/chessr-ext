@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
+import { useAccountsFetched } from '../../stores/linkedAccountsStore';
 import { useSuggestionTrigger } from '../../hooks/useSuggestionTrigger';
 import { useAnalysisTrigger } from '../../hooks/useAnalysisTrigger';
 import { useArrowRenderer } from '../../hooks/useArrowRenderer';
@@ -16,7 +17,8 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const { user, initializing, initialize } = useAuthStore();
-  const { init: initWebSocket, connect: connectWebSocket, destroy: destroyWebSocket } = useWebSocketStore();
+  const { isConnected, init: initWebSocket, connect: connectWebSocket, destroy: destroyWebSocket } = useWebSocketStore();
+  const accountsFetched = useAccountsFetched();
 
   // Initialize auth
   useEffect(() => {
@@ -50,6 +52,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Check if user needs to link their platform account
   const { shouldShowLinkModal } = useLinkingCheck();
 
+  // Show loading while initializing auth
   if (initializing) {
     return (
       <div className="tw-flex tw-items-center tw-justify-center tw-h-full tw-min-h-[200px]">
@@ -58,8 +61,19 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
+  // Show auth form if not logged in
   if (!user) {
     return <AuthForm />;
+  }
+
+  // Wait for WebSocket connection and linked accounts to be fetched
+  // This prevents the UI from flashing before showing the link modal
+  if (!isConnected || !accountsFetched) {
+    return (
+      <div className="tw-flex tw-items-center tw-justify-center tw-h-full tw-min-h-[200px]">
+        <Loader2 className="tw-w-6 tw-h-6 tw-animate-spin tw-text-primary" />
+      </div>
+    );
   }
 
   // Show link modal if user needs to link their account
