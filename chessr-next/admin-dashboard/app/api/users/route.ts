@@ -10,26 +10,48 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '20')
-    const search = searchParams.get('search') || ''
+    const search = searchParams.get('search')?.trim() || ''
     const roleFilter = searchParams.get('role') || ''
     const planFilter = searchParams.get('plan') || ''
+    const sortBy = searchParams.get('sortBy') || 'created_at'
+    const sortOrder = searchParams.get('sortOrder') || 'desc'
 
     const offset = (page - 1) * limit
     const supabase = getServiceRoleClient()
 
-    // Get users from auth.users with their settings
-    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers({
-      page,
-      perPage: limit,
-    })
+    // First, get ALL auth users to build email map
+    // We need to paginate through all users to get their emails
+    const emailMap = new Map<string, { email: string; created_at: string; last_sign_in_at: string | null }>()
+    let authPage = 1
+    const authPerPage = 1000
 
-    if (authError) {
-      console.error('Error fetching auth users:', authError)
-      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+    while (true) {
+      const { data: authBatch, error: authError } = await supabase.auth.admin.listUsers({
+        page: authPage,
+        perPage: authPerPage,
+      })
+
+      if (authError) {
+        console.error('Error fetching auth users:', authError)
+        return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+      }
+
+      if (!authBatch.users.length) break
+
+      authBatch.users.forEach((user) => {
+        emailMap.set(user.id, {
+          email: user.email || '',
+          created_at: user.created_at,
+          last_sign_in_at: user.last_sign_in_at || null,
+        })
+      })
+
+      if (authBatch.users.length < authPerPage) break
+      authPage++
     }
 
-    // Get all user settings
-    let settingsQuery = supabase.from('user_settings').select('*')
+    // Build query on user_settings with filters
+    let settingsQuery = supabase.from('user_settings').select('*', { count: 'exact' })
 
     if (roleFilter) {
       settingsQuery = settingsQuery.eq('role', roleFilter)
@@ -38,6 +60,7 @@ export async function GET(request: Request) {
       settingsQuery = settingsQuery.eq('plan', planFilter)
     }
 
+    // Get all matching user_settings (we'll filter by email search after)
     const { data: userSettings, error: settingsError } = await settingsQuery
 
     if (settingsError) {
@@ -45,28 +68,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch user settings' }, { status: 500 })
     }
 
-    // Create a map of user settings by user_id
-    const settingsMap = new Map(userSettings?.map((s) => [s.user_id, s]) || [])
-
     // Get linked accounts count for all users
     const { data: linkedAccountsData } = await supabase
       .from('linked_accounts')
       .select('user_id')
       .is('unlinked_at', null)
 
-    // Count linked accounts per user
     const linkedCountMap = new Map<string, number>()
     linkedAccountsData?.forEach((la) => {
       linkedCountMap.set(la.user_id, (linkedCountMap.get(la.user_id) || 0) + 1)
     })
 
-    // Get last activity for all users (most recent event per user)
+    // Get last activity for all users
     const { data: activityData } = await supabase
       .from('user_activity')
       .select('user_id, created_at')
       .order('created_at', { ascending: false })
 
-    // Get latest activity per user
     const lastActivityMap = new Map<string, string>()
     activityData?.forEach((activity) => {
       if (!lastActivityMap.has(activity.user_id)) {
@@ -74,41 +92,65 @@ export async function GET(request: Request) {
       }
     })
 
-    // Merge auth users with their settings
-    let users = authUsers.users.map((user) => {
-      const settings = settingsMap.get(user.id)
-      return {
-        id: settings?.id || null,
-        user_id: user.id,
-        email: user.email || '',
-        role: (settings?.role as UserRole) || 'user',
-        plan: (settings?.plan as UserPlan) || 'free',
-        plan_expiry: settings?.plan_expiry || null,
-        created_at: user.created_at,
-        last_sign_in_at: user.last_sign_in_at || null,
-        linked_count: linkedCountMap.get(user.id) || 0,
-        last_activity: lastActivityMap.get(user.id) || null,
-      }
-    })
+    // Build users array from settings + email map
+    let users = (userSettings || [])
+      .map((settings) => {
+        const authInfo = emailMap.get(settings.user_id)
+        return {
+          id: settings.id,
+          user_id: settings.user_id,
+          email: authInfo?.email || '',
+          role: (settings.role as UserRole) || 'user',
+          plan: (settings.plan as UserPlan) || 'free',
+          plan_expiry: settings.plan_expiry || null,
+          created_at: authInfo?.created_at || settings.created_at,
+          last_sign_in_at: authInfo?.last_sign_in_at || null,
+          linked_count: linkedCountMap.get(settings.user_id) || 0,
+          last_activity: lastActivityMap.get(settings.user_id) || null,
+        }
+      })
+      .filter((u) => u.email) // Only users with valid email
 
-    // Apply search filter
+    // Apply email search filter
     if (search) {
       const searchLower = search.toLowerCase()
       users = users.filter((u) => u.email.toLowerCase().includes(searchLower))
     }
 
-    // Apply role filter (if not already done in query)
-    if (roleFilter && !settingsMap.size) {
-      users = users.filter((u) => u.role === roleFilter)
-    }
+    // Sort
+    users.sort((a, b) => {
+      let aValue: string | null = null
+      let bValue: string | null = null
 
-    // Apply plan filter (if not already done in query)
-    if (planFilter && !settingsMap.size) {
-      users = users.filter((u) => u.plan === planFilter)
-    }
+      if (sortBy === 'created_at') {
+        aValue = a.created_at
+        bValue = b.created_at
+      } else if (sortBy === 'plan_expiry') {
+        aValue = a.plan_expiry
+        bValue = b.plan_expiry
+      } else if (sortBy === 'last_activity') {
+        aValue = a.last_activity
+        bValue = b.last_activity
+      }
 
-    // Sort by created_at DESC
-    users.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      // Handle null values - put them at the end
+      if (!aValue && !bValue) return 0
+      if (!aValue) return 1
+      if (!bValue) return -1
+
+      const comparison = new Date(aValue).getTime() - new Date(bValue).getTime()
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
+
+    // Calculate stats from ALL filtered users (before pagination)
+    const stats = {
+      total: users.length,
+      free: users.filter((u) => u.plan === 'free').length,
+      freetrial: users.filter((u) => u.plan === 'freetrial').length,
+      premium: users.filter((u) => u.plan === 'premium').length,
+      beta: users.filter((u) => u.plan === 'beta').length,
+      lifetime: users.filter((u) => u.plan === 'lifetime').length,
+    }
 
     // Paginate
     const total = users.length
@@ -119,6 +161,7 @@ export async function GET(request: Request) {
       total,
       page,
       totalPages: Math.ceil(total / limit),
+      stats,
     })
   } catch (error) {
     console.error('GET users error:', error)

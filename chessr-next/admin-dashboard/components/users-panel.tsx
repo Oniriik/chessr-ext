@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -78,17 +78,29 @@ interface LinkedAccountsData {
 type SortField = 'created_at' | 'plan_expiry' | 'last_activity'
 type SortOrder = 'asc' | 'desc'
 
+interface PlanStats {
+  total: number
+  free: number
+  freetrial: number
+  premium: number
+  beta: number
+  lifetime: number
+}
+
 export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [stats, setStats] = useState<PlanStats>({ total: 0, free: 0, freetrial: 0, premium: 0, beta: 0, lifetime: 0 })
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [planFilter, setPlanFilter] = useState<string>('all')
   const [sortBy, setSortBy] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Edit dialog state
   const [editUser, setEditUser] = useState<AdminUser | null>(null)
@@ -102,14 +114,31 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [removingCooldown, setRemovingCooldown] = useState<string | null>(null)
 
+  // Debounce search input
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(search)
+    }, 300)
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [search])
+
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '20',
+        sortBy,
+        sortOrder,
       })
-      if (search.trim()) params.set('search', search.trim())
+      if (debouncedSearch) params.set('search', debouncedSearch)
       if (roleFilter && roleFilter !== 'all') params.set('role', roleFilter)
       if (planFilter && planFilter !== 'all') params.set('plan', planFilter)
 
@@ -119,12 +148,15 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
       setUsers(data.data || [])
       setTotalPages(data.totalPages || 1)
       setTotal(data.total || 0)
+      if (data.stats) {
+        setStats(data.stats)
+      }
     } catch (error) {
       console.error('Failed to fetch users:', error)
     } finally {
       setLoading(false)
     }
-  }, [page, search, roleFilter, planFilter])
+  }, [page, debouncedSearch, roleFilter, planFilter, sortBy, sortOrder])
 
   useEffect(() => {
     fetchUsers()
@@ -132,7 +164,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
 
   useEffect(() => {
     setPage(1)
-  }, [search, roleFilter, planFilter])
+  }, [debouncedSearch, roleFilter, planFilter])
 
   const fetchLinkedAccounts = async (userId: string) => {
     setLoadingAccounts(true)
@@ -267,20 +299,8 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
       setSortBy(field)
       setSortOrder('desc')
     }
+    setPage(1)
   }
-
-  const sortedUsers = [...users].sort((a, b) => {
-    const aValue = a[sortBy]
-    const bValue = b[sortBy]
-
-    // Handle null values - put them at the end
-    if (!aValue && !bValue) return 0
-    if (!aValue) return 1
-    if (!bValue) return -1
-
-    const comparison = new Date(aValue).getTime() - new Date(bValue).getTime()
-    return sortOrder === 'asc' ? comparison : -comparison
-  })
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortBy !== field) return null
@@ -302,7 +322,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <Users className="w-4 h-4 text-blue-400" />
               </div>
               <div>
-                <p className="text-xl font-bold">{total}</p>
+                <p className="text-xl font-bold">{stats.total}</p>
                 <p className="text-xs text-muted-foreground">Total</p>
               </div>
             </div>
@@ -315,9 +335,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <Users className="w-4 h-4 text-zinc-400" />
               </div>
               <div>
-                <p className="text-xl font-bold">
-                  {users.filter((u) => u.plan === 'free').length}
-                </p>
+                <p className="text-xl font-bold">{stats.free}</p>
                 <p className="text-xs text-muted-foreground">Free</p>
               </div>
             </div>
@@ -330,9 +348,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <Users className="w-4 h-4 text-sky-400" />
               </div>
               <div>
-                <p className="text-xl font-bold">
-                  {users.filter((u) => u.plan === 'freetrial').length}
-                </p>
+                <p className="text-xl font-bold">{stats.freetrial}</p>
                 <p className="text-xs text-muted-foreground">Trial</p>
               </div>
             </div>
@@ -345,9 +361,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <Crown className="w-4 h-4 text-amber-400" />
               </div>
               <div>
-                <p className="text-xl font-bold">
-                  {users.filter((u) => u.plan === 'premium').length}
-                </p>
+                <p className="text-xl font-bold">{stats.premium}</p>
                 <p className="text-xs text-muted-foreground">Premium</p>
               </div>
             </div>
@@ -360,9 +374,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <Users className="w-4 h-4 text-purple-400" />
               </div>
               <div>
-                <p className="text-xl font-bold">
-                  {users.filter((u) => u.plan === 'beta').length}
-                </p>
+                <p className="text-xl font-bold">{stats.beta}</p>
                 <p className="text-xs text-muted-foreground">Beta</p>
               </div>
             </div>
@@ -375,9 +387,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <Crown className="w-4 h-4 text-emerald-400" />
               </div>
               <div>
-                <p className="text-xl font-bold">
-                  {users.filter((u) => u.plan === 'lifetime').length}
-                </p>
+                <p className="text-xl font-bold">{stats.lifetime}</p>
                 <p className="text-xs text-muted-foreground">Lifetime</p>
               </div>
             </div>
@@ -496,7 +506,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                     </td>
                   </tr>
                 ) : (
-                  sortedUsers.map((user) => (
+                  users.map((user) => (
                     <tr key={user.user_id} className="border-b border-border/30 hover:bg-muted/30">
                       <td className="py-3 px-2">
                         <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
