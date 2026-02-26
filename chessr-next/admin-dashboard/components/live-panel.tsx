@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Users, Wifi, Cpu, MemoryStick, HardDrive, RefreshCw, Server, AlertTriangle } from 'lucide-react'
+import { Users, Wifi, Cpu, MemoryStick, HardDrive, RefreshCw, Server, AlertTriangle, Copy, Check } from 'lucide-react'
 
 interface PoolStats {
   total: number
@@ -52,6 +52,13 @@ function ProgressBar({ percent, color }: { percent: number; color: string }) {
 export function LivePanel() {
   const [data, setData] = useState<LiveData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const copyToClipboard = (text: string, key: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(key)
+    setTimeout(() => setCopied(null), 1500)
+  }
 
   const fetchLive = useCallback(async () => {
     try {
@@ -269,33 +276,58 @@ export function LivePanel() {
       )}
 
       {/* Connected Users List */}
-      {data?.users && data.users.length > 0 && (
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-emerald-400" />
-              <CardTitle>Connected Users</CardTitle>
-            </div>
-            <CardDescription>{data.users.length} user(s) currently online</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2 max-h-[200px] overflow-auto">
+      <Card className="border-border/50 bg-card/50 backdrop-blur">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-emerald-400" />
+            <CardTitle>Connected Users</CardTitle>
+          </div>
+          <CardDescription>{data?.users?.length ?? 0} user(s) currently online</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data?.users && data.users.length > 0 ? (
+            <div className="grid gap-2 max-h-[300px] overflow-auto">
               {data.users.map((user) => (
                 <div
                   key={user.id}
                   className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50"
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="text-sm">{user.email}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="text-sm truncate">{user.email}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">{user.id.slice(0, 8)}...</span>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      onClick={() => copyToClipboard(user.email, `email-${user.id}`)}
+                      className="p-1.5 rounded-md hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copy email"
+                    >
+                      {copied === `email-${user.id}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => copyToClipboard(user.id, `id-${user.id}`)}
+                      className="px-2 py-1 rounded-md hover:bg-muted/80 text-xs text-muted-foreground hover:text-foreground font-mono transition-colors"
+                      title="Copy user ID"
+                    >
+                      {copied === `id-${user.id}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <>{user.id.slice(0, 8)}...</>
+                      )}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <p className="text-sm text-muted-foreground">No users connected</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
