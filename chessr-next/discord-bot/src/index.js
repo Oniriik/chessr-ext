@@ -14,6 +14,28 @@ const config = {
   updateInterval: parseInt(process.env.UPDATE_INTERVAL || '60') * 1000,
 };
 
+// Role configuration
+const PLAN_ROLES = {
+  free: process.env.DISCORD_ROLE_FREE,
+  freetrial: process.env.DISCORD_ROLE_FREETRIAL,
+  premium: process.env.DISCORD_ROLE_PREMIUM,
+  lifetime: process.env.DISCORD_ROLE_LIFETIME,
+  beta: process.env.DISCORD_ROLE_BETA,
+};
+
+const ELO_BRACKETS = [
+  { name: 'Beginner',     maxElo: 799,      roleId: process.env.DISCORD_ROLE_ELO_0 },
+  { name: 'Novice',       maxElo: 999,      roleId: process.env.DISCORD_ROLE_ELO_800 },
+  { name: 'Intermediate', maxElo: 1199,     roleId: process.env.DISCORD_ROLE_ELO_1000 },
+  { name: 'Club Player',  maxElo: 1399,     roleId: process.env.DISCORD_ROLE_ELO_1200 },
+  { name: 'Advanced',     maxElo: 1599,     roleId: process.env.DISCORD_ROLE_ELO_1400 },
+  { name: 'Expert',       maxElo: 1799,     roleId: process.env.DISCORD_ROLE_ELO_1600 },
+  { name: 'Master',       maxElo: 1999,     roleId: process.env.DISCORD_ROLE_ELO_1800 },
+  { name: 'Grandmaster',  maxElo: Infinity, roleId: process.env.DISCORD_ROLE_ELO_2000 },
+];
+
+const LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID;
+
 // Initialize Supabase
 const supabase = createClient(config.supabaseUrl, config.supabaseKey);
 
@@ -24,10 +46,184 @@ function formatNumber(num) {
   return num.toString();
 }
 
-// Initialize Discord client
+// Initialize Discord client with GuildMembers intent for role management
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
+
+// =============================================================================
+// Role Management
+// =============================================================================
+
+/**
+ * Get the highest rapid ELO across all linked accounts for a user
+ */
+async function getHighestRapidElo(userId) {
+  const { data: accounts } = await supabase
+    .from('linked_accounts')
+    .select('rating_rapid')
+    .eq('user_id', userId)
+    .is('unlinked_at', null);
+
+  if (!accounts || accounts.length === 0) return 0;
+  return Math.max(0, ...accounts.map(a => a.rating_rapid || 0));
+}
+
+// Reverse lookup: roleId → name
+function getRoleName(roleId) {
+  for (const [plan, id] of Object.entries(PLAN_ROLES)) {
+    if (id === roleId) return plan;
+  }
+  for (const b of ELO_BRACKETS) {
+    if (b.roleId === roleId) return b.name;
+  }
+  return roleId;
+}
+
+/**
+ * Send role change notification to Discord channel
+ */
+async function notifyRoleChange(member, removedIds, addedIds) {
+  if (!LINK_CHANNEL_ID || (removedIds.length === 0 && addedIds.length === 0)) return;
+
+  try {
+    const fields = [
+      { name: '🎮 Discord', value: member.user.tag, inline: true },
+    ];
+
+    if (removedIds.length > 0) {
+      fields.push({
+        name: '❌ Removed',
+        value: removedIds.map(id => getRoleName(id)).join(', '),
+        inline: true,
+      });
+    }
+    if (addedIds.length > 0) {
+      fields.push({
+        name: '✅ Added',
+        value: addedIds.map(id => getRoleName(id)).join(', '),
+        inline: true,
+      });
+    }
+
+    const channel = await client.channels.fetch(LINK_CHANNEL_ID).catch(() => null);
+    if (!channel) return;
+
+    await channel.send({
+      embeds: [{
+        title: '🔄 Role Update',
+        color: 0xffa500,
+        fields,
+        thumbnail: { url: member.user.displayAvatarURL({ size: 64 }) },
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+      }],
+    });
+  } catch (err) {
+    console.error('[Roles] Failed to send notification:', err.message);
+  }
+}
+
+/**
+ * Assign plan + ELO roles to a Discord guild member
+ */
+async function assignRoles(member, userSettings) {
+  const rolesToAdd = [];
+  const rolesToRemove = [];
+
+  // 1. Plan roles (mutually exclusive)
+  const allPlanRoleIds = Object.values(PLAN_ROLES).filter(Boolean);
+  const targetPlanRoleId = PLAN_ROLES[userSettings.plan];
+
+  for (const roleId of allPlanRoleIds) {
+    if (roleId === targetPlanRoleId) {
+      if (!member.roles.cache.has(roleId)) rolesToAdd.push(roleId);
+    } else {
+      if (member.roles.cache.has(roleId)) rolesToRemove.push(roleId);
+    }
+  }
+
+  // 2. ELO roles (mutually exclusive, based on highest rapid)
+  const highestRapid = await getHighestRapidElo(userSettings.user_id);
+  const allEloRoleIds = ELO_BRACKETS.map(b => b.roleId).filter(Boolean);
+  const targetEloBracket = highestRapid > 0
+    ? ELO_BRACKETS.find(b => highestRapid <= b.maxElo)
+    : null;
+  const targetEloRoleId = targetEloBracket?.roleId;
+
+  for (const roleId of allEloRoleIds) {
+    if (roleId === targetEloRoleId) {
+      if (!member.roles.cache.has(roleId)) rolesToAdd.push(roleId);
+    } else {
+      if (member.roles.cache.has(roleId)) rolesToRemove.push(roleId);
+    }
+  }
+
+  // Apply changes
+  try {
+    if (rolesToRemove.length > 0) await member.roles.remove(rolesToRemove);
+    if (rolesToAdd.length > 0) await member.roles.add(rolesToAdd);
+
+    if (rolesToAdd.length > 0 || rolesToRemove.length > 0) {
+      console.log(
+        `[Roles] ${member.user.tag}: +${rolesToAdd.length} -${rolesToRemove.length}` +
+        (targetEloBracket ? ` (ELO: ${highestRapid} → ${targetEloBracket.name})` : ''),
+      );
+
+      // Send notification
+      await notifyRoleChange(member, rolesToRemove, rolesToAdd);
+    }
+  } catch (error) {
+    console.error(`[Roles] Failed for ${member.user.tag}:`, error.message);
+  }
+}
+
+/**
+ * Sync roles for all linked Discord users (periodic)
+ */
+async function syncAllRoles() {
+  const guild = client.guilds.cache.get(config.guildId);
+  if (!guild) return;
+
+  const { data: linkedUsers } = await supabase
+    .from('user_settings')
+    .select('user_id, plan, discord_id')
+    .not('discord_id', 'is', null);
+
+  if (!linkedUsers || linkedUsers.length === 0) return;
+
+  let synced = 0;
+  for (const user of linkedUsers) {
+    try {
+      const member = await guild.members.fetch(user.discord_id).catch(() => null);
+      const inGuild = !!member;
+
+      // Update discord_in_guild in database
+      await supabase
+        .from('user_settings')
+        .update({ discord_in_guild: inGuild })
+        .eq('user_id', user.user_id);
+
+      if (!member) continue;
+
+      await assignRoles(member, user);
+      synced++;
+
+      // Rate limit: 250ms between users
+      await new Promise(r => setTimeout(r, 250));
+    } catch (error) {
+      console.error(`[Roles] Sync failed for ${user.discord_id}:`, error.message);
+    }
+  }
+
+  if (synced > 0) {
+    console.log(`[Roles] Synced ${synced}/${linkedUsers.length} users`);
+  }
+}
+
+// =============================================================================
+// Stats & Signup Functions (unchanged)
+// =============================================================================
 
 // Fetch stats from Chessr server
 async function fetchServerStats() {
@@ -323,6 +519,56 @@ async function updateStatsChannels() {
   }
 }
 
+// =============================================================================
+// Bot Events
+// =============================================================================
+
+// When a new member joins, check if they have a linked Chessr account
+client.on('guildMemberAdd', async (member) => {
+  try {
+    const { data: userSettings } = await supabase
+      .from('user_settings')
+      .select('user_id, plan, discord_id')
+      .eq('discord_id', member.id)
+      .single();
+
+    if (!userSettings) return; // No linked account
+
+    // Mark user as in guild
+    await supabase
+      .from('user_settings')
+      .update({ discord_in_guild: true })
+      .eq('user_id', userSettings.user_id);
+
+    await assignRoles(member, userSettings);
+    console.log(`[Roles] Assigned roles to new member ${member.user.tag} (Chessr linked)`);
+  } catch (error) {
+    console.error(`[Roles] Error on member join ${member.user.tag}:`, error.message);
+  }
+});
+
+// When a member leaves, update discord_in_guild
+client.on('guildMemberRemove', async (member) => {
+  try {
+    const { data: userSettings } = await supabase
+      .from('user_settings')
+      .select('user_id')
+      .eq('discord_id', member.id)
+      .single();
+
+    if (!userSettings) return;
+
+    await supabase
+      .from('user_settings')
+      .update({ discord_in_guild: false })
+      .eq('user_id', userSettings.user_id);
+
+    console.log(`[Guild] Member left: ${member.user.tag} → discord_in_guild = false`);
+  } catch (error) {
+    console.error(`[Guild] Error on member leave ${member.user.tag}:`, error.message);
+  }
+});
+
 // Bot ready event
 client.once('ready', async () => {
   console.log(`[Discord] Logged in as ${client.user.tag}`);
@@ -332,10 +578,12 @@ client.once('ready', async () => {
   // Initial update
   await updateStatsChannels();
   await checkNewSignups();
+  await syncAllRoles();
 
   // Schedule periodic updates
   setInterval(updateStatsChannels, config.updateInterval);
   setInterval(checkNewSignups, 120_000); // Check signups every 2 minutes
+  setInterval(syncAllRoles, 10 * 60 * 1000); // Sync roles every 10 minutes
 });
 
 // Error handling

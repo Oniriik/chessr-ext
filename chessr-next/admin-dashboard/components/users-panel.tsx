@@ -727,7 +727,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                           variant="ghost"
                           size="sm"
                           onClick={() => openEditDialog(user)}
-                          disabled={user.user_id === userId}
+                          disabled={user.user_id === userId && userRole !== 'super_admin'}
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>

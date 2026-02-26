@@ -5,7 +5,8 @@ import { webSocketManager } from '../../../lib/webSocket';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
-import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock, Link2, Unlink, User } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock, Link2, Unlink, User, MessageCircle } from 'lucide-react';
+import { useDiscordStore } from '../../../stores/discordStore';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
@@ -181,6 +182,73 @@ function LinkedAccountsSection() {
   );
 }
 
+function DiscordSection() {
+  const { isLinked, discordUsername, discordAvatar, isLinking, setLinking } = useDiscordStore();
+
+  const handleLink = () => {
+    if (isLinking) return;
+    setLinking(true);
+    webSocketManager.send({
+      type: 'init_discord_link',
+      returnUrl: window.location.href,
+    });
+  };
+
+  const handleUnlink = () => {
+    webSocketManager.send({ type: 'unlink_discord' });
+    useDiscordStore.getState().setLinked(false, null, null);
+    useDiscordStore.getState().setInGuild(false);
+  };
+
+  return (
+    <div className="tw-space-y-2 tw-pt-4 tw-border-t tw-border-border">
+      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Discord</Label>
+      {isLinked ? (
+        <div className="tw-flex tw-items-center tw-gap-3 tw-p-3 tw-rounded-lg tw-bg-muted/50">
+          <div className="tw-flex-shrink-0">
+            {discordAvatar ? (
+              <img
+                src={discordAvatar}
+                alt={discordUsername || 'Discord'}
+                crossOrigin="anonymous"
+                className="tw-w-10 tw-h-10 tw-rounded-full tw-border tw-border-border"
+              />
+            ) : (
+              <div className="tw-w-10 tw-h-10 tw-rounded-full tw-bg-indigo-500/20 tw-flex tw-items-center tw-justify-center tw-border tw-border-indigo-500/30">
+                <MessageCircle className="tw-w-5 tw-h-5 tw-text-indigo-400" />
+              </div>
+            )}
+          </div>
+          <div className="tw-flex-1 tw-min-w-0">
+            <p className="tw-text-sm tw-font-medium tw-truncate">{discordUsername}</p>
+            <p className="tw-text-xs tw-text-muted-foreground">Discord</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="tw-h-8 tw-w-8 tw-flex-shrink-0"
+            onClick={handleUnlink}
+            title="Unlink Discord"
+          >
+            <Unlink className="tw-w-4 tw-h-4" />
+          </Button>
+        </div>
+      ) : (
+        <button
+          onClick={handleLink}
+          disabled={isLinking}
+          className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted/50 tw-border tw-border-dashed tw-border-border tw-w-full tw-text-left tw-cursor-pointer hover:tw-bg-muted/80 tw-transition-colors disabled:tw-opacity-50"
+        >
+          <MessageCircle className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
+          <p className="tw-text-sm tw-text-muted-foreground">
+            {isLinking ? 'Redirecting to Discord...' : 'Link your Discord account'}
+          </p>
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function AccountTab() {
   const { user, plan, planExpiry, changePassword, loading } = useAuthStore();
   const [oldPassword, setOldPassword] = useState('');
@@ -257,6 +325,9 @@ export function AccountTab() {
 
       {/* Linked Accounts Section */}
       <LinkedAccountsSection />
+
+      {/* Discord Section */}
+      <DiscordSection />
 
       {/* Change Password Section */}
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">

@@ -10,6 +10,7 @@ import { usePuzzleStore } from '../stores/puzzleStore';
 import { useAccuracyStore } from '../stores/accuracyStore';
 import { useLinkedAccountsStore, type LinkedAccount, type LinkErrorCode } from '../stores/linkedAccountsStore';
 import { useMaintenanceStore } from '../stores/maintenanceStore';
+import { useDiscordStore } from '../stores/discordStore';
 import { logger } from './logger';
 
 type MessageHandler = (data: unknown) => void;
@@ -171,6 +172,12 @@ class WebSocketManager {
             const maint = data.maintenanceSchedule;
             useMaintenanceStore.getState().setSchedule(maint?.start || null, maint?.end || null);
 
+            // Update Discord link status from server
+            const discordStore = useDiscordStore.getState();
+            discordStore.setLinked(!!data.discordLinked, data.discordUsername || null, data.discordAvatar || null);
+            discordStore.setFreetrialUsed(!!data.freetrialUsed);
+            discordStore.setInGuild(!!data.discordInGuild);
+
             resolve();
           } else if (data.type === 'auth_error') {
             logger.error('Authentication failed:', data.error);
@@ -277,6 +284,13 @@ class WebSocketManager {
               store.setCooldownHours(null);
             }
             store.setLoading(false);
+          } else if (data.type === 'discord_link_url') {
+            // Redirect to Discord OAuth on same page
+            logger.log('Redirecting to Discord OAuth');
+            window.location.href = data.url;
+          } else if (data.type === 'discord_link_error') {
+            logger.error('Discord link error:', data.error);
+            useDiscordStore.getState().setLinking(false);
           } else if (data.type === 'banned') {
             // Server detected user is banned - force sign out
             logger.log('User banned by server:', data.reason);

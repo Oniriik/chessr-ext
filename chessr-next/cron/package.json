@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "check-expirations": "tsx check-expirations.ts",
-    "notify-signups": "tsx notify-signups.ts"
+    "notify-signups": "tsx notify-signups.ts",
+    "update-ratings": "tsx update-ratings.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1"

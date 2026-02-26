@@ -33,6 +33,12 @@ import {
   getOpeningStats,
   type OpeningMessage,
 } from "./handlers/openingHandler.js";
+import {
+  handleInitDiscordLink,
+  handleDiscordCallback,
+  handleUnlinkDiscord,
+  type InitDiscordLinkMessage,
+} from "./handlers/discordHandler.js";
 import { logConnection } from "./utils/logger.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
@@ -326,6 +332,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Discord OAuth callback
+  if (req.url?.startsWith("/discord/callback") && req.method === "GET") {
+    handleDiscordCallback(req, res);
+    return;
+  }
+
   // Stats endpoint for admin dashboard
   if (req.url === "/stats" && req.method === "GET") {
     const suggestionStats = getStats();
@@ -454,8 +466,14 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
         logConnection(user.email || userId, 'connected');
 
-        // Get maintenance schedule for the client
+        // Get maintenance schedule and Discord status for the client
         const maintenance = await getMaintenanceSchedule();
+
+        const { data: userSettings } = await supabase
+          .from("user_settings")
+          .select("discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild")
+          .eq("user_id", user.id)
+          .single();
 
         ws.send(
           JSON.stringify({
@@ -465,6 +483,11 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
               email: user.email,
             },
             maintenanceSchedule: maintenance.start > 0 ? maintenance : null,
+            discordLinked: !!userSettings?.discord_id,
+            discordUsername: userSettings?.discord_username || null,
+            discordAvatar: userSettings?.discord_avatar || null,
+            freetrialUsed: userSettings?.freetrial_used || false,
+            discordInGuild: userSettings?.discord_in_guild || false,
           }),
         );
         return;
@@ -547,6 +570,17 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
             message as OpeningMessage,
             client,
           );
+          break;
+
+        case "init_discord_link":
+          handleInitDiscordLink(
+            message as InitDiscordLinkMessage,
+            client,
+          );
+          break;
+
+        case "unlink_discord":
+          handleUnlinkDiscord(client);
           break;
 
         default:
