@@ -133,19 +133,25 @@ async function updateStatsChannels() {
     // Get channels by ID from environment or find by name pattern
     const channels = await guild.channels.fetch();
 
+    const connectedUsers = serverStats?.realtime?.connectedUsers || 0;
+
     // Find or use specific channels for each stat
     const statsToUpdate = [
       {
-        pattern: /active.*users/i,
-        name: `👥 Active Users: ${serverStats?.realtime?.connectedUsers || 0}`,
+        pattern: /status/i,
+        name: `${status.emoji} Status: ${status.text}`,
+      },
+      {
+        pattern: /total.*users|users.*total/i,
+        name: `👥 Total Users: ${formatNumber(premiumStats?.total || 0)}`,
+      },
+      {
+        pattern: /connected|active.*users/i,
+        name: `🟢 Connected: ${connectedUsers}`,
       },
       {
         pattern: /suggestions/i,
         name: `📊 Suggestions: ${formatNumber(totalSuggestions)}`,
-      },
-      {
-        pattern: /status/i,
-        name: `${status.emoji} Status: ${status.text}`,
       },
       {
         pattern: /premium/i,
@@ -157,23 +163,40 @@ async function updateStatsChannels() {
     const statsChannel = channels.get(config.channelId);
     if (statsChannel && statsChannel.type === ChannelType.GuildCategory) {
       // It's a category, update voice channels inside
-      const voiceChannels = channels.filter(
+      let voiceChannels = channels.filter(
         c => c.parentId === config.channelId && c.type === ChannelType.GuildVoice
       );
 
       for (const stat of statsToUpdate) {
         const channel = voiceChannels.find(c => stat.pattern.test(c.name));
         if (channel) {
-          await channel.setName(stat.name);
-          console.log(`[Discord] Updated: ${stat.name}`);
+          if (channel.name !== stat.name) {
+            await channel.setName(stat.name);
+            console.log(`[Discord] Updated: ${stat.name}`);
+          }
+        } else {
+          // Create missing voice channel
+          await guild.channels.create({
+            name: stat.name,
+            type: ChannelType.GuildVoice,
+            parent: config.channelId,
+            permissionOverwrites: [
+              {
+                id: guild.id,
+                deny: ['Connect'],
+              },
+            ],
+          });
+          console.log(`[Discord] Created: ${stat.name}`);
         }
       }
     }
 
     console.log(`[Stats] Updated at ${new Date().toISOString()}`);
-    console.log(`  - Active Users: ${serverStats?.realtime?.connectedUsers || 0}`);
-    console.log(`  - Total Suggestions: ${totalSuggestions}`);
     console.log(`  - Status: ${status.text}`);
+    console.log(`  - Total Users: ${premiumStats?.total || 0}`);
+    console.log(`  - Connected: ${connectedUsers}`);
+    console.log(`  - Total Suggestions: ${totalSuggestions}`);
     console.log(`  - Premium: ${premiumStats?.totalPremium || 0}`);
 
   } catch (error) {
