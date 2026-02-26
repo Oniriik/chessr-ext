@@ -151,7 +151,7 @@ async function updateStatsChannels() {
       },
       {
         pattern: /analyzed|suggestions/i,
-        name: `♟ Moves Analyzed: ${formatNumber(totalSuggestions)}`,
+        name: `🧠 Moves Analyzed: ${formatNumber(totalSuggestions)}`,
       },
       {
         pattern: /premium/i,
