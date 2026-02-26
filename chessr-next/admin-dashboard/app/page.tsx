@@ -12,8 +12,9 @@ import { UsersPanel } from '@/components/users-panel'
 import { ServerPanel } from '@/components/server-panel'
 import { PlansPanel } from '@/components/plans-panel'
 import { DiscordPanel } from '@/components/discord-panel'
+import { DataPanel } from '@/components/data-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
-import { LogOut, Activity, ScrollText, Users, Server, Loader2, Gift, MessageSquare } from 'lucide-react'
+import { LogOut, Activity, BarChart3, ScrollText, Users, Server, Loader2, Gift, MessageSquare } from 'lucide-react'
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -118,10 +119,14 @@ export default function DashboardPage() {
       {/* Main content */}
       <main className="container mx-auto px-4 py-6 relative z-10">
         <Tabs defaultValue="live" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-7 lg:w-auto lg:inline-flex">
             <TabsTrigger value="live" className="gap-2">
               <Activity className="w-4 h-4" />
               <span className="hidden sm:inline">Live</span>
+            </TabsTrigger>
+            <TabsTrigger value="data" className="gap-2">
+              <BarChart3 className="w-4 h-4" />
+              <span className="hidden sm:inline">Data</span>
             </TabsTrigger>
             <TabsTrigger value="server" className="gap-2">
               <Server className="w-4 h-4" />
@@ -147,6 +152,10 @@ export default function DashboardPage() {
 
           <TabsContent value="live">
             <LivePanel />
+          </TabsContent>
+
+          <TabsContent value="data">
+            <DataPanel />
           </TabsContent>
 
           <TabsContent value="server">
