@@ -318,6 +318,14 @@ export async function handleDiscordCallback(
     // Send notification to Discord channel (fire and forget)
     notifyDiscordLink(userEmail, discordUsername, discordAvatar, inGuild, planChanged);
 
+    // Assign Discord roles immediately if user is in the guild
+    if (inGuild) {
+      const plan = planChanged ? 'freetrial' : (settings?.plan || 'free');
+      assignDiscordRoles(discordId, userId, plan).catch((err) =>
+        console.error('[Discord] Failed to assign roles on link:', err),
+      );
+    }
+
     // Redirect back to the original page
     redirect(res, returnUrl, 'discord_linked=true');
   } catch (err) {
@@ -402,6 +410,95 @@ async function notifyDiscordLink(
     });
   } catch (err) {
     console.error('[Discord] Failed to send link notification:', err);
+  }
+}
+
+// =============================================================================
+// Role Assignment on Link
+// =============================================================================
+
+const PLAN_ROLES: Record<string, string> = {
+  free: '1476673977899286548',
+  freetrial: '1476674000674623600',
+  premium: '1476674055435452698',
+  lifetime: '1476674087831998464',
+  beta: '1476674108841525340',
+};
+
+const ELO_BRACKETS = [
+  { maxElo: 799,      roleId: '1476674389540864145' },
+  { maxElo: 999,      roleId: '1476674464920895601' },
+  { maxElo: 1199,     roleId: '1476674513440735343' },
+  { maxElo: 1399,     roleId: '1476674570873471077' },
+  { maxElo: 1599,     roleId: '1476674628641488976' },
+  { maxElo: 1799,     roleId: '1476674961299996847' },
+  { maxElo: 1999,     roleId: '1476674691098869810' },
+  { maxElo: Infinity, roleId: '1476674811416809566' },
+];
+
+async function assignDiscordRoles(discordId: string, userId: string, plan: string): Promise<void> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return;
+
+  try {
+    // Fetch guild member
+    const memberRes = await fetch(
+      `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}`,
+      { headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } },
+    );
+    if (!memberRes.ok) return;
+
+    const member = await memberRes.json();
+    const currentRoles: string[] = member.roles || [];
+    const allPlanRoleIds = Object.values(PLAN_ROLES);
+    const allEloRoleIds = ELO_BRACKETS.map((b) => b.roleId);
+
+    // --- Plan role ---
+    const targetPlanRole = PLAN_ROLES[plan];
+    const planRolesToRemove = currentRoles.filter((r) => allPlanRoleIds.includes(r) && r !== targetPlanRole);
+    const planRolesToAdd = targetPlanRole && !currentRoles.includes(targetPlanRole) ? [targetPlanRole] : [];
+
+    // --- ELO role ---
+    // Get highest rapid rating across all linked accounts
+    const { data: accounts } = await supabase
+      .from('linked_accounts')
+      .select('rating_rapid')
+      .eq('user_id', userId)
+      .is('unlinked_at', null);
+
+    let targetEloRole: string | null = null;
+    if (accounts && accounts.length > 0) {
+      const maxRapid = Math.max(...accounts.map((a) => a.rating_rapid ?? 0).filter((r) => r > 0));
+      if (maxRapid > 0) {
+        const bracket = ELO_BRACKETS.find((b) => maxRapid <= b.maxElo);
+        if (bracket) targetEloRole = bracket.roleId;
+      }
+    }
+
+    const eloRolesToRemove = currentRoles.filter((r) => allEloRoleIds.includes(r) && r !== targetEloRole);
+    const eloRolesToAdd = targetEloRole && !currentRoles.includes(targetEloRole) ? [targetEloRole] : [];
+
+    // Apply changes
+    const toRemove = [...planRolesToRemove, ...eloRolesToRemove];
+    const toAdd = [...planRolesToAdd, ...eloRolesToAdd];
+
+    for (const roleId of toRemove) {
+      await fetch(
+        `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
+        { method: 'DELETE', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } },
+      );
+    }
+    for (const roleId of toAdd) {
+      await fetch(
+        `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
+        { method: 'PUT', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } },
+      );
+    }
+
+    if (toRemove.length > 0 || toAdd.length > 0) {
+      console.log(`[Discord] Roles assigned for ${discordId}: +${toAdd.length} -${toRemove.length}`);
+    }
+  } catch (err) {
+    console.error('[Discord] Role assignment error:', err);
   }
 }
 
