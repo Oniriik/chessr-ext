@@ -1,7 +1,8 @@
 /**
- * Update Ratings
- * Fetches latest ratings from Chess.com and Lichess APIs
- * for all active linked accounts and updates the database
+ * Update Ratings (batched)
+ * Each run processes BATCH_SIZE accounts starting from a cursor,
+ * then saves the cursor for the next run. Runs every 30 minutes.
+ * With BATCH_SIZE=25 and 30min interval, all accounts cycle in ~6h for 300 accounts.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -11,7 +12,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-const RATE_LIMIT_MS = 500; // 500ms between API calls
+const BATCH_SIZE = 25;
+const RATE_LIMIT_MS = 500;
+const CURSOR_KEY = 'ratings_cursor';
 
 async function fetchChesscomRatings(username: string) {
   const res = await fetch(
@@ -41,20 +44,53 @@ async function fetchLichessRatings(username: string) {
   };
 }
 
+async function getCursor(): Promise<string> {
+  const { data } = await supabase
+    .from('global_stats')
+    .select('value')
+    .eq('key', CURSOR_KEY)
+    .single();
+  return data?.value || '';
+}
+
+async function saveCursor(cursor: string) {
+  await supabase
+    .from('global_stats')
+    .upsert({ key: CURSOR_KEY, value: cursor, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+}
+
 async function updateRatings() {
-  console.log(`[Cron] Updating ratings at ${new Date().toISOString()}`);
+  console.log(`[Cron] Updating ratings batch at ${new Date().toISOString()}`);
 
-  const { data: accounts, error } = await supabase
+  const cursor = await getCursor();
+
+  // Fetch next batch of accounts after cursor, ordered by id
+  let query = supabase
     .from('linked_accounts')
-    .select('id, platform, platform_username, rating_rapid')
-    .is('unlinked_at', null);
+    .select('id, platform, platform_username')
+    .is('unlinked_at', null)
+    .order('id', { ascending: true })
+    .limit(BATCH_SIZE);
 
-  if (error || !accounts) {
-    console.error('[Cron] Failed to fetch accounts:', error?.message);
+  if (cursor) {
+    query = query.gt('id', cursor);
+  }
+
+  const { data: accounts, error } = await query;
+
+  if (error) {
+    console.error('[Cron] Failed to fetch accounts:', error.message);
     return;
   }
 
-  console.log(`[Cron] Found ${accounts.length} active linked accounts`);
+  // If no accounts found, we've reached the end — reset cursor
+  if (!accounts || accounts.length === 0) {
+    console.log('[Cron] Reached end of accounts, resetting cursor');
+    await saveCursor('');
+    return;
+  }
+
+  console.log(`[Cron] Processing batch of ${accounts.length} accounts (cursor: ${cursor || 'start'})`);
 
   let updated = 0;
   let failed = 0;
@@ -89,7 +125,6 @@ async function updateRatings() {
         failed++;
       }
 
-      // Rate limit between API calls
       await new Promise(r => setTimeout(r, RATE_LIMIT_MS));
     } catch (e) {
       console.error(`[Cron] Error updating ${account.platform_username}:`, e);
@@ -97,8 +132,11 @@ async function updateRatings() {
     }
   }
 
-  console.log(`[Cron] Rating update complete: ${updated} updated, ${failed} failed out of ${accounts.length}`);
+  // Save cursor to last processed account id
+  const lastId = accounts[accounts.length - 1].id;
+  await saveCursor(lastId);
+
+  console.log(`[Cron] Batch complete: ${updated} updated, ${failed} failed — next cursor: ${lastId}`);
 }
 
-// Run immediately
 updateRatings();

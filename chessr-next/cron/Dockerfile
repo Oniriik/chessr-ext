@@ -22,7 +22,7 @@ COPY . .
 # Check new signups every 2 minutes
 RUN echo "*/10 * * * * cd /app && pnpm check-expirations >> /proc/1/fd/1 2>&1" > /etc/crontabs/root && \
     echo "*/2 * * * * cd /app && pnpm notify-signups >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root && \
-    echo "0 */6 * * * cd /app && pnpm update-ratings >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
+    echo "*/30 * * * * cd /app && pnpm update-ratings >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
 
 # Create startup script that logs and runs crond
 RUN echo '#!/bin/sh' > /start.sh && \
