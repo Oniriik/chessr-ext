@@ -99,6 +99,10 @@ services:
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
       - SERVER_PATH=/opt/chessr/app
       - WS_SERVER_URL=http://chessr-server:8080
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - DISCORD_STATS_CHANNEL_ID=${DISCORD_STATS_CHANNEL_ID}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/chessr/app:/opt/chessr/app:ro
