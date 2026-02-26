@@ -595,12 +595,11 @@ async function handleRankCommand(interaction) {
     { name: '⚡ Bullet', value: ratings.bullet > 0 ? `**${ratings.bullet}**` : 'N/A', inline: true },
     { name: '🔥 Blitz', value: ratings.blitz > 0 ? `**${ratings.blitz}**` : 'N/A', inline: true },
     { name: '🕐 Rapid', value: ratings.rapid > 0 ? `**${ratings.rapid}**` : 'N/A', inline: true },
-    { name: '📋 Plan', value: settings.plan.charAt(0).toUpperCase() + settings.plan.slice(1), inline: true },
   ];
 
   await interaction.reply({
     embeds: [{
-      title: `${targetUser.username}'s Chessr Profile`,
+      title: `${targetUser.username}'s Profile`,
       color: getEloColor(ratings.rapid),
       fields,
       thumbnail: { url: targetUser.displayAvatarURL({ size: 128 }) },
@@ -674,7 +673,7 @@ async function handleLeaderboardCommand(interaction) {
 
   await interaction.reply({
     embeds: [{
-      title: `${emoji} Chessr ${label} Leaderboard`,
+      title: `${emoji} ${label} Leaderboard`,
       description: lines.join('\n'),
       color: 0xf59e0b,
       timestamp: new Date().toISOString(),
