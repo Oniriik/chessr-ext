@@ -56,17 +56,21 @@ const client = new Client({
 // =============================================================================
 
 /**
- * Get the highest rapid ELO across all linked accounts for a user
+ * Get the highest ELO for each time control across all linked accounts
  */
-async function getHighestRapidElo(userId) {
+async function getHighestRatings(userId) {
   const { data: accounts } = await supabase
     .from('linked_accounts')
-    .select('rating_rapid')
+    .select('rating_bullet, rating_blitz, rating_rapid')
     .eq('user_id', userId)
     .is('unlinked_at', null);
 
-  if (!accounts || accounts.length === 0) return 0;
-  return Math.max(0, ...accounts.map(a => a.rating_rapid || 0));
+  if (!accounts || accounts.length === 0) return { bullet: 0, blitz: 0, rapid: 0 };
+  return {
+    bullet: Math.max(0, ...accounts.map(a => a.rating_bullet || 0)),
+    blitz: Math.max(0, ...accounts.map(a => a.rating_blitz || 0)),
+    rapid: Math.max(0, ...accounts.map(a => a.rating_rapid || 0)),
+  };
 }
 
 // Reverse lookup: roleId → name
@@ -144,7 +148,8 @@ async function assignRoles(member, userSettings) {
   }
 
   // 2. ELO roles (mutually exclusive, based on highest rapid)
-  const highestRapid = await getHighestRapidElo(userSettings.user_id);
+  const ratings = await getHighestRatings(userSettings.user_id);
+  const highestRapid = ratings.rapid;
   const allEloRoleIds = ELO_BRACKETS.map(b => b.roleId).filter(Boolean);
   const targetEloBracket = highestRapid > 0
     ? ELO_BRACKETS.find(b => highestRapid <= b.maxElo)
@@ -529,8 +534,17 @@ const commands = [
     .setDescription('Show the Chessr rank of a member')
     .addUserOption(opt => opt.setName('member').setDescription('The member to check').setRequired(false)),
   new SlashCommandBuilder()
-    .setName('ladder')
-    .setDescription('Show the top 10 players by rapid ELO'),
+    .setName('leaderboard')
+    .setDescription('Show the top 10 players by ELO')
+    .addStringOption(opt =>
+      opt.setName('mode')
+        .setDescription('Time control (default: rapid)')
+        .setRequired(false)
+        .addChoices(
+          { name: 'Rapid', value: 'rapid' },
+          { name: 'Blitz', value: 'blitz' },
+          { name: 'Bullet', value: 'bullet' },
+        )),
 ];
 
 async function registerCommands() {
@@ -544,12 +558,6 @@ async function registerCommands() {
   } catch (err) {
     console.error('[Commands] Failed to register:', err.message);
   }
-}
-
-function getEloBracketName(elo) {
-  if (elo <= 0) return 'Unranked';
-  const bracket = ELO_BRACKETS.find(b => elo <= b.maxElo);
-  return bracket?.name || 'Unknown';
 }
 
 function getEloColor(elo) {
@@ -581,48 +589,37 @@ async function handleRankCommand(interaction) {
     return;
   }
 
-  // Get linked accounts with ratings
-  const { data: accounts } = await supabase
-    .from('linked_accounts')
-    .select('platform, platform_username, rating_bullet, rating_blitz, rating_rapid')
-    .eq('user_id', settings.user_id)
-    .is('unlinked_at', null);
-
-  const highestRapid = await getHighestRapidElo(settings.user_id);
-  const bracketName = getEloBracketName(highestRapid);
+  const ratings = await getHighestRatings(settings.user_id);
 
   const fields = [
-    { name: '♟ Rank', value: `**${bracketName}**`, inline: true },
-    { name: '📊 Rapid ELO', value: highestRapid > 0 ? `**${highestRapid}**` : 'N/A', inline: true },
+    { name: '⚡ Bullet', value: ratings.bullet > 0 ? `**${ratings.bullet}**` : 'N/A', inline: true },
+    { name: '🔥 Blitz', value: ratings.blitz > 0 ? `**${ratings.blitz}**` : 'N/A', inline: true },
+    { name: '🕐 Rapid', value: ratings.rapid > 0 ? `**${ratings.rapid}**` : 'N/A', inline: true },
     { name: '📋 Plan', value: settings.plan.charAt(0).toUpperCase() + settings.plan.slice(1), inline: true },
   ];
-
-  if (accounts && accounts.length > 0) {
-    const accountLines = accounts.map(a => {
-      const platformLabel = a.platform === 'chesscom' ? 'Chess.com' : 'Lichess';
-      const ratings = [
-        a.rating_bullet ? `Bullet: ${a.rating_bullet}` : null,
-        a.rating_blitz ? `Blitz: ${a.rating_blitz}` : null,
-        a.rating_rapid ? `Rapid: ${a.rating_rapid}` : null,
-      ].filter(Boolean).join(' | ');
-      return `**${platformLabel}** — ${a.platform_username}\n${ratings || 'No ratings'}`;
-    });
-    fields.push({ name: '🔗 Linked Accounts', value: accountLines.join('\n\n') });
-  }
 
   await interaction.reply({
     embeds: [{
       title: `${targetUser.username}'s Chessr Profile`,
-      color: getEloColor(highestRapid),
+      color: getEloColor(ratings.rapid),
       fields,
       thumbnail: { url: targetUser.displayAvatarURL({ size: 128 }) },
       timestamp: new Date().toISOString(),
-      footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+      footer: { text: 'Ratings updated every 30 min • Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
     }],
   });
 }
 
-async function handleLadderCommand(interaction) {
+const MODE_CONFIG = {
+  rapid:  { emoji: '🕐', label: 'Rapid',  column: 'rating_rapid' },
+  blitz:  { emoji: '🔥', label: 'Blitz',  column: 'rating_blitz' },
+  bullet: { emoji: '⚡', label: 'Bullet', column: 'rating_bullet' },
+};
+
+async function handleLeaderboardCommand(interaction) {
+  const mode = interaction.options.getString('mode') || 'rapid';
+  const { emoji, label, column } = MODE_CONFIG[mode];
+
   // Get all linked users with discord_id
   const { data: linkedUsers } = await supabase
     .from('user_settings')
@@ -638,17 +635,17 @@ async function handleLadderCommand(interaction) {
   const userIds = linkedUsers.map(u => u.user_id);
   const { data: allAccounts } = await supabase
     .from('linked_accounts')
-    .select('user_id, rating_rapid')
+    .select(`user_id, ${column}`)
     .in('user_id', userIds)
     .is('unlinked_at', null);
 
-  // Calculate max rapid per user
+  // Calculate max rating per user
   const eloMap = new Map();
   if (allAccounts) {
     for (const a of allAccounts) {
       const current = eloMap.get(a.user_id) || 0;
-      if ((a.rating_rapid || 0) > current) {
-        eloMap.set(a.user_id, a.rating_rapid);
+      if ((a[column] || 0) > current) {
+        eloMap.set(a.user_id, a[column]);
       }
     }
   }
@@ -665,24 +662,23 @@ async function handleLadderCommand(interaction) {
     .slice(0, 10);
 
   if (leaderboard.length === 0) {
-    await interaction.reply({ content: 'No players with rated accounts yet.', ephemeral: true });
+    await interaction.reply({ content: `No players with ${label} ratings yet.`, ephemeral: true });
     return;
   }
 
   const medals = ['🥇', '🥈', '🥉'];
   const lines = leaderboard.map((u, i) => {
     const prefix = i < 3 ? medals[i] : `\`${i + 1}.\``;
-    const bracket = getEloBracketName(u.elo);
-    return `${prefix} <@${u.discordId}> — **${u.elo}** (${bracket})`;
+    return `${prefix} <@${u.discordId}> — **${u.elo}**`;
   });
 
   await interaction.reply({
     embeds: [{
-      title: '🏆 Chessr Rapid Leaderboard',
+      title: `${emoji} Chessr ${label} Leaderboard`,
       description: lines.join('\n'),
       color: 0xf59e0b,
       timestamp: new Date().toISOString(),
-      footer: { text: 'Based on highest rapid rating across linked accounts • Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+      footer: { text: `Highest ${label.toLowerCase()} across linked accounts • Updated every 30 min • Chessr.io`, icon_url: 'https://chessr.io/chessr-logo.png' },
     }],
   });
 }
@@ -694,8 +690,8 @@ client.on('interactionCreate', async (interaction) => {
   try {
     if (interaction.commandName === 'rank') {
       await handleRankCommand(interaction);
-    } else if (interaction.commandName === 'ladder') {
-      await handleLadderCommand(interaction);
+    } else if (interaction.commandName === 'leaderboard') {
+      await handleLeaderboardCommand(interaction);
     }
   } catch (err) {
     console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);
