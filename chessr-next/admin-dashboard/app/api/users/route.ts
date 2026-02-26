@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { getServiceRoleClient } from '@/lib/supabase'
 import { canModifyRoles, canModifyPlans, type UserRole, type UserPlan } from '@/lib/types'
 
@@ -325,6 +326,72 @@ export async function PATCH(request: Request) {
     return NextResponse.json(data)
   } catch (error) {
     console.error('PATCH users error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const body = await request.json()
+    const { userId, adminEmail, adminPassword, callerRole } = body
+
+    if (!userId || !adminEmail || !adminPassword) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    if (!canModifyPlans(callerRole)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
+    }
+
+    const supabase = getServiceRoleClient()
+
+    // Verify admin password by attempting sign-in
+    const anonClient = createClient(
+      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    )
+    const { error: authError } = await anonClient.auth.signInWithPassword({
+      email: adminEmail,
+      password: adminPassword,
+    })
+
+    if (authError) {
+      return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
+    }
+
+    // Get user email for logging
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+    const targetEmail = authUser?.user?.email || 'unknown'
+
+    // Delete all associated data
+    const tables = [
+      'user_settings',
+      'user_activity',
+      'linked_accounts',
+      'signup_ips',
+      'plan_activity_logs',
+    ]
+
+    for (const table of tables) {
+      const { error } = await supabase.from(table).delete().eq('user_id', userId)
+      if (error) {
+        console.error(`[Delete] Failed to clear ${table}:`, error.message)
+      }
+    }
+
+    // Delete the auth user
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(userId)
+
+    if (deleteError) {
+      console.error('[Delete] Failed to delete auth user:', deleteError.message)
+      return NextResponse.json({ error: 'Failed to delete auth user' }, { status: 500 })
+    }
+
+    console.log(`[Delete] User ${targetEmail} (${userId}) deleted by ${adminEmail}`)
+
+    return NextResponse.json({ success: true, email: targetEmail })
+  } catch (error) {
+    console.error('DELETE users error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

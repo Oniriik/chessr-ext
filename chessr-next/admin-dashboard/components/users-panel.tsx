@@ -111,6 +111,12 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [editExpiry, setEditExpiry] = useState<string>('')
   const [saving, setSaving] = useState(false)
 
+  // Delete dialog state
+  const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
   // Linked accounts state
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccountsData | null>(null)
   const [loadingAccounts, setLoadingAccounts] = useState(false)
@@ -295,6 +301,52 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
       alert(error instanceof Error ? error.message : 'Failed to save user')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const openDeleteDialog = (user: AdminUser) => {
+    setDeleteUser(user)
+    setDeletePassword('')
+    setDeleteError('')
+  }
+
+  const closeDeleteDialog = () => {
+    setDeleteUser(null)
+    setDeletePassword('')
+    setDeleteError('')
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteUser || !deletePassword) return
+
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      const response = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: deleteUser.user_id,
+          adminEmail: userEmail,
+          adminPassword: deletePassword,
+          callerRole: userRole,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setDeleteError(data.error || 'Failed to delete user')
+        return
+      }
+
+      closeDeleteDialog()
+      closeEditDialog()
+      await fetchUsers()
+    } catch {
+      setDeleteError('Network error')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -807,7 +859,17 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => editUser && openDeleteDialog(editUser)}
+              disabled={saving}
+              className="sm:mr-auto"
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Delete user
+            </Button>
             <Button variant="outline" onClick={closeEditDialog} disabled={saving}>
               Cancel
             </Button>
@@ -819,6 +881,58 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 </>
               ) : (
                 'Save changes'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteUser} onOpenChange={(open) => !open && closeDeleteDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-400">Delete User</DialogTitle>
+            <DialogDescription>
+              This will permanently delete <strong>{deleteUser?.email}</strong> and all associated data
+              (settings, activity, linked accounts, IPs). This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Enter your password to confirm</label>
+              <Input
+                type="password"
+                placeholder="Your admin password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmDelete()}
+              />
+              {deleteError && (
+                <p className="text-sm text-red-400">{deleteError}</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDeleteDialog} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting || !deletePassword}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Delete permanently
+                </>
               )}
             </Button>
           </DialogFooter>
