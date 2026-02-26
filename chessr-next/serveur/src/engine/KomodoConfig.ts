@@ -81,6 +81,8 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
       'MultiPV': pv.toString(),
       'UCI LimitStrength': 'false',
       'Contempt': '0',
+      'Use LMR': 'true',
+      'Null Move Pruning': 'true',
       'Threads': '1',
       'Hash': '512',
       ...(SYZYGY_PATH ? { 'SyzygyPath': SYZYGY_PATH } : {}),
@@ -94,6 +96,8 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
     'UCI Elo': elo.toString(),
     'Contempt': contemptValue.toString(),
     'Armageddon': armageddonValue,
+    'Use LMR': 'true',
+    'Null Move Pruning': 'true',
     'Threads': '1',
     'Hash': '512',
   };
