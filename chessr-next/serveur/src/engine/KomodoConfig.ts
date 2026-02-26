@@ -27,10 +27,21 @@ export const PERSONALITY_MAP: Record<Personality, string> = {
 };
 
 /**
- * Search nodes limit
- * With UCI_LimitStrength, this gives consistent analysis quality
+ * Compute search nodes based on target ELO.
+ * Linear interpolation: 50k nodes at ELO 400, 1M nodes at ELO 3500.
+ * Lower ELO = fewer nodes = faster + less precise (more natural).
  */
-export const SEARCH_NODES = 700000; // 700k nodes (~0.35-1.4s)
+export function computeNodesForElo(elo: number): number {
+  const minElo = 400;
+  const maxElo = 3500;
+  const minNodes = 50_000;
+  const maxNodes = 1_000_000;
+  const clamped = Math.max(minElo, Math.min(maxElo, elo));
+  return Math.round(minNodes + ((clamped - minElo) / (maxElo - minElo)) * (maxNodes - minNodes));
+}
+
+/** Max nodes for puzzle mode (full strength) */
+export const PUZZLE_NODES = 1_000_000;
 
 /**
  * Path to Syzygy tablebases (optional)
@@ -44,15 +55,15 @@ export interface EngineConfigParams {
   multiPv: number;
   contempt?: number;
   limitStrength?: boolean;
-  skill?: number;
+  armageddon?: 'off' | 'white' | 'black';
   puzzleMode?: boolean;
 }
 
 /**
  * Get UCI options for standard engine search with MultiPV
  */
-export function getEngineConfig({ targetElo, personality, multiPv, contempt, limitStrength, skill, puzzleMode }: EngineConfigParams): Record<string, string> {
-  const elo = Math.max(800, Math.min(3500, targetElo || 1500));
+export function getEngineConfig({ targetElo, personality, multiPv, contempt, limitStrength, armageddon, puzzleMode }: EngineConfigParams): Record<string, string> {
+  const elo = Math.max(400, Math.min(3500, targetElo || 1500));
   const pv = Math.max(1, Math.min(3, multiPv || 1));
   const personalityValue = PERSONALITY_MAP[personality as Personality] || 'Default';
   // Map winIntent (0-100) to Komodo contempt (0-200)
@@ -60,21 +71,16 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
   const contemptValue = Math.max(0, Math.min(250, (contempt ?? 0) * 2));
   // Whether to limit strength (default true for game mode, false for puzzle mode)
   const shouldLimitStrength = limitStrength !== false;
-  // Skill level (0-25 for Komodo Dragon, default 25 = max)
-  const skillValue = Math.max(0, Math.min(25, skill ?? 25));
+  // Map armageddon: 'white' -> 'White Must Win', 'black' -> 'Black Must Win', default 'Off'
+  const armageddonValue = armageddon === 'white' ? 'White Must Win' : armageddon === 'black' ? 'Black Must Win' : 'Off';
 
-  // Puzzle mode has different config
+  // Puzzle mode: full strength, no ELO limit
   if (puzzleMode) {
     return {
       'Personality': 'Default',
       'MultiPV': pv.toString(),
-      'UCI ShowWDL': 'true',
       'UCI LimitStrength': 'false',
-      'Skill': '25',
       'Contempt': '0',
-      'White Contempt': 'false',
-      'Use MCTS': 'false',
-      'Use LMR and Null Move Pruning': 'true',
       'Threads': '1',
       'Hash': '512',
       ...(SYZYGY_PATH ? { 'SyzygyPath': SYZYGY_PATH } : {}),
@@ -84,11 +90,10 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
   const config: Record<string, string> = {
     'Personality': personalityValue,
     'MultiPV': pv.toString(),
-    'UCI ShowWDL': 'true',
     'UCI LimitStrength': shouldLimitStrength ? 'true' : 'false',
     'UCI Elo': elo.toString(),
-    'Skill': skillValue.toString(),
     'Contempt': contemptValue.toString(),
+    'Armageddon': armageddonValue,
     'Threads': '1',
     'Hash': '512',
   };
