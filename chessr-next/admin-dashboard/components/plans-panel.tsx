@@ -20,6 +20,7 @@ import {
   User,
   Bot,
   ArrowRight,
+  Trash2,
 } from 'lucide-react'
 import { planLabels, planColors, type UserPlan } from '@/lib/types'
 
@@ -27,7 +28,7 @@ interface PlanActivityLog {
   id: string
   user_id: string
   user_email: string | null
-  action_type: 'cron_downgrade' | 'admin_change'
+  action_type: 'cron_downgrade' | 'admin_change' | 'account_delete'
   admin_user_id: string | null
   admin_email: string | null
   old_plan: string | null
@@ -106,12 +107,20 @@ export function PlansPanel() {
     return <Badge className={color}>{label}</Badge>
   }
 
-  const getActionBadge = (actionType: 'cron_downgrade' | 'admin_change') => {
+  const getActionBadge = (actionType: 'cron_downgrade' | 'admin_change' | 'account_delete') => {
     if (actionType === 'cron_downgrade') {
       return (
         <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
           <Bot className="w-3 h-3 mr-1" />
           Cron
+        </Badge>
+      )
+    }
+    if (actionType === 'account_delete') {
+      return (
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+          <Trash2 className="w-3 h-3 mr-1" />
+          Delete
         </Badge>
       )
     }
@@ -176,7 +185,7 @@ export function PlansPanel() {
       <Card className="border-border/50 bg-card/50 backdrop-blur">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle>Plan Activity Logs</CardTitle>
+            <CardTitle>Activity Log</CardTitle>
             <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading}>
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </Button>
@@ -193,6 +202,7 @@ export function PlansPanel() {
                 <SelectItem value="all">All actions</SelectItem>
                 <SelectItem value="cron_downgrade">Cron downgrades</SelectItem>
                 <SelectItem value="admin_change">Admin changes</SelectItem>
+                <SelectItem value="account_delete">Account deletions</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -232,7 +242,7 @@ export function PlansPanel() {
                 ) : logs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-muted-foreground">
-                      No plan activity logs found
+                      No activity logs found
                     </td>
                   </tr>
                 ) : (
@@ -250,11 +260,15 @@ export function PlansPanel() {
                       </td>
                       <td className="py-3 px-2">{getActionBadge(log.action_type)}</td>
                       <td className="py-3 px-2">
-                        <div className="flex items-center gap-2">
-                          {getPlanBadge(log.old_plan)}
-                          <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                          {getPlanBadge(log.new_plan)}
-                        </div>
+                        {log.action_type === 'account_delete' ? (
+                          <span className="text-sm text-red-400">Account deleted</span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {getPlanBadge(log.old_plan)}
+                            <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                            {getPlanBadge(log.new_plan)}
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-2 hidden md:table-cell">
                         <span className="text-sm text-muted-foreground">

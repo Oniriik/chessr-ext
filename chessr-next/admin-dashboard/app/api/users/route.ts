@@ -359,17 +359,35 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Invalid password' }, { status: 401 })
     }
 
-    // Get user email for logging
+    // Get user info for logging
     const { data: authUser } = await supabase.auth.admin.getUserById(userId)
     const targetEmail = authUser?.user?.email || 'unknown'
 
-    // Delete all associated data
+    // Get current plan for the log
+    const { data: currentSettings } = await supabase
+      .from('user_settings')
+      .select('plan')
+      .eq('user_id', userId)
+      .single()
+
+    // Log the deletion before removing data
+    await supabase.from('plan_activity_logs').insert({
+      user_id: userId,
+      user_email: targetEmail,
+      action_type: 'account_delete',
+      admin_user_id: null,
+      admin_email: adminEmail,
+      old_plan: currentSettings?.plan || 'unknown',
+      new_plan: 'deleted',
+      reason: `Account deleted by ${adminEmail}`,
+    })
+
+    // Delete all associated data (except plan_activity_logs - kept for audit)
     const tables = [
       'user_settings',
       'user_activity',
       'linked_accounts',
       'signup_ips',
-      'plan_activity_logs',
     ]
 
     for (const table of tables) {
@@ -379,7 +397,7 @@ export async function DELETE(request: Request) {
       }
     }
 
-    // Delete the auth user
+    // Delete the auth user (plan_activity_logs.user_id will be SET NULL)
     const { error: deleteError } = await supabase.auth.admin.deleteUser(userId)
 
     if (deleteError) {

@@ -142,7 +142,7 @@ export default function DashboardPage() {
             </TabsTrigger>
             <TabsTrigger value="plans" className="gap-2">
               <Gift className="w-4 h-4" />
-              <span className="hidden sm:inline">Plans</span>
+              <span className="hidden sm:inline">Activity</span>
             </TabsTrigger>
             <TabsTrigger value="discord" className="gap-2">
               <MessageSquare className="w-4 h-4" />
