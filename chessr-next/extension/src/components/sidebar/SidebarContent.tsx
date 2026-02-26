@@ -28,7 +28,7 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
  * ✓ PlanBadge             → Plan status badge (lifetime/beta/premium/freetrial/free)
  *                           Responsive: compact mode (icon + tooltip) when < 350px
  * ✓ GameStatusCard        → Game detection status display
- * ✓ EloSettings           → Target ELO, Risk, Skill, Personality, Armageddon, Unlock ELO
+ * ✓ EloSettings           → Target ELO, Risk, Personality, Armageddon, Unlock ELO
  * ✓ Tooltip               → CSS-based tooltip (no portals, avoids DOM shifts)
  * ✓ useContainerWidth     → ResizeObserver hook for responsive behavior
  *

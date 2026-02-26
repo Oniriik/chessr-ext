@@ -15,7 +15,6 @@ import { isPremium, showUpgradeAlert } from '../lib/planUtils';
 const PUZZLE_SETTINGS = {
   targetElo: 3500,
   limitStrength: false,
-  skill: 25,
   multiPv: 3,
   armageddon: 'off' as const,
 };

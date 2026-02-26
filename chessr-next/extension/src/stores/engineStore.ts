@@ -97,24 +97,6 @@ export function getRiskLabel(value: number): string {
   return RISK_LEVELS[0].label;
 }
 
-// Skill levels (Komodo Skill 1-25)
-export const SKILL_LEVELS = [
-  { threshold: 1, label: 'Casual' },
-  { threshold: 6, label: 'Solid' },
-  { threshold: 11, label: 'Sharp' },
-  { threshold: 16, label: 'Precise' },
-  { threshold: 21, label: 'Ruthless' },
-] as const;
-
-export function getSkillLabel(value: number): string {
-  for (let i = SKILL_LEVELS.length - 1; i >= 0; i--) {
-    if (value >= SKILL_LEVELS[i].threshold) {
-      return SKILL_LEVELS[i].label;
-    }
-  }
-  return SKILL_LEVELS[0].label;
-}
-
 // Armageddon mode (on/off - uses player color from gameStore when enabled)
 export type ArmageddonMode = boolean;
 
@@ -131,9 +113,6 @@ interface EngineState {
 
   // Risk taking (0-100)
   riskTaking: number;
-
-  // Skill level (1-25)
-  skill: number;
 
   // Personality
   personality: Personality;
@@ -153,7 +132,6 @@ interface EngineState {
   setTargetEloAuto: (auto: boolean) => void;
   setTargetEloManual: (elo: number) => void;
   setRiskTaking: (value: number) => void;
-  setSkill: (value: number) => void;
   setPersonality: (personality: Personality) => void;
   setArmageddon: (enabled: boolean) => void;
   setDisableLimitStrength: (value: boolean) => void;
@@ -174,7 +152,6 @@ export const useEngineStore = create<EngineState>()(
       targetEloAuto: true,
       targetEloManual: 1650,
       riskTaking: 0,
-      skill: 10,
       personality: 'Default',
       armageddon: false,
       disableLimitStrength: false,
@@ -194,7 +171,6 @@ export const useEngineStore = create<EngineState>()(
       setTargetEloAuto: (auto) => set({ targetEloAuto: auto }),
       setTargetEloManual: (elo) => set({ targetEloManual: elo }),
       setRiskTaking: (value: number) => set({ riskTaking: value }),
-      setSkill: (value: number) => set({ skill: value }),
       setPersonality: (personality) => set({ personality }),
       setArmageddon: (enabled) => set({ armageddon: enabled }),
       setDisableLimitStrength: (value) => set({ disableLimitStrength: value }),
@@ -229,11 +205,6 @@ export const useEngineStore = create<EngineState>()(
           updates.riskTaking = FREE_LIMITS.maxRisk;
         }
 
-        // Force skill level to fixed value for free users
-        if (state.skill !== FREE_LIMITS.maxSkill) {
-          updates.skill = FREE_LIMITS.maxSkill;
-        }
-
         // Check personality
         if (!FREE_LIMITS.allowedPersonalities.includes(state.personality as typeof FREE_LIMITS.allowedPersonalities[number])) {
           updates.personality = 'Default';
@@ -256,7 +227,6 @@ export const useEngineStore = create<EngineState>()(
         targetEloAuto: state.targetEloAuto,
         targetEloManual: state.targetEloManual,
         riskTaking: state.riskTaking,
-        skill: state.skill,
         personality: state.personality,
         armageddon: state.armageddon,
         disableLimitStrength: state.disableLimitStrength,

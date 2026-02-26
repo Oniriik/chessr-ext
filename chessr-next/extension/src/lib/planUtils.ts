@@ -12,7 +12,6 @@ const PREMIUM_PLANS: Plan[] = ['lifetime', 'beta', 'premium', 'freetrial'];
 export const FREE_LIMITS = {
   maxElo: 2000,
   maxRisk: 30,
-  maxSkill: 10,
   allowedPersonalities: ['Default', 'Aggressive'] as const,
 } as const;
 
@@ -56,7 +55,6 @@ export function usePlanLimits() {
   return {
     maxElo: premium ? 3500 : FREE_LIMITS.maxElo,
     maxRisk: premium ? 100 : FREE_LIMITS.maxRisk,
-    maxSkill: premium ? 25 : FREE_LIMITS.maxSkill,
     canUseArmageddon: premium,
     canUsePuzzleHints: premium,
     isPersonalityAllowed: (personality: string) =>
@@ -77,8 +75,6 @@ export function validateEngineSettings(
   plan: Plan,
   settings: {
     targetElo?: number;
-    riskTaking?: number;
-    skill?: number;
     personality?: string;
     armageddon?: boolean;
   }
@@ -97,9 +93,6 @@ export function validateEngineSettings(
   if (settings.armageddon) {
     return 'Armageddon mode requires a premium subscription.';
   }
-
-  // Risk and Skill are fixed for free users, so we don't need to validate them
-  // They should always be sent with the free limit values
 
   return null;
 }

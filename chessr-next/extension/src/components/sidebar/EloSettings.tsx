@@ -7,7 +7,6 @@ import { ChevronDown } from 'lucide-react';
 import {
   useEngineStore,
   getRiskLabel,
-  getSkillLabel,
   PERSONALITIES,
   PERSONALITY_INFO,
   type Personality,
@@ -113,45 +112,6 @@ function RiskSection() {
 }
 
 // ============================================================================
-// Skill Section
-// ============================================================================
-function SkillSection() {
-  const { skill, setSkill } = useEngineStore();
-  const { maxSkill } = usePlanLimits();
-  const isLimited = maxSkill < 25;
-
-  // For free users: show fixed value, for premium: show actual value
-  const displaySkill = isLimited ? maxSkill : skill;
-
-  return (
-    <div className="tw-space-y-2">
-      <div className="tw-flex tw-items-center tw-justify-between">
-        <div className="tw-flex tw-items-center tw-gap-1.5">
-          <p className="tw-text-sm tw-font-medium">Skill Level</p>
-          {isLimited && <UpgradeButton tooltip="Unlock skill level control" />}
-        </div>
-        <div className="tw-flex tw-items-center tw-gap-2">
-          <span className="tw-text-xs tw-text-muted-foreground">{displaySkill}</span>
-          <span className="tw-text-base tw-font-bold tw-text-primary">
-            {getSkillLabel(displaySkill)}
-          </span>
-        </div>
-      </div>
-      <Slider
-        value={[displaySkill]}
-        onValueChange={([value]) => !isLimited && setSkill(value)}
-        min={1}
-        max={25}
-        disabled={isLimited}
-        className={isLimited ? 'tw-opacity-50' : ''}
-        step={1}
-      />
-      <p className="tw-text-xs tw-text-muted-foreground">
-        Engine playing strength level
-      </p>
-    </div>
-  );
-}
 
 // ============================================================================
 // Personality Section
@@ -268,8 +228,8 @@ function UnlockEloSection() {
 // ============================================================================
 export function EloSettings() {
   const [expanded, setExpanded] = useState(true);
-  const { getTargetElo, personality, riskTaking, skill, armageddon } = useEngineStore();
-  const { maxRisk, maxSkill, canUseArmageddon } = usePlanLimits();
+  const { getTargetElo, personality, riskTaking, armageddon } = useEngineStore();
+  const { maxRisk, canUseArmageddon } = usePlanLimits();
 
   const targetElo = getTargetElo();
   const personalityLabel = PERSONALITY_INFO[personality].label;
@@ -277,7 +237,6 @@ export function EloSettings() {
 
   // For display in collapsed state
   const displayRisk = maxRisk < 100 ? maxRisk : riskTaking;
-  const displaySkill = maxSkill < 25 ? maxSkill : skill;
 
   return (
     <Card className="tw-bg-muted/50 tw-overflow-hidden">
@@ -302,8 +261,6 @@ export function EloSettings() {
               <span className="tw-text-muted-foreground">•</span>
               <span className="tw-text-muted-foreground">{displayRisk}% risk</span>
               <span className="tw-text-muted-foreground">•</span>
-              <span className="tw-text-muted-foreground">Lv.{displaySkill}</span>
-              <span className="tw-text-muted-foreground">•</span>
               <span className="tw-text-muted-foreground">{personalityLabel}</span>
             </div>
           )}
@@ -319,7 +276,6 @@ export function EloSettings() {
           <CardContent className="tw-p-4 tw-pt-0 tw-space-y-5">
             <TargetEloSection />
             <RiskSection />
-            <SkillSection />
             <PersonalitySection />
             <ArmageddonSection />
             <UnlockEloSection />

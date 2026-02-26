@@ -25,7 +25,7 @@ const DEBOUNCE_MS = 300;
 export function useSuggestionTrigger() {
   const { isGameStarted, playerColor, currentTurn, chessInstance, getUciMoves } =
     useGameStore();
-  const { getTargetElo, personality, riskTaking, skill, armageddon, disableLimitStrength, targetEloAuto, targetEloManual, userElo } = useEngineStore();
+  const { getTargetElo, personality, riskTaking, armageddon, disableLimitStrength, targetEloAuto, targetEloManual, userElo } = useEngineStore();
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected, send } = useWebSocketStore();
@@ -73,9 +73,8 @@ export function useSuggestionTrigger() {
         return;
       }
 
-      // For free users, force risk and skill to their limit values
+      // For free users, force risk to limit value
       const effectiveRisk = premium ? riskTaking : FREE_LIMITS.maxRisk;
-      const effectiveSkill = premium ? skill : FREE_LIMITS.maxSkill;
       const effectiveElo = premium ? targetElo : Math.min(targetElo, FREE_LIMITS.maxElo);
 
       logger.log(`Requesting suggestions for position (contempt: ${effectiveRisk}, moves: ${moves.length})`);
@@ -104,7 +103,6 @@ export function useSuggestionTrigger() {
         personality,
         multiPv: numberOfSuggestions,
         contempt: effectiveRisk,
-        skill: effectiveSkill,
         armageddon: armageddonMode,
         limitStrength: !disableLimitStrength,
       });
@@ -134,7 +132,6 @@ export function useSuggestionTrigger() {
     getUciMoves,
     personality,
     riskTaking,
-    skill,
     armageddon,
     disableLimitStrength,
     targetEloAuto,
