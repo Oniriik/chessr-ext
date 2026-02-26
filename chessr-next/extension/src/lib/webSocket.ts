@@ -288,7 +288,7 @@ class WebSocketManager {
             logger.log('User banned by server:', data.reason);
             const authStore = useAuthStore.getState();
             authStore.signOut();
-            useAuthStore.setState({ error: data.reason || 'Your account has been banned.' });
+            useAuthStore.setState({ error: `Banned: ${data.reason || 'Your account has been banned.'}` });
             this.disconnect();
           } else if (data.type === 'opening_result' || data.type === 'opening_error') {
             // Handle opening data response - dispatch to pending callbacks

@@ -13,8 +13,6 @@ import { useEngineStore } from './engineStore';
 
 const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
 
-const BANNED_ERROR = 'Your account has been banned.';
-
 // Fire-and-forget report of blocked signup attempt
 function reportBlockedSignup(email: string): void {
   fetch(`${SERVER_URL}/report-blocked-signup`, {
@@ -133,7 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Check if user is banned
       if (data?.banned) {
-        const reason = data.ban_reason || BANNED_ERROR;
+        const reason = `Banned: ${data.ban_reason || 'Your account has been banned.'}`;
         await supabase.auth.signOut();
         set({
           user: null,
