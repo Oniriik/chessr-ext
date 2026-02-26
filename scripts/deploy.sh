@@ -10,6 +10,20 @@
 
 set -e
 
+# Remote server configuration
+REMOTE_HOST="root@91.99.78.172"
+REMOTE_PATH="/opt/chessr/app"
+
+# Detect if running locally (macOS) or on server
+is_local() {
+  [[ "$(uname)" == "Darwin" ]]
+}
+
+# Run command on remote server via SSH
+remote_exec() {
+  ssh -t "$REMOTE_HOST" "cd $REMOTE_PATH && $1"
+}
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
@@ -39,16 +53,26 @@ check_env() {
 
 # Build all images
 build() {
-  log_info "Building Docker images..."
-  docker-compose build --parallel
+  if is_local; then
+    log_info "Building Docker images on remote server..."
+    remote_exec "docker-compose build --parallel"
+  else
+    log_info "Building Docker images..."
+    docker-compose build --parallel
+  fi
   log_success "Build complete!"
 }
 
 # Start services
 up() {
-  check_env
-  log_info "Starting Chessr services..."
-  docker-compose up -d
+  if is_local; then
+    log_info "Starting Chessr services on remote server..."
+    remote_exec "docker-compose up -d"
+  else
+    check_env
+    log_info "Starting Chessr services..."
+    docker-compose up -d
+  fi
   log_success "Services started!"
   echo ""
   status
@@ -56,25 +80,44 @@ up() {
 
 # Stop services
 down() {
-  log_info "Stopping Chessr services..."
-  docker-compose down
+  if is_local; then
+    log_info "Stopping Chessr services on remote server..."
+    remote_exec "docker-compose down"
+  else
+    log_info "Stopping Chessr services..."
+    docker-compose down
+  fi
   log_success "Services stopped!"
 }
 
 # Restart services
 restart() {
-  log_info "Restarting Chessr services..."
-  docker-compose restart
+  local service=${1:-}
+  if is_local; then
+    log_info "Restarting Chessr services on remote server..."
+    remote_exec "docker-compose restart $service"
+  else
+    log_info "Restarting Chessr services..."
+    docker-compose restart $service
+  fi
   log_success "Services restarted!"
 }
 
 # View logs
 logs() {
   local service=${1:-}
-  if [ -n "$service" ]; then
-    docker-compose logs -f "$service"
+  if is_local; then
+    if [ -n "$service" ]; then
+      remote_exec "docker-compose logs --tail=100 $service"
+    else
+      remote_exec "docker-compose logs --tail=100"
+    fi
   else
-    docker-compose logs -f
+    if [ -n "$service" ]; then
+      docker-compose logs -f "$service"
+    else
+      docker-compose logs -f
+    fi
   fi
 }
 
@@ -83,33 +126,46 @@ status() {
   echo ""
   log_info "Service Status:"
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-  docker-compose ps
+  if is_local; then
+    remote_exec "docker-compose ps"
+  else
+    docker-compose ps
+  fi
   echo ""
   log_info "Endpoints:"
-  echo "  🎮 Server:    http://localhost:8080 (WebSocket)"
-  echo "  🌐 Landing:   http://localhost:3000"
-  echo "  📊 Admin:     http://localhost:3001"
+  echo "  🎮 Server:    https://engine.chessr.io (WebSocket)"
+  echo "  🌐 Landing:   https://chessr.io"
+  echo "  📊 Admin:     https://admin.chessr.io"
 }
 
 # Pull latest code and rebuild
 update() {
   local service=${1:-}
 
-  log_info "Pulling latest changes..."
-  git pull
-
-  if [ -n "$service" ]; then
-    log_info "Rebuilding $service (no cache)..."
-    docker-compose build --no-cache "$service"
-
-    log_info "Restarting $service..."
-    docker-compose up -d "$service"
+  if is_local; then
+    log_info "Updating on remote server..."
+    if [ -n "$service" ]; then
+      remote_exec "git pull && docker-compose build --no-cache $service && docker-compose up -d $service"
+    else
+      remote_exec "git pull && docker-compose build --no-cache && docker-compose up -d"
+    fi
   else
-    log_info "Rebuilding all images (no cache)..."
-    docker-compose build --no-cache
+    log_info "Pulling latest changes..."
+    git pull
 
-    log_info "Restarting services..."
-    docker-compose up -d
+    if [ -n "$service" ]; then
+      log_info "Rebuilding $service (no cache)..."
+      docker-compose build --no-cache "$service"
+
+      log_info "Restarting $service..."
+      docker-compose up -d "$service"
+    else
+      log_info "Rebuilding all images (no cache)..."
+      docker-compose build --no-cache
+
+      log_info "Restarting services..."
+      docker-compose up -d
+    fi
   fi
 
   log_success "Update complete!"
@@ -140,13 +196,18 @@ clean() {
 help() {
   echo "Chessr Deployment Script"
   echo ""
-  echo "Usage: ./scripts/deploy.sh [command]"
+  echo "Usage: ./scripts/deploy.sh [command] [service]"
   echo ""
+  if is_local; then
+    echo "Running from local machine - commands execute on remote server via SSH"
+    echo "Remote: $REMOTE_HOST:$REMOTE_PATH"
+    echo ""
+  fi
   echo "Commands:"
   echo "  build      Build all Docker images"
   echo "  up         Start all services"
   echo "  down       Stop all services"
-  echo "  restart    Restart all services"
+  echo "  restart    Restart services (optionally: restart [service])"
   echo "  logs       View logs (optionally: logs [service])"
   echo "  status     Check service status"
   echo "  update     Pull latest code, rebuild (no-cache), and restart"
@@ -155,7 +216,7 @@ help() {
   echo "  clean      Remove all containers and images"
   echo "  help       Show this help message"
   echo ""
-  echo "Services: server, landing, admin"
+  echo "Services: server, landing, admin, cron, discord-bot"
 }
 
 # Main
@@ -163,7 +224,7 @@ case "${1:-help}" in
   build)    build ;;
   up)       up ;;
   down)     down ;;
-  restart)  restart ;;
+  restart)  restart "$2" ;;
   logs)     logs "$2" ;;
   status)   status ;;
   update)   update "$2" ;;
