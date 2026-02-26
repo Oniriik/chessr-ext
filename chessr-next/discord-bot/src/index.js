@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, ChannelType } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes } from 'discord.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration
@@ -520,6 +520,195 @@ async function updateStatsChannels() {
 }
 
 // =============================================================================
+// Slash Commands
+// =============================================================================
+
+const commands = [
+  new SlashCommandBuilder()
+    .setName('rank')
+    .setDescription('Show the Chessr rank of a member')
+    .addUserOption(opt => opt.setName('member').setDescription('The member to check').setRequired(false)),
+  new SlashCommandBuilder()
+    .setName('ladder')
+    .setDescription('Show the top 10 players by rapid ELO'),
+];
+
+async function registerCommands() {
+  const rest = new REST({ version: '10' }).setToken(config.discordToken);
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(client.user.id, config.guildId),
+      { body: commands.map(c => c.toJSON()) },
+    );
+    console.log('[Commands] Slash commands registered');
+  } catch (err) {
+    console.error('[Commands] Failed to register:', err.message);
+  }
+}
+
+function getEloBracketName(elo) {
+  if (elo <= 0) return 'Unranked';
+  const bracket = ELO_BRACKETS.find(b => elo <= b.maxElo);
+  return bracket?.name || 'Unknown';
+}
+
+function getEloColor(elo) {
+  if (elo >= 2000) return 0xf59e0b; // gold
+  if (elo >= 1800) return 0xa855f7; // purple
+  if (elo >= 1600) return 0x3b82f6; // blue
+  if (elo >= 1400) return 0x10b981; // green
+  if (elo >= 1200) return 0x6366f1; // indigo
+  if (elo >= 1000) return 0x8b5cf6; // violet
+  if (elo >= 800) return 0x64748b;  // slate
+  return 0x94a3b8; // gray
+}
+
+async function handleRankCommand(interaction) {
+  const targetUser = interaction.options.getUser('member') || interaction.user;
+
+  // Look up in Supabase
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('user_id, plan, discord_username')
+    .eq('discord_id', targetUser.id)
+    .single();
+
+  if (!settings) {
+    await interaction.reply({
+      content: `${targetUser} hasn't linked their Chessr account yet.`,
+      ephemeral: true,
+    });
+    return;
+  }
+
+  // Get linked accounts with ratings
+  const { data: accounts } = await supabase
+    .from('linked_accounts')
+    .select('platform, platform_username, rating_bullet, rating_blitz, rating_rapid')
+    .eq('user_id', settings.user_id)
+    .is('unlinked_at', null);
+
+  const highestRapid = await getHighestRapidElo(settings.user_id);
+  const bracketName = getEloBracketName(highestRapid);
+
+  const fields = [
+    { name: '♟ Rank', value: `**${bracketName}**`, inline: true },
+    { name: '📊 Rapid ELO', value: highestRapid > 0 ? `**${highestRapid}**` : 'N/A', inline: true },
+    { name: '📋 Plan', value: settings.plan.charAt(0).toUpperCase() + settings.plan.slice(1), inline: true },
+  ];
+
+  if (accounts && accounts.length > 0) {
+    const accountLines = accounts.map(a => {
+      const platformLabel = a.platform === 'chesscom' ? 'Chess.com' : 'Lichess';
+      const ratings = [
+        a.rating_bullet ? `Bullet: ${a.rating_bullet}` : null,
+        a.rating_blitz ? `Blitz: ${a.rating_blitz}` : null,
+        a.rating_rapid ? `Rapid: ${a.rating_rapid}` : null,
+      ].filter(Boolean).join(' | ');
+      return `**${platformLabel}** — ${a.platform_username}\n${ratings || 'No ratings'}`;
+    });
+    fields.push({ name: '🔗 Linked Accounts', value: accountLines.join('\n\n') });
+  }
+
+  await interaction.reply({
+    embeds: [{
+      title: `${targetUser.username}'s Chessr Profile`,
+      color: getEloColor(highestRapid),
+      fields,
+      thumbnail: { url: targetUser.displayAvatarURL({ size: 128 }) },
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+    }],
+  });
+}
+
+async function handleLadderCommand(interaction) {
+  // Get all linked users with discord_id
+  const { data: linkedUsers } = await supabase
+    .from('user_settings')
+    .select('user_id, discord_id, discord_username')
+    .not('discord_id', 'is', null);
+
+  if (!linkedUsers || linkedUsers.length === 0) {
+    await interaction.reply({ content: 'No linked players yet.', ephemeral: true });
+    return;
+  }
+
+  // Get all linked accounts ratings
+  const userIds = linkedUsers.map(u => u.user_id);
+  const { data: allAccounts } = await supabase
+    .from('linked_accounts')
+    .select('user_id, rating_rapid')
+    .in('user_id', userIds)
+    .is('unlinked_at', null);
+
+  // Calculate max rapid per user
+  const eloMap = new Map();
+  if (allAccounts) {
+    for (const a of allAccounts) {
+      const current = eloMap.get(a.user_id) || 0;
+      if ((a.rating_rapid || 0) > current) {
+        eloMap.set(a.user_id, a.rating_rapid);
+      }
+    }
+  }
+
+  // Build leaderboard
+  const leaderboard = linkedUsers
+    .map(u => ({
+      discordId: u.discord_id,
+      username: u.discord_username || 'Unknown',
+      elo: eloMap.get(u.user_id) || 0,
+    }))
+    .filter(u => u.elo > 0)
+    .sort((a, b) => b.elo - a.elo)
+    .slice(0, 10);
+
+  if (leaderboard.length === 0) {
+    await interaction.reply({ content: 'No players with rated accounts yet.', ephemeral: true });
+    return;
+  }
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const lines = leaderboard.map((u, i) => {
+    const prefix = i < 3 ? medals[i] : `\`${i + 1}.\``;
+    const bracket = getEloBracketName(u.elo);
+    return `${prefix} <@${u.discordId}> — **${u.elo}** (${bracket})`;
+  });
+
+  await interaction.reply({
+    embeds: [{
+      title: '🏆 Chessr Rapid Leaderboard',
+      description: lines.join('\n'),
+      color: 0xf59e0b,
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Based on highest rapid rating across linked accounts • Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+    }],
+  });
+}
+
+// Handle slash command interactions
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  try {
+    if (interaction.commandName === 'rank') {
+      await handleRankCommand(interaction);
+    } else if (interaction.commandName === 'ladder') {
+      await handleLadderCommand(interaction);
+    }
+  } catch (err) {
+    console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);
+    const reply = { content: 'Something went wrong.', ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(reply).catch(() => {});
+    } else {
+      await interaction.reply(reply).catch(() => {});
+    }
+  }
+});
+
+// =============================================================================
 // Bot Events
 // =============================================================================
 
@@ -574,6 +763,9 @@ client.once('ready', async () => {
   console.log(`[Discord] Logged in as ${client.user.tag}`);
   console.log(`[Discord] Watching guild: ${config.guildId}`);
   console.log(`[Discord] Update interval: ${config.updateInterval / 1000}s`);
+
+  // Register slash commands
+  await registerCommands();
 
   // Initial update
   await updateStatsChannels();
