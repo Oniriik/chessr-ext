@@ -93,14 +93,24 @@ status() {
 
 # Pull latest code and rebuild
 update() {
+  local service=${1:-}
+
   log_info "Pulling latest changes..."
   git pull
 
-  log_info "Rebuilding images..."
-  build
+  if [ -n "$service" ]; then
+    log_info "Rebuilding $service (no cache)..."
+    docker-compose build --no-cache "$service"
 
-  log_info "Restarting services..."
-  docker-compose up -d
+    log_info "Restarting $service..."
+    docker-compose up -d "$service"
+  else
+    log_info "Rebuilding all images (no cache)..."
+    docker-compose build --no-cache
+
+    log_info "Restarting services..."
+    docker-compose up -d
+  fi
 
   log_success "Update complete!"
   status
@@ -139,7 +149,8 @@ help() {
   echo "  restart    Restart all services"
   echo "  logs       View logs (optionally: logs [service])"
   echo "  status     Check service status"
-  echo "  update     Pull latest code, rebuild, and restart"
+  echo "  update     Pull latest code, rebuild (no-cache), and restart"
+  echo "             Optionally: update [service] to update single service"
   echo "  extension  Build Chrome extension"
   echo "  clean      Remove all containers and images"
   echo "  help       Show this help message"
@@ -155,7 +166,7 @@ case "${1:-help}" in
   restart)  restart ;;
   logs)     logs "$2" ;;
   status)   status ;;
-  update)   update ;;
+  update)   update "$2" ;;
   extension) extension ;;
   clean)    clean ;;
   help)     help ;;
