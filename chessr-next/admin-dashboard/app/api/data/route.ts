@@ -71,27 +71,39 @@ export async function GET(request: Request) {
 
     const supabase = getServiceRoleClient()
 
-    // Fetch all activity rows in period
-    const { data: rows, error } = await supabase
-      .from('user_activity')
-      .select('event_type, created_at, user_id')
-      .gte('created_at', sinceISO)
-      .order('created_at', { ascending: true })
+    // Fetch all activity rows in period (paginate to bypass 1000 row limit)
+    const rows: { event_type: string; created_at: string; user_id: string }[] = []
+    const PAGE_SIZE = 1000
+    let from = 0
 
-    if (error) {
-      console.error('Error fetching activity:', error)
-      return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
+    while (true) {
+      const { data, error } = await supabase
+        .from('user_activity')
+        .select('event_type, created_at, user_id')
+        .gte('created_at', sinceISO)
+        .order('created_at', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
+
+      if (error) {
+        console.error('Error fetching activity:', error)
+        return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
+      }
+
+      if (!data || data.length === 0) break
+      rows.push(...data)
+      if (data.length < PAGE_SIZE) break
+      from += PAGE_SIZE
     }
 
     // Counts
-    const suggestions = rows?.filter((r) => r.event_type === 'suggestion').length || 0
-    const analyses = rows?.filter((r) => r.event_type === 'analysis').length || 0
+    const suggestions = rows.filter((r) => r.event_type === 'suggestion').length
+    const analyses = rows.filter((r) => r.event_type === 'analysis').length
     const uniqueUsers = new Set(
-      rows?.filter((r) => r.event_type === 'suggestion').map((r) => r.user_id) || []
+      rows.filter((r) => r.event_type === 'suggestion').map((r) => r.user_id)
     )
 
     // Timeline
-    const timeline = bucketize(rows || [], since, now, config.bucketMs)
+    const timeline = bucketize(rows, since, now, config.bucketMs)
 
     // All-time total suggestions
     const { data: globalStats } = await supabase
