@@ -84,14 +84,20 @@ function getCountryFromEmail(email: string): { flag: string; country: string } |
   return null;
 }
 
-async function sendDiscordWebhook(email: string, createdAt: string): Promise<void> {
+async function sendDiscordWebhook(email: string, createdAt: string, storedCountry?: string): Promise<void> {
   if (!DISCORD_WEBHOOK_URL) {
     console.error('[Signup] DISCORD_SIGNUP_WEBHOOK_URL not set');
     return;
   }
 
-  const countryInfo = getCountryFromEmail(email);
-  const countryText = countryInfo ? `${countryInfo.flag} ${countryInfo.country}` : '🌍 Unknown';
+  // Use stored country from IP geolocation, fallback to email TLD
+  let countryText: string;
+  if (storedCountry) {
+    countryText = storedCountry;
+  } else {
+    const countryInfo = getCountryFromEmail(email);
+    countryText = countryInfo ? `${countryInfo.flag} ${countryInfo.country}` : '🌍 Unknown';
+  }
 
   const embed = {
     title: '🎉 New User Signup',
@@ -138,7 +144,7 @@ async function notifySignups() {
     console.log(`[Signup] Last check: ${lastCheck}`);
 
     // Get all auth users, paginated
-    const newUsers: { email: string; created_at: string }[] = [];
+    const newUsers: { id: string; email: string; created_at: string }[] = [];
     let page = 1;
 
     while (true) {
@@ -151,7 +157,7 @@ async function notifySignups() {
 
       for (const user of batch.users) {
         if (user.created_at > lastCheck && user.email) {
-          newUsers.push({ email: user.email, created_at: user.created_at });
+          newUsers.push({ id: user.id, email: user.email, created_at: user.created_at });
         }
       }
 
@@ -167,12 +173,29 @@ async function notifySignups() {
 
     console.log(`[Signup] Found ${newUsers.length} new signup(s)`);
 
+    // Fetch stored countries from signup_ips
+    const userIds = newUsers.map((u) => u.id);
+    const { data: ipData } = await supabase
+      .from('signup_ips')
+      .select('user_id, country')
+      .in('user_id', userIds);
+
+    const countryMap = new Map<string, string>();
+    if (ipData) {
+      for (const row of ipData) {
+        if (row.country) {
+          countryMap.set(row.user_id, row.country);
+        }
+      }
+    }
+
     // Sort by creation date (oldest first)
     newUsers.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     for (const user of newUsers) {
-      await sendDiscordWebhook(user.email, user.created_at);
-      console.log(`[Signup] Notified: ${user.email}`);
+      const storedCountry = countryMap.get(user.id);
+      await sendDiscordWebhook(user.email, user.created_at, storedCountry);
+      console.log(`[Signup] Notified: ${user.email} (${storedCountry || 'unknown'})`);
       // Small delay to avoid rate limiting
       await new Promise((r) => setTimeout(r, 500));
     }

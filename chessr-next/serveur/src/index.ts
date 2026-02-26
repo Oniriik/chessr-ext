@@ -56,6 +56,84 @@ const supabase = createClient(
 // Store authenticated connections
 const clients = new Map<string, Client>();
 
+// Cache of user+ip pairs already stored (avoid repeated DB checks)
+const storedIpPairs = new Set<string>();
+
+// Store user IP and resolve country via geolocation
+// Stores every unique IP per user (useful for freetrial abuse detection)
+async function storeUserIp(userId: string, ip: string | null) {
+  if (!ip) return;
+
+  // Normalize IPv6-mapped IPv4 (::ffff:1.2.3.4 -> 1.2.3.4)
+  const cleanIp = ip.replace(/^::ffff:/, "");
+
+  // Skip private/local IPs
+  if (
+    cleanIp === "127.0.0.1" ||
+    cleanIp === "::1" ||
+    cleanIp.startsWith("10.") ||
+    cleanIp.startsWith("172.") ||
+    cleanIp.startsWith("192.168.")
+  ) {
+    return;
+  }
+
+  const pairKey = `${userId}:${cleanIp}`;
+  if (storedIpPairs.has(pairKey)) return;
+
+  try {
+    // Check if this exact user+ip combo already exists
+    const { data: existing } = await supabase
+      .from("signup_ips")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("ip_address", cleanIp)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      storedIpPairs.add(pairKey);
+      return;
+    }
+
+    // Resolve IP to country
+    let country: string | null = null;
+    let countryCode: string | null = null;
+    try {
+      const res = await fetch(
+        `http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === "success") {
+          country = data.country;
+          countryCode = data.countryCode;
+        }
+      }
+    } catch (e) {
+      console.error("[IP] Geolocation API failed:", e);
+    }
+
+    // Store in DB
+    const { error } = await supabase.from("signup_ips").insert({
+      user_id: userId,
+      ip_address: cleanIp,
+      country,
+      country_code: countryCode,
+    });
+
+    if (error) {
+      console.error("[IP] Failed to store:", error.message);
+    } else {
+      storedIpPairs.add(pairKey);
+      console.log(
+        `[IP] Stored for ${userId}: ${cleanIp} -> ${country || "unknown"}`,
+      );
+    }
+  } catch (e) {
+    console.error("[IP] Error:", e);
+  }
+}
+
 // =============================================================================
 // HTTP Server for version endpoint
 // =============================================================================
@@ -139,7 +217,12 @@ initStockfishPool(MAX_STOCKFISH_INSTANCES).catch((err) => {
   process.exit(1);
 });
 
-wss.on("connection", (ws: WebSocket) => {
+wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+  // Extract client IP from headers (reverse proxy) or socket
+  const clientIp =
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
+    req.socket.remoteAddress ||
+    null;
 
   let userId: string | null = null;
   let isAuthenticated = false;
@@ -195,6 +278,9 @@ wss.on("connection", (ws: WebSocket) => {
           ws,
           user: { id: user.id, email: user.email || "" },
         });
+
+        // Store IP and resolve country (fire and forget)
+        storeUserIp(user.id, clientIp);
 
         logConnection(user.email || userId, 'connected');
         ws.send(

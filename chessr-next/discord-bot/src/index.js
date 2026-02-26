@@ -157,7 +157,7 @@ async function checkNewSignups() {
       if (!batch?.users.length) break;
       for (const user of batch.users) {
         if (user.created_at > lastCheck && user.email) {
-          newUsers.push({ email: user.email, created_at: user.created_at });
+          newUsers.push({ id: user.id, email: user.email, created_at: user.created_at });
         }
       }
       if (batch.users.length < 1000) break;
@@ -171,6 +171,22 @@ async function checkNewSignups() {
 
     if (newUsers.length === 0) return;
 
+    // Fetch stored countries from signup_ips
+    const userIds = newUsers.map(u => u.id);
+    const { data: ipData } = await supabase
+      .from('signup_ips')
+      .select('user_id, country, country_code')
+      .in('user_id', userIds);
+
+    const countryMap = new Map();
+    if (ipData) {
+      for (const row of ipData) {
+        if (row.country) {
+          countryMap.set(row.user_id, row.country);
+        }
+      }
+    }
+
     // Get signup channel
     const channel = await client.channels.fetch(config.signupChannelId).catch(() => null);
     if (!channel) {
@@ -181,19 +197,23 @@ async function checkNewSignups() {
     // Send embeds
     newUsers.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     for (const user of newUsers) {
+      // Use stored country from IP, fallback to email TLD
+      const storedCountry = countryMap.get(user.id);
+      const countryText = storedCountry || getCountryFromEmail(user.email);
+
       await channel.send({
         embeds: [{
           title: '🎉 New User Signup',
           color: 0x10b981,
           fields: [
             { name: '📧 Email', value: user.email, inline: true },
-            { name: '🌍 Country', value: getCountryFromEmail(user.email), inline: true },
+            { name: '🌍 Country', value: countryText, inline: true },
           ],
           timestamp: user.created_at,
           footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
         }],
       });
-      console.log(`[Signup] Notified: ${user.email}`);
+      console.log(`[Signup] Notified: ${user.email} (${countryText})`);
     }
 
     console.log(`[Signup] ${newUsers.length} new signup(s) notified`);
