@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import {
   Server,
   Play,
@@ -24,6 +25,7 @@ import {
   Terminal,
   Download,
   Package,
+  Wrench,
 } from 'lucide-react'
 
 interface ServiceStatus {
@@ -56,6 +58,52 @@ export function ServerPanel() {
     title: string
   } | null>(null)
 
+  // Maintenance scheduling
+  const [maintenanceStart, setMaintenanceStart] = useState('')
+  const [maintenanceEnd, setMaintenanceEnd] = useState('')
+  const [currentMaintenance, setCurrentMaintenance] = useState<{
+    scheduled: boolean; startTimestamp: number; endTimestamp: number
+  } | null>(null)
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false)
+
+  const fetchMaintenance = async () => {
+    try {
+      const res = await fetch('/api/maintenance')
+      if (res.ok) setCurrentMaintenance(await res.json())
+    } catch {}
+  }
+
+  const scheduleMaintenance = async () => {
+    if (!maintenanceStart || !maintenanceEnd) return
+    setMaintenanceLoading(true)
+    try {
+      const startTimestamp = Math.floor(new Date(maintenanceStart).getTime() / 1000)
+      const endTimestamp = Math.floor(new Date(maintenanceEnd).getTime() / 1000)
+      const res = await fetch('/api/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ startTimestamp, endTimestamp }),
+      })
+      if (res.ok) {
+        setMaintenanceStart('')
+        setMaintenanceEnd('')
+        await fetchMaintenance()
+      }
+    } catch {} finally {
+      setMaintenanceLoading(false)
+    }
+  }
+
+  const cancelMaintenance = async () => {
+    setMaintenanceLoading(true)
+    try {
+      const res = await fetch('/api/maintenance', { method: 'DELETE' })
+      if (res.ok) await fetchMaintenance()
+    } catch {} finally {
+      setMaintenanceLoading(false)
+    }
+  }
+
   const fetchStatus = async () => {
     setLoading(true)
     try {
@@ -73,6 +121,7 @@ export function ServerPanel() {
 
   useEffect(() => {
     fetchStatus()
+    fetchMaintenance()
     const interval = setInterval(fetchStatus, 15000)
     return () => clearInterval(interval)
   }, [])
@@ -213,6 +262,61 @@ export function ServerPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Maintenance scheduling */}
+      <Card className="border-border/50 bg-card/50 backdrop-blur">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Wrench className="w-5 h-5 text-orange-400" />
+            Scheduled Maintenance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {currentMaintenance?.scheduled ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">
+                  {new Date(currentMaintenance.startTimestamp * 1000).toLocaleString()}
+                  {' → '}
+                  {new Date(currentMaintenance.endTimestamp * 1000).toLocaleString()}
+                </p>
+              </div>
+              <Button variant="destructive" size="sm" onClick={cancelMaintenance} disabled={maintenanceLoading}>
+                {maintenanceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cancel'}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted-foreground">Start</label>
+                <Input
+                  type="datetime-local"
+                  value={maintenanceStart}
+                  onChange={(e) => setMaintenanceStart(e.target.value)}
+                  className="w-auto"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-muted-foreground">End</label>
+                <Input
+                  type="datetime-local"
+                  value={maintenanceEnd}
+                  onChange={(e) => setMaintenanceEnd(e.target.value)}
+                  className="w-auto"
+                />
+              </div>
+              <Button
+                size="sm"
+                className="self-end"
+                onClick={scheduleMaintenance}
+                disabled={maintenanceLoading || !maintenanceStart || !maintenanceEnd}
+              >
+                {maintenanceLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Schedule'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Header with global actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-muted-foreground">

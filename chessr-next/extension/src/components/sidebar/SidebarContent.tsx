@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
+import { MaintenanceBanner } from './MaintenanceBanner';
 import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
 import { MoveListDisplay } from './MoveListDisplay';
@@ -163,6 +164,7 @@ function AuthenticatedContent() {
           <SettingsView />
         ) : (
           <div className="tw-flex tw-flex-col tw-flex-1 tw-overflow-hidden tw-space-y-4">
+            <MaintenanceBanner />
             <GameStatusCard />
             <Tabs defaultValue="game" className="tw-w-full tw-flex-1 tw-flex tw-flex-col tw-overflow-hidden">
               <TabsList className="tw-w-full tw-flex-shrink-0">

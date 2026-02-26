@@ -9,6 +9,7 @@ import { useSuggestionStore } from '../stores/suggestionStore';
 import { usePuzzleStore } from '../stores/puzzleStore';
 import { useAccuracyStore } from '../stores/accuracyStore';
 import { useLinkedAccountsStore, type LinkedAccount, type LinkErrorCode } from '../stores/linkedAccountsStore';
+import { useMaintenanceStore } from '../stores/maintenanceStore';
 import { logger } from './logger';
 
 type MessageHandler = (data: unknown) => void;
@@ -165,6 +166,11 @@ class WebSocketManager {
             this._isConnecting = false;
             this.reconnectAttempts = 0;
             this.connectHandlers.forEach((h) => h());
+
+            // Update maintenance schedule from server
+            const maint = data.maintenanceSchedule;
+            useMaintenanceStore.getState().setSchedule(maint?.start || null, maint?.end || null);
+
             resolve();
           } else if (data.type === 'auth_error') {
             logger.error('Authentication failed:', data.error);

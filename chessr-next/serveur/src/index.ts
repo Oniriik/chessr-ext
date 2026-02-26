@@ -83,6 +83,29 @@ const banCache = new Map<
   { banned: boolean; reason: string | null; checkedAt: number }
 >();
 
+// Maintenance schedule cache (refreshed every 60s)
+let maintenanceStart: number = 0; // Unix epoch seconds, 0 = none
+let maintenanceEnd: number = 0;
+let maintenanceLastChecked: number = 0;
+
+async function getMaintenanceSchedule(): Promise<{ start: number; end: number }> {
+  if (Date.now() - maintenanceLastChecked < BAN_CACHE_TTL) {
+    return { start: maintenanceStart, end: maintenanceEnd };
+  }
+  try {
+    const { data } = await supabase
+      .from("global_stats")
+      .select("key, value")
+      .in("key", ["maintenance_schedule", "maintenance_schedule_end"]);
+    maintenanceStart = Number(data?.find((r: { key: string }) => r.key === "maintenance_schedule")?.value || 0);
+    maintenanceEnd = Number(data?.find((r: { key: string }) => r.key === "maintenance_schedule_end")?.value || 0);
+    maintenanceLastChecked = Date.now();
+  } catch {
+    // keep last known values
+  }
+  return { start: maintenanceStart, end: maintenanceEnd };
+}
+
 // Discord webhook for signup notifications
 const DISCORD_SIGNUP_WEBHOOK_URL = process.env.DISCORD_SIGNUP_WEBHOOK_URL;
 
@@ -430,6 +453,10 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         storeUserIp(user.id, clientIp);
 
         logConnection(user.email || userId, 'connected');
+
+        // Get maintenance schedule for the client
+        const maintenance = await getMaintenanceSchedule();
+
         ws.send(
           JSON.stringify({
             type: "auth_success",
@@ -437,6 +464,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
               id: user.id,
               email: user.email,
             },
+            maintenanceSchedule: maintenance.start > 0 ? maintenance : null,
           }),
         );
         return;
