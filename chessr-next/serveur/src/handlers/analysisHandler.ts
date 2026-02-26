@@ -272,6 +272,9 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
     },
 
     callback: (error, result) => {
+      // Guard: client may have disconnected while request was queued
+      if (client.ws.readyState !== 1) return;
+
       if (error) {
         logError({
           requestId,

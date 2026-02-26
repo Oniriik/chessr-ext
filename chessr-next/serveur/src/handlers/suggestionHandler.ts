@@ -4,7 +4,7 @@
 
 import type { WebSocket } from 'ws';
 import { EnginePool } from '../engine/EnginePool.js';
-import { getEngineConfig, SEARCH_NODES } from '../engine/KomodoConfig.js';
+import { getEngineConfig, computeNodesForElo, PUZZLE_NODES } from '../engine/KomodoConfig.js';
 import { labelSuggestions } from '../engine/MoveLabeler.js';
 import { SuggestionQueue } from '../queue/SuggestionQueue.js';
 import { logStart, logEnd, logError } from '../utils/logger.js';
@@ -29,8 +29,7 @@ export interface SuggestionMessage {
   contempt?: number; // Win intent (0-100) from side-to-move perspective
   puzzleMode?: boolean; // True for puzzle suggestions (max power, no ELO limit)
   limitStrength?: boolean; // Whether to limit engine strength (default true)
-  skill?: number; // Skill level 0-20 (default 20)
-  armageddon?: 'off' | 'white' | 'black'; // Armageddon mode (not used yet)
+  armageddon?: 'off' | 'white' | 'black'; // Armageddon mode
 }
 
 // Engine pool instance
@@ -126,7 +125,7 @@ function startProcessingLoop(): void {
  * Handle suggestion request message
  */
 export function handleSuggestionRequest(message: SuggestionMessage, client: Client): void {
-  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, puzzleMode, limitStrength, skill } = message;
+  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, puzzleMode, limitStrength, armageddon } = message;
 
   // Validate required fields
   if (!requestId || !fen) {
@@ -168,7 +167,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     multiPv: pvCount,
     contempt: contempt ?? 0,
     limitStrength: limitStrength,
-    skill: skill,
+    armageddon: armageddon,
     puzzleMode: puzzleMode,
   });
 
@@ -181,10 +180,10 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       // Configure engine for this request
       await engine.configure(config);
 
-      // Run search: 2M nodes for puzzles, 700k nodes for games
-      const searchOptions = puzzleMode
-        ? { nodes: 2000000, moves }
-        : { nodes: SEARCH_NODES, moves };
+      // Node count: max for puzzles or unlimited strength, scaled by ELO otherwise
+      const fullStrength = puzzleMode || limitStrength === false;
+      const nodes = fullStrength ? PUZZLE_NODES : computeNodesForElo(targetElo || 1500);
+      const searchOptions = { nodes, moves };
       const rawSuggestions = await engine.search(fen, pvCount, searchOptions);
 
       // Label suggestions
@@ -203,6 +202,9 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     },
 
     callback: (error, result) => {
+      // Guard: client may have disconnected while request was queued
+      if (client.ws.readyState !== 1) return;
+
       if (error) {
         logError({
           requestId,
