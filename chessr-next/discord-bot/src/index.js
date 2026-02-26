@@ -171,18 +171,22 @@ async function checkNewSignups() {
 
     if (newUsers.length === 0) return;
 
-    // Fetch stored countries from signup_ips
+    // Fetch stored countries and IPs from signup_ips
     const userIds = newUsers.map(u => u.id);
     const { data: ipData } = await supabase
       .from('signup_ips')
-      .select('user_id, country, country_code')
+      .select('user_id, country, country_code, ip_address')
       .in('user_id', userIds);
 
     const countryMap = new Map();
+    const ipMap = new Map();
     if (ipData) {
       for (const row of ipData) {
         if (row.country) {
           countryMap.set(row.user_id, row.country);
+        }
+        if (row.ip_address) {
+          ipMap.set(row.user_id, row.ip_address);
         }
       }
     }
@@ -200,20 +204,27 @@ async function checkNewSignups() {
       // Use stored country from IP, fallback to email TLD
       const storedCountry = countryMap.get(user.id);
       const countryText = storedCountry || getCountryFromEmail(user.email);
+      const storedIp = ipMap.get(user.id);
+
+      const fields = [
+        { name: '📧 Email', value: user.email, inline: true },
+        { name: '🌍 Country', value: countryText, inline: true },
+      ];
+
+      if (storedIp) {
+        fields.push({ name: '🔒 IP', value: storedIp, inline: true });
+      }
 
       await channel.send({
         embeds: [{
           title: '🎉 New User Signup',
           color: 0x10b981,
-          fields: [
-            { name: '📧 Email', value: user.email, inline: true },
-            { name: '🌍 Country', value: countryText, inline: true },
-          ],
+          fields,
           timestamp: user.created_at,
           footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
         }],
       });
-      console.log(`[Signup] Notified: ${user.email} (${countryText})`);
+      console.log(`[Signup] Notified: ${user.email} (${countryText}, IP: ${storedIp || 'unknown'})`);
     }
 
     console.log(`[Signup] ${newUsers.length} new signup(s) notified`);

@@ -37,6 +37,8 @@ import {
   Trash2,
   ShieldCheck,
   ShieldX,
+  Ban,
+  ShieldOff,
 } from 'lucide-react'
 import {
   type AdminUser,
@@ -116,6 +118,11 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [deletePassword, setDeletePassword] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+
+  // Ban dialog state
+  const [banUser, setBanUser] = useState<AdminUser | null>(null)
+  const [banReason, setBanReason] = useState('')
+  const [banning, setBanning] = useState(false)
 
   // Linked accounts state
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccountsData | null>(null)
@@ -347,6 +354,89 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
       setDeleteError('Network error')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const BAN_TEMPLATES = [
+    'Disposable email usage',
+    'Terms of Service violation',
+    'Inappropriate behavior',
+    'Suspicious activity',
+  ]
+
+  const openBanDialog = (user: AdminUser) => {
+    setBanUser(user)
+    setBanReason('')
+  }
+
+  const closeBanDialog = () => {
+    setBanUser(null)
+    setBanReason('')
+  }
+
+  const confirmBan = async () => {
+    if (!banUser) return
+
+    setBanning(true)
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: banUser.user_id,
+          callerRole: userRole,
+          adminUserId: userId,
+          adminEmail: userEmail,
+          userEmail: banUser.email,
+          banned: true,
+          banReason: banReason || 'Banned by admin',
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to ban user')
+      }
+
+      closeBanDialog()
+      closeEditDialog()
+      await fetchUsers()
+    } catch (error) {
+      console.error('Failed to ban user:', error)
+      alert(error instanceof Error ? error.message : 'Failed to ban user')
+    } finally {
+      setBanning(false)
+    }
+  }
+
+  const unbanUser = async (user: AdminUser) => {
+    setSaving(true)
+    try {
+      const response = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.user_id,
+          callerRole: userRole,
+          adminUserId: userId,
+          adminEmail: userEmail,
+          userEmail: user.email,
+          banned: false,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to unban user')
+      }
+
+      closeEditDialog()
+      await fetchUsers()
+    } catch (error) {
+      console.error('Failed to unban user:', error)
+      alert(error instanceof Error ? error.message : 'Failed to unban user')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -599,6 +689,11 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                             <ShieldX className="w-3.5 h-3.5 text-red-400 shrink-0" title="Email not verified" />
                           )}
                           <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
+                          {user.banned && (
+                            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 ml-1.5 text-[10px] px-1 py-0">
+                              Banned
+                            </Badge>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-2">
@@ -859,17 +954,59 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
             </div>
           </div>
 
+          {/* Ban status indicator */}
+          {editUser?.banned && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
+                <Ban className="w-4 h-4" />
+                Banned
+              </div>
+              {editUser.ban_reason && (
+                <p className="text-xs text-muted-foreground mt-1">{editUser.ban_reason}</p>
+              )}
+              {editUser.banned_by && editUser.banned_at && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  by {editUser.banned_by} on {formatDate(editUser.banned_at)}
+                </p>
+              )}
+            </div>
+          )}
+
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => editUser && openDeleteDialog(editUser)}
-              disabled={saving}
-              className="sm:mr-auto"
-            >
-              <Trash2 className="w-4 h-4 mr-1" />
-              Delete user
-            </Button>
+            <div className="flex gap-2 sm:mr-auto">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => editUser && openDeleteDialog(editUser)}
+                disabled={saving}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Delete
+              </Button>
+              {editUser?.banned ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => editUser && unbanUser(editUser)}
+                  disabled={saving}
+                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                >
+                  <ShieldOff className="w-4 h-4 mr-1" />
+                  Unban
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => editUser && openBanDialog(editUser)}
+                  disabled={saving}
+                  className="text-red-400 border-red-500/30 hover:bg-red-500/10"
+                >
+                  <Ban className="w-4 h-4 mr-1" />
+                  Ban
+                </Button>
+              )}
+            </div>
             <Button variant="outline" onClick={closeEditDialog} disabled={saving}>
               Cancel
             </Button>
@@ -932,6 +1069,69 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <>
                   <Trash2 className="w-4 h-4 mr-1" />
                   Delete permanently
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban Confirmation Dialog */}
+      <Dialog open={!!banUser} onOpenChange={(open) => !open && closeBanDialog()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-red-400">Ban User</DialogTitle>
+            <DialogDescription>
+              Ban <strong>{banUser?.email}</strong> from using Chessr. They will be disconnected and unable to log in.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reason template</label>
+              <div className="flex flex-wrap gap-2">
+                {BAN_TEMPLATES.map((template) => (
+                  <Button
+                    key={template}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setBanReason(template)}
+                    className={`text-xs ${banReason === template ? 'border-red-500/50 bg-red-500/10 text-red-400' : ''}`}
+                  >
+                    {template}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Custom reason</label>
+              <Input
+                placeholder="Enter ban reason..."
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={closeBanDialog} disabled={banning}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBan}
+              disabled={banning}
+            >
+              {banning ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Banning...
+                </>
+              ) : (
+                <>
+                  <Ban className="w-4 h-4 mr-1" />
+                  Ban user
                 </>
               )}
             </Button>

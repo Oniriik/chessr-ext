@@ -13,6 +13,10 @@ export interface AdminUser {
   email_confirmed: boolean
   linked_count: number
   last_activity: string | null
+  banned: boolean
+  ban_reason: string | null
+  banned_at: string | null
+  banned_by: string | null
 }
 
 export interface AuthState {

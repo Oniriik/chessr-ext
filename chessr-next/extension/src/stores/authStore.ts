@@ -11,6 +11,19 @@ import { isRateLimited, recordFailedAttempt, resetAttempts, RATE_LIMIT_ERROR } f
 import type { Plan } from '../components/ui/plan-badge';
 import { useEngineStore } from './engineStore';
 
+const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
+
+const BANNED_ERROR = 'Your account has been banned.';
+
+// Fire-and-forget report of blocked signup attempt
+function reportBlockedSignup(email: string): void {
+  fetch(`${SERVER_URL}/report-blocked-signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  }).catch(() => {});
+}
+
 interface AuthState {
   // User state
   user: User | null;
@@ -107,13 +120,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('plan, plan_expiry')
+        .select('plan, plan_expiry, banned, ban_reason')
         .eq('user_id', userId)
         .single();
 
       if (error) {
         console.error('[Auth] fetchPlan error:', error);
         set({ plan: 'free', planExpiry: null });
+        useEngineStore.getState().enforcePlanLimits('free');
+        return;
+      }
+
+      // Check if user is banned
+      if (data?.banned) {
+        const reason = data.ban_reason || BANNED_ERROR;
+        await supabase.auth.signOut();
+        set({
+          user: null,
+          session: null,
+          plan: 'free',
+          planExpiry: null,
+          loading: false,
+          error: reason,
+        });
         useEngineStore.getState().enforcePlanLimits('free');
         return;
       }
@@ -148,12 +177,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const isDisposable = await isDisposableEmailAsync(email);
       if (isDisposable) {
+        reportBlockedSignup(email);
         set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
         return { success: false, error: DISPOSABLE_EMAIL_ERROR };
       }
     } catch {
       // If validation fails completely, still check static list
       if (isDisposableEmail(email)) {
+        reportBlockedSignup(email);
         set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
         return { success: false, error: DISPOSABLE_EMAIL_ERROR };
       }

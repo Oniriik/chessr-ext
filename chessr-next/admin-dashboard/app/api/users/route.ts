@@ -97,6 +97,10 @@ export async function GET(request: Request) {
           email_confirmed: authInfo?.email_confirmed ?? false,
           linked_count: linkedCountMap.get(settings.user_id) || 0,
           last_activity: null as string | null,
+          banned: settings.banned || false,
+          ban_reason: settings.ban_reason || null,
+          banned_at: settings.banned_at || null,
+          banned_by: settings.banned_by || null,
         }
       })
       .filter((u) => u.email) // Only users with valid email
@@ -207,7 +211,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    const { userId, callerRole, plan, role, planExpiry, adminUserId, adminEmail, userEmail } = body
+    const { userId, callerRole, plan, role, planExpiry, adminUserId, adminEmail, userEmail, banned, banReason } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -258,6 +262,12 @@ export async function PATCH(request: Request) {
     if (plan !== undefined) updateData.plan = plan
     if (role !== undefined) updateData.role = role
     if (planExpiry !== undefined) updateData.plan_expiry = planExpiry
+    if (banned !== undefined) {
+      updateData.banned = banned
+      updateData.ban_reason = banned ? (banReason || null) : null
+      updateData.banned_at = banned ? new Date().toISOString() : null
+      updateData.banned_by = banned ? (adminEmail || null) : null
+    }
 
     // Update user settings
     const { data, error } = await supabase
@@ -320,6 +330,22 @@ export async function PATCH(request: Request) {
         old_expiry: oldExpiry,
         new_expiry: planExpiry !== undefined ? planExpiry : oldExpiry,
         reason: adminEmail ? `Manual change by ${adminEmail}` : 'Manual change by admin',
+      })
+    }
+
+    // Log ban/unban action
+    if (banned !== undefined) {
+      await supabase.from('plan_activity_logs').insert({
+        user_id: userId,
+        user_email: userEmail || null,
+        action_type: banned ? 'user_ban' : 'user_unban',
+        admin_user_id: adminUserId || null,
+        admin_email: adminEmail || null,
+        old_plan: oldPlan,
+        new_plan: oldPlan,
+        reason: banned
+          ? (banReason ? `${banReason} (by ${adminEmail || 'admin'})` : `Banned by ${adminEmail || 'admin'}`)
+          : `Unbanned by ${adminEmail || 'admin'}`,
       })
     }
 

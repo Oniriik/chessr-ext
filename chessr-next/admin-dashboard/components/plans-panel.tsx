@@ -21,6 +21,8 @@ import {
   Bot,
   ArrowRight,
   Trash2,
+  Ban,
+  ShieldOff,
 } from 'lucide-react'
 import { planLabels, planColors, type UserPlan } from '@/lib/types'
 
@@ -28,7 +30,7 @@ interface PlanActivityLog {
   id: string
   user_id: string
   user_email: string | null
-  action_type: 'cron_downgrade' | 'admin_change' | 'account_delete'
+  action_type: 'cron_downgrade' | 'admin_change' | 'account_delete' | 'user_ban' | 'user_unban'
   admin_user_id: string | null
   admin_email: string | null
   old_plan: string | null
@@ -107,7 +109,7 @@ export function PlansPanel() {
     return <Badge className={color}>{label}</Badge>
   }
 
-  const getActionBadge = (actionType: 'cron_downgrade' | 'admin_change' | 'account_delete') => {
+  const getActionBadge = (actionType: PlanActivityLog['action_type']) => {
     if (actionType === 'cron_downgrade') {
       return (
         <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">
@@ -121,6 +123,22 @@ export function PlansPanel() {
         <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
           <Trash2 className="w-3 h-3 mr-1" />
           Delete
+        </Badge>
+      )
+    }
+    if (actionType === 'user_ban') {
+      return (
+        <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+          <Ban className="w-3 h-3 mr-1" />
+          Ban
+        </Badge>
+      )
+    }
+    if (actionType === 'user_unban') {
+      return (
+        <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+          <ShieldOff className="w-3 h-3 mr-1" />
+          Unban
         </Badge>
       )
     }
@@ -203,6 +221,8 @@ export function PlansPanel() {
                 <SelectItem value="cron_downgrade">Cron downgrades</SelectItem>
                 <SelectItem value="admin_change">Admin changes</SelectItem>
                 <SelectItem value="account_delete">Account deletions</SelectItem>
+                <SelectItem value="user_ban">Bans</SelectItem>
+                <SelectItem value="user_unban">Unbans</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -262,6 +282,10 @@ export function PlansPanel() {
                       <td className="py-3 px-2">
                         {log.action_type === 'account_delete' ? (
                           <span className="text-sm text-red-400">Account deleted</span>
+                        ) : log.action_type === 'user_ban' ? (
+                          <span className="text-sm text-red-400">User banned</span>
+                        ) : log.action_type === 'user_unban' ? (
+                          <span className="text-sm text-emerald-400">User unbanned</span>
                         ) : (
                           <div className="flex items-center gap-2">
                             {getPlanBadge(log.old_plan)}
@@ -272,7 +296,7 @@ export function PlansPanel() {
                       </td>
                       <td className="py-3 px-2 hidden md:table-cell">
                         <span className="text-sm text-muted-foreground">
-                          {log.action_type === 'admin_change'
+                          {log.action_type === 'admin_change' || log.action_type === 'account_delete' || log.action_type === 'user_ban' || log.action_type === 'user_unban'
                             ? log.admin_email || log.admin_user_id?.slice(0, 8) || '-'
                             : 'System'}
                         </span>

@@ -59,24 +59,83 @@ const clients = new Map<string, Client>();
 // Cache of user+ip pairs already stored (avoid repeated DB checks)
 const storedIpPairs = new Set<string>();
 
+// Ban status cache (TTL 60s to avoid DB call on every message)
+const BAN_CACHE_TTL = 60_000;
+const banCache = new Map<
+  string,
+  { banned: boolean; reason: string | null; checkedAt: number }
+>();
+
+// Discord webhook for signup notifications
+const DISCORD_SIGNUP_WEBHOOK_URL = process.env.DISCORD_SIGNUP_WEBHOOK_URL;
+
+async function checkBanStatus(
+  userId: string,
+): Promise<{ banned: boolean; reason: string | null }> {
+  const cached = banCache.get(userId);
+  if (cached && Date.now() - cached.checkedAt < BAN_CACHE_TTL) {
+    return { banned: cached.banned, reason: cached.reason };
+  }
+
+  try {
+    const { data } = await supabase
+      .from("user_settings")
+      .select("banned, ban_reason")
+      .eq("user_id", userId)
+      .single();
+
+    const result = {
+      banned: data?.banned === true,
+      reason: data?.ban_reason || null,
+    };
+    banCache.set(userId, { ...result, checkedAt: Date.now() });
+    return result;
+  } catch {
+    return { banned: false, reason: null };
+  }
+}
+
+// Resolve IP to country (reusable helper)
+async function resolveIpCountry(
+  ip: string,
+): Promise<{ country: string | null; countryCode: string | null }> {
+  try {
+    const res = await fetch(
+      `http://ip-api.com/json/${ip}?fields=status,country,countryCode`,
+    );
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === "success") {
+        return { country: data.country, countryCode: data.countryCode };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return { country: null, countryCode: null };
+}
+
+// Clean an IP (normalize IPv6-mapped IPv4, return null for private IPs)
+function cleanIpAddress(ip: string | null): string | null {
+  if (!ip) return null;
+  const clean = ip.replace(/^::ffff:/, "");
+  if (
+    clean === "127.0.0.1" ||
+    clean === "::1" ||
+    clean.startsWith("10.") ||
+    clean.startsWith("172.") ||
+    clean.startsWith("192.168.")
+  ) {
+    return null;
+  }
+  return clean;
+}
+
 // Store user IP and resolve country via geolocation
 // Stores every unique IP per user (useful for freetrial abuse detection)
 async function storeUserIp(userId: string, ip: string | null) {
-  if (!ip) return;
-
-  // Normalize IPv6-mapped IPv4 (::ffff:1.2.3.4 -> 1.2.3.4)
-  const cleanIp = ip.replace(/^::ffff:/, "");
-
-  // Skip private/local IPs
-  if (
-    cleanIp === "127.0.0.1" ||
-    cleanIp === "::1" ||
-    cleanIp.startsWith("10.") ||
-    cleanIp.startsWith("172.") ||
-    cleanIp.startsWith("192.168.")
-  ) {
-    return;
-  }
+  const cleanIp = cleanIpAddress(ip);
+  if (!cleanIp) return;
 
   const pairKey = `${userId}:${cleanIp}`;
   if (storedIpPairs.has(pairKey)) return;
@@ -95,23 +154,7 @@ async function storeUserIp(userId: string, ip: string | null) {
       return;
     }
 
-    // Resolve IP to country
-    let country: string | null = null;
-    let countryCode: string | null = null;
-    try {
-      const res = await fetch(
-        `http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.status === "success") {
-          country = data.country;
-          countryCode = data.countryCode;
-        }
-      }
-    } catch (e) {
-      console.error("[IP] Geolocation API failed:", e);
-    }
+    const { country, countryCode } = await resolveIpCountry(cleanIp);
 
     // Store in DB
     const { error } = await supabase.from("signup_ips").insert({
@@ -134,19 +177,105 @@ async function storeUserIp(userId: string, ip: string | null) {
   }
 }
 
+// Send Discord webhook for blocked signup attempts
+async function reportBlockedSignup(
+  email: string,
+  ip: string | null,
+): Promise<void> {
+  if (!DISCORD_SIGNUP_WEBHOOK_URL) return;
+
+  const cleanIp = cleanIpAddress(ip);
+  let countryText = "Unknown";
+
+  if (cleanIp) {
+    const { country } = await resolveIpCountry(cleanIp);
+    if (country) countryText = country;
+  }
+
+  try {
+    await fetch(DISCORD_SIGNUP_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [
+          {
+            title: "\u26a0\ufe0f Blocked Signup Attempt",
+            color: 0xef4444,
+            fields: [
+              { name: "\ud83d\udce7 Email", value: email, inline: true },
+              {
+                name: "\ud83c\udf0d Country",
+                value: countryText,
+                inline: true,
+              },
+              {
+                name: "\ud83d\udd12 IP",
+                value: cleanIp || "Unknown",
+                inline: true,
+              },
+            ],
+            timestamp: new Date().toISOString(),
+            footer: {
+              text: "Chessr.io",
+              icon_url: "https://chessr.io/chessr-logo.png",
+            },
+          },
+        ],
+      }),
+    });
+  } catch (e) {
+    console.error("[Discord] Failed to send blocked signup webhook:", e);
+  }
+}
+
 // =============================================================================
 // HTTP Server for version endpoint
 // =============================================================================
 const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   // Handle preflight
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // Report blocked signup attempt (disposable email)
+  if (req.url === "/report-blocked-signup" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { email } = JSON.parse(body);
+        if (!email) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Email required" }));
+          return;
+        }
+
+        const clientIp =
+          (req.headers["x-forwarded-for"] as string)
+            ?.split(",")[0]
+            ?.trim() ||
+          req.socket.remoteAddress ||
+          null;
+
+        console.log(
+          `[Blocked] Disposable email attempt: ${email} from ${clientIp}`,
+        );
+        reportBlockedSignup(email, clientIp);
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid JSON" }));
+      }
+    });
     return;
   }
 
@@ -299,6 +428,24 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       if (!isAuthenticated || !userId) {
         ws.send(JSON.stringify({ type: "error", error: "Not authenticated" }));
         return;
+      }
+
+      // Check ban status before processing requests
+      if (
+        message.type === "suggestion" ||
+        message.type === "analyze"
+      ) {
+        const banStatus = await checkBanStatus(userId);
+        if (banStatus.banned) {
+          ws.send(
+            JSON.stringify({
+              type: "banned",
+              reason: banStatus.reason || "Your account has been banned.",
+            }),
+          );
+          ws.close(4010, "Banned");
+          return;
+        }
       }
 
       // Handle message types
