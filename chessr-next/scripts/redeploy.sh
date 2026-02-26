@@ -77,11 +77,22 @@ log "Services to deploy: ${SERVICES[*]}"
 SERVICES_STR="${SERVICES[*]}"
 
 ssh "$VPS_USER@$VPS_HOST" bash -s "$SERVICES_STR" << 'REMOTE_SCRIPT'
+  set -e
   cd /opt/chessr/app
   SERVICES=($1)
 
+  echo "[VPS] Current commit: $(git log --oneline -1)"
+
+  # Reset dirty working directory to avoid pull conflicts
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "[VPS] WARNING: Dirty working directory, resetting tracked files..."
+    git checkout -- .
+  fi
+
   echo "[VPS] Pulling latest code..."
   git pull
+
+  echo "[VPS] Updated to: $(git log --oneline -1)"
 
   # Map service names to container names
   declare -A CONTAINER_NAMES

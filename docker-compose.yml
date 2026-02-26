@@ -146,6 +146,44 @@ services:
     networks:
       - chessr-network
 
+  # ===========================================
+  # Discord Bot (Stats & Notifications)
+  # ===========================================
+  discord-bot:
+    build:
+      context: ./chessr-next/discord-bot
+      dockerfile: Dockerfile
+    container_name: chessr-discord
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+      - DISCORD_CHANNEL_ID=${DISCORD_STATS_CHANNEL_ID}
+      - CHESSR_SERVER_URL=http://chessr-server:8080
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - UPDATE_INTERVAL=${DISCORD_UPDATE_INTERVAL:-60}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "pgrep", "node"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    depends_on:
+      - server
+    networks:
+      - chessr-network
+
 networks:
   chessr-network:
     driver: bridge
