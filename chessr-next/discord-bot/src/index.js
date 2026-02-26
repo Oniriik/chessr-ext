@@ -7,6 +7,7 @@ const config = {
   discordToken: process.env.DISCORD_TOKEN,
   guildId: process.env.DISCORD_GUILD_ID,
   channelId: process.env.DISCORD_CHANNEL_ID,
+  signupChannelId: '1476547865039077416',
   chessrServerUrl: process.env.CHESSR_SERVER_URL || 'https://engine.chessr.io',
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseKey: process.env.SUPABASE_SERVICE_KEY,
@@ -114,6 +115,93 @@ function getServerStatus(stats) {
   return { emoji: '🟢', text: 'Working' };
 }
 
+// Country detection from email TLD
+const tldCountryMap = {
+  fr: '🇫🇷 France', de: '🇩🇪 Germany', uk: '🇬🇧 UK', es: '🇪🇸 Spain',
+  it: '🇮🇹 Italy', nl: '🇳🇱 Netherlands', be: '🇧🇪 Belgium', ch: '🇨🇭 Switzerland',
+  pt: '🇵🇹 Portugal', pl: '🇵🇱 Poland', ru: '🇷🇺 Russia', br: '🇧🇷 Brazil',
+  jp: '🇯🇵 Japan', kr: '🇰🇷 South Korea', cn: '🇨🇳 China', in: '🇮🇳 India',
+  au: '🇦🇺 Australia', ca: '🇨🇦 Canada', mx: '🇲🇽 Mexico', ar: '🇦🇷 Argentina',
+  se: '🇸🇪 Sweden', no: '🇳🇴 Norway', dk: '🇩🇰 Denmark', fi: '🇫🇮 Finland',
+  at: '🇦🇹 Austria', cz: '🇨🇿 Czech Republic', ro: '🇷🇴 Romania', hu: '🇭🇺 Hungary',
+  gr: '🇬🇷 Greece', tr: '🇹🇷 Turkey', za: '🇿🇦 South Africa', ie: '🇮🇪 Ireland',
+  nz: '🇳🇿 New Zealand', co: '🇨🇴 Colombia', cl: '🇨🇱 Chile', pe: '🇵🇪 Peru',
+};
+
+function getCountryFromEmail(email) {
+  const tld = email.split('@')[1]?.split('.').pop()?.toLowerCase();
+  return tld && tldCountryMap[tld] ? tldCountryMap[tld] : '🌍 Unknown';
+}
+
+// Check for new signups and notify
+const LAST_CHECK_KEY = 'last_signup_check';
+
+async function checkNewSignups() {
+  try {
+    // Get last check timestamp
+    const { data: lastCheckData } = await supabase
+      .from('global_stats')
+      .select('value')
+      .eq('key', LAST_CHECK_KEY)
+      .single();
+
+    const lastCheck = lastCheckData?.value
+      ? new Date(Number(lastCheckData.value)).toISOString()
+      : new Date(Date.now() - 120_000).toISOString(); // 2min ago on first run
+
+    // Find new users
+    const newUsers = [];
+    let page = 1;
+    while (true) {
+      const { data: batch } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+      if (!batch?.users.length) break;
+      for (const user of batch.users) {
+        if (user.created_at > lastCheck && user.email) {
+          newUsers.push({ email: user.email, created_at: user.created_at });
+        }
+      }
+      if (batch.users.length < 1000) break;
+      page++;
+    }
+
+    // Update last check time
+    await supabase
+      .from('global_stats')
+      .upsert({ key: LAST_CHECK_KEY, value: Date.now().toString() }, { onConflict: 'key' });
+
+    if (newUsers.length === 0) return;
+
+    // Get signup channel
+    const channel = await client.channels.fetch(config.signupChannelId).catch(() => null);
+    if (!channel) {
+      console.error('[Signup] Channel not found:', config.signupChannelId);
+      return;
+    }
+
+    // Send embeds
+    newUsers.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    for (const user of newUsers) {
+      await channel.send({
+        embeds: [{
+          title: '🎉 New User Signup',
+          color: 0x10b981,
+          fields: [
+            { name: '📧 Email', value: user.email, inline: true },
+            { name: '🌍 Country', value: getCountryFromEmail(user.email), inline: true },
+          ],
+          timestamp: user.created_at,
+          footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+        }],
+      });
+      console.log(`[Signup] Notified: ${user.email}`);
+    }
+
+    console.log(`[Signup] ${newUsers.length} new signup(s) notified`);
+  } catch (error) {
+    console.error('[Signup] Error:', error);
+  }
+}
+
 // Update channel names with stats
 async function updateStatsChannels() {
   try {
@@ -212,9 +300,11 @@ client.once('ready', async () => {
 
   // Initial update
   await updateStatsChannels();
+  await checkNewSignups();
 
   // Schedule periodic updates
   setInterval(updateStatsChannels, config.updateInterval);
+  setInterval(checkNewSignups, 120_000); // Check signups every 2 minutes
 });
 
 // Error handling
