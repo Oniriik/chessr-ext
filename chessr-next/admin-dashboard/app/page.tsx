@@ -103,7 +103,7 @@ export default function DashboardPage() {
 
             {/* User info */}
             <div className="flex items-center gap-4">
-              <div className="hidden sm:flex flex-col items-end">
+              <div className="hidden sm:flex items-center gap-3">
                 <span className="text-sm text-foreground">{userEmail}</span>
                 <Badge className={roleColors[userRole]}>{roleLabels[userRole]}</Badge>
               </div>
