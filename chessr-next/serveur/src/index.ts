@@ -56,6 +56,23 @@ const supabase = createClient(
 // Store authenticated connections
 const clients = new Map<string, Client>();
 
+// Heartbeat: ping clients every 30s, disconnect if no pong within 10s
+const HEARTBEAT_INTERVAL = 30_000;
+const clientAlive = new Map<string, boolean>();
+
+setInterval(() => {
+  for (const [userId, client] of clients) {
+    if (!clientAlive.get(userId)) {
+      // No pong received since last ping — dead connection
+      console.log(`[Heartbeat] No pong from ${userId}, terminating`);
+      client.ws.terminate();
+      continue;
+    }
+    clientAlive.set(userId, false);
+    client.ws.ping();
+  }
+}, HEARTBEAT_INTERVAL);
+
 // Cache of user+ip pairs already stored (avoid repeated DB checks)
 const storedIpPairs = new Set<string>();
 
@@ -407,6 +424,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           ws,
           user: { id: user.id, email: user.email || "" },
         });
+        clientAlive.set(userId, true);
 
         // Store IP and resolve country (fire and forget)
         storeUserIp(user.id, clientIp);
@@ -448,51 +466,58 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         }
       }
 
+      // Get client (may be undefined if disconnected during message processing)
+      const client = clients.get(userId);
+      if (!client) {
+        console.log(`[WS] Ignoring message from disconnected user ${userId}`);
+        return;
+      }
+
       // Handle message types
       switch (message.type) {
         case "suggestion":
           handleSuggestionRequest(
             message as SuggestionMessage,
-            clients.get(userId)!,
+            client,
           );
           break;
 
         case "analyze":
           handleAnalysisRequest(
             message as AnalysisMessage,
-            clients.get(userId)!,
+            client,
           );
           break;
 
         case "get_linked_accounts":
-          handleGetLinkedAccounts(clients.get(userId)!);
+          handleGetLinkedAccounts(client);
           break;
 
         case "link_account":
           handleLinkAccount(
             message as LinkAccountMessage,
-            clients.get(userId)!,
+            client,
           );
           break;
 
         case "unlink_account":
           handleUnlinkAccount(
             message as UnlinkAccountMessage,
-            clients.get(userId)!,
+            client,
           );
           break;
 
         case "check_cooldown":
           handleCheckCooldown(
             message as CheckCooldownMessage,
-            clients.get(userId)!,
+            client,
           );
           break;
 
         case "get_opening":
           handleOpeningRequest(
             message as OpeningMessage,
-            clients.get(userId)!,
+            client,
           );
           break;
 
@@ -510,6 +535,10 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     }
   });
 
+  ws.on("pong", () => {
+    if (userId) clientAlive.set(userId, true);
+  });
+
   ws.on("close", () => {
     clearTimeout(authTimeout);
     if (userId) {
@@ -518,6 +547,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       handleUserDisconnect(userId);
       handleAnalysisDisconnect(userId);
       clients.delete(userId);
+      clientAlive.delete(userId);
       logConnection(client?.user.email || userId, 'disconnected');
     }
   });
