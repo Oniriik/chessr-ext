@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "check-expirations": "tsx check-expirations.ts"
+    "check-expirations": "tsx check-expirations.ts",
+    "notify-signups": "tsx notify-signups.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1"

@@ -137,6 +137,7 @@ services:
     environment:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DISCORD_SIGNUP_WEBHOOK_URL=${DISCORD_SIGNUP_WEBHOOK_URL}
     deploy:
       resources:
         limits:
