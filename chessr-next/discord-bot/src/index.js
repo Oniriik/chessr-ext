@@ -146,12 +146,12 @@ async function updateStatsChannels() {
         name: `👥 Total Users: ${formatNumber(premiumStats?.total || 0)}`,
       },
       {
-        pattern: /connected|active.*users/i,
-        name: `🟢 Connected: ${connectedUsers}`,
+        pattern: /playing|online/i,
+        name: `👁 Playing Now: ${connectedUsers}`,
       },
       {
-        pattern: /suggestions/i,
-        name: `📊 Suggestions: ${formatNumber(totalSuggestions)}`,
+        pattern: /analyzed|suggestions/i,
+        name: `♟ Moves Analyzed: ${formatNumber(totalSuggestions)}`,
       },
       {
         pattern: /premium/i,
@@ -195,8 +195,8 @@ async function updateStatsChannels() {
     console.log(`[Stats] Updated at ${new Date().toISOString()}`);
     console.log(`  - Status: ${status.text}`);
     console.log(`  - Total Users: ${premiumStats?.total || 0}`);
-    console.log(`  - Connected: ${connectedUsers}`);
-    console.log(`  - Total Suggestions: ${totalSuggestions}`);
+    console.log(`  - Playing Now: ${connectedUsers}`);
+    console.log(`  - Moves Analyzed: ${totalSuggestions}`);
     console.log(`  - Premium: ${premiumStats?.totalPremium || 0}`);
 
   } catch (error) {
