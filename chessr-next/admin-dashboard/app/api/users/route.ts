@@ -79,20 +79,7 @@ export async function GET(request: Request) {
       linkedCountMap.set(la.user_id, (linkedCountMap.get(la.user_id) || 0) + 1)
     })
 
-    // Get last activity for all users
-    const { data: activityData } = await supabase
-      .from('user_activity')
-      .select('user_id, created_at')
-      .order('created_at', { ascending: false })
-
-    const lastActivityMap = new Map<string, string>()
-    activityData?.forEach((activity) => {
-      if (!lastActivityMap.has(activity.user_id)) {
-        lastActivityMap.set(activity.user_id, activity.created_at)
-      }
-    })
-
-    // Build users array from settings + email map
+    // Build users array from settings + email map (without last_activity for now)
     let users = (userSettings || [])
       .map((settings) => {
         const authInfo = emailMap.get(settings.user_id)
@@ -106,7 +93,7 @@ export async function GET(request: Request) {
           created_at: authInfo?.created_at || settings.created_at,
           last_sign_in_at: authInfo?.last_sign_in_at || null,
           linked_count: linkedCountMap.get(settings.user_id) || 0,
-          last_activity: lastActivityMap.get(settings.user_id) || null,
+          last_activity: null as string | null,
         }
       })
       .filter((u) => u.email) // Only users with valid email
@@ -115,6 +102,33 @@ export async function GET(request: Request) {
     if (search) {
       const searchLower = search.toLowerCase()
       users = users.filter((u) => u.email.toLowerCase().includes(searchLower))
+    }
+
+    // If sorting by last_activity, we need to fetch it for ALL users first
+    if (sortBy === 'last_activity') {
+      // Fetch last activity per user with pagination
+      const allUserIds = users.map((u) => u.user_id)
+      const lastActivityMap = new Map<string, string>()
+
+      for (let i = 0; i < allUserIds.length; i += 50) {
+        const batch = allUserIds.slice(i, i + 50)
+        for (const uid of batch) {
+          const { data: lastRow } = await supabase
+            .from('user_activity')
+            .select('created_at')
+            .eq('user_id', uid)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+          if (lastRow) {
+            lastActivityMap.set(uid, lastRow.created_at)
+          }
+        }
+      }
+
+      users.forEach((u) => {
+        u.last_activity = lastActivityMap.get(u.user_id) || null
+      })
     }
 
     // Sort
@@ -155,6 +169,24 @@ export async function GET(request: Request) {
     // Paginate
     const total = users.length
     const paginatedUsers = users.slice(offset, offset + limit)
+
+    // Fetch last activity only for paginated users (if not already fetched for sorting)
+    if (sortBy !== 'last_activity') {
+      const pageUserIds = paginatedUsers.map((u) => u.user_id)
+      for (const uid of pageUserIds) {
+        const { data: lastRow } = await supabase
+          .from('user_activity')
+          .select('created_at')
+          .eq('user_id', uid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        const user = paginatedUsers.find((u) => u.user_id === uid)
+        if (user && lastRow) {
+          user.last_activity = lastRow.created_at
+        }
+      }
+    }
 
     return NextResponse.json({
       data: paginatedUsers,
