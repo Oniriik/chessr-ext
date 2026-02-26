@@ -1,6 +1,6 @@
 /**
  * WebSocket Manager
- * Handles connection, authentication, reconnection and inactivity detection
+ * Handles connection, authentication and reconnection
  */
 
 import { useAuthStore } from '../stores/authStore';
@@ -15,7 +15,6 @@ type MessageHandler = (data: unknown) => void;
 type ConnectionHandler = () => void;
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
-const INACTIVITY_DELAY = 2 * 60 * 1000; // 2 minutes
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 class WebSocketManager {
@@ -30,13 +29,12 @@ class WebSocketManager {
   // Connection state
   private _isConnected = false;
   private _isConnecting = false;
+  private _voluntaryDisconnect = false;
 
   // Reconnection
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // Inactivity
-  private inactivityTimeout: ReturnType<typeof setTimeout> | null = null;
   private visibilityHandler: (() => void) | null = null;
   private gameStoreUnsubscribe: (() => void) | null = null;
   private puzzleStoreUnsubscribe: (() => void) | null = null;
@@ -118,22 +116,15 @@ class WebSocketManager {
 
     if (!hasUser) {
       // Not authenticated, don't connect
-      this.cancelInactivityTimeout();
       this.disconnect();
       return;
     }
 
     if (isTabVisible && (isGameActive || isPuzzleActive)) {
-      // Client is active (game or puzzle)
-      this.cancelInactivityTimeout();
-
-      // Reconnect if disconnected
+      // Client is active (game or puzzle) - reconnect if needed
       if (!this._isConnected && !this._isConnecting) {
         this.connect();
       }
-    } else {
-      // Client is inactive, schedule disconnect
-      this.scheduleDisconnect();
     }
   }
 
@@ -180,9 +171,6 @@ class WebSocketManager {
             this._isConnecting = false;
             this.ws?.close();
             reject(new Error(data.error));
-          } else if (data.type === 'ping') {
-            // Respond to heartbeat
-            this.send({ type: 'pong' });
           } else if (data.type === 'suggestion_result') {
             // Handle suggestion response
             logger.log(
@@ -312,11 +300,11 @@ class WebSocketManager {
         this._isConnecting = false;
         this.disconnectHandlers.forEach((h) => h());
 
-        // Only attempt reconnect if not a voluntary disconnect (code 1000)
-        // and we haven't exceeded max attempts
-        if (event.code !== 1000 && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        // Reconnect unless this was a voluntary client disconnect
+        if (!this._voluntaryDisconnect && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           this.scheduleReconnect();
         }
+        this._voluntaryDisconnect = false;
       };
 
       this.ws.onerror = (err) => {
@@ -331,7 +319,7 @@ class WebSocketManager {
    */
   disconnect(): void {
     this.cancelReconnect();
-    this.cancelInactivityTimeout();
+    this._voluntaryDisconnect = true;
 
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect');
@@ -376,23 +364,6 @@ class WebSocketManager {
   }
 
   // --- Private methods ---
-
-  private scheduleDisconnect(): void {
-    if (this.inactivityTimeout) return; // Already scheduled
-
-    logger.log('Scheduling disconnect due to inactivity');
-    this.inactivityTimeout = setTimeout(() => {
-      logger.log('Disconnecting due to inactivity');
-      this.disconnect();
-    }, INACTIVITY_DELAY);
-  }
-
-  private cancelInactivityTimeout(): void {
-    if (this.inactivityTimeout) {
-      clearTimeout(this.inactivityTimeout);
-      this.inactivityTimeout = null;
-    }
-  }
 
   private scheduleReconnect(): void {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 16000);
