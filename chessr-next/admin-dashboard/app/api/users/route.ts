@@ -6,6 +6,78 @@ import { canModifyRoles, canModifyPlans, type UserRole, type UserPlan } from '@/
 const VALID_PLANS: UserPlan[] = ['free', 'freetrial', 'premium', 'beta', 'lifetime']
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'user']
 
+// Discord configuration for role sync
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN
+const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID
+const DISCORD_LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID || '1476675259691175968'
+
+const PLAN_ROLES: Record<string, string> = {
+  free: '1476673977899286548',
+  freetrial: '1476674000674623600',
+  premium: '1476674055435452698',
+  lifetime: '1476674087831998464',
+  beta: '1476674108841525340',
+}
+
+async function syncDiscordRoles(discordId: string, newPlan: string, oldPlan: string, userEmail: string) {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return
+
+  try {
+    // Fetch guild member
+    const memberRes = await fetch(
+      `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}`,
+      { headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } }
+    )
+    if (!memberRes.ok) return
+
+    const member = await memberRes.json()
+    const currentRoles: string[] = member.roles || []
+    const allPlanRoleIds = Object.values(PLAN_ROLES)
+
+    // Remove old plan roles, add new one
+    const newRoleId = PLAN_ROLES[newPlan]
+    const rolesToRemove = currentRoles.filter((r: string) => allPlanRoleIds.includes(r) && r !== newRoleId)
+    const rolesToAdd = newRoleId && !currentRoles.includes(newRoleId) ? [newRoleId] : []
+
+    for (const roleId of rolesToRemove) {
+      await fetch(
+        `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
+        { method: 'DELETE', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } }
+      )
+    }
+    for (const roleId of rolesToAdd) {
+      await fetch(
+        `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}/roles/${roleId}`,
+        { method: 'PUT', headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } }
+      )
+    }
+
+    // Send notification
+    if (DISCORD_LINK_CHANNEL_ID && (rolesToRemove.length > 0 || rolesToAdd.length > 0)) {
+      const planName = (p: string) => p.charAt(0).toUpperCase() + p.slice(1)
+      await fetch(`https://discord.com/api/v10/channels/${DISCORD_LINK_CHANNEL_ID}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          embeds: [{
+            title: '🔄 Plan Changed (Admin)',
+            color: 0xffa500,
+            fields: [
+              { name: '📧 Email', value: userEmail, inline: true },
+              { name: '❌ Old Plan', value: planName(oldPlan), inline: true },
+              { name: '✅ New Plan', value: planName(newPlan), inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: 'Chessr.io Admin', icon_url: 'https://chessr.io/chessr-logo.png' },
+          }],
+        }),
+      })
+    }
+  } catch (err) {
+    console.error('[Discord] Failed to sync roles:', err)
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
@@ -308,6 +380,10 @@ export async function PATCH(request: Request) {
             new_expiry: planExpiry || null,
             reason: adminEmail ? `Manual change by ${adminEmail}` : 'Manual change by admin',
           })
+
+          if (insertData?.discord_id) {
+            syncDiscordRoles(insertData.discord_id, plan, 'free', userEmail || 'unknown').catch(() => {})
+          }
         }
 
         return NextResponse.json(insertData)
@@ -331,6 +407,11 @@ export async function PATCH(request: Request) {
         new_expiry: planExpiry !== undefined ? planExpiry : oldExpiry,
         reason: adminEmail ? `Manual change by ${adminEmail}` : 'Manual change by admin',
       })
+
+      // Sync Discord roles if user has Discord linked
+      if (data?.discord_id) {
+        syncDiscordRoles(data.discord_id, plan, oldPlan, userEmail || 'unknown').catch(() => {})
+      }
     }
 
     // Log ban/unban action
