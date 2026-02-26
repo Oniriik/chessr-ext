@@ -10,6 +10,7 @@ export interface AdminUser {
   plan_expiry: string | null
   created_at: string
   last_sign_in_at: string | null
+  email_confirmed: boolean
   linked_count: number
   last_activity: string | null
 }

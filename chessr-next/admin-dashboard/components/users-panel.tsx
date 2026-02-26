@@ -35,6 +35,8 @@ import {
   Unlink,
   Clock,
   Trash2,
+  ShieldCheck,
+  ShieldX,
 } from 'lucide-react'
 import {
   type AdminUser,
@@ -538,7 +540,14 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                   users.map((user) => (
                     <tr key={user.user_id} className="border-b border-border/30 hover:bg-muted/30">
                       <td className="py-3 px-2">
-                        <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
+                        <div className="flex items-center gap-1.5">
+                          {user.email_confirmed ? (
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" title="Email verified" />
+                          ) : (
+                            <ShieldX className="w-3.5 h-3.5 text-red-400 shrink-0" title="Email not verified" />
+                          )}
+                          <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
+                        </div>
                       </td>
                       <td className="py-3 px-2">
                         <Badge className={roleColors[user.role]}>{roleLabels[user.role]}</Badge>

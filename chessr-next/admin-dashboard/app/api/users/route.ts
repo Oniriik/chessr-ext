@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
     // First, get ALL auth users to build email map
     // We need to paginate through all users to get their emails
-    const emailMap = new Map<string, { email: string; created_at: string; last_sign_in_at: string | null }>()
+    const emailMap = new Map<string, { email: string; created_at: string; last_sign_in_at: string | null; email_confirmed: boolean }>()
     let authPage = 1
     const authPerPage = 1000
 
@@ -43,6 +43,7 @@ export async function GET(request: Request) {
           email: user.email || '',
           created_at: user.created_at,
           last_sign_in_at: user.last_sign_in_at || null,
+          email_confirmed: !!user.email_confirmed_at,
         })
       })
 
@@ -92,6 +93,7 @@ export async function GET(request: Request) {
           plan_expiry: settings.plan_expiry || null,
           created_at: authInfo?.created_at || settings.created_at,
           last_sign_in_at: authInfo?.last_sign_in_at || null,
+          email_confirmed: authInfo?.email_confirmed ?? false,
           linked_count: linkedCountMap.get(settings.user_id) || 0,
           last_activity: null as string | null,
         }
