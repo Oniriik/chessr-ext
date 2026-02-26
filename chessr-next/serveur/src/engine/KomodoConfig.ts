@@ -68,8 +68,8 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
     return {
       'Personality': 'Default',
       'MultiPV': pv.toString(),
-      'UCI_ShowWDL': 'true',
-      'UCI_LimitStrength': 'false',
+      'UCI ShowWDL': 'true',
+      'UCI LimitStrength': 'false',
       'Skill': '25',
       'Contempt': '0',
       'White Contempt': 'false',
@@ -84,9 +84,9 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
   const config: Record<string, string> = {
     'Personality': personalityValue,
     'MultiPV': pv.toString(),
-    'UCI_ShowWDL': 'true',
-    'UCI_LimitStrength': shouldLimitStrength ? 'true' : 'false',
-    'UCI_Elo': elo.toString(),
+    'UCI ShowWDL': 'true',
+    'UCI LimitStrength': shouldLimitStrength ? 'true' : 'false',
+    'UCI Elo': elo.toString(),
     'Skill': skillValue.toString(),
     'Contempt': contemptValue.toString(),
     'Threads': '1',
