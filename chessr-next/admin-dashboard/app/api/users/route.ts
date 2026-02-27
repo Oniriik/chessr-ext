@@ -193,6 +193,7 @@ export async function GET(request: Request) {
           last_sign_in_at: authInfo?.last_sign_in_at || null,
           email_confirmed: authInfo?.email_confirmed ?? false,
           linked_count: linkedCountMap.get(settings.user_id) || 0,
+          has_discord: !!settings.discord_id,
           last_activity: null as string | null,
           banned: settings.banned || false,
           ban_reason: settings.ban_reason || null,

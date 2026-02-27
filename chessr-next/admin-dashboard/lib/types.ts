@@ -12,6 +12,7 @@ export interface AdminUser {
   last_sign_in_at: string | null
   email_confirmed: boolean
   linked_count: number
+  has_discord: boolean
   last_activity: string | null
   banned: boolean
   ban_reason: string | null

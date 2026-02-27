@@ -45,11 +45,28 @@ export async function GET(request: Request) {
       }
     })
 
+    // Fetch Discord info from user_settings
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('discord_id, discord_username, discord_avatar, discord_linked_at')
+      .eq('user_id', userId)
+      .single()
+
+    const discord = settings?.discord_id
+      ? {
+          discord_id: settings.discord_id,
+          discord_username: settings.discord_username,
+          discord_avatar: settings.discord_avatar,
+          discord_linked_at: settings.discord_linked_at,
+        }
+      : null
+
     return NextResponse.json({
       active,
       unlinked: unlinkedWithCooldown,
       totalActive: active.length,
       totalUnlinked: unlinked.length,
+      discord,
     })
   } catch (error) {
     console.error('GET linked-accounts error:', error)
@@ -64,13 +81,35 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    const { accountId } = body
+    const { accountId, type, userId } = body
 
+    const supabase = getServiceRoleClient()
+
+    // Unlink Discord account
+    if (type === 'discord' && userId) {
+      const { error } = await supabase
+        .from('user_settings')
+        .update({
+          discord_id: null,
+          discord_username: null,
+          discord_avatar: null,
+          discord_linked_at: null,
+          discord_in_guild: false,
+        })
+        .eq('user_id', userId)
+
+      if (error) {
+        console.error('Error unlinking Discord:', error)
+        return NextResponse.json({ error: 'Failed to unlink Discord' }, { status: 500 })
+      }
+
+      return NextResponse.json({ success: true })
+    }
+
+    // Unlink chess account
     if (!accountId) {
       return NextResponse.json({ error: 'accountId is required' }, { status: 400 })
     }
-
-    const supabase = getServiceRoleClient()
 
     // Set unlinked_at to now for active accounts
     const { error } = await supabase
