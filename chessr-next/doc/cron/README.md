@@ -51,7 +51,7 @@ The cron service runs two independent TypeScript jobs on fixed schedules using A
 - Reads/writes: `user_settings`
 - Writes: `plan_activity_logs`
 
-**External:** Discord webhook (`DISCORD_SIGNUP_WEBHOOK_URL`)
+**External:** Discord Bot API (`DISCORD_BOT_TOKEN` + `DISCORD_NOTIFICATION_CHANNEL_ID`)
 
 ### 2. Update Ratings
 
@@ -100,7 +100,8 @@ cron/
 |----------|----------|-------------|
 | `SUPABASE_URL` | Yes | Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
-| `DISCORD_SIGNUP_WEBHOOK_URL` | Yes | Discord webhook for downgrade notifications |
+| `DISCORD_BOT_TOKEN` | Yes | Discord bot token for API calls |
+| `DISCORD_NOTIFICATION_CHANNEL_ID` | Yes | Channel ID for downgrade notifications |
 
 ## Docker
 

@@ -1,7 +1,7 @@
 /**
  * Check Plan Expirations
  * Downgrades users whose plan has expired to 'free'
- * Sends Discord notification for each downgrade
+ * Sends Discord notification for each downgrade via Bot API
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -11,15 +11,19 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-const DISCORD_WEBHOOK_URL = process.env.DISCORD_SIGNUP_WEBHOOK_URL;
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const DISCORD_CHANNEL_ID = process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
 
 async function sendDowngradeNotification(email: string, oldPlan: string, expiry: string): Promise<void> {
-  if (!DISCORD_WEBHOOK_URL) return;
+  if (!DISCORD_BOT_TOKEN || !DISCORD_CHANNEL_ID) return;
 
   try {
-    const res = await fetch(DISCORD_WEBHOOK_URL, {
+    const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CHANNEL_ID}/messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bot ${DISCORD_BOT_TOKEN}`,
+      },
       body: JSON.stringify({
         embeds: [{
           title: '⏰ Plan Expired',
@@ -36,10 +40,10 @@ async function sendDowngradeNotification(email: string, oldPlan: string, expiry:
     });
 
     if (!res.ok) {
-      console.error(`[Cron] Discord webhook failed: ${res.status} ${res.statusText}`);
+      console.error(`[Cron] Discord API failed: ${res.status} ${res.statusText}`);
     }
   } catch (error) {
-    console.error('[Cron] Discord webhook error:', error);
+    console.error('[Cron] Discord API error:', error);
   }
 }
 
