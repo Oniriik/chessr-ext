@@ -112,8 +112,9 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
   return { start: maintenanceStart, end: maintenanceEnd };
 }
 
-// Discord webhook for signup notifications
-const DISCORD_SIGNUP_WEBHOOK_URL = process.env.DISCORD_SIGNUP_WEBHOOK_URL;
+// Discord Bot API for notifications
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
 
 async function checkBanStatus(
   userId: string,
@@ -223,12 +224,12 @@ async function storeUserIp(userId: string, ip: string | null) {
   }
 }
 
-// Send Discord webhook for blocked signup attempts
+// Send Discord notification for blocked signup attempts via Bot API
 async function reportBlockedSignup(
   email: string,
   ip: string | null,
 ): Promise<void> {
-  if (!DISCORD_SIGNUP_WEBHOOK_URL) return;
+  if (!DISCORD_BOT_TOKEN || !DISCORD_NOTIFICATION_CHANNEL_ID) return;
 
   const cleanIp = cleanIpAddress(ip);
   let countryText = "Unknown";
@@ -239,9 +240,12 @@ async function reportBlockedSignup(
   }
 
   try {
-    await fetch(DISCORD_SIGNUP_WEBHOOK_URL, {
+    await fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bot ${DISCORD_BOT_TOKEN}`,
+      },
       body: JSON.stringify({
         embeds: [
           {
@@ -270,7 +274,7 @@ async function reportBlockedSignup(
       }),
     });
   } catch (e) {
-    console.error("[Discord] Failed to send blocked signup webhook:", e);
+    console.error("[Discord] Failed to send blocked signup notification:", e);
   }
 }
 
