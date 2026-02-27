@@ -7,6 +7,7 @@ import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
 import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock, Link2, Unlink, User, MessageCircle } from 'lucide-react';
 import { useDiscordStore } from '../../../stores/discordStore';
+import { useSettingsStore } from '../../../stores/settingsStore';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
@@ -97,6 +98,7 @@ function LinkedAccountsSection() {
   const linkedAccounts = useLinkedAccounts();
   const isLoading = useIsLinkingLoading();
   const { setLoading } = useLinkedAccountsStore();
+  const anonymousMode = useSettingsStore((s) => s.anonymousMode);
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null);
 
   const handleUnlink = (accountId: string) => {
@@ -144,7 +146,7 @@ function LinkedAccountsSection() {
                   <img
                     src={account.avatarUrl}
                     alt={account.platformUsername}
-                    className="tw-w-10 tw-h-10 tw-rounded-full tw-border tw-border-border"
+                    className={`tw-w-10 tw-h-10 tw-rounded-full tw-border tw-border-border ${anonymousMode ? 'tw-blur-sm' : ''}`}
                   />
                 ) : (
                   <div className="tw-w-10 tw-h-10 tw-rounded-full tw-bg-muted tw-flex tw-items-center tw-justify-center tw-border tw-border-border">
@@ -155,7 +157,7 @@ function LinkedAccountsSection() {
 
               {/* Info */}
               <div className="tw-flex-1 tw-min-w-0">
-                <p className="tw-text-sm tw-font-medium tw-truncate">{account.platformUsername}</p>
+                <p className={`tw-text-sm tw-font-medium tw-truncate ${anonymousMode ? 'tw-blur-sm' : ''}`}>{account.platformUsername}</p>
                 <p className="tw-text-xs tw-text-muted-foreground">{platformName}</p>
               </div>
 
@@ -184,6 +186,7 @@ function LinkedAccountsSection() {
 
 function DiscordSection() {
   const { isLinked, discordUsername, discordAvatar, isLinking, setLinking } = useDiscordStore();
+  const anonymousMode = useSettingsStore((s) => s.anonymousMode);
 
   const handleLink = () => {
     if (isLinking) return;
@@ -211,7 +214,7 @@ function DiscordSection() {
                 src={discordAvatar}
                 alt={discordUsername || 'Discord'}
                 crossOrigin="anonymous"
-                className="tw-w-10 tw-h-10 tw-rounded-full tw-border tw-border-border"
+                className={`tw-w-10 tw-h-10 tw-rounded-full tw-border tw-border-border ${anonymousMode ? 'tw-blur-sm' : ''}`}
               />
             ) : (
               <div className="tw-w-10 tw-h-10 tw-rounded-full tw-bg-indigo-500/20 tw-flex tw-items-center tw-justify-center tw-border tw-border-indigo-500/30">
@@ -220,7 +223,7 @@ function DiscordSection() {
             )}
           </div>
           <div className="tw-flex-1 tw-min-w-0">
-            <p className="tw-text-sm tw-font-medium tw-truncate">{discordUsername}</p>
+            <p className={`tw-text-sm tw-font-medium tw-truncate ${anonymousMode ? 'tw-blur-sm' : ''}`}>{discordUsername}</p>
             <p className="tw-text-xs tw-text-muted-foreground">Discord</p>
           </div>
           <Button
@@ -251,6 +254,7 @@ function DiscordSection() {
 
 export function AccountTab() {
   const { user, plan, planExpiry, changePassword, loading } = useAuthStore();
+  const anonymousMode = useSettingsStore((s) => s.anonymousMode);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -300,7 +304,7 @@ export function AccountTab() {
       <div className="tw-space-y-2">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Email</Label>
         <div className="tw-flex tw-items-center tw-gap-2">
-          <span className="tw-text-sm tw-text-foreground">{user?.email}</span>
+          <span className={`tw-text-sm tw-text-foreground ${anonymousMode ? 'tw-blur-sm' : ''}`}>{user?.email}</span>
           {isEmailVerified ? (
             <span className="tw-flex tw-items-center tw-gap-1 tw-text-xs tw-text-success">
               <CheckCircle className="tw-w-3 tw-h-3" />

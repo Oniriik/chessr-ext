@@ -1,6 +1,7 @@
 import { createRoot, Root } from 'react-dom/client';
 import { getPlatformContext, MountPoint, RouteId } from '../platforms';
 import { PlatformProvider } from '../contexts/PlatformContext';
+import { initAnonymousBlur, rescanAnonymousBlur } from './anonymousBlur';
 import '../styles/content.css';
 
 const mountedRoots: Map<string, { root: Root; container: HTMLElement }> = new Map();
@@ -96,16 +97,23 @@ function updateMounts() {
 // Initial mount
 updateMounts();
 
+// Initialize anonymous blur for platform page elements
+initAnonymousBlur();
+
 // Watch for URL changes (SPA navigation)
 let lastUrl = window.location.href;
 const observer = new MutationObserver(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href;
     updateMounts();
+    rescanAnonymousBlur();
   }
 });
 
 observer.observe(document.body, { childList: true, subtree: true });
 
 // Also listen for popstate (back/forward navigation)
-window.addEventListener('popstate', updateMounts);
+window.addEventListener('popstate', () => {
+  updateMounts();
+  rescanAnonymousBlur();
+});

@@ -7,6 +7,12 @@
   display: contents;
 }
 
+/* Anonymous mode blur for platform page elements */
+.chessr-anon-blur {
+  filter: blur(5px) !important;
+  user-select: none !important;
+}
+
 /* Sidebar container - inherits Chess.com's board-layout-sidebar width */
 .chessr-sidebar-container {
   width: 100%;

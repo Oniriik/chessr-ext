@@ -18,6 +18,9 @@ interface SettingsState {
   showEvalBar: boolean;
   evalBarMode: EvalBarMode;
 
+  // Privacy
+  anonymousMode: boolean;
+
   // Suggestions settings
   numberOfSuggestions: 1 | 2 | 3;
   useSameColorForAllArrows: boolean;
@@ -32,6 +35,7 @@ interface SettingsState {
   setShowDetailedMoveSuggestion: (show: boolean) => void;
   setShowEvalBar: (show: boolean) => void;
   setEvalBarMode: (mode: EvalBarMode) => void;
+  setAnonymousMode: (anon: boolean) => void;
   setNumberOfSuggestions: (num: 1 | 2 | 3) => void;
   setUseSameColorForAllArrows: (use: boolean) => void;
   setSingleArrowColor: (color: string) => void;
@@ -50,6 +54,9 @@ export const useSettingsStore = create<SettingsState>()(
       showEvalBar: true,
       evalBarMode: 'eval',
 
+      // Privacy
+      anonymousMode: false,
+
       // Suggestions defaults
       numberOfSuggestions: 3,
       useSameColorForAllArrows: false,
@@ -64,6 +71,7 @@ export const useSettingsStore = create<SettingsState>()(
       setShowDetailedMoveSuggestion: (show) => set({ showDetailedMoveSuggestion: show }),
       setShowEvalBar: (show) => set({ showEvalBar: show }),
       setEvalBarMode: (mode) => set({ evalBarMode: mode }),
+      setAnonymousMode: (anon) => set({ anonymousMode: anon }),
       setNumberOfSuggestions: (num) => set({ numberOfSuggestions: num }),
       setUseSameColorForAllArrows: (use) => set({ useSameColorForAllArrows: use }),
       setSingleArrowColor: (color) => set({ singleArrowColor: color }),

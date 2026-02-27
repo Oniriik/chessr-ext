@@ -15,10 +15,12 @@ export function GeneralTab() {
     showDetailedMoveSuggestion,
     showEvalBar,
     evalBarMode,
+    anonymousMode,
     setLanguage,
     setShowDetailedMoveSuggestion,
     setShowEvalBar,
     setEvalBarMode,
+    setAnonymousMode,
   } = useSettingsStore();
 
   return (
@@ -54,6 +56,20 @@ export function GeneralTab() {
           <Switch
             checked={showDetailedMoveSuggestion}
             onCheckedChange={setShowDetailedMoveSuggestion}
+          />
+        </div>
+
+        {/* Anonymous Mode */}
+        <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+          <div className="tw-space-y-0.5">
+            <Label className="tw-text-sm tw-font-medium">Anonymous mode</Label>
+            <p className="tw-text-xs tw-text-muted-foreground">
+              Blur linked account names and avatars
+            </p>
+          </div>
+          <Switch
+            checked={anonymousMode}
+            onCheckedChange={setAnonymousMode}
           />
         </div>
 
