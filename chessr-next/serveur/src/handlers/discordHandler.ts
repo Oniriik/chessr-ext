@@ -276,27 +276,44 @@ export async function handleDiscordCallback(
     };
 
     // Activate free trial if eligible
+    // Check both user-level flag AND Discord-level history (prevents re-link abuse)
     let planChanged = false;
     if (settings?.plan === 'free' && !settings?.freetrial_used) {
-      const expiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
-      updateData.plan = 'freetrial';
-      updateData.plan_expiry = expiry;
-      updateData.freetrial_used = true;
-      planChanged = true;
+      // Check if this Discord account was already used for a freetrial on ANY Chessr account
+      const { data: discordHistory } = await supabase
+        .from('discord_freetrial_history')
+        .select('discord_id')
+        .eq('discord_id', discordId)
+        .single();
 
-      // Log plan change
-      await supabase.from('plan_activity_logs').insert({
-        user_id: userId,
-        user_email: userEmail,
-        action_type: 'discord_link',
-        old_plan: 'free',
-        new_plan: 'freetrial',
-        old_expiry: null,
-        new_expiry: expiry,
-        reason: `Discord linked: ${discordUsername} (${discordId})`,
-      });
-    } else if (!settings?.freetrial_used) {
-      // User is on another plan, just mark freetrial as not used yet (keep default)
+      if (!discordHistory) {
+        // Discord never used for a trial → grant it
+        const expiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+        updateData.plan = 'freetrial';
+        updateData.plan_expiry = expiry;
+        updateData.freetrial_used = true;
+        planChanged = true;
+
+        // Record in Discord freetrial history
+        await supabase.from('discord_freetrial_history').insert({
+          discord_id: discordId,
+          user_id: userId,
+        });
+
+        // Log plan change
+        await supabase.from('plan_activity_logs').insert({
+          user_id: userId,
+          user_email: userEmail,
+          action_type: 'discord_link',
+          old_plan: 'free',
+          new_plan: 'freetrial',
+          old_expiry: null,
+          new_expiry: expiry,
+          reason: `Discord linked: ${discordUsername} (${discordId})`,
+        });
+      } else {
+        console.log(`[Discord] Discord ${discordId} already used freetrial, skipping trial for ${userEmail}`);
+      }
     }
 
     // Update user_settings
