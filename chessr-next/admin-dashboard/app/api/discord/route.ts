@@ -8,34 +8,25 @@ const DISCORD_STATS_CATEGORY_ID = process.env.DISCORD_STATS_CHANNEL_ID // Catego
 // Predefined embed templates
 const templates = {
   maintenance: {
-    title: '🔧 Maintenance en cours',
-    description: 'Le serveur Chessr est actuellement en maintenance. Nous serons de retour bientôt !',
+    title: '🔧 Scheduled Maintenance',
+    description: 'Chessr is currently undergoing maintenance. We\'ll be back soon!',
     color: 0xffa500, // Orange
   },
   maintenanceEnd: {
-    title: '✅ Maintenance terminée',
-    description: 'Le serveur Chessr est de nouveau opérationnel. Bon jeu !',
+    title: '✅ Maintenance Complete',
+    description: 'Chessr is back online. Enjoy your games!',
     color: 0x00ff00, // Green
   },
   update: {
-    title: '🚀 Nouvelle mise à jour',
+    title: '🚀 New Update',
     description: '',
     color: 0x5865f2, // Discord blue
   },
   announcement: {
-    title: '📢 Annonce',
+    title: '📢 Announcement',
     description: '',
     color: 0x5865f2,
   },
-}
-
-// Build maintenance description with Discord dynamic timestamps
-// <t:EPOCH:F> renders in each user's local timezone (e.g. "February 27, 2026 3:00 PM")
-// <t:EPOCH:R> renders as relative time (e.g. "in 2 hours")
-function buildMaintenanceDescription(startTs?: number, endTs?: number): string {
-  if (!startTs) return templates.maintenance.description
-  if (!endTs) return `Maintenance prévue <t:${startTs}:F> (<t:${startTs}:R>)`
-  return `Maintenance prévue de <t:${startTs}:F> à <t:${endTs}:t> (<t:${startTs}:R>)`
 }
 
 // Update the status voice channel name
@@ -150,7 +141,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { channelId, template, title, description, color, useWebhook, pingEveryone, statusOnly, maintenanceStart, maintenanceEnd: maintEnd } = body
+    const { channelId, template, title, description, color, useWebhook, pingEveryone, statusOnly } = body
 
     // If statusOnly, just update the status channel without sending a message
     if (statusOnly && (template === 'maintenance' || template === 'maintenanceEnd')) {
@@ -166,14 +157,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Channel ID required' }, { status: 400 })
     }
 
-    // Build embed - use dynamic timestamps for maintenance template
-    const defaultDescription = template === 'maintenance'
-      ? buildMaintenanceDescription(maintenanceStart, maintEnd)
-      : templates[template as keyof typeof templates]?.description || ''
-
     const embed = {
       title: title || templates[template as keyof typeof templates]?.title || 'Message',
-      description: description || defaultDescription,
+      description: description || templates[template as keyof typeof templates]?.description || '',
       color: color || templates[template as keyof typeof templates]?.color || 0x5865f2,
       timestamp: new Date().toISOString(),
       footer: {

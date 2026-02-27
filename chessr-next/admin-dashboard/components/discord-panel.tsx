@@ -41,28 +41,28 @@ const templateConfig = {
     icon: Wrench,
     label: 'Maintenance Start',
     color: 'bg-orange-500/20 text-orange-400',
-    defaultTitle: '🔧 Maintenance en cours',
-    defaultDescription: 'Le serveur Chessr est actuellement en maintenance. Nous serons de retour bientôt !',
+    defaultTitle: '🔧 Scheduled Maintenance',
+    defaultDescription: 'Scheduled maintenance {{time}}\nWe\'ll be back as soon as possible!',
   },
   maintenanceEnd: {
     icon: CheckCircle2,
     label: 'Maintenance End',
     color: 'bg-green-500/20 text-green-400',
-    defaultTitle: '✅ Maintenance terminée',
-    defaultDescription: 'Le serveur Chessr est de nouveau opérationnel. Bon jeu !',
+    defaultTitle: '✅ Maintenance Complete',
+    defaultDescription: 'Chessr is back online. Enjoy your games!',
   },
   update: {
     icon: Rocket,
     label: 'Update',
     color: 'bg-blue-500/20 text-blue-400',
-    defaultTitle: '🚀 Nouvelle mise à jour',
+    defaultTitle: '🚀 New Update',
     defaultDescription: '',
   },
   announcement: {
     icon: Megaphone,
     label: 'Announcement',
     color: 'bg-purple-500/20 text-purple-400',
-    defaultTitle: '📢 Annonce',
+    defaultTitle: '📢 Announcement',
     defaultDescription: '',
   },
   custom: {
@@ -89,10 +89,52 @@ export function DiscordPanel() {
   const [description, setDescription] = useState('')
   const [pingEveryone, setPingEveryone] = useState(true)
 
+  // Maintenance schedule
+  const [maintenanceStart, setMaintenanceStart] = useState<number | null>(null)
+  const [maintenanceEnd, setMaintenanceEnd] = useState<number | null>(null)
+
   // Filter channels by search
   const filteredChannels = channels.filter((c) =>
     c.name.toLowerCase().includes(channelSearch.toLowerCase())
   )
+
+  // Format maintenance time for preview (human-readable)
+  function formatTimePreview(start: number | null, end: number | null): string {
+    if (!start) return '(no schedule set)'
+    const fmt = (ts: number) =>
+      new Date(ts * 1000).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
+      })
+    const fmtShort = (ts: number) =>
+      new Date(ts * 1000).toLocaleTimeString('en-US', {
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      })
+    if (!end) return `on ${fmt(start)}`
+    // Same day check
+    const dStart = new Date(start * 1000)
+    const dEnd = new Date(end * 1000)
+    const sameDay = dStart.toDateString() === dEnd.toDateString()
+    return sameDay
+      ? `from ${fmt(start)} to ${fmtShort(end)}`
+      : `from ${fmt(start)} to ${fmt(end)}`
+  }
+
+  // Format maintenance time for Discord (dynamic timestamps)
+  function formatTimeDiscord(start: number | null, end: number | null): string {
+    if (!start) return ''
+    if (!end) return `on <t:${start}:F> (<t:${start}:R>)`
+    return `from <t:${start}:F> to <t:${end}:t> (<t:${start}:R>)`
+  }
+
+  // Replace {{time}} in a string
+  function replaceTime(text: string, replacement: string): string {
+    return text.replace(/\{\{time\}\}/g, replacement)
+  }
+
+  // Preview description with {{time}} resolved
+  const previewDescription = description.includes('{{time}}')
+    ? replaceTime(description, formatTimePreview(maintenanceStart, maintenanceEnd))
+    : description
 
   useEffect(() => {
     fetchChannels()
@@ -103,7 +145,27 @@ export function DiscordPanel() {
     const config = templateConfig[template]
     setTitle(config.defaultTitle)
     setDescription(config.defaultDescription)
+    // Fetch maintenance schedule when maintenance template is selected
+    if (template === 'maintenance') {
+      fetchMaintenanceSchedule()
+    }
   }, [template])
+
+  const fetchMaintenanceSchedule = async () => {
+    try {
+      const res = await fetch('/api/maintenance')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.scheduled) {
+          setMaintenanceStart(data.startTimestamp)
+          setMaintenanceEnd(data.endTimestamp)
+        } else {
+          setMaintenanceStart(null)
+          setMaintenanceEnd(null)
+        }
+      }
+    } catch {}
+  }
 
   const fetchChannels = async () => {
     try {
@@ -134,21 +196,10 @@ export function DiscordPanel() {
       setError(null)
       setSuccess(null)
 
-      // If maintenance template, fetch current schedule timestamps for Discord dynamic time
-      let maintenanceStart: number | undefined
-      let maintenanceEnd: number | undefined
-      if (template === 'maintenance') {
-        try {
-          const mRes = await fetch('/api/maintenance')
-          if (mRes.ok) {
-            const mData = await mRes.json()
-            if (mData.scheduled) {
-              maintenanceStart = mData.startTimestamp
-              maintenanceEnd = mData.endTimestamp
-            }
-          }
-        } catch {}
-      }
+      // Replace {{time}} with Discord dynamic timestamps before sending
+      const finalDescription = description.includes('{{time}}')
+        ? replaceTime(description, formatTimeDiscord(maintenanceStart, maintenanceEnd))
+        : description
 
       const response = await fetch('/api/discord', {
         method: 'POST',
@@ -157,9 +208,7 @@ export function DiscordPanel() {
           channelId: selectedChannel,
           template,
           title,
-          description: template === 'maintenance' && maintenanceStart ? undefined : description,
-          maintenanceStart,
-          maintenanceEnd,
+          description: finalDescription,
           pingEveryone,
         }),
       })
@@ -168,7 +217,6 @@ export function DiscordPanel() {
 
       if (response.ok) {
         setSuccess(`Message sent successfully via ${data.method}`)
-        // Reset form after success
         if (template !== 'custom') {
           setDescription(templateConfig[template].defaultDescription)
         }
@@ -388,7 +436,7 @@ export function DiscordPanel() {
             <div className="border-l-4 border-blue-500 pl-3">
               <p className="font-semibold text-white">{title || 'Title'}</p>
               <p className="text-sm text-gray-300 mt-1 whitespace-pre-wrap">
-                {description || 'Description...'}
+                {previewDescription || 'Description...'}
               </p>
               <p className="text-xs text-gray-500 mt-2">Today at {new Date().toLocaleTimeString()}</p>
             </div>
