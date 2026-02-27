@@ -18,23 +18,34 @@ Technical documentation for the Chessr production infrastructure — VPS, Docker
 ## Network Architecture
 
 ```
-                    Internet
-                       │
-              ┌────────▼────────┐
-              │    UFW Firewall  │
-              │  22, 80, 443    │
-              └────────┬────────┘
-                       │
-              ┌────────▼────────┐
-              │   Nginx 1.24.0  │
-              │  (Reverse Proxy) │
-              └───┬────┬────┬───┘
-                  │    │    │
-    ┌─────────────┘    │    └─────────────┐
-    ▼                  ▼                  ▼
-engine.chessr.io  dashboard.chessr.io  download.chessr.io
-  WSS → :8080      HTTPS → :3001      Static files
-  (chessr-server)  (chessr-admin)      (/opt/chessr/extension)
+                         Internet
+                            │
+                   ┌────────▼────────┐
+                   │    UFW Firewall  │
+                   │  22, 80, 443    │
+                   └────────┬────────┘
+                            │
+                   ┌────────▼────────┐
+                   │   Nginx 1.24.0  │
+                   │  (Reverse Proxy) │
+                   └───┬────┬────┬───┘
+                       │    │    │
+         ┌─────────────┘    │    └─────────────┐
+         ▼                  ▼                  ▼
+  engine.chessr.io  dashboard.chessr.io  download.chessr.io
+    WSS → :8080      HTTPS → :3001      Static files
+    (chessr-server)  (chessr-admin)      (/opt/chessr/extension)
+         │
+         ├──── chessr-network (bridge) ────┐
+         │                                 │
+  ┌──────▼───────┐                ┌────────▼───────┐
+  │ chessr-discord│                │  chessr-cron   │
+  │ (Discord Bot) │                │ (Background    │
+  │ No public port│                │  jobs)         │
+  └──────┬────────┘                └────────┬───────┘
+         │                                  │
+         └──────────► Supabase ◄────────────┘
+                    Discord API
 ```
 
 ## Domains

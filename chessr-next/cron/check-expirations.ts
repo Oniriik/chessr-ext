@@ -1,6 +1,7 @@
 /**
  * Check Plan Expirations
  * Downgrades users whose plan has expired to 'free'
+ * Sends Discord notification for each downgrade
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -9,6 +10,38 @@ const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
+
+const DISCORD_WEBHOOK_URL = process.env.DISCORD_SIGNUP_WEBHOOK_URL;
+
+async function sendDowngradeNotification(email: string, oldPlan: string, expiry: string): Promise<void> {
+  if (!DISCORD_WEBHOOK_URL) return;
+
+  try {
+    const res = await fetch(DISCORD_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        embeds: [{
+          title: '⏰ Plan Expired',
+          color: 0xef4444, // red
+          fields: [
+            { name: '📧 Email', value: email || 'Unknown', inline: true },
+            { name: '📉 Plan', value: `${oldPlan} → free`, inline: true },
+            { name: '📅 Expired', value: new Date(expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), inline: true },
+          ],
+          timestamp: new Date().toISOString(),
+          footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+        }],
+      }),
+    });
+
+    if (!res.ok) {
+      console.error(`[Cron] Discord webhook failed: ${res.status} ${res.statusText}`);
+    }
+  } catch (error) {
+    console.error('[Cron] Discord webhook error:', error);
+  }
+}
 
 async function checkExpirations() {
   const now = new Date().toISOString();
@@ -55,12 +88,13 @@ async function checkExpirations() {
       if (updateError) {
         console.error(`[Cron] Failed to downgrade user ${user.user_id}:`, updateError.message);
       } else {
+        const email = emailMap.get(user.user_id) || null;
         console.log(`[Cron] Downgraded user ${user.user_id} from ${user.plan} to free (expired: ${user.plan_expiry})`);
 
         // Log the plan change
         const { error: logError } = await supabase.from('plan_activity_logs').insert({
           user_id: user.user_id,
-          user_email: emailMap.get(user.user_id) || null,
+          user_email: email,
           action_type: 'cron_downgrade',
           old_plan: user.plan,
           new_plan: 'free',
@@ -72,6 +106,9 @@ async function checkExpirations() {
         if (logError) {
           console.error(`[Cron] Failed to log downgrade for ${user.user_id}:`, logError.message);
         }
+
+        // Send Discord notification
+        await sendDowngradeNotification(email || 'Unknown', user.plan, user.plan_expiry);
       }
     }
 
