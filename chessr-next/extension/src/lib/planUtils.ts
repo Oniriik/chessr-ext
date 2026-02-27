@@ -11,7 +11,7 @@ const PREMIUM_PLANS: Plan[] = ['lifetime', 'beta', 'premium', 'freetrial'];
 // Free plan limits
 export const FREE_LIMITS = {
   maxElo: 2000,
-  maxRisk: 30,
+  ambitionAutoOnly: true,
   allowedPersonalities: ['Default', 'Aggressive'] as const,
 } as const;
 
@@ -54,7 +54,8 @@ export function usePlanLimits() {
 
   return {
     maxElo: premium ? 3500 : FREE_LIMITS.maxElo,
-    maxRisk: premium ? 100 : FREE_LIMITS.maxRisk,
+    canControlAmbition: premium,
+    canUseVariety: premium,
     canUseArmageddon: premium,
     canUsePuzzleHints: premium,
     isPersonalityAllowed: (personality: string) =>

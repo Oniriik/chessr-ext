@@ -54,6 +54,7 @@ export interface EngineConfigParams {
   personality: string;
   multiPv: number;
   contempt?: number;
+  variety?: number;
   limitStrength?: boolean;
   armageddon?: 'off' | 'white' | 'black';
   puzzleMode?: boolean;
@@ -62,15 +63,17 @@ export interface EngineConfigParams {
 /**
  * Get UCI options for standard engine search with MultiPV
  */
-export function getEngineConfig({ targetElo, personality, multiPv, contempt, limitStrength, armageddon, puzzleMode }: EngineConfigParams): Record<string, string> {
+export function getEngineConfig({ targetElo, personality, multiPv, contempt, variety, limitStrength, armageddon, puzzleMode }: EngineConfigParams): Record<string, string> {
   const elo = Math.max(400, Math.min(3500, targetElo || 1500));
   const pv = Math.max(1, Math.min(3, multiPv || 1));
   const personalityValue = PERSONALITY_MAP[personality as Personality] || 'Default';
-  // Map winIntent (0-100) to Komodo contempt (0-200)
-  // 0 = neutral, 50 = ~GM level (100cp), 100 = amateur level (200cp)
-  const contemptValue = Math.max(0, Math.min(250, (contempt ?? 0) * 2));
+  // Contempt passed directly from client (-250 to 250), undefined = engine default
+  const hasContempt = contempt !== undefined && contempt !== null;
+  const contemptValue = hasContempt ? Math.max(-250, Math.min(250, contempt)) : undefined;
   // Whether to limit strength (default true for game mode, false for puzzle mode)
   const shouldLimitStrength = limitStrength !== false;
+  // Variety (0-100), undefined = engine default (don't set)
+  const varietyValue = variety !== undefined && variety !== null ? Math.max(0, Math.min(100, variety)) : undefined;
   // Map armageddon: 'white' -> 'White Must Win', 'black' -> 'Black Must Win', default 'Off'
   const armageddonValue = armageddon === 'white' ? 'White Must Win' : armageddon === 'black' ? 'Black Must Win' : 'Off';
 
@@ -94,7 +97,8 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, lim
     'MultiPV': pv.toString(),
     'UCI LimitStrength': shouldLimitStrength ? 'true' : 'false',
     'UCI Elo': elo.toString(),
-    'Contempt': contemptValue.toString(),
+    ...(contemptValue !== undefined ? { 'Contempt': contemptValue.toString() } : {}),
+    ...(varietyValue !== undefined ? { 'Variety': varietyValue.toString() } : {}),
     'Armageddon': armageddonValue,
     'Use LMR': 'true',
     'Null Move Pruning': 'true',

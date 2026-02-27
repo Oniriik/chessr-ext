@@ -115,6 +115,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   fetchPlan: async (userId: string) => {
+    const processPlanData = (data: { plan?: string; plan_expiry?: string; banned?: boolean; ban_reason?: string } | null) => {
+      if (data?.banned) {
+        const reason = `Banned: ${data.ban_reason || 'Your account has been banned.'}`;
+        supabase.auth.signOut();
+        set({ user: null, session: null, plan: 'free', planExpiry: null, loading: false, error: reason });
+        useEngineStore.getState().enforcePlanLimits('free');
+        return;
+      }
+      const plan = (data?.plan ?? 'free') as Plan;
+      set({ plan, planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null });
+      useEngineStore.getState().enforcePlanLimits(plan);
+    };
+
     try {
       const { data, error } = await supabase
         .from('user_settings')
@@ -123,36 +136,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single();
 
       if (error) {
+        // JWT expired/invalid — try refreshing the session
+        if (error.code === 'PGRST301') {
+          console.warn('[Auth] JWT expired, attempting refresh...');
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !refreshData.session) {
+            console.error('[Auth] Session refresh failed, signing out');
+            await get().signOut();
+            return;
+          }
+          set({ session: refreshData.session, user: refreshData.session.user });
+          // Retry with refreshed token
+          const { data: retryData, error: retryError } = await supabase
+            .from('user_settings')
+            .select('plan, plan_expiry, banned, ban_reason')
+            .eq('user_id', userId)
+            .single();
+          if (retryError) {
+            console.error('[Auth] fetchPlan retry failed, signing out');
+            await get().signOut();
+            return;
+          }
+          processPlanData(retryData);
+          return;
+        }
+
         console.error('[Auth] fetchPlan error:', error);
         set({ plan: 'free', planExpiry: null });
         useEngineStore.getState().enforcePlanLimits('free');
         return;
       }
 
-      // Check if user is banned
-      if (data?.banned) {
-        const reason = `Banned: ${data.ban_reason || 'Your account has been banned.'}`;
-        await supabase.auth.signOut();
-        set({
-          user: null,
-          session: null,
-          plan: 'free',
-          planExpiry: null,
-          loading: false,
-          error: reason,
-        });
-        useEngineStore.getState().enforcePlanLimits('free');
-        return;
-      }
-
-      const plan = data?.plan ?? 'free';
-      set({
-        plan,
-        planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null,
-      });
-
-      // Enforce plan limits on engine settings
-      useEngineStore.getState().enforcePlanLimits(plan);
+      processPlanData(data);
     } catch (e) {
       console.error('[Auth] fetchPlan error:', e);
       set({ plan: 'free', planExpiry: null });

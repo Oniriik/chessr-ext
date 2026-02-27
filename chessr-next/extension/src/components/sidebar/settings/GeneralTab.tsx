@@ -1,6 +1,8 @@
 import { useSettingsStore, type EvalBarMode } from '../../../stores/settingsStore';
+import { useEngineStore } from '../../../stores/engineStore';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
+import { Slider } from '../../ui/slider';
 import {
   Select,
   SelectContent,
@@ -22,6 +24,7 @@ export function GeneralTab() {
     setEvalBarMode,
     setAnonymousMode,
   } = useSettingsStore();
+  const { autoEloBoost, setAutoEloBoost } = useEngineStore();
 
   return (
     <div className="tw-space-y-6">
@@ -97,6 +100,29 @@ export function GeneralTab() {
               onCheckedChange={setShowEvalBar}
             />
           </div>
+        </div>
+      </div>
+
+      {/* Engine Section */}
+      <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Engine</Label>
+
+        {/* Auto ELO Boost */}
+        <div className="tw-space-y-2">
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <Label className="tw-text-sm tw-font-medium">Auto ELO boost</Label>
+            <span className="tw-text-base tw-font-bold tw-text-primary">+{autoEloBoost}</span>
+          </div>
+          <Slider
+            value={[autoEloBoost]}
+            onValueChange={([value]) => setAutoEloBoost(value)}
+            min={0}
+            max={300}
+            step={10}
+          />
+          <p className="tw-text-xs tw-text-muted-foreground">
+            ELO added above opponent rating in auto mode
+          </p>
         </div>
       </div>
     </div>

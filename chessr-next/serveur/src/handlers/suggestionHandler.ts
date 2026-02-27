@@ -26,7 +26,8 @@ export interface SuggestionMessage {
   targetElo?: number;
   personality?: string;
   multiPv?: number;
-  contempt?: number; // Win intent (0-100) from side-to-move perspective
+  contempt?: number; // Ambition (-250 to 250), maps to Komodo Contempt
+  variety?: number; // Move variety (0-100), maps to Komodo Variety
   puzzleMode?: boolean; // True for puzzle suggestions (max power, no ELO limit)
   limitStrength?: boolean; // Whether to limit engine strength (default true)
   armageddon?: 'off' | 'white' | 'black'; // Armageddon mode
@@ -125,7 +126,7 @@ function startProcessingLoop(): void {
  * Handle suggestion request message
  */
 export function handleSuggestionRequest(message: SuggestionMessage, client: Client): void {
-  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, puzzleMode, limitStrength, armageddon } = message;
+  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, variety, puzzleMode, limitStrength, armageddon } = message;
 
   // Validate required fields
   if (!requestId || !fen) {
@@ -165,7 +166,8 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     targetElo: targetElo || 1500,
     personality: personality || 'Default',
     multiPv: pvCount,
-    contempt: contempt ?? 0,
+    contempt: contempt,
+    variety: variety,
     limitStrength: limitStrength,
     armageddon: armageddon,
     puzzleMode: puzzleMode,

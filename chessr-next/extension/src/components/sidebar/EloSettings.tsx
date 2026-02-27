@@ -6,7 +6,8 @@ import { Switch } from '../ui/switch';
 import { ChevronDown } from 'lucide-react';
 import {
   useEngineStore,
-  getRiskLabel,
+  getAmbitionLabel,
+  getAmbitionDescription,
   PERSONALITIES,
   PERSONALITY_INFO,
   type Personality,
@@ -22,6 +23,7 @@ function TargetEloSection() {
   const {
     opponentElo,
     userElo,
+    autoEloBoost,
     targetEloAuto,
     targetEloManual,
     getTargetElo,
@@ -34,8 +36,8 @@ function TargetEloSection() {
   const targetElo = getTargetElo();
   // Clamp displayed value to max allowed
   const displayElo = Math.min(targetElo, maxElo);
-  // Auto label: always +150 from base (opponent or user)
-  const autoLabel = opponentElo > 0 ? `${opponentElo} + 150` : `${userElo} + 150`;
+  // Auto label: base + boost
+  const autoLabel = opponentElo > 0 ? `${opponentElo} + ${autoEloBoost}` : `${userElo} + ${autoEloBoost}`;
 
   return (
     <div className="tw-space-y-2">
@@ -71,42 +73,58 @@ function TargetEloSection() {
 }
 
 // ============================================================================
-// Risk Section
+// Ambition Section
 // ============================================================================
-function RiskSection() {
-  const { riskTaking, setRiskTaking } = useEngineStore();
-  const { maxRisk } = usePlanLimits();
-  const isLimited = maxRisk < 100;
+function AmbitionSection() {
+  const { ambition, ambitionAuto, setAmbition, setAmbitionAuto } = useEngineStore();
+  const { canControlAmbition } = usePlanLimits();
+  const isLimited = !canControlAmbition;
 
-  // For free users: show fixed value, for premium: show actual value
-  const displayRisk = isLimited ? maxRisk : riskTaking;
+  // Free users are forced to auto
+  const effectiveAuto = isLimited || ambitionAuto;
+  const displayAmbition = ambition;
+  const isDisabled = effectiveAuto;
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div className="tw-flex tw-items-center tw-gap-1.5">
-          <p className="tw-text-sm tw-font-medium">Risk Taking</p>
-          {isLimited && <UpgradeButton tooltip="Unlock risk taking control" />}
+          <p className="tw-text-sm tw-font-medium">Ambition</p>
+          {isLimited && <UpgradeButton tooltip="Unlock full ambition control" />}
         </div>
         <div className="tw-flex tw-items-center tw-gap-2">
-          <span className="tw-text-xs tw-text-muted-foreground">{displayRisk}%</span>
+          {!effectiveAuto && (
+            <span className="tw-text-xs tw-text-muted-foreground">{displayAmbition}%</span>
+          )}
           <span className="tw-text-base tw-font-bold tw-text-primary">
-            {getRiskLabel(displayRisk)}
+            {effectiveAuto ? 'Auto' : getAmbitionLabel(displayAmbition)}
           </span>
         </div>
       </div>
       <Slider
-        value={[displayRisk]}
-        onValueChange={([value]) => !isLimited && setRiskTaking(value)}
-        min={0}
-        max={100}
+        value={[effectiveAuto ? 0 : displayAmbition]}
+        onValueChange={([value]) => !isDisabled && setAmbition(value)}
+        min={-250}
+        max={250}
         step={1}
-        disabled={isLimited}
-        className={isLimited ? 'tw-opacity-50' : ''}
+        disabled={isDisabled}
+        className={isDisabled ? 'tw-opacity-50' : ''}
       />
-      <p className="tw-text-xs tw-text-muted-foreground">
-        Too low plays passively, too high makes errors
-      </p>
+      <label className="tw-flex tw-items-center tw-gap-2 tw-cursor-pointer">
+        <Checkbox
+          checked={effectiveAuto}
+          onCheckedChange={(checked) => !isLimited && setAmbitionAuto(checked === true)}
+          disabled={isLimited}
+        />
+        <span className="tw-text-xs tw-text-muted-foreground">
+          Auto (engine default)
+        </span>
+      </label>
+      {!effectiveAuto && (
+        <p className="tw-text-xs tw-text-muted-foreground">
+          {getAmbitionDescription(displayAmbition)}
+        </p>
+      )}
     </div>
   );
 }
@@ -153,6 +171,43 @@ function PersonalitySection() {
         </select>
       </div>
       <p className="tw-text-xs tw-text-muted-foreground">{info.description}</p>
+    </div>
+  );
+}
+
+// ============================================================================
+// Variety Section
+// ============================================================================
+function VarietySection() {
+  const { variety, setVariety } = useEngineStore();
+  const { canUseVariety } = usePlanLimits();
+  const isLimited = !canUseVariety;
+
+  const displayVariety = isLimited ? 5 : variety;
+
+  return (
+    <div className="tw-space-y-2">
+      <div className="tw-flex tw-items-center tw-justify-between">
+        <div className="tw-flex tw-items-center tw-gap-1.5">
+          <span className="tw-text-sm tw-font-medium">Move Variety</span>
+          {isLimited && <UpgradeButton tooltip="Unlock move variety control" />}
+        </div>
+        <span className="tw-text-base tw-font-bold tw-text-primary">{displayVariety}</span>
+      </div>
+      <Slider
+        value={[displayVariety]}
+        onValueChange={([value]) => !isLimited && setVariety(value)}
+        min={0}
+        max={100}
+        step={1}
+        disabled={isLimited}
+        className={isLimited ? 'tw-opacity-50' : ''}
+      />
+      <p className="tw-text-xs tw-text-muted-foreground">
+        {displayVariety === 0
+          ? 'Engine always plays the strongest move'
+          : 'Higher values make moves less predictable but not always optimal'}
+      </p>
     </div>
   );
 }
@@ -228,15 +283,13 @@ function UnlockEloSection() {
 // ============================================================================
 export function EloSettings() {
   const [expanded, setExpanded] = useState(true);
-  const { getTargetElo, personality, riskTaking, armageddon } = useEngineStore();
-  const { maxRisk, canUseArmageddon } = usePlanLimits();
+  const { getTargetElo, personality, ambition, ambitionAuto, armageddon } = useEngineStore();
+  const { canControlAmbition, canUseArmageddon } = usePlanLimits();
 
   const targetElo = getTargetElo();
   const personalityLabel = PERSONALITY_INFO[personality].label;
   const isArmageddonActive = canUseArmageddon && armageddon;
-
-  // For display in collapsed state
-  const displayRisk = maxRisk < 100 ? maxRisk : riskTaking;
+  const effectiveAuto = !canControlAmbition || ambitionAuto;
 
   return (
     <Card className="tw-bg-muted/50 tw-overflow-hidden">
@@ -259,7 +312,7 @@ export function EloSettings() {
                 </span>
               )}
               <span className="tw-text-muted-foreground">•</span>
-              <span className="tw-text-muted-foreground">{displayRisk}% risk</span>
+              <span className="tw-text-muted-foreground">{effectiveAuto ? 'Auto' : `${ambition}%`} ambition</span>
               <span className="tw-text-muted-foreground">•</span>
               <span className="tw-text-muted-foreground">{personalityLabel}</span>
             </div>
@@ -275,8 +328,9 @@ export function EloSettings() {
         <div className="tw-overflow-hidden">
           <CardContent className="tw-p-4 tw-pt-0 tw-space-y-5">
             <TargetEloSection />
-            <RiskSection />
+            <AmbitionSection />
             <PersonalitySection />
+            <VarietySection />
             <ArmageddonSection />
             <UnlockEloSection />
           </CardContent>

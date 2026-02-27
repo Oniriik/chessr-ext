@@ -78,23 +78,40 @@ export const PERSONALITY_INFO: Record<Personality, { label: string; description:
   },
 };
 
-// Risk Taking labels (maps to Komodo contempt 0-200)
-export const RISK_LEVELS = [
-  { threshold: 0, label: 'Passive' },
-  { threshold: 20, label: 'Cautious' },
-  { threshold: 40, label: 'Moderate' },
-  { threshold: 60, label: 'Bold' },
-  { threshold: 80, label: 'Aggressive' },
-  { threshold: 100, label: 'Overconfident' },
+// Ambition labels (maps directly to Komodo contempt -250 to 250)
+export const AMBITION_LEVELS = [
+  { threshold: -250, label: 'Draw Seeker', description: 'Actively seeks draws at all costs' },
+  { threshold: -200, label: 'Fortress', description: 'Builds impenetrable positions' },
+  { threshold: -150, label: 'Drawish', description: 'Strongly prefers safe, drawn positions' },
+  { threshold: -100, label: 'Solid', description: 'Favors stability and low-risk play' },
+  { threshold: -50, label: 'Cautious', description: 'Slightly conservative approach' },
+  { threshold: -20, label: 'Steady', description: 'Marginally risk-averse' },
+  { threshold: 0, label: 'Balanced', description: 'Objective, neutral play' },
+  { threshold: 20, label: 'Confident', description: 'Slightly favors winning chances' },
+  { threshold: 50, label: 'Ambitious', description: 'Prefers dynamic, unbalanced positions' },
+  { threshold: 80, label: 'Bold', description: 'Takes clear risks to press for a win' },
+  { threshold: 120, label: 'Aggressive', description: 'Actively avoids draws' },
+  { threshold: 160, label: 'Ruthless', description: 'High risk tolerance, sharp play' },
+  { threshold: 200, label: 'All-in', description: 'Extreme win-or-bust mentality' },
+  { threshold: 240, label: 'Berserker', description: 'Maximum aggression, no compromises' },
 ] as const;
 
-export function getRiskLabel(value: number): string {
-  for (let i = RISK_LEVELS.length - 1; i >= 0; i--) {
-    if (value >= RISK_LEVELS[i].threshold) {
-      return RISK_LEVELS[i].label;
+export function getAmbitionLabel(value: number): string {
+  for (let i = AMBITION_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= AMBITION_LEVELS[i].threshold) {
+      return AMBITION_LEVELS[i].label;
     }
   }
-  return RISK_LEVELS[0].label;
+  return AMBITION_LEVELS[0].label;
+}
+
+export function getAmbitionDescription(value: number): string {
+  for (let i = AMBITION_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= AMBITION_LEVELS[i].threshold) {
+      return AMBITION_LEVELS[i].description;
+    }
+  }
+  return AMBITION_LEVELS[0].description;
 }
 
 // Armageddon mode (on/off - uses player color from gameStore when enabled)
@@ -107,15 +124,20 @@ interface EngineState {
 
   // Auto mode toggle
   targetEloAuto: boolean;
+  autoEloBoost: number;
 
   // Manual value (used when auto is off)
   targetEloManual: number;
 
-  // Risk taking (0-100)
-  riskTaking: number;
+  // Ambition (-250 to 250, maps directly to Komodo contempt)
+  ambition: number;
+  ambitionAuto: boolean;
 
   // Personality
   personality: Personality;
+
+  // Variety (0-100, maps to Komodo Variety UCI option)
+  variety: number;
 
   // Armageddon mode (enabled = must win with player's color)
   armageddon: boolean;
@@ -130,9 +152,12 @@ interface EngineState {
   setUserElo: (elo: number) => void;
   setOpponentElo: (elo: number) => void;
   setTargetEloAuto: (auto: boolean) => void;
+  setAutoEloBoost: (boost: number) => void;
   setTargetEloManual: (elo: number) => void;
-  setRiskTaking: (value: number) => void;
+  setAmbition: (value: number) => void;
+  setAmbitionAuto: (auto: boolean) => void;
   setPersonality: (personality: Personality) => void;
+  setVariety: (value: number) => void;
   setArmageddon: (enabled: boolean) => void;
   setDisableLimitStrength: (value: boolean) => void;
 
@@ -150,28 +175,33 @@ export const useEngineStore = create<EngineState>()(
       userElo: 1500,
       opponentElo: 1500,
       targetEloAuto: true,
+      autoEloBoost: 50,
       targetEloManual: 1650,
-      riskTaking: 0,
+      ambition: 0,
+      ambitionAuto: true,
       personality: 'Default',
+      variety: 5,
       armageddon: false,
       disableLimitStrength: false,
 
-      // Target ELO: auto = base ELO + 150 (opponent if detected, otherwise user)
+      // Target ELO: auto = base ELO + boost (opponent if detected, otherwise user)
       getTargetElo: () => {
-        const { targetEloAuto, opponentElo, userElo, targetEloManual } = get();
+        const { targetEloAuto, autoEloBoost, opponentElo, userElo, targetEloManual } = get();
         if (!targetEloAuto) return targetEloManual;
-        // Use opponent ELO + 150 if detected, otherwise user ELO + 150
         const baseElo = opponentElo > 0 ? opponentElo : userElo;
-        return baseElo + 150;
+        return baseElo + autoEloBoost;
       },
 
       // Setters
       setUserElo: (elo) => set({ userElo: elo }),
       setOpponentElo: (elo) => set({ opponentElo: elo }),
       setTargetEloAuto: (auto) => set({ targetEloAuto: auto }),
+      setAutoEloBoost: (boost) => set({ autoEloBoost: boost }),
       setTargetEloManual: (elo) => set({ targetEloManual: elo }),
-      setRiskTaking: (value: number) => set({ riskTaking: value }),
+      setAmbition: (value: number) => set({ ambition: value }),
+      setAmbitionAuto: (auto) => set({ ambitionAuto: auto }),
       setPersonality: (personality) => set({ personality }),
+      setVariety: (value) => set({ variety: value }),
       setArmageddon: (enabled) => set({ armageddon: enabled }),
       setDisableLimitStrength: (value) => set({ disableLimitStrength: value }),
 
@@ -200,14 +230,19 @@ export const useEngineStore = create<EngineState>()(
           updates.targetEloManual = FREE_LIMITS.maxElo;
         }
 
-        // Force risk taking to fixed value for free users
-        if (state.riskTaking !== FREE_LIMITS.maxRisk) {
-          updates.riskTaking = FREE_LIMITS.maxRisk;
+        // Force ambition auto for free users
+        if (!state.ambitionAuto) {
+          updates.ambitionAuto = true;
         }
 
         // Check personality
         if (!FREE_LIMITS.allowedPersonalities.includes(state.personality as typeof FREE_LIMITS.allowedPersonalities[number])) {
           updates.personality = 'Default';
+        }
+
+        // Lock variety to 5 for free users
+        if (state.variety !== 5) {
+          updates.variety = 5;
         }
 
         // Check armageddon
@@ -225,9 +260,12 @@ export const useEngineStore = create<EngineState>()(
       name: 'chessr-engine',
       partialize: (state) => ({
         targetEloAuto: state.targetEloAuto,
+        autoEloBoost: state.autoEloBoost,
         targetEloManual: state.targetEloManual,
-        riskTaking: state.riskTaking,
+        ambition: state.ambition,
+        ambitionAuto: state.ambitionAuto,
         personality: state.personality,
+        variety: state.variety,
         armageddon: state.armageddon,
         disableLimitStrength: state.disableLimitStrength,
       }),

@@ -19,13 +19,13 @@ const DEBOUNCE_MS = 300;
  * Hook that automatically triggers suggestion requests when:
  * 1. It's the player's turn
  * 2. The position has changed
- * 3. Settings changed (targetElo, riskTaking, personality)
+ * 3. Settings changed (targetElo, ambition, personality)
  * 4. WebSocket is connected
  */
 export function useSuggestionTrigger() {
   const { isGameStarted, playerColor, currentTurn, chessInstance, getUciMoves } =
     useGameStore();
-  const { getTargetElo, personality, riskTaking, armageddon, disableLimitStrength, targetEloAuto, targetEloManual, userElo } = useEngineStore();
+  const { getTargetElo, personality, ambition, ambitionAuto, variety, armageddon, disableLimitStrength, targetEloAuto, autoEloBoost, targetEloManual, userElo } = useEngineStore();
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected, send } = useWebSocketStore();
@@ -73,11 +73,13 @@ export function useSuggestionTrigger() {
         return;
       }
 
-      // For free users, force risk to limit value
-      const effectiveRisk = premium ? riskTaking : FREE_LIMITS.maxRisk;
+      // Auto mode or free users = don't send contempt (engine default)
+      const effectiveAmbition = (ambitionAuto || !premium) ? undefined : ambition;
+      // Free users locked to 5, premium uses their setting
+      const effectiveVariety = premium ? variety : 5;
       const effectiveElo = premium ? targetElo : Math.min(targetElo, FREE_LIMITS.maxElo);
 
-      logger.log(`Requesting suggestions for position (contempt: ${effectiveRisk}, moves: ${moves.length})`);
+      logger.log(`Requesting suggestions for position (contempt: ${effectiveAmbition ?? 'auto'}, moves: ${moves.length})`);
 
       lastFen.current = fen;
 
@@ -102,7 +104,8 @@ export function useSuggestionTrigger() {
         targetElo: effectiveElo,
         personality,
         multiPv: numberOfSuggestions,
-        contempt: effectiveRisk,
+        ...(effectiveAmbition !== undefined ? { contempt: effectiveAmbition } : {}),
+        variety: effectiveVariety,
         armageddon: armageddonMode,
         limitStrength: !disableLimitStrength,
       });
@@ -131,10 +134,13 @@ export function useSuggestionTrigger() {
     getTargetElo,
     getUciMoves,
     personality,
-    riskTaking,
+    ambition,
+    ambitionAuto,
+    variety,
     armageddon,
     disableLimitStrength,
     targetEloAuto,
+    autoEloBoost,
     targetEloManual,
     userElo,
     numberOfSuggestions,
