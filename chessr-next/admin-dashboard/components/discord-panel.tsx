@@ -134,6 +134,22 @@ export function DiscordPanel() {
       setError(null)
       setSuccess(null)
 
+      // If maintenance template, fetch current schedule timestamps for Discord dynamic time
+      let maintenanceStart: number | undefined
+      let maintenanceEnd: number | undefined
+      if (template === 'maintenance') {
+        try {
+          const mRes = await fetch('/api/maintenance')
+          if (mRes.ok) {
+            const mData = await mRes.json()
+            if (mData.scheduled) {
+              maintenanceStart = mData.startTimestamp
+              maintenanceEnd = mData.endTimestamp
+            }
+          }
+        } catch {}
+      }
+
       const response = await fetch('/api/discord', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -141,7 +157,9 @@ export function DiscordPanel() {
           channelId: selectedChannel,
           template,
           title,
-          description,
+          description: template === 'maintenance' && maintenanceStart ? undefined : description,
+          maintenanceStart,
+          maintenanceEnd,
           pingEveryone,
         }),
       })

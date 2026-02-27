@@ -29,6 +29,15 @@ const templates = {
   },
 }
 
+// Build maintenance description with Discord dynamic timestamps
+// <t:EPOCH:F> renders in each user's local timezone (e.g. "February 27, 2026 3:00 PM")
+// <t:EPOCH:R> renders as relative time (e.g. "in 2 hours")
+function buildMaintenanceDescription(startTs?: number, endTs?: number): string {
+  if (!startTs) return templates.maintenance.description
+  if (!endTs) return `Maintenance prévue <t:${startTs}:F> (<t:${startTs}:R>)`
+  return `Maintenance prévue de <t:${startTs}:F> à <t:${endTs}:t> (<t:${startTs}:R>)`
+}
+
 // Update the status voice channel name
 async function updateStatusChannel(maintenance: boolean): Promise<boolean> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID || !DISCORD_STATS_CATEGORY_ID) {
@@ -141,7 +150,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { channelId, template, title, description, color, useWebhook, pingEveryone, statusOnly } = body
+    const { channelId, template, title, description, color, useWebhook, pingEveryone, statusOnly, maintenanceStart, maintenanceEnd: maintEnd } = body
 
     // If statusOnly, just update the status channel without sending a message
     if (statusOnly && (template === 'maintenance' || template === 'maintenanceEnd')) {
@@ -157,10 +166,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Channel ID required' }, { status: 400 })
     }
 
-    // Build embed
+    // Build embed - use dynamic timestamps for maintenance template
+    const defaultDescription = template === 'maintenance'
+      ? buildMaintenanceDescription(maintenanceStart, maintEnd)
+      : templates[template as keyof typeof templates]?.description || ''
+
     const embed = {
       title: title || templates[template as keyof typeof templates]?.title || 'Message',
-      description: description || templates[template as keyof typeof templates]?.description || '',
+      description: description || defaultDescription,
       color: color || templates[template as keyof typeof templates]?.color || 0x5865f2,
       timestamp: new Date().toISOString(),
       footer: {
