@@ -73,8 +73,7 @@ const API_BASE = 'https://explorer.lichess.ovh/lichess';
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes (server-side can be longer)
 const MAX_CACHE_SIZE = 1000; // Server can hold more
 const MIN_REQUEST_INTERVAL_MS = 500; // 500ms between Lichess API calls
-const MAX_RETRIES = 3;
-const INITIAL_BACKOFF_MS = 5000;
+const RATE_LIMIT_COOLDOWN_MS = 30_000; // 30s cooldown after 429
 
 // Cache and state
 const cache = new Map<string, CacheEntry>();
@@ -170,9 +169,20 @@ function isValidCacheEntry(entry: CacheEntry): boolean {
 }
 
 /**
- * Fetch from Lichess API with retry logic
+ * Fetch from Lichess API (no retries - fail fast on 429)
  */
-async function fetchFromLichess(fen: string, retryCount = 0): Promise<OpeningData> {
+async function fetchFromLichess(fen: string): Promise<OpeningData> {
+  // Skip API call entirely if we're in cooldown
+  if (isRateLimited && Date.now() < rateLimitResetTime) {
+    return {
+      opening: null,
+      moves: [],
+      isInBook: false,
+      totalGames: 0,
+      statsUnavailable: true,
+    };
+  }
+
   const url = `${API_BASE}?variant=standard&fen=${encodeURIComponent(fen)}`;
 
   stats.apiCalls++;
@@ -180,32 +190,24 @@ async function fetchFromLichess(fen: string, retryCount = 0): Promise<OpeningDat
 
   if (response.status === 429) {
     stats.rateLimitHits++;
-
-    if (retryCount >= MAX_RETRIES) {
-      console.warn('[OpeningHandler] Max retries reached for:', fen.split(' ')[0]);
-      return {
-        opening: null,
-        moves: [],
-        isInBook: false,
-        totalGames: 0,
-        statsUnavailable: true,
-      };
-    }
-
-    const backoffMs = INITIAL_BACKOFF_MS * Math.pow(2, retryCount);
     isRateLimited = true;
-    rateLimitResetTime = Date.now() + backoffMs;
-
-    console.warn(`[OpeningHandler] Rate limited, waiting ${backoffMs / 1000}s (retry ${retryCount + 1}/${MAX_RETRIES})`);
-    await new Promise((resolve) => setTimeout(resolve, backoffMs));
-
-    isRateLimited = false;
-    return fetchFromLichess(fen, retryCount + 1);
+    rateLimitResetTime = Date.now() + RATE_LIMIT_COOLDOWN_MS;
+    console.warn(`[OpeningHandler] Rate limited, cooldown ${RATE_LIMIT_COOLDOWN_MS / 1000}s`);
+    return {
+      opening: null,
+      moves: [],
+      isInBook: false,
+      totalGames: 0,
+      statsUnavailable: true,
+    };
   }
 
   if (!response.ok) {
     throw new Error(`Lichess API error: ${response.status}`);
   }
+
+  // Clear rate limit on successful request
+  isRateLimited = false;
 
   const data: LichessResponse = await response.json();
   return transformResponse(data);
@@ -234,12 +236,6 @@ async function processQueue(): Promise<void> {
     }
 
     stats.cacheMisses++;
-
-    // Wait if rate limited
-    if (isRateLimited && Date.now() < rateLimitResetTime) {
-      const waitTime = rateLimitResetTime - Date.now();
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-    }
 
     // Enforce minimum interval
     const now = Date.now();
