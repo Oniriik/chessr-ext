@@ -188,12 +188,14 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
 
       // Build search options based on mode
       const searchOptions: { nodes?: number; depth?: number; movetime?: number; moves?: string[] } = { moves };
-      if (limitStrength === false && searchMode && puzzleMode) {
-        // Custom search modes only allowed in puzzle mode to avoid blocking shared engine instances
+      if (limitStrength === false && searchMode) {
+        // Puzzle mode: no limits. Game mode: cap depth to 20 to avoid blocking shared engines.
+        const maxDepth = puzzleMode ? 30 : 20;
+        const maxMovetime = puzzleMode ? 5000 : 3000;
         if (searchMode === 'depth' && searchDepth) {
-          searchOptions.depth = Math.max(1, Math.min(30, searchDepth));
+          searchOptions.depth = Math.max(1, Math.min(maxDepth, searchDepth));
         } else if (searchMode === 'movetime' && searchMovetime) {
-          searchOptions.movetime = Math.max(500, Math.min(5000, searchMovetime));
+          searchOptions.movetime = Math.max(500, Math.min(maxMovetime, searchMovetime));
         } else {
           searchOptions.nodes = Math.max(100_000, Math.min(5_000_000, searchNodes || SEARCH_NODES));
         }
