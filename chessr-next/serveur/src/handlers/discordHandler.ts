@@ -475,18 +475,20 @@ async function assignDiscordRoles(discordId: string, userId: string, plan: strin
     const planRolesToAdd = targetPlanRole && !currentRoles.includes(targetPlanRole) ? [targetPlanRole] : [];
 
     // --- ELO role ---
-    // Get highest rapid rating across all linked accounts
+    // Get highest rating across all time controls and linked accounts
     const { data: accounts } = await supabase
       .from('linked_accounts')
-      .select('rating_rapid')
+      .select('rating_bullet, rating_blitz, rating_rapid')
       .eq('user_id', userId)
       .is('unlinked_at', null);
 
     let targetEloRole: string | null = null;
     if (accounts && accounts.length > 0) {
-      const maxRapid = Math.max(...accounts.map((a) => a.rating_rapid ?? 0).filter((r) => r > 0));
-      if (maxRapid > 0) {
-        const bracket = ELO_BRACKETS.find((b) => maxRapid <= b.maxElo);
+      const maxElo = Math.max(
+        ...accounts.flatMap((a) => [a.rating_bullet ?? 0, a.rating_blitz ?? 0, a.rating_rapid ?? 0]),
+      );
+      if (maxElo > 0) {
+        const bracket = ELO_BRACKETS.find((b) => maxElo <= b.maxElo);
         if (bracket) targetEloRole = bracket.roleId;
       }
     }

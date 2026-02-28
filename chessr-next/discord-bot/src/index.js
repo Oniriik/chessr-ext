@@ -147,12 +147,12 @@ async function assignRoles(member, userSettings) {
     }
   }
 
-  // 2. ELO roles (mutually exclusive, based on highest rapid)
+  // 2. ELO roles (mutually exclusive, based on highest rating across all time controls)
   const ratings = await getHighestRatings(userSettings.user_id);
-  const highestRapid = ratings.rapid;
+  const highestElo = Math.max(ratings.bullet, ratings.blitz, ratings.rapid);
   const allEloRoleIds = ELO_BRACKETS.map(b => b.roleId).filter(Boolean);
-  const targetEloBracket = highestRapid > 0
-    ? ELO_BRACKETS.find(b => highestRapid <= b.maxElo)
+  const targetEloBracket = highestElo > 0
+    ? ELO_BRACKETS.find(b => highestElo <= b.maxElo)
     : null;
   const targetEloRoleId = targetEloBracket?.roleId;
 
@@ -172,7 +172,7 @@ async function assignRoles(member, userSettings) {
     if (rolesToAdd.length > 0 || rolesToRemove.length > 0) {
       console.log(
         `[Roles] ${member.user.tag}: +${rolesToAdd.length} -${rolesToRemove.length}` +
-        (targetEloBracket ? ` (ELO: ${highestRapid} → ${targetEloBracket.name})` : ''),
+        (targetEloBracket ? ` (ELO: ${highestElo} → ${targetEloBracket.name})` : ''),
       );
 
       // Send notification
