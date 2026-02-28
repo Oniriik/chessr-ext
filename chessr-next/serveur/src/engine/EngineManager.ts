@@ -15,6 +15,7 @@ export type EngineType = 'komodo' | 'stockfish';
 export interface SearchOptions {
   nodes?: number;
   depth?: number;
+  movetime?: number;
   moves?: string[];
 }
 
@@ -175,7 +176,7 @@ export class EngineManager extends EventEmitter {
    * @param options - Search options: nodes, depth, or moves for game context
    */
   async search(fen: string, multiPv: number, options: SearchOptions = {}): Promise<RawSuggestion[]> {
-    const { nodes = 700000, depth, moves } = options;
+    const { nodes = 700000, depth, movetime, moves } = options;
     this.isBusy = true;
 
     // Determine if black is to move from FEN (second field)
@@ -244,9 +245,11 @@ export class EngineManager extends EventEmitter {
         this.sendCommand(`position fen ${fen}`);
       }
 
-      // Start search with depth or nodes limit
+      // Start search with depth, movetime, or nodes limit
       if (depth) {
         this.sendCommand(`go depth ${depth}`);
+      } else if (movetime) {
+        this.sendCommand(`go movetime ${movetime}`);
       } else {
         this.sendCommand(`go nodes ${nodes}`);
       }

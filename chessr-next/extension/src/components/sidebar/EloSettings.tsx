@@ -104,8 +104,8 @@ function AmbitionSection() {
       <Slider
         value={[effectiveAuto ? 0 : displayAmbition]}
         onValueChange={([value]) => !isDisabled && setAmbition(value)}
-        min={-250}
-        max={250}
+        min={-100}
+        max={100}
         step={1}
         disabled={isDisabled}
         className={isDisabled ? 'tw-opacity-50' : ''}
@@ -183,7 +183,7 @@ function VarietySection() {
   const { canUseVariety } = usePlanLimits();
   const isLimited = !canUseVariety;
 
-  const displayVariety = isLimited ? 5 : variety;
+  const displayVariety = isLimited ? 0 : variety;
 
   return (
     <div className="tw-space-y-2">
@@ -198,7 +198,7 @@ function VarietySection() {
         value={[displayVariety]}
         onValueChange={([value]) => !isLimited && setVariety(value)}
         min={0}
-        max={100}
+        max={10}
         step={1}
         disabled={isLimited}
         className={isLimited ? 'tw-opacity-50' : ''}
@@ -252,13 +252,25 @@ function ArmageddonSection() {
 // Unlock ELO Section (visible only when targetElo >= 3000)
 // ============================================================================
 function UnlockEloSection() {
-  const { getTargetElo, disableLimitStrength, setDisableLimitStrength } = useEngineStore();
+  const {
+    getTargetElo, disableLimitStrength, setDisableLimitStrength,
+    searchMode, setSearchMode, searchNodes, setSearchNodes,
+    searchDepth, setSearchDepth, searchMovetime, setSearchMovetime,
+  } = useEngineStore();
   const targetElo = getTargetElo();
 
   // Only show when target ELO is high enough
   if (targetElo < 3000) {
     return null;
   }
+
+  const formatSearchValue = () => {
+    switch (searchMode) {
+      case 'nodes': return searchNodes >= 1_000_000 ? `${(searchNodes / 1_000_000).toFixed(1)}M` : `${(searchNodes / 1000).toFixed(0)}k`;
+      case 'depth': return `${searchDepth}`;
+      case 'movetime': return `${(searchMovetime / 1000).toFixed(1)}s`;
+    }
+  };
 
   return (
     <div className="tw-space-y-2">
@@ -274,6 +286,51 @@ function UnlockEloSection() {
       <p className="tw-text-xs tw-text-muted-foreground">
         Unlock maximum engine strength at 3500 ELO
       </p>
+      {disableLimitStrength && (
+        <div className="tw-space-y-2 tw-pt-1">
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <div className="tw-flex tw-items-center tw-gap-2">
+              <select
+                value={searchMode}
+                onChange={(e) => setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
+                className="tw-h-7 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
+              >
+                <option value="nodes">Nodes</option>
+                <option value="depth">Depth</option>
+                <option value="movetime">Move Time</option>
+              </select>
+            </div>
+            <span className="tw-text-base tw-font-bold tw-text-primary">{formatSearchValue()}</span>
+          </div>
+          {searchMode === 'nodes' && (
+            <Slider
+              value={[searchNodes]}
+              onValueChange={([value]) => setSearchNodes(value)}
+              min={100000}
+              max={5000000}
+              step={100000}
+            />
+          )}
+          {searchMode === 'depth' && (
+            <Slider
+              value={[searchDepth]}
+              onValueChange={([value]) => setSearchDepth(value)}
+              min={1}
+              max={30}
+              step={1}
+            />
+          )}
+          {searchMode === 'movetime' && (
+            <Slider
+              value={[searchMovetime]}
+              onValueChange={([value]) => setSearchMovetime(value)}
+              min={500}
+              max={5000}
+              step={100}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

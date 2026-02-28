@@ -4,7 +4,7 @@
 
 import type { WebSocket } from 'ws';
 import { EnginePool } from '../engine/EnginePool.js';
-import { getEngineConfig, computeNodesForElo, PUZZLE_NODES } from '../engine/KomodoConfig.js';
+import { getEngineConfig, SEARCH_NODES } from '../engine/KomodoConfig.js';
 import { labelSuggestions } from '../engine/MoveLabeler.js';
 import { SuggestionQueue } from '../queue/SuggestionQueue.js';
 import { logStart, logEnd, logError } from '../utils/logger.js';
@@ -26,11 +26,15 @@ export interface SuggestionMessage {
   targetElo?: number;
   personality?: string;
   multiPv?: number;
-  contempt?: number; // Ambition (-250 to 250), maps to Komodo Contempt
-  variety?: number; // Move variety (0-100), maps to Komodo Variety
+  contempt?: number; // Ambition (-100 to 100), maps to Komodo Contempt
+  variety?: number; // Move variety (0-10), maps to Komodo Variety
   puzzleMode?: boolean; // True for puzzle suggestions (max power, no ELO limit)
   limitStrength?: boolean; // Whether to limit engine strength (default true)
   armageddon?: 'off' | 'white' | 'black'; // Armageddon mode
+  searchMode?: 'nodes' | 'depth' | 'movetime'; // Search control mode
+  searchNodes?: number; // Custom node limit (100k-5M, only when limitStrength=false)
+  searchDepth?: number; // Custom depth limit (1-30, only when limitStrength=false)
+  searchMovetime?: number; // Custom movetime in ms (500-5000, only when limitStrength=false)
 }
 
 // Engine pool instance
@@ -126,7 +130,7 @@ function startProcessingLoop(): void {
  * Handle suggestion request message
  */
 export function handleSuggestionRequest(message: SuggestionMessage, client: Client): void {
-  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, variety, puzzleMode, limitStrength, armageddon } = message;
+  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, variety, puzzleMode, limitStrength, armageddon, searchMode, searchNodes, searchDepth, searchMovetime } = message;
 
   // Validate required fields
   if (!requestId || !fen) {
@@ -157,7 +161,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     requestId,
     email: client.user.email,
     type: 'suggestion',
-    params: `mode=${modeLabel}, elo=${targetElo || 1500}, pv=${multiPv || 1}`,
+    params: `mode=${modeLabel}, elo=${targetElo || 1500}, pv=${multiPv || 1}${contempt !== undefined ? `, ambition=${contempt}` : ''}${variety ? `, variety=${variety}` : ''}${limitStrength === false && searchMode === 'nodes' && searchNodes ? `, nodes=${searchNodes}` : ''}${limitStrength === false && searchMode === 'depth' && searchDepth ? `, depth=${searchDepth}` : ''}${limitStrength === false && searchMode === 'movetime' && searchMovetime ? `, movetime=${searchMovetime}ms` : ''}`,
   });
 
   // Prepare config (standard search with MultiPV)
@@ -182,10 +186,19 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       // Configure engine for this request
       await engine.configure(config);
 
-      // Node count: max for puzzles or unlimited strength, scaled by ELO otherwise
-      const fullStrength = puzzleMode || limitStrength === false;
-      const nodes = fullStrength ? PUZZLE_NODES : computeNodesForElo(targetElo || 1500);
-      const searchOptions = { nodes, moves };
+      // Build search options based on mode
+      const searchOptions: { nodes?: number; depth?: number; movetime?: number; moves?: string[] } = { moves };
+      if (limitStrength === false && searchMode) {
+        if (searchMode === 'depth' && searchDepth) {
+          searchOptions.depth = Math.max(1, Math.min(30, searchDepth));
+        } else if (searchMode === 'movetime' && searchMovetime) {
+          searchOptions.movetime = Math.max(500, Math.min(5000, searchMovetime));
+        } else {
+          searchOptions.nodes = Math.max(100_000, Math.min(5_000_000, searchNodes || SEARCH_NODES));
+        }
+      } else {
+        searchOptions.nodes = SEARCH_NODES;
+      }
       const rawSuggestions = await engine.search(fen, pvCount, searchOptions);
 
       // Label suggestions
@@ -200,7 +213,10 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       // Win rate from best move
       const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
 
-      return { fen, personality: personality || 'Default', suggestions, positionEval, mateIn, winRate, puzzleMode: !!puzzleMode };
+      // Max depth reached across all suggestions
+      const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map(s => s.depth)) : 0;
+
+      return { fen, personality: personality || 'Default', suggestions, positionEval, mateIn, winRate, puzzleMode: !!puzzleMode, maxDepth };
     },
 
     callback: (error, result) => {
@@ -229,7 +245,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
           requestId,
           email: client.user.email,
           type: 'suggestion',
-          result: `${result.suggestions.length} suggestions, eval=${result.positionEval}`,
+          result: `${result.suggestions.length} suggestions, eval=${result.positionEval}, depth=${result.maxDepth}`,
         });
 
         client.ws.send(

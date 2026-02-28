@@ -26,22 +26,8 @@ export const PERSONALITY_MAP: Record<Personality, string> = {
   Human: 'Human',
 };
 
-/**
- * Compute search nodes based on target ELO.
- * Linear interpolation: 50k nodes at ELO 400, 1M nodes at ELO 3500.
- * Lower ELO = fewer nodes = faster + less precise (more natural).
- */
-export function computeNodesForElo(elo: number): number {
-  const minElo = 400;
-  const maxElo = 3500;
-  const minNodes = 50_000;
-  const maxNodes = 1_000_000;
-  const clamped = Math.max(minElo, Math.min(maxElo, elo));
-  return Math.round(minNodes + ((clamped - minElo) / (maxElo - minElo)) * (maxNodes - minNodes));
-}
-
-/** Max nodes for puzzle mode (full strength) */
-export const PUZZLE_NODES = 1_000_000;
+/** Safety cap for search nodes (Komodo self-limits with UCI LimitStrength) */
+export const SEARCH_NODES = 1_000_000;
 
 /**
  * Path to Syzygy tablebases (optional)
@@ -67,13 +53,13 @@ export function getEngineConfig({ targetElo, personality, multiPv, contempt, var
   const elo = Math.max(400, Math.min(3500, targetElo || 1500));
   const pv = Math.max(1, Math.min(3, multiPv || 1));
   const personalityValue = PERSONALITY_MAP[personality as Personality] || 'Default';
-  // Contempt passed directly from client (-250 to 250), undefined = engine default
+  // Contempt passed directly from client (-100 to 100), undefined = engine default
   const hasContempt = contempt !== undefined && contempt !== null;
-  const contemptValue = hasContempt ? Math.max(-250, Math.min(250, contempt)) : undefined;
+  const contemptValue = hasContempt ? Math.max(-100, Math.min(100, contempt)) : undefined;
   // Whether to limit strength (default true for game mode, false for puzzle mode)
   const shouldLimitStrength = limitStrength !== false;
-  // Variety (0-100), undefined = engine default (don't set)
-  const varietyValue = variety !== undefined && variety !== null ? Math.max(0, Math.min(100, variety)) : undefined;
+  // Variety (0-10), undefined = engine default (don't set)
+  const varietyValue = variety !== undefined && variety !== null ? Math.max(0, Math.min(10, variety)) : undefined;
   // Map armageddon: 'white' -> 'White Must Win', 'black' -> 'Black Must Win', default 'Off'
   const armageddonValue = armageddon === 'white' ? 'White Must Win' : armageddon === 'black' ? 'Black Must Win' : 'Off';
 

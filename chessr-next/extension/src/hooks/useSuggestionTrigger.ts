@@ -25,7 +25,7 @@ const DEBOUNCE_MS = 300;
 export function useSuggestionTrigger() {
   const { isGameStarted, playerColor, currentTurn, chessInstance, getUciMoves } =
     useGameStore();
-  const { getTargetElo, personality, ambition, ambitionAuto, variety, armageddon, disableLimitStrength, targetEloAuto, autoEloBoost, targetEloManual, userElo } = useEngineStore();
+  const { getTargetElo, personality, ambition, ambitionAuto, variety, armageddon, disableLimitStrength, searchMode, searchNodes, searchDepth, searchMovetime, targetEloAuto, autoEloBoost, targetEloManual, userElo } = useEngineStore();
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected, send } = useWebSocketStore();
@@ -76,7 +76,7 @@ export function useSuggestionTrigger() {
       // Auto mode or free users = don't send contempt (engine default)
       const effectiveAmbition = (ambitionAuto || !premium) ? undefined : ambition;
       // Free users locked to 5, premium uses their setting
-      const effectiveVariety = premium ? variety : 5;
+      const effectiveVariety = premium ? variety : 0;
       const effectiveElo = premium ? targetElo : Math.min(targetElo, FREE_LIMITS.maxElo);
 
       logger.log(`Requesting suggestions for position (contempt: ${effectiveAmbition ?? 'auto'}, moves: ${moves.length})`);
@@ -108,6 +108,12 @@ export function useSuggestionTrigger() {
         variety: effectiveVariety,
         armageddon: armageddonMode,
         limitStrength: !disableLimitStrength,
+        ...(disableLimitStrength ? {
+          searchMode,
+          ...(searchMode === 'nodes' ? { searchNodes } : {}),
+          ...(searchMode === 'depth' ? { searchDepth } : {}),
+          ...(searchMode === 'movetime' ? { searchMovetime } : {}),
+        } : {}),
       });
     };
 
@@ -139,6 +145,10 @@ export function useSuggestionTrigger() {
     variety,
     armageddon,
     disableLimitStrength,
+    searchMode,
+    searchNodes,
+    searchDepth,
+    searchMovetime,
     targetEloAuto,
     autoEloBoost,
     targetEloManual,
