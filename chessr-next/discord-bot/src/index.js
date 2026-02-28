@@ -572,6 +572,7 @@ function getEloColor(elo) {
 }
 
 async function handleRankCommand(interaction) {
+  await interaction.deferReply();
   const targetUser = interaction.options.getUser('member') || interaction.user;
 
   // Look up in Supabase
@@ -582,9 +583,8 @@ async function handleRankCommand(interaction) {
     .single();
 
   if (!settings) {
-    await interaction.reply({
+    await interaction.editReply({
       content: `${targetUser} hasn't linked their Chessr account yet.`,
-      ephemeral: true,
     });
     return;
   }
@@ -597,7 +597,7 @@ async function handleRankCommand(interaction) {
     { name: '🕐 Rapid', value: ratings.rapid > 0 ? `**${ratings.rapid}**` : 'N/A', inline: true },
   ];
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [{
       title: `${targetUser.username}'s Profile`,
       color: getEloColor(ratings.rapid),
@@ -616,6 +616,7 @@ const MODE_CONFIG = {
 };
 
 async function handleLeaderboardCommand(interaction) {
+  await interaction.deferReply();
   const mode = interaction.options.getString('mode') || 'rapid';
   const { emoji, label, column } = MODE_CONFIG[mode];
 
@@ -626,7 +627,7 @@ async function handleLeaderboardCommand(interaction) {
     .not('discord_id', 'is', null);
 
   if (!linkedUsers || linkedUsers.length === 0) {
-    await interaction.reply({ content: 'No linked players yet.', ephemeral: true });
+    await interaction.editReply({ content: 'No linked players yet.' });
     return;
   }
 
@@ -661,7 +662,7 @@ async function handleLeaderboardCommand(interaction) {
     .slice(0, 10);
 
   if (leaderboard.length === 0) {
-    await interaction.reply({ content: `No players with ${label} ratings yet.`, ephemeral: true });
+    await interaction.editReply({ content: `No players with ${label} ratings yet.` });
     return;
   }
 
@@ -671,7 +672,7 @@ async function handleLeaderboardCommand(interaction) {
     return `${prefix} <@${u.discordId}> — **${u.elo}**`;
   });
 
-  await interaction.reply({
+  await interaction.editReply({
     embeds: [{
       title: `${emoji} ${label} Leaderboard`,
       description: lines.join('\n'),
