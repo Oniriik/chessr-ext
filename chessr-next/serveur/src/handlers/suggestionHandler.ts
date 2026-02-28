@@ -188,7 +188,8 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
 
       // Build search options based on mode
       const searchOptions: { nodes?: number; depth?: number; movetime?: number; moves?: string[] } = { moves };
-      if (limitStrength === false && searchMode) {
+      if (limitStrength === false && searchMode && puzzleMode) {
+        // Custom search modes only allowed in puzzle mode to avoid blocking shared engine instances
         if (searchMode === 'depth' && searchDepth) {
           searchOptions.depth = Math.max(1, Math.min(30, searchDepth));
         } else if (searchMode === 'movetime' && searchMovetime) {
