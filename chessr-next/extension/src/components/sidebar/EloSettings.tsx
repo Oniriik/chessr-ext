@@ -313,19 +313,19 @@ function UnlockEloSection() {
           )}
           {searchMode === 'depth' && (
             <Slider
-              value={[searchDepth]}
+              value={[Math.min(searchDepth, 20)]}
               onValueChange={([value]) => setSearchDepth(value)}
               min={1}
-              max={30}
+              max={20}
               step={1}
             />
           )}
           {searchMode === 'movetime' && (
             <Slider
-              value={[searchMovetime]}
+              value={[Math.min(searchMovetime, 3000)]}
               onValueChange={([value]) => setSearchMovetime(value)}
               min={500}
-              max={5000}
+              max={3000}
               step={100}
             />
           )}

@@ -104,9 +104,11 @@ export const usePuzzleStore = create<PuzzleState>()(
       logger.log(`[puzzle] FEN changed: ${fen?.split(' ')[0]}`);
       set({
         currentFen: fen,
-        // Clear previous suggestions when position changes
+        // Clear previous suggestions and invalidate pending request
         suggestions: [],
         suggestion: null,
+        currentRequestId: null,
+        isLoading: false,
       });
     }
   },
