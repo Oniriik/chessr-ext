@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useEngineStore } from '../stores/engineStore';
 import { usePlatform } from '../contexts/PlatformContext';
+import { getRealHref } from '../content/anonymousBlur';
 import * as chesscom from '../platforms/chesscom';
 import * as lichess from '../platforms/lichess';
 
@@ -21,22 +22,23 @@ const PLATFORM_CONFIG = {
  * Hook to detect URL changes (SPA navigation)
  */
 function useUrlChange() {
-  const [url, setUrl] = useState(window.location.href);
+  const [url, setUrl] = useState(getRealHref());
 
   useEffect(() => {
-    let lastUrl = window.location.href;
+    let lastUrl = getRealHref();
 
     // Check URL periodically (handles pushState/replaceState)
     const interval = setInterval(() => {
-      if (window.location.href !== lastUrl) {
-        lastUrl = window.location.href;
+      const currentReal = getRealHref();
+      if (currentReal !== lastUrl) {
+        lastUrl = currentReal;
         setUrl(lastUrl);
       }
     }, 500);
 
     // Also listen for popstate (back/forward)
     const handlePopState = () => {
-      setUrl(window.location.href);
+      setUrl(getRealHref());
     };
 
     window.addEventListener('popstate', handlePopState);

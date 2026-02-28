@@ -91,7 +91,7 @@ export function LinkAccountModal() {
   const cooldownHours = useCooldownHours();
   const { setLoading, setLinkError } = useLinkedAccountsStore();
   const { signOut } = useAuthStore();
-  const anonymousMode = useSettingsStore((s) => s.anonymousMode);
+  const anonNames = useSettingsStore((s) => s.anonNames);
   const [isLinking, setIsLinking] = useState(false);
 
   // Check if cooldown is active
@@ -144,7 +144,7 @@ export function LinkAccountModal() {
             <img
               src={pendingProfile.avatarUrl}
               alt={pendingProfile.username}
-              className={`tw-w-16 tw-h-16 tw-mx-auto tw-mb-2 tw-rounded-full tw-border-2 tw-border-primary tw-shadow-lg ${anonymousMode ? 'tw-blur-sm' : ''}`}
+              className={`tw-w-16 tw-h-16 tw-mx-auto tw-mb-2 tw-rounded-full tw-border-2 tw-border-primary tw-shadow-lg ${anonNames ? 'tw-blur-sm' : ''}`}
             />
           ) : (
             <div className="tw-w-16 tw-h-16 tw-mx-auto tw-mb-2 tw-rounded-full tw-bg-muted tw-flex tw-items-center tw-justify-center tw-border-2 tw-border-primary">
@@ -153,7 +153,7 @@ export function LinkAccountModal() {
           )}
 
           {/* Username */}
-          <p className={`tw-text-base tw-font-semibold tw-mb-0.5 ${anonymousMode ? 'tw-blur-sm' : ''}`}>
+          <p className={`tw-text-base tw-font-semibold tw-mb-0.5 ${anonNames ? 'tw-blur-sm' : ''}`}>
             {pendingProfile.username}
           </p>
           <p className="tw-text-xs tw-text-muted-foreground">

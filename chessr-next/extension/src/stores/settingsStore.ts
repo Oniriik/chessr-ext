@@ -19,7 +19,8 @@ interface SettingsState {
   evalBarMode: EvalBarMode;
 
   // Privacy
-  anonymousMode: boolean;
+  anonNames: boolean;
+  anonUrl: boolean;
 
   // Suggestions settings
   numberOfSuggestions: 1 | 2 | 3;
@@ -35,7 +36,8 @@ interface SettingsState {
   setShowDetailedMoveSuggestion: (show: boolean) => void;
   setShowEvalBar: (show: boolean) => void;
   setEvalBarMode: (mode: EvalBarMode) => void;
-  setAnonymousMode: (anon: boolean) => void;
+  setAnonNames: (value: boolean) => void;
+  setAnonUrl: (value: boolean) => void;
   setNumberOfSuggestions: (num: 1 | 2 | 3) => void;
   setUseSameColorForAllArrows: (use: boolean) => void;
   setSingleArrowColor: (color: string) => void;
@@ -55,7 +57,8 @@ export const useSettingsStore = create<SettingsState>()(
       evalBarMode: 'eval',
 
       // Privacy
-      anonymousMode: false,
+      anonNames: false,
+      anonUrl: false,
 
       // Suggestions defaults
       numberOfSuggestions: 3,
@@ -71,7 +74,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShowDetailedMoveSuggestion: (show) => set({ showDetailedMoveSuggestion: show }),
       setShowEvalBar: (show) => set({ showEvalBar: show }),
       setEvalBarMode: (mode) => set({ evalBarMode: mode }),
-      setAnonymousMode: (anon) => set({ anonymousMode: anon }),
+      setAnonNames: (value) => set({ anonNames: value }),
+      setAnonUrl: (value) => set({ anonUrl: value }),
       setNumberOfSuggestions: (num) => set({ numberOfSuggestions: num }),
       setUseSameColorForAllArrows: (use) => set({ useSameColorForAllArrows: use }),
       setSingleArrowColor: (color) => set({ singleArrowColor: color }),
@@ -84,7 +88,14 @@ export const useSettingsStore = create<SettingsState>()(
       storage: {
         getItem: async (name) => {
           const result = await chrome.storage.local.get(name);
-          return result[name] ?? null;
+          const data = result[name] ?? null;
+          // Migrate old anonymousMode to new anonNames + anonUrl
+          if (data?.state?.anonymousMode !== undefined && data?.state?.anonNames === undefined) {
+            data.state.anonNames = data.state.anonymousMode;
+            data.state.anonUrl = data.state.anonymousMode;
+            delete data.state.anonymousMode;
+          }
+          return data;
         },
         setItem: async (name, value) => {
           await chrome.storage.local.set({ [name]: value });

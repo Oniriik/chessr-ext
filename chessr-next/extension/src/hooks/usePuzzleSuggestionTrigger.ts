@@ -11,16 +11,8 @@ import { useNeedsLinking } from '../stores/linkedAccountsStore';
 import { logger } from '../lib/logger';
 import { isPremium, showUpgradeAlert } from '../lib/planUtils';
 
-// Fixed settings for puzzle mode (max power)
-const PUZZLE_SETTINGS = {
-  targetElo: 3500,
-  limitStrength: false,
-  multiPv: 3,
-  armageddon: 'off' as const,
-};
-
-// Delay before auto-triggering (pieces animate during puzzle init)
-const AUTO_TRIGGER_DELAY = 1300;
+// Delay before auto-triggering (after player color is detected)
+const AUTO_TRIGGER_DELAY = 400;
 
 /**
  * Hook that triggers puzzle suggestions.
@@ -38,6 +30,10 @@ export function usePuzzleSuggestionTrigger() {
     playerColor,
     currentFen,
     autoHint,
+    searchMode,
+    searchNodes,
+    searchDepth,
+    searchMovetime,
     requestSuggestion,
   } = usePuzzleStore();
   const { isConnected, send } = useWebSocketStore();
@@ -70,11 +66,18 @@ export function usePuzzleSuggestionTrigger() {
       type: 'suggestion',
       requestId,
       fen: currentFen,
-      moves: [], // No move history for puzzles
+      moves: [],
       puzzleMode: true,
-      ...PUZZLE_SETTINGS,
+      targetElo: 3500,
+      limitStrength: false,
+      multiPv: 3,
+      armageddon: 'off',
+      searchMode,
+      ...(searchMode === 'nodes' ? { searchNodes } : {}),
+      ...(searchMode === 'depth' ? { searchDepth } : {}),
+      ...(searchMode === 'movetime' ? { searchMovetime } : {}),
     });
-  }, [currentFen, isConnected, needsLinking, requestSuggestion, send, plan]);
+  }, [currentFen, isConnected, needsLinking, requestSuggestion, send, plan, searchMode, searchNodes, searchDepth, searchMovetime]);
 
   // Auto-trigger effect
   useEffect(() => {
@@ -154,7 +157,14 @@ export function usePuzzleSuggestionTrigger() {
         fen: currentFen,
         moves: [],
         puzzleMode: true,
-        ...PUZZLE_SETTINGS,
+        targetElo: 3500,
+        limitStrength: false,
+        multiPv: 3,
+        armageddon: 'off',
+        searchMode,
+        ...(searchMode === 'nodes' ? { searchNodes } : {}),
+        ...(searchMode === 'depth' ? { searchDepth } : {}),
+        ...(searchMode === 'movetime' ? { searchMovetime } : {}),
       });
 
       logger.log(`[puzzle-trigger] Sent request ${requestId}`);
@@ -176,6 +186,10 @@ export function usePuzzleSuggestionTrigger() {
     requestSuggestion,
     send,
     plan,
+    searchMode,
+    searchNodes,
+    searchDepth,
+    searchMovetime,
   ]);
 
   // Clear last FEN when puzzle resets

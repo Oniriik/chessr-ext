@@ -3,9 +3,10 @@ import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles 
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
+import { Slider } from '../ui/slider';
 import { AuthForm } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
-import { usePuzzleStore } from '../../stores/puzzleStore';
+import { usePuzzleStore, type PuzzleSearchMode } from '../../stores/puzzleStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 import { extractFenFromBoard, getPlayerColorFromDOM } from '../../lib/chesscom/extractFenFromBoard';
 import { usePuzzleSuggestionTrigger } from '../../hooks/usePuzzleSuggestionTrigger';
@@ -210,8 +211,20 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
 
 const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
 
+function formatSearchValue(mode: PuzzleSearchMode, nodes: number, depth: number, movetime: number) {
+  switch (mode) {
+    case 'nodes': return nodes >= 1_000_000 ? `${(nodes / 1_000_000).toFixed(1)}M` : `${(nodes / 1000).toFixed(0)}k`;
+    case 'depth': return `${depth}`;
+    case 'movetime': return `${(movetime / 1000).toFixed(1)}s`;
+  }
+}
+
 function PuzzleControls() {
-  const { autoHint, setAutoHint, isLoading, isStarted } = usePuzzleStore();
+  const {
+    autoHint, setAutoHint, isLoading, isStarted,
+    searchMode, setSearchMode, searchNodes, setSearchNodes,
+    searchDepth, setSearchDepth, searchMovetime, setSearchMovetime,
+  } = usePuzzleStore();
   const { isConnected } = useWebSocketStore();
   const triggerHint = usePuzzleSuggestionTrigger();
   const { canUsePuzzleHints } = usePlanLimits();
@@ -262,6 +275,53 @@ function PuzzleControls() {
             checked={autoHint}
             onCheckedChange={setAutoHint}
           />
+        </div>
+
+        {/* Search mode selector */}
+        <div className="tw-space-y-2">
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <div className="tw-flex tw-items-center tw-gap-2">
+              <select
+                value={searchMode}
+                onChange={(e) => setSearchMode(e.target.value as PuzzleSearchMode)}
+                className="tw-h-7 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
+              >
+                <option value="nodes">Nodes</option>
+                <option value="depth">Depth</option>
+                <option value="movetime">Move Time</option>
+              </select>
+            </div>
+            <span className="tw-text-base tw-font-bold tw-text-primary">
+              {formatSearchValue(searchMode, searchNodes, searchDepth, searchMovetime)}
+            </span>
+          </div>
+          {searchMode === 'nodes' && (
+            <Slider
+              value={[searchNodes]}
+              onValueChange={([value]) => setSearchNodes(value)}
+              min={100000}
+              max={5000000}
+              step={100000}
+            />
+          )}
+          {searchMode === 'depth' && (
+            <Slider
+              value={[searchDepth]}
+              onValueChange={([value]) => setSearchDepth(value)}
+              min={1}
+              max={30}
+              step={1}
+            />
+          )}
+          {searchMode === 'movetime' && (
+            <Slider
+              value={[searchMovetime]}
+              onValueChange={([value]) => setSearchMovetime(value)}
+              min={500}
+              max={5000}
+              step={100}
+            />
+          )}
         </div>
 
         {/* Manual hint button */}

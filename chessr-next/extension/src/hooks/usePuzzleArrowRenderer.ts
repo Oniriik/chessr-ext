@@ -9,11 +9,11 @@ import { OverlayManager } from '../content/overlay/OverlayManager';
 import { ArrowRenderer } from '../content/overlay/ArrowRenderer';
 import { logger } from '../lib/logger';
 
-// Arrow colors with decreasing opacity for multiPV
+// Arrow colors: green (best), orange (2nd), red (3rd)
 const ARROW_COLORS = [
-  'rgba(34, 197, 94, 0.95)',  // Best move - bright green
-  'rgba(34, 197, 94, 0.55)',  // 2nd best - medium green
-  'rgba(34, 197, 94, 0.35)',  // 3rd best - faint green
+  'rgba(34, 197, 94, 0.95)',   // Best move - green
+  'rgba(245, 158, 11, 0.85)',  // 2nd best - orange
+  'rgba(239, 68, 68, 0.75)',   // 3rd best - red
 ];
 
 /**

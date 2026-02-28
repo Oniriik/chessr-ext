@@ -3,6 +3,8 @@
  * Adapted from old extension lichess-adapter.ts
  */
 
+import { getRealHref } from '../../content/anonymousBlur';
+
 // Selectors
 const MOVE_LIST_SELECTOR = 'rm6, .moves';
 const MOVE_SELECTOR = 'kwdb';
@@ -29,7 +31,7 @@ export function detectPlayerColor(): 'white' | 'black' | null {
   }
 
   // Method 2: URL color indicator (/gameId/black or /gameId/white)
-  const pathParts = window.location.pathname.split('/');
+  const pathParts = new URL(getRealHref()).pathname.split('/');
   const lastPart = pathParts[pathParts.length - 1];
   if (lastPart === 'black') return 'black';
   if (lastPart === 'white') return 'white';
@@ -155,7 +157,7 @@ export function getBoardElement(): HTMLElement | null {
  * Check if current page is a game page
  */
 export function isGamePage(): boolean {
-  const path = window.location.pathname;
+  const path = new URL(getRealHref()).pathname;
 
   // Exclude non-game pages
   const excluded = [

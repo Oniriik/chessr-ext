@@ -1,7 +1,7 @@
 import { createRoot, Root } from 'react-dom/client';
 import { getPlatformContext, MountPoint, RouteId } from '../platforms';
 import { PlatformProvider } from '../contexts/PlatformContext';
-import { initAnonymousBlur, rescanAnonymousBlur } from './anonymousBlur';
+import { initAnonymousBlur, rescanAnonymousBlur, getRealHref } from './anonymousBlur';
 import '../styles/content.css';
 
 const mountedRoots: Map<string, { root: Root; container: HTMLElement }> = new Map();
@@ -76,7 +76,7 @@ function unmountComponent(mountPointId: string) {
 }
 
 function updateMounts() {
-  const url = new URL(window.location.href);
+  const url = new URL(getRealHref());
   const context = getPlatformContext(url);
 
   if (!context) return;
@@ -101,10 +101,11 @@ updateMounts();
 initAnonymousBlur();
 
 // Watch for URL changes (SPA navigation)
-let lastUrl = window.location.href;
+let lastUrl = getRealHref();
 const observer = new MutationObserver(() => {
-  if (window.location.href !== lastUrl) {
-    lastUrl = window.location.href;
+  const currentReal = getRealHref();
+  if (currentReal !== lastUrl) {
+    lastUrl = currentReal;
     updateMounts();
     rescanAnonymousBlur();
   }

@@ -17,12 +17,14 @@ export function GeneralTab() {
     showDetailedMoveSuggestion,
     showEvalBar,
     evalBarMode,
-    anonymousMode,
+    anonNames,
+    anonUrl,
     setLanguage,
     setShowDetailedMoveSuggestion,
     setShowEvalBar,
     setEvalBarMode,
-    setAnonymousMode,
+    setAnonNames,
+    setAnonUrl,
   } = useSettingsStore();
   const { autoEloBoost, setAutoEloBoost } = useEngineStore();
 
@@ -62,18 +64,35 @@ export function GeneralTab() {
           />
         </div>
 
-        {/* Anonymous Mode */}
-        <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
-          <div className="tw-space-y-0.5">
-            <Label className="tw-text-sm tw-font-medium">Anonymous mode</Label>
-            <p className="tw-text-xs tw-text-muted-foreground">
-              Blur linked account names and avatars
-            </p>
+        {/* Anonymous Section */}
+        <div className="tw-space-y-3">
+          <Label className="tw-text-sm tw-font-medium">Anonymous</Label>
+
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+            <div className="tw-space-y-0.5">
+              <Label className="tw-text-xs tw-font-medium">Anon names</Label>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                Blur usernames and avatars
+              </p>
+            </div>
+            <Switch
+              checked={anonNames}
+              onCheckedChange={setAnonNames}
+            />
           </div>
-          <Switch
-            checked={anonymousMode}
-            onCheckedChange={setAnonymousMode}
-          />
+
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+            <div className="tw-space-y-0.5">
+              <Label className="tw-text-xs tw-font-medium">Anon URL</Label>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                Hide page URL in address bar
+              </p>
+            </div>
+            <Switch
+              checked={anonUrl}
+              onCheckedChange={setAnonUrl}
+            />
+          </div>
         </div>
 
         {/* Show Eval Bar */}

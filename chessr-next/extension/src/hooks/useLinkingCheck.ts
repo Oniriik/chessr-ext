@@ -8,6 +8,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useWebSocketStore } from '../stores/webSocketStore';
 import { webSocketManager } from '../lib/webSocket';
 import { detectPlatform } from '../platforms';
+import { getRealHref } from '../content/anonymousBlur';
 import { getChessComUsername } from '../lib/chesscom/username';
 import { getLichessUsername } from '../lib/lichess/username';
 import { fetchPlatformProfile, type Platform } from '../lib/platformApi';
@@ -17,7 +18,7 @@ import { logger } from '../lib/logger';
  * Detects the current platform and username
  */
 function detectCurrentPlatformUser(): { platform: Platform; username: string } | null {
-  const url = new URL(window.location.href);
+  const url = new URL(getRealHref());
   const platformInfo = detectPlatform(url);
 
   if (!platformInfo) {

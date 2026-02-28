@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDiscordStore } from '../../stores/discordStore';
 import { webSocketManager } from '../../lib/webSocket';
+import { getRealHref } from '../../content/anonymousBlur';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/72j4dUadTu';
 
@@ -54,7 +55,7 @@ export function DiscordLinkBanner() {
     setLinking(true);
     webSocketManager.send({
       type: 'init_discord_link',
-      returnUrl: window.location.href,
+      returnUrl: getRealHref(),
     });
   };
 
