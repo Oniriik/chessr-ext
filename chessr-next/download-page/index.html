@@ -609,10 +609,15 @@
             var actions = document.querySelector('.section-card:last-child .section-actions');
             var warning = document.getElementById('maia-os-warning');
 
+            var vtLinks = document.getElementById('vt-links');
+            var vtMac = document.getElementById('vt-mac-link');
+            var vtWin = document.getElementById('vt-win-link');
+
             if (isWin) {
                 winBtn.className = winBtn.className.replace('secondary', 'maia-primary');
                 macBtn.className = macBtn.className.replace('maia-primary', 'secondary');
                 actions.insertBefore(winBtn, macBtn);
+                vtLinks.insertBefore(vtWin, vtMac);
             } else if (!isMac) {
                 // Unsupported OS — detect name
                 var osName = 'your operating system';
