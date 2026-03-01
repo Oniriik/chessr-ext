@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,9 @@ import {
   Trash2,
   Ban,
   ShieldOff,
+  Globe,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import {
   canModifyRoles,
@@ -35,7 +39,7 @@ import {
   roleColors,
 } from '@/lib/types'
 import { formatDate, formatRelativeTime } from '@/lib/format'
-import type { AdminUser, UserRole, UserPlan, LinkedAccountsData } from './user-types'
+import type { AdminUser, UserRole, UserPlan, LinkedAccountsData, UserIp } from './user-types'
 
 interface UserEditDialogProps {
   editUser: AdminUser | null
@@ -92,6 +96,8 @@ export function UserEditDialog({
   onOpenBanDialog,
   onUnbanUser,
 }: UserEditDialogProps) {
+  const [showIps, setShowIps] = useState(false)
+
   return (
     <Dialog open={!!editUser} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
@@ -339,6 +345,49 @@ export function UserEditDialog({
             )}
           </div>
         </div>
+
+        {/* IP Addresses Section */}
+        {linkedAccounts && linkedAccounts.ips && linkedAccounts.ips.length > 0 && (
+          <div className="space-y-2 pt-4 border-t border-border/50">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                IP Addresses
+              </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowIps(!showIps)}
+                className="h-7 px-2 text-xs gap-1"
+              >
+                {showIps ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                {showIps ? 'Hide' : 'Show'}
+              </Button>
+            </div>
+            {showIps && (
+              <div className="space-y-1.5">
+                {linkedAccounts.ips.map((ip, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <code className="text-xs font-mono text-foreground">{ip.ip_address}</code>
+                      {ip.country && (
+                        <span className="text-xs text-muted-foreground">
+                          {ip.country_code && `${ip.country_code} `}{ip.country}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground">
+                      {formatRelativeTime(ip.created_at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Ban status indicator */}
         {editUser?.banned && (

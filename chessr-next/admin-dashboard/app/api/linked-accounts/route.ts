@@ -63,12 +63,20 @@ export async function GET(request: Request) {
         }
       : null
 
+    // Fetch IP addresses from signup_ips
+    const { data: ipData } = await supabase
+      .from('signup_ips')
+      .select('ip_address, country, country_code, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
     return NextResponse.json({
       active,
       unlinked: unlinkedWithCooldown,
       totalActive: active.length,
       totalUnlinked: unlinked.length,
       discord,
+      ips: ipData || [],
     })
   } catch (error) {
     console.error('GET linked-accounts error:', error)

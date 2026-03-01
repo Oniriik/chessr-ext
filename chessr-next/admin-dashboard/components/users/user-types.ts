@@ -23,12 +23,20 @@ export interface DiscordInfo {
   discord_roles_synced_at: string | null
 }
 
+export interface UserIp {
+  ip_address: string
+  country: string | null
+  country_code: string | null
+  created_at: string
+}
+
 export interface LinkedAccountsData {
   active: LinkedAccount[]
   unlinked: LinkedAccount[]
   totalActive: number
   totalUnlinked: number
   discord: DiscordInfo | null
+  ips: UserIp[]
 }
 
 export type SortField = 'created_at' | 'plan_expiry' | 'last_activity'
