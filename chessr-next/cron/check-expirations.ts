@@ -12,12 +12,30 @@ const supabase = createClient(
 );
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_CHANNEL_ID = process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
+const DISCORD_CHANNEL_ID = process.env.DISCORD_CHANNEL_PLANS || process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
 
-async function sendDowngradeNotification(email: string, oldPlan: string, expiry: string): Promise<void> {
+async function sendDowngradeNotification(
+  email: string,
+  oldPlan: string,
+  expiry: string,
+  discordId: string | null,
+): Promise<void> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_CHANNEL_ID) return;
 
   try {
+    const fields = [
+      { name: '📧 Email', value: email || 'Unknown', inline: true },
+    ];
+
+    if (discordId) {
+      fields.push({ name: '🎮 Discord', value: `<@${discordId}>`, inline: true });
+    }
+
+    fields.push(
+      { name: '📉 Plan', value: `${oldPlan} → free`, inline: true },
+      { name: '📅 Expired', value: new Date(expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), inline: true },
+    );
+
     const res = await fetch(`https://discord.com/api/v10/channels/${DISCORD_CHANNEL_ID}/messages`, {
       method: 'POST',
       headers: {
@@ -27,12 +45,8 @@ async function sendDowngradeNotification(email: string, oldPlan: string, expiry:
       body: JSON.stringify({
         embeds: [{
           title: '⏰ Plan Expired',
-          color: 0xef4444, // red
-          fields: [
-            { name: '📧 Email', value: email || 'Unknown', inline: true },
-            { name: '📉 Plan', value: `${oldPlan} → free`, inline: true },
-            { name: '📅 Expired', value: new Date(expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }), inline: true },
-          ],
+          color: 0xef4444,
+          fields,
           timestamp: new Date().toISOString(),
           footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
         }],
@@ -55,7 +69,7 @@ async function checkExpirations() {
     // Find all users with expired plans (premium or freetrial with plan_expiry < now)
     const { data: expiredUsers, error: selectError } = await supabase
       .from('user_settings')
-      .select('user_id, plan, plan_expiry')
+      .select('user_id, plan, plan_expiry, discord_id')
       .in('plan', ['premium', 'freetrial'])
       .not('plan_expiry', 'is', null)
       .lt('plan_expiry', now);
@@ -72,12 +86,18 @@ async function checkExpirations() {
 
     console.log(`[Cron] Found ${expiredUsers.length} expired plan(s)`);
 
-    // Get user emails from auth.users
-    const { data: authUsersData } = await supabase.auth.admin.listUsers();
+    // Get user emails from auth.users with pagination
     const emailMap = new Map<string, string>();
-    authUsersData?.users?.forEach((u) => {
-      if (u.email) emailMap.set(u.id, u.email);
-    });
+    let authPage = 1;
+    while (true) {
+      const { data: authBatch } = await supabase.auth.admin.listUsers({ page: authPage, perPage: 1000 });
+      if (!authBatch?.users?.length) break;
+      authBatch.users.forEach((u) => {
+        if (u.email) emailMap.set(u.id, u.email);
+      });
+      if (authBatch.users.length < 1000) break;
+      authPage++;
+    }
 
     // Downgrade each user to free
     for (const user of expiredUsers) {
@@ -112,7 +132,12 @@ async function checkExpirations() {
         }
 
         // Send Discord notification
-        await sendDowngradeNotification(email || 'Unknown', user.plan, user.plan_expiry);
+        await sendDowngradeNotification(
+          email || 'Unknown',
+          user.plan,
+          user.plan_expiry,
+          user.discord_id || null,
+        );
       }
     }
 

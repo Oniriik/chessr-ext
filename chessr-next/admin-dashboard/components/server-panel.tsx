@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -153,7 +154,7 @@ export function ServerPanel() {
       await fetchStatus()
     } catch (error) {
       console.error('Action failed:', error)
-      alert(`Action failed: ${error}`)
+      toast.error(`Action failed: ${error}`)
     } finally {
       setActionLoading(null)
     }

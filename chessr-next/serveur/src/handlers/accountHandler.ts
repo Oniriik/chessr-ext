@@ -19,6 +19,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!,
 );
 
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+const DISCORD_CHANNEL_ACCOUNTS = process.env.DISCORD_CHANNEL_ACCOUNTS;
+
 // =============================================================================
 // Message Types
 // =============================================================================
@@ -189,6 +192,64 @@ async function canLinkAccount(
 }
 
 // =============================================================================
+// Discord Notifications
+// =============================================================================
+
+async function notifyAccountChange(
+  action: 'linked' | 'unlinked',
+  userEmail: string,
+  platform: string,
+  username: string,
+  userId: string,
+): Promise<void> {
+  if (!DISCORD_BOT_TOKEN || !DISCORD_CHANNEL_ACCOUNTS) return;
+
+  try {
+    const platformName = platform === 'chesscom' ? 'Chess.com' : 'Lichess';
+    const isLinked = action === 'linked';
+
+    const fields: { name: string; value: string; inline: boolean }[] = [
+      { name: '📧 Email', value: userEmail, inline: true },
+    ];
+
+    // Add Discord mention if user has linked Discord
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('discord_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (settings?.discord_id) {
+      fields.push({ name: '🎮 Discord', value: `<@${settings.discord_id}>`, inline: true });
+    }
+
+    fields.push(
+      { name: '🏰 Platform', value: platformName, inline: true },
+      { name: '👤 Username', value: username, inline: true },
+    );
+
+    await fetch(`https://discord.com/api/v10/channels/${DISCORD_CHANNEL_ACCOUNTS}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        embeds: [{
+          title: isLinked ? '🔗 Account Linked' : '🔓 Account Unlinked',
+          color: isLinked ? 0x10b981 : 0x94a3b8,
+          fields,
+          timestamp: new Date().toISOString(),
+          footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+        }],
+      }),
+    });
+  } catch (err) {
+    console.error(`[AccountHandler] Failed to send ${action} notification:`, err);
+  }
+}
+
+// =============================================================================
 // Handlers
 // =============================================================================
 
@@ -356,6 +417,9 @@ export async function handleLinkAccount(
         account,
       })
     );
+
+    // Send Discord notification (non-blocking)
+    notifyAccountChange('linked', client.user.email, platform, username, client.user.id).catch(() => {});
   } catch (error) {
     console.error('[AccountHandler] Exception in handleLinkAccount:', error);
     client.ws.send(
@@ -417,6 +481,9 @@ export async function handleUnlinkAccount(
         accountId,
       })
     );
+
+    // Send Discord notification (non-blocking)
+    notifyAccountChange('unlinked', client.user.email, data.platform, data.platform_username, client.user.id).catch(() => {});
   } catch (error) {
     console.error('[AccountHandler] Exception in handleUnlinkAccount:', error);
     client.ws.send(

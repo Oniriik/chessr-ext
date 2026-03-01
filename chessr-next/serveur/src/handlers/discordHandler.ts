@@ -25,6 +25,9 @@ const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI!;
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID;
+const DISCORD_CHANNEL_DISCORD = process.env.DISCORD_CHANNEL_DISCORD;
+const DISCORD_CHANNEL_PLANS = process.env.DISCORD_CHANNEL_PLANS;
+const DISCORD_CHANNEL_ACCOUNTS = process.env.DISCORD_CHANNEL_ACCOUNTS;
 
 // =============================================================================
 // Nonce store: maps nonce → userId with 5-minute TTL
@@ -332,8 +335,15 @@ export async function handleDiscordCallback(
       `[Discord] User ${userEmail} linked Discord: ${discordUsername} (${discordId})${planChanged ? ' → freetrial activated' : ''}`,
     );
 
-    // Send notification to Discord channel (fire and forget)
-    notifyDiscordLink(userEmail, discordUsername, discordAvatar, inGuild, planChanged);
+    // Send notification to Discord channel
+    try {
+      await notifyDiscordLink(userEmail, discordUsername, discordId, discordAvatar, inGuild);
+      if (planChanged) {
+        await notifyFreeTrialActivated(userEmail, discordId);
+      }
+    } catch (err) {
+      console.error('[Discord] Failed to send link notifications:', err);
+    }
 
     // Assign Discord roles immediately if user is in the guild
     if (inGuild) {
@@ -359,6 +369,13 @@ export async function handleUnlinkDiscord(client: Client): Promise<void> {
   const userId = client.user.id;
 
   try {
+    // Fetch current Discord info before clearing (for notification)
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('discord_id, discord_username')
+      .eq('user_id', userId)
+      .single();
+
     const { error } = await supabase
       .from('user_settings')
       .update({
@@ -378,6 +395,14 @@ export async function handleUnlinkDiscord(client: Client): Promise<void> {
 
     console.log(`[Discord] User ${client.user.email} unlinked Discord`);
     client.ws.send(JSON.stringify({ type: 'discord_unlink_success' }));
+
+    // Send notification (non-blocking)
+    notifyDiscordUnlink(
+      client.user.email,
+      settings?.discord_username || null,
+      settings?.discord_id || null,
+      'Extension',
+    ).catch((err) => console.error('[Discord] Failed to send unlink notification:', err));
   } catch (err) {
     console.error('[Discord] Unlink error:', err);
     client.ws.send(JSON.stringify({ type: 'discord_unlink_error', error: 'Unknown error' }));
@@ -388,45 +413,111 @@ export async function handleUnlinkDiscord(client: Client): Promise<void> {
 // Discord Notification
 // =============================================================================
 
+/**
+ * Send embed to a Discord channel via Bot API.
+ */
+async function sendToChannel(channelId: string, embed: Record<string, unknown>): Promise<void> {
+  if (!DISCORD_BOT_TOKEN || !channelId) return;
+  await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ embeds: [embed] }),
+  });
+}
+
+/**
+ * Notify #discord-infos when a user links their Discord account.
+ */
 async function notifyDiscordLink(
   userEmail: string,
   discordUsername: string,
+  discordId: string,
   discordAvatar: string | null,
   inGuild: boolean,
-  planChanged: boolean,
 ): Promise<void> {
-  if (!DISCORD_BOT_TOKEN || !DISCORD_LINK_CHANNEL_ID) return;
+  const channelId = DISCORD_CHANNEL_DISCORD || DISCORD_LINK_CHANNEL_ID;
+  if (!channelId) return;
 
   try {
-    const fields = [
-      { name: '📧 Chessr Email', value: userEmail, inline: true },
-      { name: '🎮 Discord', value: discordUsername, inline: true },
-      { name: '📡 In Server', value: inGuild ? '✅ Yes' : '❌ No', inline: true },
-    ];
-
-    if (planChanged) {
-      fields.push({ name: '🎁 Free Trial', value: 'Activated (3 days)', inline: true });
-    }
-
-    await fetch(`https://discord.com/api/v10/channels/${DISCORD_LINK_CHANNEL_ID}/messages`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        embeds: [{
-          title: '🔗 Discord Account Linked',
-          color: 0x5865f2,
-          fields,
-          thumbnail: discordAvatar ? { url: discordAvatar } : undefined,
-          timestamp: new Date().toISOString(),
-          footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
-        }],
-      }),
+    await sendToChannel(channelId, {
+      title: '🔗 Discord Account Linked',
+      color: 0x5865f2,
+      fields: [
+        { name: '📧 Email', value: userEmail, inline: true },
+        { name: '🎮 Discord', value: `<@${discordId}>`, inline: true },
+        { name: '📡 In Server', value: inGuild ? '✅ Yes' : '❌ No', inline: true },
+      ],
+      thumbnail: discordAvatar ? { url: discordAvatar } : undefined,
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
     });
   } catch (err) {
     console.error('[Discord] Failed to send link notification:', err);
+  }
+}
+
+/**
+ * Notify #plan-infos when a free trial is activated via Discord link.
+ */
+async function notifyFreeTrialActivated(
+  userEmail: string,
+  discordId: string,
+): Promise<void> {
+  const channelId = DISCORD_CHANNEL_PLANS || DISCORD_LINK_CHANNEL_ID;
+  if (!channelId) return;
+
+  try {
+    await sendToChannel(channelId, {
+      title: '🎁 Free Trial Activated',
+      color: 0x10b981,
+      fields: [
+        { name: '📧 Email', value: userEmail, inline: true },
+        { name: '🎮 Discord', value: `<@${discordId}>`, inline: true },
+        { name: '⏱️ Duration', value: '3 days', inline: true },
+      ],
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+    });
+  } catch (err) {
+    console.error('[Discord] Failed to send free trial notification:', err);
+  }
+}
+
+/**
+ * Notify #discord-infos when a user unlinks their Discord account.
+ */
+async function notifyDiscordUnlink(
+  userEmail: string,
+  discordUsername: string | null,
+  discordId: string | null,
+  source: 'Extension' | 'Admin',
+): Promise<void> {
+  const channelId = DISCORD_CHANNEL_DISCORD || DISCORD_LINK_CHANNEL_ID;
+  if (!channelId) return;
+
+  try {
+    const fields = [
+      { name: '📧 Email', value: userEmail, inline: true },
+    ];
+    if (discordId) {
+      fields.push({ name: '🎮 Discord', value: `<@${discordId}>`, inline: true });
+    } else if (discordUsername) {
+      fields.push({ name: '🎮 Discord', value: discordUsername, inline: true });
+    }
+    fields.push({ name: '📌 Source', value: source, inline: true });
+
+    await sendToChannel(channelId, {
+      title: '🔓 Discord Unlinked',
+      color: 0x94a3b8,
+      fields,
+      timestamp: new Date().toISOString(),
+      footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+    });
+  } catch (err) {
+    console.error('[Discord] Failed to send unlink notification:', err);
   }
 }
 

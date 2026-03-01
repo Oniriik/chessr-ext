@@ -114,7 +114,7 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
 
 // Discord Bot API for notifications
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
+const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_ADMIN || process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
 
 async function checkBanStatus(
   userId: string,

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServiceRoleClient } from '@/lib/supabase'
+import { sendDiscordEmbed, buildUserFields } from '@/lib/discord-notify'
 
 /**
  * GET /api/linked-accounts?userId=xxx
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
     // Fetch Discord info from user_settings
     const { data: settings } = await supabase
       .from('user_settings')
-      .select('discord_id, discord_username, discord_avatar, discord_linked_at')
+      .select('discord_id, discord_username, discord_avatar, discord_linked_at, discord_roles_synced_at')
       .eq('user_id', userId)
       .single()
 
@@ -58,6 +59,7 @@ export async function GET(request: Request) {
           discord_username: settings.discord_username,
           discord_avatar: settings.discord_avatar,
           discord_linked_at: settings.discord_linked_at,
+          discord_roles_synced_at: settings.discord_roles_synced_at,
         }
       : null
 
@@ -87,6 +89,13 @@ export async function PATCH(request: Request) {
 
     // Unlink Discord account
     if (type === 'discord' && userId) {
+      // Fetch Discord info before clearing
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('discord_id, discord_username')
+        .eq('user_id', userId)
+        .single()
+
       const { error } = await supabase
         .from('user_settings')
         .update({
@@ -103,6 +112,24 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Failed to unlink Discord' }, { status: 500 })
       }
 
+      // Get user email for notification
+      const { data: authUser } = await supabase.auth.admin.getUserById(userId)
+      const userEmail = authUser?.user?.email || 'unknown'
+
+      // Discord notification to #discord-infos
+      if (settings?.discord_id) {
+        const userFields = await buildUserFields(userEmail, userId)
+        await sendDiscordEmbed('discord', {
+          title: '🔓 Discord Unlinked',
+          color: 0x94a3b8,
+          fields: [
+            ...userFields,
+            { name: '👤 Discord', value: settings.discord_username || settings.discord_id, inline: true },
+            { name: '📌 Source', value: 'Admin', inline: true },
+          ],
+        }).catch(() => {})
+      }
+
       return NextResponse.json({ success: true })
     }
 
@@ -110,6 +137,14 @@ export async function PATCH(request: Request) {
     if (!accountId) {
       return NextResponse.json({ error: 'accountId is required' }, { status: 400 })
     }
+
+    // Fetch account info before unlinking
+    const { data: account } = await supabase
+      .from('linked_accounts')
+      .select('user_id, platform, platform_username')
+      .eq('id', accountId)
+      .is('unlinked_at', null)
+      .single()
 
     // Set unlinked_at to now for active accounts
     const { error } = await supabase
@@ -121,6 +156,24 @@ export async function PATCH(request: Request) {
     if (error) {
       console.error('Error unlinking account:', error)
       return NextResponse.json({ error: 'Failed to unlink account' }, { status: 500 })
+    }
+
+    // Discord notification to #chess-accounts
+    if (account) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(account.user_id)
+      const userEmail = authUser?.user?.email || 'unknown'
+      const platformName = account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'
+      const userFields = await buildUserFields(userEmail, account.user_id)
+      await sendDiscordEmbed('accounts', {
+        title: '🔓 Account Unlinked',
+        color: 0x94a3b8,
+        fields: [
+          ...userFields,
+          { name: '🏰 Platform', value: platformName, inline: true },
+          { name: '👤 Username', value: account.platform_username, inline: true },
+          { name: '📌 Source', value: 'Admin', inline: true },
+        ],
+      }).catch(() => {})
     }
 
     return NextResponse.json({ success: true })

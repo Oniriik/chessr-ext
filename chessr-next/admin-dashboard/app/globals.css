@@ -101,3 +101,8 @@ body::before {
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

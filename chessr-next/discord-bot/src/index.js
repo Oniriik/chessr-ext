@@ -7,7 +7,9 @@ const config = {
   discordToken: process.env.DISCORD_TOKEN,
   guildId: process.env.DISCORD_GUILD_ID,
   channelId: process.env.DISCORD_CHANNEL_ID,
-  signupChannelId: '1476547865039077416',
+  signupChannelId: process.env.DISCORD_CHANNEL_SIGNUP || '1476547865039077416',
+  discordChannelId: process.env.DISCORD_CHANNEL_DISCORD,
+  digestChannelId: process.env.DISCORD_CHANNEL_DIGEST,
   chessrServerUrl: process.env.CHESSR_SERVER_URL || 'https://engine.chessr.io',
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseKey: process.env.SUPABASE_SERVICE_KEY,
@@ -88,7 +90,8 @@ function getRoleName(roleId) {
  * Send role change notification to Discord channel
  */
 async function notifyRoleChange(member, removedIds, addedIds) {
-  if (!LINK_CHANNEL_ID || (removedIds.length === 0 && addedIds.length === 0)) return;
+  const roleChannelId = config.discordChannelId || LINK_CHANNEL_ID;
+  if (!roleChannelId || (removedIds.length === 0 && addedIds.length === 0)) return;
 
   try {
     const fields = [
@@ -110,7 +113,7 @@ async function notifyRoleChange(member, removedIds, addedIds) {
       });
     }
 
-    const channel = await client.channels.fetch(LINK_CHANNEL_ID).catch(() => null);
+    const channel = await client.channels.fetch(roleChannelId).catch(() => null);
     if (!channel) return;
 
     await channel.send({
@@ -168,6 +171,12 @@ async function assignRoles(member, userSettings) {
   try {
     if (rolesToRemove.length > 0) await member.roles.remove(rolesToRemove);
     if (rolesToAdd.length > 0) await member.roles.add(rolesToAdd);
+
+    // Update sync timestamp
+    await supabase
+      .from('user_settings')
+      .update({ discord_roles_synced_at: new Date().toISOString() })
+      .eq('discord_id', member.id);
 
     if (rolesToAdd.length > 0 || rolesToRemove.length > 0) {
       console.log(
@@ -335,29 +344,28 @@ function getCountryFromEmail(email) {
 }
 
 // Check for new signups and notify
-const LAST_CHECK_KEY = 'last_signup_check';
+const LAST_SIGNUP_KEY = 'last_signup_created_at';
 
 async function checkNewSignups() {
   try {
-    // Get last check timestamp
-    const { data: lastCheckData } = await supabase
+    // Get created_at of the last notified user (dedup by actual user timestamp)
+    const { data: lastSignupData } = await supabase
       .from('global_stats')
       .select('value')
-      .eq('key', LAST_CHECK_KEY)
+      .eq('key', LAST_SIGNUP_KEY)
       .single();
 
-    const lastCheck = lastCheckData?.value
-      ? new Date(Number(lastCheckData.value)).toISOString()
-      : new Date(Date.now() - 120_000).toISOString(); // 2min ago on first run
+    const lastSignupAt = lastSignupData?.value
+      || new Date(Date.now() - 120_000).toISOString(); // 2min ago on first run
 
-    // Find new users
+    // Find new users created after the last notified user
     const newUsers = [];
     let page = 1;
     while (true) {
       const { data: batch } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
       if (!batch?.users.length) break;
       for (const user of batch.users) {
-        if (user.created_at > lastCheck && user.email) {
+        if (user.created_at > lastSignupAt && user.email) {
           newUsers.push({ id: user.id, email: user.email, created_at: user.created_at });
         }
       }
@@ -365,12 +373,10 @@ async function checkNewSignups() {
       page++;
     }
 
-    // Update last check time
-    await supabase
-      .from('global_stats')
-      .upsert({ key: LAST_CHECK_KEY, value: Date.now().toString() }, { onConflict: 'key' });
-
     if (newUsers.length === 0) return;
+
+    // Sort by created_at so we process in order and save the latest
+    newUsers.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
     // Fetch stored countries and IPs from signup_ips
     const userIds = newUsers.map(u => u.id);
@@ -400,7 +406,6 @@ async function checkNewSignups() {
     }
 
     // Send embeds
-    newUsers.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     for (const user of newUsers) {
       // Use stored country from IP, fallback to email TLD
       const storedCountry = countryMap.get(user.id);
@@ -428,10 +433,40 @@ async function checkNewSignups() {
       console.log(`[Signup] Notified: ${user.email} (${countryText}, IP: ${storedIp || 'unknown'})`);
     }
 
+    // Save the created_at of the last notified user (dedup cursor)
+    const lastCreatedAt = newUsers[newUsers.length - 1].created_at;
+    await supabase
+      .from('global_stats')
+      .upsert({ key: LAST_SIGNUP_KEY, value: lastCreatedAt, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+
     console.log(`[Signup] ${newUsers.length} new signup(s) notified`);
   } catch (error) {
     console.error('[Signup] Error:', error);
   }
+}
+
+// Stats channel IDs cache (loaded from global_stats on startup)
+const STATS_CHANNELS_KEY = 'stats_channel_ids';
+let statsChannelIds = null; // { status: id, users: id, playing: id, analyzed: id, premium: id }
+
+async function loadStatsChannelIds() {
+  const { data } = await supabase
+    .from('global_stats')
+    .select('value')
+    .eq('key', STATS_CHANNELS_KEY)
+    .single();
+  if (data?.value) {
+    try {
+      statsChannelIds = JSON.parse(data.value);
+    } catch { statsChannelIds = null; }
+  }
+}
+
+async function saveStatsChannelIds(ids) {
+  statsChannelIds = ids;
+  await supabase
+    .from('global_stats')
+    .upsert({ key: STATS_CHANNELS_KEY, value: JSON.stringify(ids), updated_at: new Date().toISOString() }, { onConflict: 'key' });
 }
 
 // Update channel names with stats
@@ -450,75 +485,60 @@ async function updateStatsChannels() {
     ]);
     const status = getServerStatus(serverStats);
 
-    // Get channels by ID from environment or find by name pattern
-    const channels = await guild.channels.fetch();
-
     const connectedUsers = serverStats?.realtime?.connectedUsers || 0;
 
-    // Find or use specific channels for each stat
     const statsToUpdate = [
-      {
-        pattern: /status/i,
-        name: `${status.emoji} Status: ${status.text}`,
-      },
-      {
-        pattern: /total.*users|users.*total/i,
-        name: `👥 Total Users: ${formatNumber(premiumStats?.total || 0)}`,
-      },
-      {
-        pattern: /playing|online/i,
-        name: `👁 Playing Now: ${connectedUsers}`,
-      },
-      {
-        pattern: /analyzed|suggestions/i,
-        name: `🧠 Moves Analyzed: ${formatNumber(totalSuggestions)}`,
-      },
-      {
-        pattern: /premium/i,
-        name: `⭐ Premium: ${premiumStats?.totalPremium || 0}`,
-      },
+      { key: 'status', pattern: /status/i, name: `${status.emoji} Status: ${status.text}` },
+      { key: 'users', pattern: /total.*users|users.*total/i, name: `👥 Total Users: ${formatNumber(premiumStats?.total || 0)}` },
+      { key: 'playing', pattern: /playing|online/i, name: `👁 Playing Now: ${connectedUsers}` },
+      { key: 'analyzed', pattern: /analyzed|suggestions/i, name: `🧠 Moves Analyzed: ${formatNumber(totalSuggestions)}` },
+      { key: 'premium', pattern: /premium/i, name: `⭐ Premium: ${premiumStats?.totalPremium || 0}` },
     ];
 
-    // Update channel in the stats category
-    const statsChannel = channels.get(config.channelId);
-    if (statsChannel && statsChannel.type === ChannelType.GuildCategory) {
-      // It's a category, update voice channels inside
-      let voiceChannels = channels.filter(
-        c => c.parentId === config.channelId && c.type === ChannelType.GuildVoice
-      );
+    // Load stored channel IDs if not cached yet
+    if (!statsChannelIds) await loadStatsChannelIds();
 
-      for (const stat of statsToUpdate) {
-        const channel = voiceChannels.find(c => stat.pattern.test(c.name));
-        if (channel) {
-          if (channel.name !== stat.name) {
-            await channel.setName(stat.name);
-            console.log(`[Discord] Updated: ${stat.name}`);
-          }
-        } else {
-          // Create missing voice channel
-          await guild.channels.create({
-            name: stat.name,
-            type: ChannelType.GuildVoice,
-            parent: config.channelId,
-            permissionOverwrites: [
-              {
-                id: guild.id,
-                deny: ['Connect'],
-              },
-            ],
-          });
-          console.log(`[Discord] Created: ${stat.name}`);
+    const updatedIds = { ...(statsChannelIds || {}) };
+
+    for (const stat of statsToUpdate) {
+      let channel = null;
+
+      // Try to fetch by stored ID first
+      const storedId = updatedIds[stat.key];
+      if (storedId) {
+        channel = await guild.channels.fetch(storedId).catch(() => null);
+      }
+
+      // Fallback: find by name pattern in the stats category
+      if (!channel) {
+        const channels = await guild.channels.fetch();
+        channel = channels.find(
+          c => c.parentId === config.channelId && c.type === ChannelType.GuildVoice && stat.pattern.test(c.name)
+        );
+      }
+
+      if (channel) {
+        updatedIds[stat.key] = channel.id;
+        if (channel.name !== stat.name) {
+          await channel.setName(stat.name);
         }
+      } else {
+        // Create missing voice channel
+        const created = await guild.channels.create({
+          name: stat.name,
+          type: ChannelType.GuildVoice,
+          parent: config.channelId,
+          permissionOverwrites: [{ id: guild.id, deny: ['Connect'] }],
+        });
+        updatedIds[stat.key] = created.id;
+        console.log(`[Discord] Created: ${stat.name}`);
       }
     }
 
-    console.log(`[Stats] Updated at ${new Date().toISOString()}`);
-    console.log(`  - Status: ${status.text}`);
-    console.log(`  - Total Users: ${premiumStats?.total || 0}`);
-    console.log(`  - Playing Now: ${connectedUsers}`);
-    console.log(`  - Moves Analyzed: ${totalSuggestions}`);
-    console.log(`  - Premium: ${premiumStats?.totalPremium || 0}`);
+    // Persist channel IDs so we don't recreate on next boot
+    await saveStatsChannelIds(updatedIds);
 
+    console.log(`[Stats] Updated at ${new Date().toISOString()}`);
   } catch (error) {
     console.error('[Discord] Update failed:', error);
   }
@@ -705,6 +725,111 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // =============================================================================
+// Daily Digest
+// =============================================================================
+
+async function sendDailyDigest() {
+  if (!config.digestChannelId) return;
+
+  try {
+    const channel = await client.channels.fetch(config.digestChannelId).catch(() => null);
+    if (!channel) {
+      console.error('[Digest] Channel not found:', config.digestChannelId);
+      return;
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+    // New signups today
+    let newSignups = 0;
+    let page = 1;
+    while (true) {
+      const { data: batch } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+      if (!batch?.users.length) break;
+      for (const user of batch.users) {
+        if (user.created_at >= todayStart) newSignups++;
+      }
+      if (batch.users.length < 1000) break;
+      page++;
+    }
+
+    // Plan changes today (from plan_activity_logs)
+    const { data: planLogs } = await supabase
+      .from('plan_activity_logs')
+      .select('new_plan, action_type')
+      .gte('created_at', todayStart);
+
+    const newPremium = planLogs?.filter(l => ['premium', 'lifetime'].includes(l.new_plan) && l.action_type === 'admin_change').length || 0;
+    const plansExpired = planLogs?.filter(l => l.action_type === 'cron_downgrade').length || 0;
+
+    // Suggestions today
+    const { count: suggestionsToday } = await supabase
+      .from('user_activity')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_type', 'suggestion')
+      .gte('created_at', todayStart);
+
+    // Discord links today
+    const { count: discordLinks } = await supabase
+      .from('user_settings')
+      .select('*', { count: 'exact', head: true })
+      .gte('discord_linked_at', todayStart);
+
+    // Current connected users
+    let connectedUsers = 0;
+    try {
+      const statsRes = await fetch(`${config.chessrServerUrl}/stats`);
+      if (statsRes.ok) {
+        const stats = await statsRes.json();
+        connectedUsers = stats?.realtime?.connectedUsers || 0;
+      }
+    } catch { /* ignore */ }
+
+    // Total users
+    const premiumStats = await fetchPremiumStats();
+
+    await channel.send({
+      embeds: [{
+        title: '📊 Daily Digest',
+        color: 0x5865f2,
+        fields: [
+          { name: '📈 New Signups', value: `${newSignups}`, inline: true },
+          { name: '💎 New Premium/Lifetime', value: `${newPremium}`, inline: true },
+          { name: '⏰ Plans Expired', value: `${plansExpired}`, inline: true },
+          { name: '🎮 Suggestions Today', value: `${suggestionsToday || 0}`, inline: true },
+          { name: '👥 Users Online Now', value: `${connectedUsers}`, inline: true },
+          { name: '🔗 Discord Links', value: `${discordLinks || 0}`, inline: true },
+          { name: '👥 Total Users', value: `${premiumStats?.total || 0}`, inline: true },
+          { name: '⭐ Total Premium', value: `${premiumStats?.totalPremium || 0}`, inline: true },
+        ],
+        timestamp: new Date().toISOString(),
+        footer: { text: 'Chessr.io • Daily Digest', icon_url: 'https://chessr.io/chessr-logo.png' },
+      }],
+    });
+
+    console.log('[Digest] Daily digest sent');
+  } catch (error) {
+    console.error('[Digest] Error:', error);
+  }
+}
+
+// Schedule daily digest at midnight UTC
+function scheduleDailyDigest() {
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+  setTimeout(() => {
+    sendDailyDigest();
+    // Then repeat every 24h
+    setInterval(sendDailyDigest, 24 * 60 * 60 * 1000);
+  }, msUntilMidnight);
+
+  console.log(`[Digest] Scheduled daily digest in ${Math.round(msUntilMidnight / 60000)}min`);
+}
+
+// =============================================================================
 // Bot Events
 // =============================================================================
 
@@ -772,6 +897,9 @@ client.once('ready', async () => {
   setInterval(updateStatsChannels, config.updateInterval);
   setInterval(checkNewSignups, 120_000); // Check signups every 2 minutes
   setInterval(syncAllRoles, 10 * 60 * 1000); // Sync roles every 10 minutes
+
+  // Schedule daily digest at midnight UTC
+  scheduleDailyDigest();
 });
 
 // Error handling

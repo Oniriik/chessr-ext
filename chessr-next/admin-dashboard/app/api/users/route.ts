@@ -2,53 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getServiceRoleClient } from '@/lib/supabase'
 import { canModifyRoles, canModifyPlans, type UserRole, type UserPlan } from '@/lib/types'
+import { PLAN_ROLES } from '@/lib/discord-constants'
+import { sendDiscordEmbed, getAdminTag, buildUserFields } from '@/lib/discord-notify'
 
 const VALID_PLANS: UserPlan[] = ['free', 'freetrial', 'premium', 'beta', 'lifetime']
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'user']
 
-// Discord configuration for role sync
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID
-const DISCORD_LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID || '1476675259691175968'
-const DISCORD_SIGNUP_CHANNEL_ID = '1476547865039077416'
 
-const PLAN_ROLES: Record<string, string> = {
-  free: '1476673977899286548',
-  freetrial: '1476674000674623600',
-  premium: '1476674055435452698',
-  lifetime: '1476674087831998464',
-  beta: '1476674108841525340',
-}
-
-async function getAdminTag(adminUserId: string | undefined | null): Promise<string> {
-  if (!adminUserId) return 'Admin'
-  try {
-    const supabase = getServiceRoleClient()
-    const { data } = await supabase
-      .from('user_settings')
-      .select('discord_id, discord_username')
-      .eq('user_id', adminUserId)
-      .single()
-    if (data?.discord_id) return `<@${data.discord_id}>`
-    if (data?.discord_username) return data.discord_username
-  } catch { /* ignore */ }
-  return 'Admin'
-}
-
-async function sendAdminNotification(embed: Record<string, unknown>) {
-  if (!DISCORD_BOT_TOKEN) return
-  try {
-    await fetch(`https://discord.com/api/v10/channels/${DISCORD_SIGNUP_CHANNEL_ID}/messages`, {
-      method: 'POST',
-      headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ embeds: [embed] }),
-    })
-  } catch (err) {
-    console.error('[Discord] Failed to send admin notification:', err)
-  }
-}
-
-async function syncDiscordRoles(discordId: string, newPlan: string, oldPlan: string, userEmail: string, adminUserId?: string | null) {
+async function syncDiscordRoles(discordId: string, newPlan: string, oldPlan: string, userEmail: string, userId: string, adminUserId?: string | null) {
   if (!DISCORD_BOT_TOKEN || !DISCORD_GUILD_ID) return
 
   try {
@@ -81,21 +44,20 @@ async function syncDiscordRoles(discordId: string, newPlan: string, oldPlan: str
       )
     }
 
-    // Send notification
+    // Send plan change notification to #plan-infos
     if (rolesToRemove.length > 0 || rolesToAdd.length > 0) {
       const planName = (p: string) => p.charAt(0).toUpperCase() + p.slice(1)
       const adminTag = await getAdminTag(adminUserId)
-      await sendAdminNotification({
+      const userFields = await buildUserFields(userEmail, userId)
+      await sendDiscordEmbed('plans', {
         title: '🔄 Plan Changed',
         color: 0xffa500,
         fields: [
-          { name: '📧 User', value: userEmail, inline: true },
+          ...userFields,
           { name: '❌ Old Plan', value: planName(oldPlan), inline: true },
           { name: '✅ New Plan', value: planName(newPlan), inline: true },
           { name: '👤 Admin', value: adminTag, inline: true },
         ],
-        timestamp: new Date().toISOString(),
-        footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
       })
     }
   } catch (err) {
@@ -412,7 +374,7 @@ export async function PATCH(request: Request) {
           })
 
           if (insertData?.discord_id) {
-            syncDiscordRoles(insertData.discord_id, plan, 'free', userEmail || 'unknown', adminUserId).catch(() => {})
+            syncDiscordRoles(insertData.discord_id, plan, 'free', userEmail || 'unknown', userId, adminUserId).catch(() => {})
           }
         }
 
@@ -440,7 +402,7 @@ export async function PATCH(request: Request) {
 
       // Sync Discord roles if user has Discord linked
       if (data?.discord_id) {
-        syncDiscordRoles(data.discord_id, plan, oldPlan, userEmail || 'unknown', adminUserId).catch(() => {})
+        syncDiscordRoles(data.discord_id, plan, oldPlan, userEmail || 'unknown', userId, adminUserId).catch(() => {})
       }
     }
 
@@ -470,24 +432,23 @@ export async function PATCH(request: Request) {
 
       // Sync Discord roles (plan changed to free on ban)
       if (data?.discord_id && banned) {
-        syncDiscordRoles(data.discord_id, 'free', oldPlan, userEmail || 'unknown', adminUserId).catch(() => {})
+        syncDiscordRoles(data.discord_id, 'free', oldPlan, userEmail || 'unknown', userId, adminUserId).catch(() => {})
       }
 
-      // Discord notification
+      // Discord notification to #admin-logs
       const adminTag = await getAdminTag(adminUserId)
+      const userFields = await buildUserFields(userEmail || 'unknown', userId)
       const fields = [
-        { name: '📧 User', value: userEmail || 'unknown', inline: true },
+        ...userFields,
         { name: '👤 Admin', value: adminTag, inline: true },
       ]
       if (banned && banReason) {
         fields.push({ name: '📝 Reason', value: banReason, inline: false })
       }
-      await sendAdminNotification({
+      await sendDiscordEmbed('admin', {
         title: banned ? '🚫 User Banned' : '✅ User Unbanned',
         color: banned ? 0xef4444 : 0x10b981,
         fields,
-        timestamp: new Date().toISOString(),
-        footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
       })
     }
 
@@ -555,18 +516,17 @@ export async function DELETE(request: Request) {
       reason: `Account deleted by ${adminEmail}`,
     })
 
-    // Discord notification
+    // Discord notification to #admin-logs
     const adminTag = await getAdminTag(adminUserId)
-    await sendAdminNotification({
+    const userFields = await buildUserFields(targetEmail, userId)
+    await sendDiscordEmbed('admin', {
       title: '🗑️ User Deleted',
       color: 0xef4444,
       fields: [
-        { name: '📧 User', value: targetEmail, inline: true },
+        ...userFields,
         { name: '📋 Plan', value: (currentSettings?.plan || 'unknown').charAt(0).toUpperCase() + (currentSettings?.plan || 'unknown').slice(1), inline: true },
         { name: '👤 Admin', value: adminTag, inline: true },
       ],
-      timestamp: new Date().toISOString(),
-      footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
     })
 
     // Delete all associated data (except plan_activity_logs - kept for audit)

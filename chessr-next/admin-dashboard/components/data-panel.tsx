@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCw, Zap, Activity, Users, TrendingUp, Calendar } from 'lucide-react'
+import { RefreshCw, Zap, Activity, Users, TrendingUp, Calendar, MessageSquare } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -21,6 +21,13 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
+
+interface TopUser {
+  user_id: string
+  email: string
+  discord_username: string | null
+  count: number
+}
 
 interface DataResponse {
   totalSuggestionsAllTime: number
@@ -33,7 +40,7 @@ interface DataResponse {
     activity: { time: string; suggestions: number; analyses: number }[]
     activeUsers: { time: string; count: number }[]
   }
-  topUsers: { user_id: string; email: string; count: number }[]
+  topUsers: TopUser[]
 }
 
 const TIME_PERIODS = [
@@ -66,7 +73,6 @@ function formatTime(iso: string, period: string): string {
   if (period === '30mn' || period === '10mn') {
     return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
   }
-  // custom: show date + time
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
@@ -76,39 +82,37 @@ export function DataPanel() {
   const [period, setPeriod] = useState('24h')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [discordOnly, setDiscordOnly] = useState(false)
 
   const isCustom = period === 'custom'
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    if (isCustom && (!dateFrom || !dateTo)) return
+
     setLoading(true)
     try {
-      let url: string
-      if (isCustom && dateFrom && dateTo) {
-        url = `/api/data?from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`
-      } else if (!isCustom) {
-        url = `/api/data?period=${period}`
-      } else {
-        setLoading(false)
-        return
-      }
+      const url = isCustom
+        ? `/api/data?from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`
+        : `/api/data?period=${period}`
+
       const res = await fetch(url)
-      if (res.ok) {
-        setData(await res.json())
-      }
+      if (res.ok) setData(await res.json())
     } catch (err) {
       console.error('Failed to fetch data:', err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [period, isCustom, dateFrom, dateTo])
 
   useEffect(() => {
-    if (!isCustom) fetchData()
-  }, [period])
+    fetchData()
+  }, [fetchData])
 
-  useEffect(() => {
-    if (isCustom && dateFrom && dateTo) fetchData()
-  }, [dateFrom, dateTo])
+  const filteredTopUsers = useMemo(() => {
+    if (!data?.topUsers) return []
+    if (!discordOnly) return data.topUsers
+    return data.topUsers.filter((u) => u.discord_username)
+  }, [data?.topUsers, discordOnly])
 
   const statCards = [
     {
@@ -174,7 +178,7 @@ export function DataPanel() {
           </SelectContent>
         </Select>
         {isCustom && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-muted-foreground" />
               <input
@@ -352,16 +356,27 @@ export function DataPanel() {
       {/* Top 10 Active Users */}
       <Card className="border-border/50 bg-card/50 backdrop-blur">
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-emerald-400" />
-            <CardTitle>Top Active Users</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-emerald-400" />
+              <CardTitle>Top Active Users</CardTitle>
+            </div>
+            <Button
+              variant={discordOnly ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setDiscordOnly(!discordOnly)}
+              className="h-7 text-xs gap-1"
+            >
+              <MessageSquare className="w-3 h-3" />
+              Discord only
+            </Button>
           </div>
           <CardDescription>Users with the most suggestions in this period</CardDescription>
         </CardHeader>
         <CardContent>
-          {data?.topUsers && data.topUsers.length > 0 ? (
+          {filteredTopUsers.length > 0 ? (
             <div className="space-y-2">
-              {data.topUsers.map((user, i) => (
+              {filteredTopUsers.map((user, i) => (
                 <div
                   key={user.user_id}
                   className="flex items-center gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50"
@@ -375,7 +390,17 @@ export function DataPanel() {
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm truncate block">{user.email}</span>
+                    {!discordOnly && (
+                      <span className="text-sm truncate block">{user.email}</span>
+                    )}
+                    {user.discord_username && (
+                      <span className={`text-indigo-400 truncate block ${discordOnly ? 'text-sm' : 'text-xs'}`}>
+                        @{user.discord_username}
+                      </span>
+                    )}
+                    {discordOnly && !user.discord_username && (
+                      <span className="text-sm text-muted-foreground truncate block">Unknown</span>
+                    )}
                   </div>
                   <div className="text-sm font-mono font-bold text-emerald-400">
                     {user.count}
@@ -384,7 +409,9 @@ export function DataPanel() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No suggestions in this period</p>
+            <p className="text-sm text-muted-foreground">
+              {discordOnly ? 'No Discord-linked users with suggestions in this period' : 'No suggestions in this period'}
+            </p>
           )}
         </CardContent>
       </Card>

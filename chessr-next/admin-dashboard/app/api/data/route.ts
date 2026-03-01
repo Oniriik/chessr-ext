@@ -147,28 +147,37 @@ export async function GET(request: Request) {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
 
-    // Fetch emails for top users from auth
-    let topUsers: { user_id: string; email: string; count: number }[] = []
+    // Fetch emails + discord info for top users
+    let topUsers: { user_id: string; email: string; discord_username: string | null; count: number }[] = []
     if (topUserIds.length > 0) {
-      const emailMap = new Map<string, string>()
-      // Fetch all auth users to map IDs to emails
-      let authPage = 1
-      while (true) {
-        const { data: authBatch } = await supabase.auth.admin.listUsers({
-          page: authPage,
-          perPage: 1000,
-        })
-        if (!authBatch?.users.length) break
-        for (const u of authBatch.users) {
-          emailMap.set(u.id, u.email || '')
+      const ids = topUserIds.map(([id]) => id)
+
+      // Fetch emails individually (much faster than paginating all auth users)
+      const emailEntries = await Promise.all(
+        ids.map(async (id) => {
+          const { data } = await supabase.auth.admin.getUserById(id)
+          return [id, data?.user?.email || id.slice(0, 8)] as const
+        }),
+      )
+      const emailMap = new Map(emailEntries)
+
+      // Fetch discord usernames
+      const { data: settingsData } = await supabase
+        .from('user_settings')
+        .select('user_id, discord_username')
+        .in('user_id', ids)
+
+      const discordMap = new Map<string, string>()
+      if (settingsData) {
+        for (const s of settingsData) {
+          if (s.discord_username) discordMap.set(s.user_id, s.discord_username)
         }
-        if (authBatch.users.length < 1000) break
-        authPage++
       }
 
       topUsers = topUserIds.map(([id, count]) => ({
         user_id: id,
         email: emailMap.get(id) || id.slice(0, 8),
+        discord_username: discordMap.get(id) || null,
         count,
       }))
     }

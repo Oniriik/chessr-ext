@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,14 +14,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
   Search,
   RefreshCw,
   ChevronLeft,
@@ -32,71 +25,28 @@ import {
   Users,
   Crown,
   Link2,
-  Unlink,
-  Clock,
-  Trash2,
   ShieldCheck,
   ShieldX,
-  Ban,
-  ShieldOff,
 } from 'lucide-react'
 import {
-  type AdminUser,
   type UserRole,
   type UserPlan,
   canModifyRoles,
-  canModifyPlans,
   planLabels,
   roleLabels,
   planColors,
   roleColors,
 } from '@/lib/types'
+import { formatDate, formatRelativeTime } from '@/lib/format'
+import type { AdminUser, LinkedAccountsData, SortField, SortOrder, PlanStats } from './users/user-types'
+import { UserEditDialog } from './users/user-edit-dialog'
+import { UserBanDialog } from './users/user-ban-dialog'
+import { UserDeleteDialog } from './users/user-delete-dialog'
 
 interface UsersPanelProps {
   userRole: UserRole
   userId: string
   userEmail: string
-}
-
-interface LinkedAccount {
-  id: string
-  platform: string
-  platform_username: string
-  avatar_url?: string
-  rating_bullet?: number
-  rating_blitz?: number
-  rating_rapid?: number
-  linked_at: string
-  unlinked_at?: string
-  hasCooldown?: boolean
-  hoursRemaining?: number
-}
-
-interface DiscordInfo {
-  discord_id: string
-  discord_username: string
-  discord_avatar: string | null
-  discord_linked_at: string
-}
-
-interface LinkedAccountsData {
-  active: LinkedAccount[]
-  unlinked: LinkedAccount[]
-  totalActive: number
-  totalUnlinked: number
-  discord: DiscordInfo | null
-}
-
-type SortField = 'created_at' | 'plan_expiry' | 'last_activity'
-type SortOrder = 'asc' | 'desc'
-
-interface PlanStats {
-  total: number
-  free: number
-  freetrial: number
-  premium: number
-  beta: number
-  lifetime: number
 }
 
 export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
@@ -138,44 +88,30 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
   const [removingCooldown, setRemovingCooldown] = useState<string | null>(null)
   const [unlinkingAccount, setUnlinkingAccount] = useState<string | null>(null)
   const [unlinkingDiscord, setUnlinkingDiscord] = useState(false)
+  const [resyncingDiscord, setResyncingDiscord] = useState(false)
+  const [resyncResult, setResyncResult] = useState<string | null>(null)
 
-  // Debounce search input
+  // Debounce search
   useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearch(search)
-    }, 300)
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current)
-      }
-    }
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+    searchTimeoutRef.current = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current) }
   }, [search])
 
   const fetchUsers = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '20',
-        sortBy,
-        sortOrder,
-      })
+      const params = new URLSearchParams({ page: page.toString(), limit: '20', sortBy, sortOrder })
       if (debouncedSearch) params.set('search', debouncedSearch)
       if (roleFilter && roleFilter !== 'all') params.set('role', roleFilter)
       if (planFilter && planFilter !== 'all') params.set('plan', planFilter)
 
       const response = await fetch(`/api/users?${params}`)
       const data = await response.json()
-
       setUsers(data.data || [])
       setTotalPages(data.totalPages || 1)
       setTotal(data.total || 0)
-      if (data.stats) {
-        setStats(data.stats)
-      }
+      if (data.stats) setStats(data.stats)
     } catch (error) {
       console.error('Failed to fetch users:', error)
     } finally {
@@ -183,107 +119,65 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
     }
   }, [page, debouncedSearch, roleFilter, planFilter, sortBy, sortOrder])
 
-  useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+  useEffect(() => { fetchUsers() }, [fetchUsers])
+  useEffect(() => { setPage(1) }, [debouncedSearch, roleFilter, planFilter])
 
-  useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, roleFilter, planFilter])
+  // ---- Linked accounts handlers ----
 
-  const fetchLinkedAccounts = async (userId: string) => {
+  const fetchLinkedAccounts = async (uid: string) => {
     setLoadingAccounts(true)
     try {
-      const response = await fetch(`/api/linked-accounts?userId=${userId}`)
-      const data = await response.json()
-      setLinkedAccounts(data)
-    } catch (error) {
-      console.error('Failed to fetch linked accounts:', error)
-      setLinkedAccounts(null)
-    } finally {
-      setLoadingAccounts(false)
-    }
+      const response = await fetch(`/api/linked-accounts?userId=${uid}`)
+      setLinkedAccounts(await response.json())
+    } catch { setLinkedAccounts(null) }
+    finally { setLoadingAccounts(false) }
   }
 
   const removeCooldown = async (accountId: string) => {
     setRemovingCooldown(accountId)
     try {
-      const response = await fetch('/api/linked-accounts', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to remove cooldown')
-      }
-
-      // Refresh linked accounts
-      if (editUser) {
-        await fetchLinkedAccounts(editUser.user_id)
-      }
-    } catch (error) {
-      console.error('Failed to remove cooldown:', error)
-      alert('Failed to remove cooldown')
-    } finally {
-      setRemovingCooldown(null)
-    }
+      const res = await fetch('/api/linked-accounts', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountId }) })
+      if (!res.ok) throw new Error()
+      if (editUser) await fetchLinkedAccounts(editUser.user_id)
+    } catch { toast.error('Failed to remove cooldown') }
+    finally { setRemovingCooldown(null) }
   }
 
   const unlinkAccount = async (accountId: string) => {
     if (!confirm('Are you sure you want to unlink this account?')) return
-
     setUnlinkingAccount(accountId)
     try {
-      const response = await fetch('/api/linked-accounts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to unlink account')
-      }
-
-      // Refresh linked accounts and user list
-      if (editUser) {
-        await fetchLinkedAccounts(editUser.user_id)
-        await fetchUsers()
-      }
-    } catch (error) {
-      console.error('Failed to unlink account:', error)
-      alert('Failed to unlink account')
-    } finally {
-      setUnlinkingAccount(null)
-    }
+      const res = await fetch('/api/linked-accounts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountId }) })
+      if (!res.ok) throw new Error()
+      if (editUser) { await fetchLinkedAccounts(editUser.user_id); await fetchUsers() }
+    } catch { toast.error('Failed to unlink account') }
+    finally { setUnlinkingAccount(null) }
   }
 
   const unlinkDiscord = async (targetUserId: string) => {
     if (!confirm('Are you sure you want to unlink this Discord account?')) return
-
     setUnlinkingDiscord(true)
     try {
-      const response = await fetch('/api/linked-accounts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'discord', userId: targetUserId }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to unlink Discord')
-      }
-
-      // Refresh linked accounts
-      if (editUser) {
-        await fetchLinkedAccounts(editUser.user_id)
-      }
-    } catch (error) {
-      console.error('Failed to unlink Discord:', error)
-      alert('Failed to unlink Discord')
-    } finally {
-      setUnlinkingDiscord(false)
-    }
+      const res = await fetch('/api/linked-accounts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'discord', userId: targetUserId }) })
+      if (!res.ok) throw new Error()
+      if (editUser) await fetchLinkedAccounts(editUser.user_id)
+    } catch { toast.error('Failed to unlink Discord') }
+    finally { setUnlinkingDiscord(false) }
   }
+
+  const resyncDiscord = async (targetUserId: string) => {
+    setResyncingDiscord(true)
+    setResyncResult(null)
+    try {
+      const res = await fetch('/api/users/resync-discord', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: targetUserId }) })
+      const data = await res.json()
+      if (!res.ok) { setResyncResult(`Error: ${data.error}`); return }
+      setResyncResult(data.message + (data.elo ? ` | ELO: ${data.elo}` : '') + ` | Plan: ${data.plan}`)
+    } catch { setResyncResult('Network error') }
+    finally { setResyncingDiscord(false) }
+  }
+
+  // ---- Edit dialog handlers ----
 
   const openEditDialog = (user: AdminUser) => {
     setEditUser(user)
@@ -291,6 +185,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
     setEditRole(user.role)
     setEditExpiry(user.plan_expiry ? user.plan_expiry.split('T')[0] : '')
     setLinkedAccounts(null)
+    setResyncResult(null)
     fetchLinkedAccounts(user.user_id)
   }
 
@@ -303,308 +198,115 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
 
   const saveUser = async () => {
     if (!editUser) return
-
-    // Validate expiry is required for freetrial and premium
     if ((editPlan === 'freetrial' || editPlan === 'premium') && !editExpiry) {
-      alert('Expiry date is required for Free Trial and Premium plans')
+      toast.error('Expiry date is required for Free Trial and Premium plans')
       return
     }
-
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
-        userId: editUser.user_id,
-        callerRole: userRole,
-        adminUserId: userId,
-        adminEmail: userEmail,
-        userEmail: editUser.email,
+        userId: editUser.user_id, callerRole: userRole,
+        adminUserId: userId, adminEmail: userEmail, userEmail: editUser.email,
       }
-
       if (editPlan !== editUser.plan) body.plan = editPlan
       if (canModifyRoles(userRole) && editRole !== editUser.role) body.role = editRole
       if (editExpiry !== (editUser.plan_expiry?.split('T')[0] || '')) {
         body.planExpiry = editExpiry ? new Date(editExpiry).toISOString() : null
       }
-
-      const response = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to update user')
-      }
-
+      const res = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to update user') }
       await fetchUsers()
       closeEditDialog()
     } catch (error) {
-      console.error('Failed to save user:', error)
-      alert(error instanceof Error ? error.message : 'Failed to save user')
-    } finally {
-      setSaving(false)
-    }
+      toast.error(error instanceof Error ? error.message : 'Failed to save user')
+    } finally { setSaving(false) }
   }
 
-  const openDeleteDialog = (user: AdminUser) => {
-    setDeleteUser(user)
-    setDeletePassword('')
-    setDeleteError('')
-  }
+  // ---- Delete dialog handlers ----
 
-  const closeDeleteDialog = () => {
-    setDeleteUser(null)
-    setDeletePassword('')
-    setDeleteError('')
-  }
+  const openDeleteDialog = (user: AdminUser) => { setDeleteUser(user); setDeletePassword(''); setDeleteError('') }
+  const closeDeleteDialog = () => { setDeleteUser(null); setDeletePassword(''); setDeleteError('') }
 
   const confirmDelete = async () => {
     if (!deleteUser || !deletePassword) return
-
-    setDeleting(true)
-    setDeleteError('')
+    setDeleting(true); setDeleteError('')
     try {
-      const response = await fetch('/api/users', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: deleteUser.user_id,
-          adminEmail: userEmail,
-          adminPassword: deletePassword,
-          callerRole: userRole,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setDeleteError(data.error || 'Failed to delete user')
-        return
-      }
-
-      closeDeleteDialog()
-      closeEditDialog()
-      await fetchUsers()
-    } catch {
-      setDeleteError('Network error')
-    } finally {
-      setDeleting(false)
-    }
+      const res = await fetch('/api/users', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: deleteUser.user_id, adminEmail: userEmail, adminPassword: deletePassword, callerRole: userRole }) })
+      const data = await res.json()
+      if (!res.ok) { setDeleteError(data.error || 'Failed to delete user'); return }
+      closeDeleteDialog(); closeEditDialog(); await fetchUsers()
+    } catch { setDeleteError('Network error') }
+    finally { setDeleting(false) }
   }
 
-  const BAN_TEMPLATES = [
-    'Disposable email usage',
-    'Terms of Service violation',
-    'Inappropriate behavior',
-    'Suspicious activity',
-  ]
+  // ---- Ban dialog handlers ----
 
-  const openBanDialog = (user: AdminUser) => {
-    setBanUser(user)
-    setBanReason('')
-  }
-
-  const closeBanDialog = () => {
-    setBanUser(null)
-    setBanReason('')
-  }
+  const openBanDialog = (user: AdminUser) => { setBanUser(user); setBanReason('') }
+  const closeBanDialog = () => { setBanUser(null); setBanReason('') }
 
   const confirmBan = async () => {
     if (!banUser) return
-
     setBanning(true)
     try {
-      const response = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: banUser.user_id,
-          callerRole: userRole,
-          adminUserId: userId,
-          adminEmail: userEmail,
-          userEmail: banUser.email,
-          banned: true,
-          banReason: banReason || 'Banned by admin',
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to ban user')
-      }
-
-      closeBanDialog()
-      closeEditDialog()
-      await fetchUsers()
-    } catch (error) {
-      console.error('Failed to ban user:', error)
-      alert(error instanceof Error ? error.message : 'Failed to ban user')
-    } finally {
-      setBanning(false)
-    }
+      const res = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: banUser.user_id, callerRole: userRole, adminUserId: userId, adminEmail: userEmail, userEmail: banUser.email, banned: true, banReason: banReason || 'Banned by admin' }) })
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to ban user') }
+      closeBanDialog(); closeEditDialog(); await fetchUsers()
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to ban user') }
+    finally { setBanning(false) }
   }
 
   const unbanUser = async (user: AdminUser) => {
     setSaving(true)
     try {
-      const response = await fetch('/api/users', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.user_id,
-          callerRole: userRole,
-          adminUserId: userId,
-          adminEmail: userEmail,
-          userEmail: user.email,
-          banned: false,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to unban user')
-      }
-
-      closeEditDialog()
-      await fetchUsers()
-    } catch (error) {
-      console.error('Failed to unban user:', error)
-      alert(error instanceof Error ? error.message : 'Failed to unban user')
-    } finally {
-      setSaving(false)
-    }
+      const res = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: user.user_id, callerRole: userRole, adminUserId: userId, adminEmail: userEmail, userEmail: user.email, banned: false }) })
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to unban user') }
+      closeEditDialog(); await fetchUsers()
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to unban user') }
+    finally { setSaving(false) }
   }
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return '-'
-    return new Date(dateString).toLocaleDateString('fr-FR', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
-
-  const formatRelativeTime = (dateString: string | null) => {
-    if (!dateString) return 'Never'
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'Just now'
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-    return formatDate(dateString)
-  }
+  // ---- Sort helpers ----
 
   const toggleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortBy(field)
-      setSortOrder('desc')
-    }
+    if (sortBy === field) { setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc') }
+    else { setSortBy(field); setSortOrder('desc') }
     setPage(1)
   }
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortBy !== field) return null
-    return sortOrder === 'asc' ? (
-      <ChevronUp className="w-3 h-3 ml-1" />
-    ) : (
-      <ChevronDown className="w-3 h-3 ml-1" />
-    )
+    return sortOrder === 'asc' ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />
   }
 
   return (
     <div className="space-y-6">
       {/* Stats */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-blue-500/10">
-                <Users className="w-4 h-4 text-blue-400" />
+        {[
+          { label: 'Total', value: stats.total, icon: Users, bg: 'bg-blue-500/10', text: 'text-blue-400' },
+          { label: 'Free', value: stats.free, icon: Users, bg: 'bg-zinc-500/10', text: 'text-zinc-400' },
+          { label: 'Trial', value: stats.freetrial, icon: Users, bg: 'bg-sky-500/10', text: 'text-sky-400' },
+          { label: 'Premium', value: stats.premium, icon: Crown, bg: 'bg-amber-500/10', text: 'text-amber-400' },
+          { label: 'Beta', value: stats.beta, icon: Users, bg: 'bg-purple-500/10', text: 'text-purple-400' },
+          { label: 'Lifetime', value: stats.lifetime, icon: Crown, bg: 'bg-emerald-500/10', text: 'text-emerald-400' },
+        ].map(({ label, value, icon: Icon, bg, text }) => (
+          <Card key={label} className="border-border/50 bg-card/50 backdrop-blur">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${bg}`}>
+                  <Icon className={`w-4 h-4 ${text}`} />
+                </div>
+                <div>
+                  <p className="text-xl font-bold">{value}</p>
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xl font-bold">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-zinc-500/10">
-                <Users className="w-4 h-4 text-zinc-400" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">{stats.free}</p>
-                <p className="text-xs text-muted-foreground">Free</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-sky-500/10">
-                <Users className="w-4 h-4 text-sky-400" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">{stats.freetrial}</p>
-                <p className="text-xs text-muted-foreground">Trial</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-amber-500/10">
-                <Crown className="w-4 h-4 text-amber-400" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">{stats.premium}</p>
-                <p className="text-xs text-muted-foreground">Premium</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-purple-500/10">
-                <Users className="w-4 h-4 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">{stats.beta}</p>
-                <p className="text-xs text-muted-foreground">Beta</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-border/50 bg-card/50 backdrop-blur">
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                <Crown className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-xl font-bold">{stats.lifetime}</p>
-                <p className="text-xs text-muted-foreground">Lifetime</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Filters */}
+      {/* Filters & Table */}
       <Card className="border-border/50 bg-card/50 backdrop-blur">
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -619,17 +321,10 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+              <Input placeholder="Search by email..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="All roles" />
-              </SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="All roles" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All roles</SelectItem>
                 <SelectItem value="super_admin">Super Admin</SelectItem>
@@ -638,9 +333,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
               </SelectContent>
             </Select>
             <Select value={planFilter} onValueChange={setPlanFilter}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="All plans" />
-              </SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[150px]"><SelectValue placeholder="All plans" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All plans</SelectItem>
                 <SelectItem value="free">Free</SelectItem>
@@ -652,134 +345,107 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
             </Select>
           </div>
 
-          {/* Users table */}
-          <div className="overflow-x-auto">
+          {/* Desktop table */}
+          <div className="overflow-x-auto hidden sm:block">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border/50">
-                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                    Email
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Email</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Role</th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">Plan</th>
+                  <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground"><Link2 className="w-4 h-4 mx-auto" /></th>
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden md:table-cell cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort('plan_expiry')}>
+                    <span className="flex items-center">Expiry<SortIcon field="plan_expiry" /></span>
                   </th>
-                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                    Role
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden lg:table-cell cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort('created_at')}>
+                    <span className="flex items-center">Created<SortIcon field="created_at" /></span>
                   </th>
-                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
-                    Plan
+                  <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden xl:table-cell cursor-pointer hover:text-foreground transition-colors" onClick={() => toggleSort('last_activity')}>
+                    <span className="flex items-center">Last Activity<SortIcon field="last_activity" /></span>
                   </th>
-                  <th className="text-center py-3 px-2 text-sm font-medium text-muted-foreground">
-                    <Link2 className="w-4 h-4 mx-auto" />
-                  </th>
-                  <th
-                    className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden md:table-cell cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort('plan_expiry')}
-                  >
-                    <span className="flex items-center">
-                      Expiry
-                      <SortIcon field="plan_expiry" />
-                    </span>
-                  </th>
-                  <th
-                    className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden lg:table-cell cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort('created_at')}
-                  >
-                    <span className="flex items-center">
-                      Created
-                      <SortIcon field="created_at" />
-                    </span>
-                  </th>
-                  <th
-                    className="text-left py-3 px-2 text-sm font-medium text-muted-foreground hidden xl:table-cell cursor-pointer hover:text-foreground transition-colors"
-                    onClick={() => toggleSort('last_activity')}
-                  >
-                    <span className="flex items-center">
-                      Last Activity
-                      <SortIcon field="last_activity" />
-                    </span>
-                  </th>
-                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">
-                    Actions
-                  </th>
+                  <th className="text-right py-3 px-2 text-sm font-medium text-muted-foreground">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto" />
-                    </td>
-                  </tr>
+                  <tr><td colSpan={8} className="py-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></td></tr>
                 ) : users.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-muted-foreground">
-                      No users found
+                  <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">No users found</td></tr>
+                ) : users.map((user) => (
+                  <tr key={user.user_id} className="border-b border-border/30 hover:bg-muted/30">
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-1.5">
+                        {user.email_confirmed ? (
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        ) : (
+                          <ShieldX className="w-3.5 h-3.5 text-red-400 shrink-0" />
+                        )}
+                        <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
+                        {user.banned && (
+                          <Badge className="bg-red-500/20 text-red-400 border-red-500/30 ml-1.5 text-[10px] px-1 py-0">Banned</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2"><Badge className={roleColors[user.role]}>{roleLabels[user.role]}</Badge></td>
+                    <td className="py-3 px-2"><Badge className={planColors[user.plan]}>{planLabels[user.plan]}</Badge></td>
+                    <td className="py-3 px-2 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span className={`text-sm ${user.linked_count > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>{user.linked_count}</span>
+                        {user.has_discord && (
+                          <svg className="w-3.5 h-3.5 text-indigo-400" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
+                          </svg>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 hidden md:table-cell"><span className="text-sm text-muted-foreground">{formatDate(user.plan_expiry)}</span></td>
+                    <td className="py-3 px-2 hidden lg:table-cell"><span className="text-sm text-muted-foreground">{formatDate(user.created_at)}</span></td>
+                    <td className="py-3 px-2 hidden xl:table-cell"><span className="text-sm text-muted-foreground">{formatRelativeTime(user.last_activity)}</span></td>
+                    <td className="py-3 px-2 text-right">
+                      <Button variant="ghost" size="sm" onClick={() => openEditDialog(user)} disabled={user.user_id === userId && userRole !== 'super_admin'}>
+                        <Pencil className="w-4 h-4" />
+                      </Button>
                     </td>
                   </tr>
-                ) : (
-                  users.map((user) => (
-                    <tr key={user.user_id} className="border-b border-border/30 hover:bg-muted/30">
-                      <td className="py-3 px-2">
-                        <div className="flex items-center gap-1.5">
-                          {user.email_confirmed ? (
-                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" title="Email verified" />
-                          ) : (
-                            <ShieldX className="w-3.5 h-3.5 text-red-400 shrink-0" title="Email not verified" />
-                          )}
-                          <span className="text-sm truncate max-w-[200px] block">{user.email}</span>
-                          {user.banned && (
-                            <Badge className="bg-red-500/20 text-red-400 border-red-500/30 ml-1.5 text-[10px] px-1 py-0">
-                              Banned
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2">
-                        <Badge className={roleColors[user.role]}>{roleLabels[user.role]}</Badge>
-                      </td>
-                      <td className="py-3 px-2">
-                        <Badge className={planColors[user.plan]}>{planLabels[user.plan]}</Badge>
-                      </td>
-                      <td className="py-3 px-2 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <span className={`text-sm ${user.linked_count > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>
-                            {user.linked_count}
-                          </span>
-                          {user.has_discord && (
-                            <svg className="w-3.5 h-3.5 text-indigo-400" viewBox="0 0 24 24" fill="currentColor" title="Discord linked">
-                              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
-                            </svg>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 hidden md:table-cell">
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(user.plan_expiry)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 hidden lg:table-cell">
-                        <span className="text-sm text-muted-foreground">
-                          {formatDate(user.created_at)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 hidden xl:table-cell">
-                        <span className="text-sm text-muted-foreground">
-                          {formatRelativeTime(user.last_activity)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-2 text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openEditDialog(user)}
-                          disabled={user.user_id === userId && userRole !== 'super_admin'}
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile card list */}
+          <div className="sm:hidden space-y-2">
+            {loading ? (
+              <div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>
+            ) : users.length === 0 ? (
+              <p className="py-8 text-center text-muted-foreground">No users found</p>
+            ) : users.map((user) => (
+              <button
+                key={user.user_id}
+                onClick={() => openEditDialog(user)}
+                disabled={user.user_id === userId && userRole !== 'super_admin'}
+                className="w-full text-left p-3 rounded-lg border border-border/30 hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium truncate max-w-[200px]">{user.email}</span>
+                  {user.banned && (
+                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] px-1 py-0">Banned</Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className={`${roleColors[user.role]} text-[10px]`}>{roleLabels[user.role]}</Badge>
+                  <Badge className={`${planColors[user.plan]} text-[10px]`}>{planLabels[user.plan]}</Badge>
+                  {user.linked_count > 0 && (
+                    <span className="text-[10px] text-emerald-400">{user.linked_count} linked</span>
+                  )}
+                  {user.has_discord && (
+                    <svg className="w-3 h-3 text-indigo-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
+                    </svg>
+                  )}
+                  <span className="text-[10px] text-muted-foreground ml-auto">{formatRelativeTime(user.last_activity)}</span>
+                </div>
+              </button>
+            ))}
           </div>
 
           {/* Pagination */}
@@ -788,20 +454,10 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
               Page {page} of {totalPages} ({total} users)
             </span>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || loading}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || loading}>
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || loading}
-              >
+              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages || loading}>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
@@ -809,409 +465,53 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
-      <Dialog open={!!editUser} onOpenChange={(open) => !open && closeEditDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>{editUser?.email}</DialogDescription>
-          </DialogHeader>
+      {/* Dialogs */}
+      <UserEditDialog
+        editUser={editUser}
+        editPlan={editPlan}
+        editRole={editRole}
+        editExpiry={editExpiry}
+        saving={saving}
+        userRole={userRole}
+        linkedAccounts={linkedAccounts}
+        loadingAccounts={loadingAccounts}
+        unlinkingAccount={unlinkingAccount}
+        unlinkingDiscord={unlinkingDiscord}
+        resyncingDiscord={resyncingDiscord}
+        resyncResult={resyncResult}
+        removingCooldown={removingCooldown}
+        onClose={closeEditDialog}
+        onSave={saveUser}
+        onSetEditPlan={setEditPlan}
+        onSetEditRole={setEditRole}
+        onSetEditExpiry={setEditExpiry}
+        onUnlinkAccount={unlinkAccount}
+        onUnlinkDiscord={unlinkDiscord}
+        onResyncDiscord={resyncDiscord}
+        onRemoveCooldown={removeCooldown}
+        onOpenDeleteDialog={openDeleteDialog}
+        onOpenBanDialog={openBanDialog}
+        onUnbanUser={unbanUser}
+      />
 
-          <div className="space-y-4 py-4">
-            {/* Role selector (super_admin only) */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
-              {canModifyRoles(userRole) ? (
-                <Select value={editRole} onValueChange={(v) => setEditRole(v as UserRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="flex items-center h-9">
-                  <Badge className={roleColors[editRole]}>{roleLabels[editRole]}</Badge>
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    (Only Super Admins can modify roles)
-                  </span>
-                </div>
-              )}
-            </div>
+      <UserDeleteDialog
+        deleteUser={deleteUser}
+        deletePassword={deletePassword}
+        deleting={deleting}
+        deleteError={deleteError}
+        onClose={closeDeleteDialog}
+        onConfirm={confirmDelete}
+        onSetDeletePassword={setDeletePassword}
+      />
 
-            {/* Plan selector */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Plan</label>
-              {canModifyPlans(userRole) ? (
-                <Select value={editPlan} onValueChange={(v) => setEditPlan(v as UserPlan)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="free">Free</SelectItem>
-                    <SelectItem value="freetrial">Free Trial</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                    <SelectItem value="beta">Beta</SelectItem>
-                    <SelectItem value="lifetime">Lifetime</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Badge className={planColors[editPlan]}>{planLabels[editPlan]}</Badge>
-              )}
-            </div>
-
-            {/* Expiry date (for freetrial and premium) */}
-            {(editPlan === 'freetrial' || editPlan === 'premium') && canModifyPlans(userRole) && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Plan Expiry</label>
-                <Input
-                  type="date"
-                  value={editExpiry}
-                  onChange={(e) => setEditExpiry(e.target.value)}
-                />
-              </div>
-            )}
-
-            {/* Linked Accounts Section */}
-            <div className="space-y-3 pt-4 border-t border-border/50">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <Link2 className="w-4 h-4" />
-                  Linked Accounts
-                </label>
-                {linkedAccounts && (
-                  <Badge variant="outline" className="text-xs">
-                    {linkedAccounts.totalActive} active
-                  </Badge>
-                )}
-              </div>
-
-              {loadingAccounts ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                </div>
-              ) : linkedAccounts ? (
-                <div className="space-y-3">
-                  {/* Active accounts */}
-                  {linkedAccounts.active.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Active</p>
-                      {linkedAccounts.active.map((account) => (
-                        <div
-                          key={account.id}
-                          className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Link2 className="w-4 h-4 text-emerald-400" />
-                            <span className="text-sm font-medium">{account.platform_username}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">
-                              {account.rating_blitz && `${account.rating_blitz} blitz`}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => unlinkAccount(account.id)}
-                              disabled={unlinkingAccount === account.id}
-                              className="h-7 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                            >
-                              {unlinkingAccount === account.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Unlink className="w-3 h-3" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Unlinked accounts with cooldown */}
-                  {linkedAccounts.unlinked.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Unlinked (with cooldown)</p>
-                      {linkedAccounts.unlinked.map((account) => (
-                        <div
-                          key={account.id}
-                          className={`flex items-center justify-between p-2 rounded-lg ${
-                            account.hasCooldown
-                              ? 'bg-amber-500/10 border border-amber-500/20'
-                              : 'bg-muted/30 border border-border/50'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Unlink className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm">{account.platform_username}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
-                            </Badge>
-                            {account.hasCooldown && (
-                              <span className="text-xs text-amber-400 flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {account.hoursRemaining}h
-                              </span>
-                            )}
-                          </div>
-                          {account.hasCooldown && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeCooldown(account.id)}
-                              disabled={removingCooldown === account.id}
-                              className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300"
-                            >
-                              {removingCooldown === account.id ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <>
-                                  <Trash2 className="w-3 h-3 mr-1" />
-                                  Remove cooldown
-                                </>
-                              )}
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Discord account */}
-                  {linkedAccounts.discord && (
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground">Discord</p>
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-indigo-400" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" />
-                          </svg>
-                          <span className="text-sm font-medium">{linkedAccounts.discord.discord_username}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {linkedAccounts.discord.discord_id}
-                          </Badge>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => editUser && unlinkDiscord(editUser.user_id)}
-                          disabled={unlinkingDiscord}
-                          className="h-7 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                        >
-                          {unlinkingDiscord ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Unlink className="w-3 h-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {linkedAccounts.active.length === 0 && linkedAccounts.unlinked.length === 0 && !linkedAccounts.discord && (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      No linked accounts
-                    </p>
-                  )}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground text-center py-2">
-                  Failed to load accounts
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Ban status indicator */}
-          {editUser?.banned && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-              <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
-                <Ban className="w-4 h-4" />
-                Banned
-              </div>
-              {editUser.ban_reason && (
-                <p className="text-xs text-muted-foreground mt-1">{editUser.ban_reason}</p>
-              )}
-              {editUser.banned_by && editUser.banned_at && (
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  by {editUser.banned_by} on {formatDate(editUser.banned_at)}
-                </p>
-              )}
-            </div>
-          )}
-
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <div className="flex gap-2 sm:mr-auto">
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => editUser && openDeleteDialog(editUser)}
-                disabled={saving}
-              >
-                <Trash2 className="w-4 h-4 mr-1" />
-                Delete
-              </Button>
-              {editUser?.banned ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => editUser && unbanUser(editUser)}
-                  disabled={saving}
-                  className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
-                >
-                  <ShieldOff className="w-4 h-4 mr-1" />
-                  Unban
-                </Button>
-              ) : (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => editUser && openBanDialog(editUser)}
-                  disabled={saving}
-                  className="text-red-400 border-red-500/30 hover:bg-red-500/10"
-                >
-                  <Ban className="w-4 h-4 mr-1" />
-                  Ban
-                </Button>
-              )}
-            </div>
-            <Button variant="outline" onClick={closeEditDialog} disabled={saving}>
-              Cancel
-            </Button>
-            <Button variant="gradient" onClick={saveUser} disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save changes'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteUser} onOpenChange={(open) => !open && closeDeleteDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-red-400">Delete User</DialogTitle>
-            <DialogDescription>
-              This will permanently delete <strong>{deleteUser?.email}</strong> and all associated data
-              (settings, activity, linked accounts, IPs). This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Enter your password to confirm</label>
-              <Input
-                type="password"
-                placeholder="Your admin password"
-                value={deletePassword}
-                onChange={(e) => setDeletePassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && confirmDelete()}
-              />
-              {deleteError && (
-                <p className="text-sm text-red-400">{deleteError}</p>
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeDeleteDialog} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={deleting || !deletePassword}
-            >
-              {deleting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-1" />
-                  Delete permanently
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Ban Confirmation Dialog */}
-      <Dialog open={!!banUser} onOpenChange={(open) => !open && closeBanDialog()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="text-red-400">Ban User</DialogTitle>
-            <DialogDescription>
-              Ban <strong>{banUser?.email}</strong> from using Chessr. They will be disconnected and unable to log in.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Reason template</label>
-              <div className="flex flex-wrap gap-2">
-                {BAN_TEMPLATES.map((template) => (
-                  <Button
-                    key={template}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBanReason(template)}
-                    className={`text-xs ${banReason === template ? 'border-red-500/50 bg-red-500/10 text-red-400' : ''}`}
-                  >
-                    {template}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Custom reason</label>
-              <Input
-                placeholder="Enter ban reason..."
-                value={banReason}
-                onChange={(e) => setBanReason(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={closeBanDialog} disabled={banning}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmBan}
-              disabled={banning}
-            >
-              {banning ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Banning...
-                </>
-              ) : (
-                <>
-                  <Ban className="w-4 h-4 mr-1" />
-                  Ban user
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <UserBanDialog
+        banUser={banUser}
+        banReason={banReason}
+        banning={banning}
+        onClose={closeBanDialog}
+        onConfirm={confirmBan}
+        onSetBanReason={setBanReason}
+      />
     </div>
   )
 }

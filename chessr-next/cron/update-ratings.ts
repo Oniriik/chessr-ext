@@ -112,6 +112,7 @@ async function updateRatings() {
             rating_bullet: ratings.bullet,
             rating_blitz: ratings.blitz,
             rating_rapid: ratings.rapid,
+            ratings_updated_at: new Date().toISOString(),
           })
           .eq('id', account.id);
 
