@@ -112,10 +112,30 @@ export function getAmbitionDescription(value: number): string {
 // Search mode for full strength (nodes, depth, or movetime)
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
 
+// Engine selection
+export type SelectedEngine = 'default' | 'maia2';
+
+// Maia-2 time control mode
+export type MaiaMode = 'rapid' | 'blitz';
+
 // Armageddon mode (on/off - uses player color from gameStore when enabled)
 export type ArmageddonMode = boolean;
 
 interface EngineState {
+  // Engine selection
+  selectedEngine: SelectedEngine;
+
+  // Maia-2 settings
+  maiaEloSelfAuto: boolean;
+  maiaEloOppoAuto: boolean;
+  maiaEloSelf: number;
+  maiaEloOppo: number;
+  maiaMode: MaiaMode;
+
+  // Computed Maia ELOs (auto-detected or manual)
+  getMaiaEloSelf: () => number;
+  getMaiaEloOppo: () => number;
+
   // Detected ELOs
   userElo: number;
   opponentElo: number;
@@ -153,6 +173,12 @@ interface EngineState {
   getTargetElo: () => number;
 
   // Actions
+  setSelectedEngine: (engine: SelectedEngine) => void;
+  setMaiaEloSelfAuto: (auto: boolean) => void;
+  setMaiaEloOppoAuto: (auto: boolean) => void;
+  setMaiaEloSelf: (elo: number) => void;
+  setMaiaEloOppo: (elo: number) => void;
+  setMaiaMode: (mode: MaiaMode) => void;
   setUserElo: (elo: number) => void;
   setOpponentElo: (elo: number) => void;
   setTargetEloAuto: (auto: boolean) => void;
@@ -180,6 +206,13 @@ export const useEngineStore = create<EngineState>()(
   persist(
     (set, get) => ({
       // Initial values
+      selectedEngine: 'default' as SelectedEngine,
+      maiaEloSelfAuto: true,
+      maiaEloOppoAuto: true,
+      maiaEloSelf: 1500,
+      maiaEloOppo: 1500,
+      maiaMode: 'rapid' as MaiaMode,
+
       userElo: 1500,
       opponentElo: 1500,
       targetEloAuto: true,
@@ -204,7 +237,25 @@ export const useEngineStore = create<EngineState>()(
         return baseElo + autoEloBoost;
       },
 
+      // Maia Target ELO: auto = opponent ELO + boost (same logic as default engine)
+      getMaiaEloSelf: () => {
+        const { maiaEloSelfAuto, autoEloBoost, opponentElo, userElo, maiaEloSelf } = get();
+        if (!maiaEloSelfAuto) return maiaEloSelf;
+        const baseElo = opponentElo > 0 ? opponentElo : userElo;
+        return baseElo + autoEloBoost;
+      },
+      getMaiaEloOppo: () => {
+        const { maiaEloOppoAuto, opponentElo, maiaEloOppo } = get();
+        return maiaEloOppoAuto ? opponentElo : maiaEloOppo;
+      },
+
       // Setters
+      setSelectedEngine: (engine) => set({ selectedEngine: engine }),
+      setMaiaEloSelfAuto: (auto) => set({ maiaEloSelfAuto: auto }),
+      setMaiaEloOppoAuto: (auto) => set({ maiaEloOppoAuto: auto }),
+      setMaiaEloSelf: (elo) => set({ maiaEloSelf: Math.max(400, Math.min(3000, elo)) }),
+      setMaiaEloOppo: (elo) => set({ maiaEloOppo: Math.max(400, Math.min(3000, elo)) }),
+      setMaiaMode: (mode) => set({ maiaMode: mode }),
       setUserElo: (elo) => set({ userElo: elo }),
       setOpponentElo: (elo) => set({ opponentElo: elo }),
       setTargetEloAuto: (auto) => set({ targetEloAuto: auto }),
@@ -288,6 +339,12 @@ export const useEngineStore = create<EngineState>()(
         searchNodes: state.searchNodes,
         searchDepth: state.searchDepth,
         searchMovetime: state.searchMovetime,
+        selectedEngine: state.selectedEngine,
+        maiaEloSelfAuto: state.maiaEloSelfAuto,
+        maiaEloOppoAuto: state.maiaEloOppoAuto,
+        maiaEloSelf: state.maiaEloSelf,
+        maiaEloOppo: state.maiaEloOppo,
+        maiaMode: state.maiaMode,
       }),
     }
   )

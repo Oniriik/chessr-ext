@@ -6,8 +6,9 @@ import { Switch } from '../ui/switch';
 import { Slider } from '../ui/slider';
 import { AuthForm } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
-import { usePuzzleStore, type PuzzleSearchMode } from '../../stores/puzzleStore';
+import { usePuzzleStore, type PuzzleSearchMode, type PuzzleEngine } from '../../stores/puzzleStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
+import { useMaiaWebSocketStore } from '../../stores/maiaWebSocketStore';
 import { extractFenFromBoard, getPlayerColorFromDOM } from '../../lib/chesscom/extractFenFromBoard';
 import { usePuzzleSuggestionTrigger } from '../../hooks/usePuzzleSuggestionTrigger';
 import { usePuzzleArrowRenderer } from '../../hooks/usePuzzleArrowRenderer';
@@ -222,12 +223,17 @@ function formatSearchValue(mode: PuzzleSearchMode, nodes: number, depth: number,
 function PuzzleControls() {
   const {
     autoHint, setAutoHint, isLoading, isStarted,
+    puzzleEngine, setPuzzleEngine,
     searchMode, setSearchMode, searchNodes, setSearchNodes,
     searchDepth, setSearchDepth, searchMovetime, setSearchMovetime,
   } = usePuzzleStore();
-  const { isConnected } = useWebSocketStore();
+  const { isConnected: isServerConnected } = useWebSocketStore();
+  const { isConnected: isMaiaConnected, isConnecting: isMaiaConnecting } = useMaiaWebSocketStore();
   const triggerHint = usePuzzleSuggestionTrigger();
   const { canUsePuzzleHints } = usePlanLimits();
+
+  const isMaia = puzzleEngine === 'maia2';
+  const isConnected = isMaia ? isMaiaConnected : isServerConnected;
 
   if (!isStarted) return null;
 
@@ -265,6 +271,37 @@ function PuzzleControls() {
   return (
     <Card className="tw-mt-3">
       <CardContent className="tw-py-3 tw-px-4 tw-space-y-3">
+        {/* Engine selector */}
+        <div className="tw-flex tw-items-center tw-justify-between">
+          <span className="tw-text-sm tw-font-medium">Engine</span>
+          <select
+            value={puzzleEngine}
+            onChange={(e) => setPuzzleEngine(e.target.value as PuzzleEngine)}
+            className="tw-h-8 tw-px-3 tw-py-1 tw-text-xs tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer"
+          >
+            <option value="komodo">Komodo Dragon</option>
+            <option value="maia2">Maia-2 (Local)</option>
+          </select>
+        </div>
+
+        {/* Maia connection status */}
+        {isMaia && (
+          <div className="tw-flex tw-items-center tw-gap-2">
+            <span
+              className={`tw-h-2 tw-w-2 tw-rounded-full ${
+                isMaiaConnected
+                  ? 'tw-bg-green-500'
+                  : isMaiaConnecting
+                    ? 'tw-bg-yellow-500 tw-animate-pulse'
+                    : 'tw-bg-red-500'
+              }`}
+            />
+            <span className="tw-text-xs tw-text-muted-foreground">
+              {isMaiaConnected ? 'Maia connected — full power' : isMaiaConnecting ? 'Connecting to Maia...' : 'Maia disconnected — launch the app'}
+            </span>
+          </div>
+        )}
+
         {/* Auto hint toggle */}
         <div className="tw-flex tw-items-center tw-justify-between">
           <div className="tw-flex tw-items-center tw-gap-2">
@@ -277,52 +314,54 @@ function PuzzleControls() {
           />
         </div>
 
-        {/* Search mode selector */}
-        <div className="tw-space-y-2">
-          <div className="tw-flex tw-items-center tw-justify-between">
-            <div className="tw-flex tw-items-center tw-gap-2">
-              <select
-                value={searchMode}
-                onChange={(e) => setSearchMode(e.target.value as PuzzleSearchMode)}
-                className="tw-h-7 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
-              >
-                <option value="nodes">Nodes</option>
-                <option value="depth">Depth</option>
-                <option value="movetime">Move Time</option>
-              </select>
+        {/* Search mode selector (Komodo only) */}
+        {!isMaia && (
+          <div className="tw-space-y-2">
+            <div className="tw-flex tw-items-center tw-justify-between">
+              <div className="tw-flex tw-items-center tw-gap-2">
+                <select
+                  value={searchMode}
+                  onChange={(e) => setSearchMode(e.target.value as PuzzleSearchMode)}
+                  className="tw-h-7 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
+                >
+                  <option value="nodes">Nodes</option>
+                  <option value="depth">Depth</option>
+                  <option value="movetime">Move Time</option>
+                </select>
+              </div>
+              <span className="tw-text-base tw-font-bold tw-text-primary">
+                {formatSearchValue(searchMode, searchNodes, searchDepth, searchMovetime)}
+              </span>
             </div>
-            <span className="tw-text-base tw-font-bold tw-text-primary">
-              {formatSearchValue(searchMode, searchNodes, searchDepth, searchMovetime)}
-            </span>
+            {searchMode === 'nodes' && (
+              <Slider
+                value={[searchNodes]}
+                onValueChange={([value]) => setSearchNodes(value)}
+                min={100000}
+                max={5000000}
+                step={100000}
+              />
+            )}
+            {searchMode === 'depth' && (
+              <Slider
+                value={[searchDepth]}
+                onValueChange={([value]) => setSearchDepth(value)}
+                min={1}
+                max={30}
+                step={1}
+              />
+            )}
+            {searchMode === 'movetime' && (
+              <Slider
+                value={[searchMovetime]}
+                onValueChange={([value]) => setSearchMovetime(value)}
+                min={500}
+                max={5000}
+                step={100}
+              />
+            )}
           </div>
-          {searchMode === 'nodes' && (
-            <Slider
-              value={[searchNodes]}
-              onValueChange={([value]) => setSearchNodes(value)}
-              min={100000}
-              max={5000000}
-              step={100000}
-            />
-          )}
-          {searchMode === 'depth' && (
-            <Slider
-              value={[searchDepth]}
-              onValueChange={([value]) => setSearchDepth(value)}
-              min={1}
-              max={30}
-              step={1}
-            />
-          )}
-          {searchMode === 'movetime' && (
-            <Slider
-              value={[searchMovetime]}
-              onValueChange={([value]) => setSearchMovetime(value)}
-              min={500}
-              max={5000}
-              step={100}
-            />
-          )}
-        </div>
+        )}
 
         {/* Manual hint button */}
         {!autoHint && (
@@ -346,7 +385,7 @@ function PuzzleControls() {
           </Button>
         )}
 
-        {!isConnected && (
+        {!isConnected && !isMaia && (
           <p className="tw-text-xs tw-text-muted-foreground tw-text-center">
             Connecting to server...
           </p>

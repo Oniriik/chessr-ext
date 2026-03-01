@@ -1,0 +1,114 @@
+name: Build Chessr.io Maia
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  export-model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install torch maia2 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Export ONNX model
+        run: python -m scripts.export_onnx
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: model-onnx
+          path: model.onnx
+
+  build-mac:
+    needs: export-model
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: model-onnx
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      - name: Build .app
+        run: pyinstaller build/mac.spec --noconfirm
+
+      - name: Create DMG
+        run: |
+          brew install create-dmg
+          create-dmg \
+            --volname "Chessr.io" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "Chessr.io.app" 150 190 \
+            --app-drop-link 450 190 \
+            "Chessr.io-Maia.dmg" \
+            "dist/Chessr.io.app"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chessr-maia-mac
+          path: Chessr.io-Maia.dmg
+
+  build-windows:
+    needs: export-model
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: model-onnx
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller pythonnet
+
+      - name: Build .exe
+        run: pyinstaller build/win.spec --noconfirm
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chessr-maia-win
+          path: "dist/Chessr.io.exe"
+
+  release:
+    needs: [build-mac, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: chessr-maia-mac
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: chessr-maia-win
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Chessr.io-Maia.dmg
+            Chessr.io.exe
+          generate_release_notes: true

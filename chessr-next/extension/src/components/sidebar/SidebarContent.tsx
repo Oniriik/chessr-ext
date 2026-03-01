@@ -12,7 +12,9 @@ import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
 import { MoveListDisplay } from './MoveListDisplay';
 import { EloSettings } from './EloSettings';
+import { MaiaSettings, MaiaConnectionCard } from './MaiaSettings';
 import { OpeningRepertoireSelector } from './OpeningRepertoireSelector';
+import { useEngineStore } from '../../stores/engineStore';
 import { UpdateRequiredCard } from './UpdateRequiredCard';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
@@ -45,6 +47,24 @@ import { useContainerWidth } from '../../hooks/useContainerWidth';
  * Components: src/components/sidebar/
  * UI primitives: src/components/ui/
  */
+
+function EngineTabContent() {
+  const { selectedEngine } = useEngineStore();
+
+  return (
+    <>
+      {selectedEngine === 'maia2' ? (
+        <>
+          <MaiaSettings />
+          <MaiaConnectionCard />
+        </>
+      ) : (
+        <EloSettings />
+      )}
+      <OpeningRepertoireSelector />
+    </>
+  );
+}
 
 function SidebarHeader({
   compactBadge,
@@ -178,8 +198,7 @@ function AuthenticatedContent() {
                 <MoveListDisplay />
               </TabsContent>
               <TabsContent value="engine" className="tw-flex-1 tw-overflow-y-auto tw-space-y-4">
-                <EloSettings />
-                <OpeningRepertoireSelector />
+                <EngineTabContent />
               </TabsContent>
             </Tabs>
           </div>

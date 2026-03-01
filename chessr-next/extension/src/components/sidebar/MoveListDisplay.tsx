@@ -4,6 +4,7 @@ import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSug
 import { useGameStore } from '../../stores/gameStore';
 import { useOpeningStore, type SavedOpening } from '../../stores/openingStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useEngineStore } from '../../stores/engineStore';
 import { useOpeningTracker } from '../../hooks/useOpeningTracker';
 import { useAlternativeOpenings } from '../../hooks/useAlternativeOpenings';
 import { OpeningSuggestionCard } from './OpeningSuggestionCard';
@@ -140,6 +141,7 @@ interface SuggestionCardProps {
   fen: string;
   playerColor: 'white' | 'black' | null;
   arrowColor: string;
+  isMaia: boolean;
   onSelect: () => void;
   onHoverStart: () => void;
   onHoverEnd: () => void;
@@ -148,7 +150,7 @@ interface SuggestionCardProps {
   onPvHoverEnd: () => void;
 }
 
-function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, arrowColor, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, arrowColor, isMaia, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd }: SuggestionCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const config = CONFIDENCE_CONFIG[suggestion.confidenceLabel];
 
@@ -234,9 +236,17 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           ))}
         </div>
         <div className="tw-flex tw-items-center tw-gap-1.5 tw-flex-shrink-0">
-          {/* Evaluation */}
-          <span className={`tw-text-sm tw-font-mono tw-font-bold tw-tabular-nums ${getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)}`}>
-            {formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
+          {/* Evaluation / Win Rate */}
+          <span className={`tw-text-sm tw-font-mono tw-font-bold tw-tabular-nums ${
+            isMaia
+              ? (playerColor === 'black' ? 100 - suggestion.winRate : suggestion.winRate) >= 50
+                ? 'tw-text-green-400'
+                : 'tw-text-red-400'
+              : getEvalColorClass(suggestion.evaluation, suggestion.mateScore, playerColor)
+          }`}>
+            {isMaia
+              ? `${playerColor === 'black' ? 100 - suggestion.winRate : suggestion.winRate}%`
+              : formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
           </span>
           {/* PV toggle button */}
           {suggestion.pv && suggestion.pv.length > 1 && (
@@ -300,6 +310,8 @@ export function MoveListDisplay() {
     secondArrowColor,
     thirdArrowColor,
   } = useSettingsStore();
+  const { selectedEngine } = useEngineStore();
+  const isMaia = selectedEngine === 'maia2';
   const suggestions = useSuggestions();
   const suggestedFen = useSuggestedFen();
   const isLoading = useIsSuggestionLoading();
@@ -598,6 +610,7 @@ export function MoveListDisplay() {
                 fen={suggestedFen || ''}
                 playerColor={playerColor}
                 arrowColor={arrowColor}
+                isMaia={isMaia}
                 onSelect={() => setSelectedIndex(index)}
                 onHoverStart={() => setHoveredIndex(index)}
                 onHoverEnd={() => setHoveredIndex(null)}

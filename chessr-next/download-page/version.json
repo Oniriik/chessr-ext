@@ -1,4 +1,11 @@
 {
-  "version": "2.0.0",
-  "file": "chessr-extension-v2.0.0.zip"
+  "extension": {
+    "version": "2.0.6",
+    "file": "chessr-extension-v2.0.6.zip"
+  },
+  "maia": {
+    "version": "1.0.0",
+    "mac": "/maia/Chessr.io-Maia.dmg",
+    "win": "/maia/Chessr.io.exe"
+  }
 }

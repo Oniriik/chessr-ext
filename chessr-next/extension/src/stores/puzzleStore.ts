@@ -7,6 +7,7 @@ import { persist } from 'zustand/middleware';
 import { logger } from '../lib/logger';
 
 export type PuzzleSearchMode = 'nodes' | 'depth' | 'movetime';
+export type PuzzleEngine = 'komodo' | 'maia2';
 
 export interface PuzzleSuggestion {
   move: string;
@@ -23,8 +24,9 @@ interface PuzzleState {
 
   // Settings
   autoHint: boolean;
+  puzzleEngine: PuzzleEngine;
 
-  // Engine search settings
+  // Engine search settings (Komodo only)
   searchMode: PuzzleSearchMode;
   searchNodes: number;
   searchDepth: number;
@@ -41,6 +43,7 @@ interface PuzzleState {
   setSolved: (solved: boolean) => void;
   setFen: (fen: string | null) => void;
   setAutoHint: (enabled: boolean) => void;
+  setPuzzleEngine: (engine: PuzzleEngine) => void;
   setSearchMode: (mode: PuzzleSearchMode) => void;
   setSearchNodes: (value: number) => void;
   setSearchDepth: (value: number) => void;
@@ -64,6 +67,7 @@ export const usePuzzleStore = create<PuzzleState>()(
   playerColor: null,
   currentFen: null,
   autoHint: true, // Auto hint enabled by default
+  puzzleEngine: 'komodo' as PuzzleEngine,
   searchMode: 'nodes' as PuzzleSearchMode,
   searchNodes: 1_000_000,
   searchDepth: 20,
@@ -116,6 +120,11 @@ export const usePuzzleStore = create<PuzzleState>()(
   setAutoHint: (enabled) => {
     logger.log(`[puzzle] autoHint: ${enabled}`);
     set({ autoHint: enabled });
+  },
+
+  setPuzzleEngine: (engine) => {
+    logger.log(`[puzzle] engine: ${engine}`);
+    set({ puzzleEngine: engine, suggestions: [], suggestion: null, isLoading: false, currentRequestId: null });
   },
 
   setSearchMode: (mode) => set({ searchMode: mode }),
@@ -175,6 +184,7 @@ export const usePuzzleStore = create<PuzzleState>()(
       name: 'chessr-puzzle-settings',
       partialize: (state) => ({
         autoHint: state.autoHint,
+        puzzleEngine: state.puzzleEngine,
         searchMode: state.searchMode,
         searchNodes: state.searchNodes,
         searchDepth: state.searchDepth,

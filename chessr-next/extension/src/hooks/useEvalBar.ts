@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { useEngineStore } from '../stores/engineStore';
 import { EvalBar } from '../content/overlay/EvalBar';
 
 /**
@@ -35,6 +36,10 @@ export function useEvalBar() {
   const { isGameStarted, playerColor } = useGameStore();
   const { positionEval, mateIn, winRate, suggestedFen } = useSuggestionStore();
   const { showEvalBar, evalBarMode } = useSettingsStore();
+  const { selectedEngine } = useEngineStore();
+
+  // Force winrate mode when using Maia (no centipawn eval available)
+  const effectiveEvalBarMode = selectedEngine === 'maia2' ? 'winrate' as const : evalBarMode;
 
   const evalBarRef = useRef<EvalBar | null>(null);
   const isInitializedRef = useRef(false);
@@ -84,11 +89,11 @@ export function useEvalBar() {
 
     if (positionEval !== null && suggestedFen) {
       // Pass raw eval values - bar handles flipping internally
-      evalBar.update(positionEval, mateIn, evalBarMode, winRate ?? 50);
+      evalBar.update(positionEval, mateIn, effectiveEvalBarMode, winRate ?? 50);
       evalBar.show();
     } else {
       // No eval available, hide the bar
       evalBar.hide();
     }
-  }, [positionEval, mateIn, winRate, suggestedFen, evalBarMode]);
+  }, [positionEval, mateIn, winRate, suggestedFen, effectiveEvalBarMode]);
 }

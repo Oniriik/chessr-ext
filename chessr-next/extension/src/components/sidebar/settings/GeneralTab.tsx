@@ -1,15 +1,8 @@
 import { useSettingsStore, type EvalBarMode } from '../../../stores/settingsStore';
-import { useEngineStore } from '../../../stores/engineStore';
+import { useEngineStore, type SelectedEngine } from '../../../stores/engineStore';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
 import { Slider } from '../../ui/slider';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../../ui/select'; // Keep for language select
 
 export function GeneralTab() {
   const {
@@ -26,21 +19,21 @@ export function GeneralTab() {
     setAnonNames,
     setAnonUrl,
   } = useSettingsStore();
-  const { autoEloBoost, setAutoEloBoost } = useEngineStore();
+  const { autoEloBoost, setAutoEloBoost, selectedEngine, setSelectedEngine } = useEngineStore();
 
   return (
     <div className="tw-space-y-6">
       {/* Language Section */}
       <div className="tw-space-y-2">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Language</Label>
-        <Select value={language} onValueChange={setLanguage} disabled>
-          <SelectTrigger className="tw-w-full">
-            <SelectValue placeholder="Select language" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="en">English</SelectItem>
-          </SelectContent>
-        </Select>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          disabled
+          className="tw-w-full tw-h-9 tw-px-3 tw-py-1 tw-text-sm tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer tw-appearance-none tw-bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22none%22%20stroke%3D%22%23888%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m2%204%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] tw-bg-[length:12px] tw-bg-[right_8px_center] tw-bg-no-repeat tw-pr-8 disabled:tw-opacity-50"
+        >
+          <option value="en">English</option>
+        </select>
         <p className="tw-text-xs tw-text-muted-foreground">
           More languages coming soon
         </p>
@@ -126,7 +119,25 @@ export function GeneralTab() {
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Engine</Label>
 
-        {/* Auto ELO Boost */}
+        {/* Engine Selection */}
+        <div className="tw-space-y-2">
+          <Label className="tw-text-sm tw-font-medium">Engine</Label>
+          <select
+            value={selectedEngine}
+            onChange={(e) => setSelectedEngine(e.target.value as SelectedEngine)}
+            className="tw-w-full tw-h-9 tw-px-3 tw-py-1 tw-text-sm tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer tw-appearance-none tw-bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22none%22%20stroke%3D%22%23888%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m2%204%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] tw-bg-[length:12px] tw-bg-[right_8px_center] tw-bg-no-repeat tw-pr-8"
+          >
+            <option value="default">Default (Komodo)</option>
+            <option value="maia2">Maia-2 (Local)</option>
+          </select>
+          <p className="tw-text-xs tw-text-muted-foreground">
+            {selectedEngine === 'maia2'
+              ? 'Maia-2 predicts human-like moves based on ELO'
+              : 'Komodo Dragon engine via server'}
+          </p>
+        </div>
+
+        {/* Auto ELO Boost (shared by both engines) */}
         <div className="tw-space-y-2">
           <div className="tw-flex tw-items-center tw-justify-between">
             <Label className="tw-text-sm tw-font-medium">Auto ELO boost</Label>
