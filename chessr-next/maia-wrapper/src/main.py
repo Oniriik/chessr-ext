@@ -9,7 +9,6 @@ import os
 import sys
 from pathlib import Path
 
-from .engine import MaiaEngine
 from .server import DEFAULT_PORT
 from .tray import MaiaTray
 
@@ -35,19 +34,9 @@ def main():
     port = int(os.environ.get("MAIA_PORT", DEFAULT_PORT))
     model_path = os.environ.get("MAIA_MODEL", str(_get_model_path()))
 
-    logger.info(f"Loading Maia-2 model from {model_path}")
+    logger.info(f"Starting Chessr Maia (model: {model_path})")
 
-    try:
-        engine = MaiaEngine(model_path)
-    except FileNotFoundError:
-        logger.error(
-            f"Model not found at {model_path}. "
-            "Run 'python -m scripts.export_onnx' first to generate model.onnx"
-        )
-        sys.exit(1)
-
-    logger.info(f"Model loaded. Starting tray app on port {port}.")
-    tray = MaiaTray(engine, port)
+    tray = MaiaTray(model_path=model_path, port=port)
     tray.run()
 
 

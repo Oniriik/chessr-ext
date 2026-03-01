@@ -5,7 +5,8 @@
   },
   "maia": {
     "version": "1.0.0",
-    "mac": "/maia/Chessr.io-Maia.dmg",
-    "win": "/maia/Chessr.io.exe"
+    "mac": "/maia/Chessr.io.app",
+    "win": "/maia/Chessr.io.exe",
+    "winSha256": "6964d15384556c22bfb16b9803efd2d031efd46249b0a8b17cbe12655dd324b0"
   }
 }

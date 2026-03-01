@@ -13,3 +13,4 @@ maia2_models/
 # IDE / OS
 .DS_Store
 .venv/
+venv/

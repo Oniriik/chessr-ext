@@ -301,9 +301,46 @@ HTML_TEMPLATE = """
     color: #f59e0b;
     font-weight: 500;
   }
+  /* Loading overlay */
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: opacity 0.4s ease;
+  }
+  .loading-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .loading-spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #1e293b;
+    border-top-color: #38bdf8;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+  }
 </style>
 </head>
 <body>
+  <div id="loading-overlay" class="loading-overlay">
+    <img class="logo" src="{logo_src}" alt="Chessr.io" style="margin-bottom:12px;">
+    <div class="title" style="margin-bottom:4px;">chessr<span class="accent">.io</span></div>
+    <div class="subtitle" style="margin-bottom:24px;">maia-2 engine</div>
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loading-text">Loading engine...</div>
+  </div>
   <img class="logo" src="{logo_src}" alt="Chessr.io">
   <div class="title">chessr<span class="accent">.io</span></div>
   <div class="subtitle">maia-2 engine</div>
@@ -486,8 +523,24 @@ HTML_TEMPLATE = """
       } catch(e) {}
     }
 
+    function hideLoading() {
+      var overlay = document.getElementById('loading-overlay');
+      overlay.classList.add('hidden');
+      setTimeout(function() { overlay.remove(); }, 500);
+    }
+
+    async function waitForEngine() {
+      while (true) {
+        try {
+          var ready = await pywebview.api.is_engine_ready();
+          if (ready) { hideLoading(); refresh(); return; }
+        } catch(e) {}
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
     window.addEventListener('pywebviewready', function() {
-      refresh();
+      waitForEngine();
       checkUpdate();
       restoreAuth();
     });
@@ -514,7 +567,7 @@ class Api:
         return json.dumps({
             "running": self._app._is_running,
             "port": self._app.port,
-            "clients": self._app.server.client_count if self._app._is_running else 0,
+            "clients": self._app.server.client_count if self._app._is_running and self._app.server else 0,
             "logs": _log_buffer.get_lines(),
             "auth": auth,
         })
@@ -543,6 +596,9 @@ class Api:
         self._app._session = None
         logger.info("User signed out")
 
+    def is_engine_ready(self):
+        return self._app._engine_ready
+
     def get_auth(self):
         session = self._app._session
         if session:
@@ -553,25 +609,18 @@ class Api:
 class MaiaApp:
     """Windowed desktop application for Chessr.io Maia."""
 
-    def __init__(self, engine: MaiaEngine, port: int = DEFAULT_PORT):
-        self.engine = engine
+    def __init__(self, model_path: str = None, engine: MaiaEngine = None, port: int = DEFAULT_PORT):
         self.port = port
+        self._model_path = model_path
+        self.engine = engine
         self._loop: asyncio.AbstractEventLoop | None = None
         self._is_running = False
+        self._engine_ready = engine is not None
         self._session = chessr_auth.load_session()
-        self.server = MaiaServer(
-            engine, port,
-            get_session=lambda: self._session,
-            set_session=lambda s: setattr(self, '_session', s),
-        )
+        self.server = None
 
     def run(self):
         """Launch the GUI (blocking)."""
-        # Start server in background
-        self._server_thread = threading.Thread(target=self._run_server, daemon=True)
-        self._server_thread.start()
-        self._is_running = True
-
         # Build HTML (use replace instead of .format to avoid CSS brace conflicts)
         html = (HTML_TEMPLATE
             .replace("{logo_src}", _logo_base64())
@@ -588,25 +637,50 @@ class MaiaApp:
             resizable=False,
             js_api=api,
         )
+        # Start engine loading + server in background after window is created
+        threading.Thread(target=self._load_and_start, daemon=True).start()
         webview.start()
 
-    def _run_server(self):
+    def _load_and_start(self):
+        """Load the engine (if needed) then start the WebSocket server."""
+        if not self.engine and self._model_path:
+            logger.info(f"Loading Maia-2 model from {self._model_path}")
+            try:
+                self.engine = MaiaEngine(self._model_path)
+                logger.info("Model loaded successfully")
+            except FileNotFoundError:
+                logger.error(f"Model not found at {self._model_path}")
+                return
+            except Exception as e:
+                logger.error(f"Failed to load model: {e}")
+                return
+
+        self.server = MaiaServer(
+            self.engine, self.port,
+            get_session=lambda: self._session,
+            set_session=lambda s: setattr(self, '_session', s),
+        )
+        self._engine_ready = True
+
+        # Start WebSocket server
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self.server.start())
+        self._is_running = True
+        logger.info(f"Server listening on port {self.port}")
         self._loop.run_forever()
 
     def toggle_server(self):
+        if not self.server or not self._loop:
+            return
         if self._is_running:
-            if self._loop:
-                future = asyncio.run_coroutine_threadsafe(self.server.stop(), self._loop)
-                future.result(timeout=5)
+            future = asyncio.run_coroutine_threadsafe(self.server.stop(), self._loop)
+            future.result(timeout=5)
             self._is_running = False
             logger.info("Server stopped by user")
         else:
-            if self._loop:
-                future = asyncio.run_coroutine_threadsafe(self.server.start(), self._loop)
-                future.result(timeout=5)
+            future = asyncio.run_coroutine_threadsafe(self.server.start(), self._loop)
+            future.result(timeout=5)
             self._is_running = True
             logger.info("Server started by user")
 
