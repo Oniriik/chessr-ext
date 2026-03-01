@@ -204,6 +204,8 @@
             display: flex; align-items: center;
             gap: 12px; flex-wrap: wrap;
         }
+        .section-actions .dl-btn.maia-primary,
+        .section-actions .dl-btn.secondary { flex: 1; }
 
         /* Buttons */
         .dl-btn {
@@ -343,14 +345,15 @@
 
         /* VirusTotal link */
         .vt-link {
-            display: inline-flex; align-items: center; gap: 6px;
+            display: inline-flex; align-items: center; justify-content: center; gap: 6px;
             font-size: 0.75rem; color: var(--muted-foreground);
             text-decoration: none; transition: color 0.2s;
             padding: 4px 0;
         }
         .vt-link:hover { color: var(--secondary); }
         .vt-link svg { width: 14px; height: 14px; }
-        .vt-links { display: flex; gap: 20px; margin-top: 8px; flex-wrap: wrap; }
+        .vt-links { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+        .vt-link { flex: 1; }
 
         ::selection { background: rgba(59, 130, 246, 0.3); color: white; }
         ::-webkit-scrollbar { width: 8px; }
