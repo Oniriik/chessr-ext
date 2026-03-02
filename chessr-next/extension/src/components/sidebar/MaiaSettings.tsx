@@ -6,7 +6,6 @@ import { ChevronDown } from 'lucide-react';
 import { useEngineStore, type MaiaMode } from '../../stores/engineStore';
 import { useMaiaWebSocketStore } from '../../stores/maiaWebSocketStore';
 import { useAuthStore } from '../../stores/authStore';
-import { useSettingsStore } from '../../stores/settingsStore';
 import { PlanBadge, type Plan } from '../ui/plan-badge';
 
 // ============================================================================
@@ -128,11 +127,10 @@ function MaiaModeSection() {
 export function MaiaConnectionCard() {
   const {
     isConnected, isConnecting, connect,
-    maiaLoggedIn, maiaEmail, maiaPlan,
+    maiaLoggedIn, maiaPlan,
     loginWithExtensionAccount,
   } = useMaiaWebSocketStore();
   const extensionUser = useAuthStore((s) => s.user);
-  const anonNames = useSettingsStore((s) => s.anonNames);
   const [connecting, setConnecting] = useState(false);
 
   const handleAutoConnect = async () => {
@@ -171,12 +169,20 @@ export function MaiaConnectionCard() {
             <p className="tw-text-xs tw-text-muted-foreground">
               Launch the Chessr Maia app to connect
             </p>
-            <button
-              onClick={() => connect()}
-              className="tw-w-full tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-border tw-border-input tw-bg-background hover:tw-bg-muted tw-transition-colors"
-            >
-              Retry connection
-            </button>
+            <div className="tw-flex tw-gap-2">
+              <button
+                onClick={() => window.open('https://download.chessr.io', '_blank')}
+                className="tw-flex-1 tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-bg-primary tw-text-primary-foreground hover:tw-bg-primary/90 tw-transition-colors"
+              >
+                Download
+              </button>
+              <button
+                onClick={() => connect()}
+                className="tw-flex-1 tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-border tw-border-input tw-bg-background hover:tw-bg-muted tw-transition-colors"
+              >
+                Retry connection
+              </button>
+            </div>
           </>
         )}
 
@@ -184,8 +190,8 @@ export function MaiaConnectionCard() {
         {isConnected && maiaLoggedIn && (
           <div className="tw-space-y-1.5">
             <div className="tw-flex tw-items-center tw-gap-2">
-              <span className={`tw-text-xs tw-text-muted-foreground ${anonNames ? 'tw-blur-sm' : ''}`}>
-                Logged in as {maiaEmail}
+              <span className="tw-text-xs tw-text-muted-foreground">
+                Logged in Maia-2
               </span>
               {maiaPlan && (
                 <PlanBadge plan={maiaPlan as Plan} compact />
@@ -214,9 +220,7 @@ export function MaiaConnectionCard() {
                 disabled={connecting}
                 className="tw-w-full tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-bg-primary tw-text-primary-foreground hover:tw-bg-primary/90 tw-transition-colors disabled:tw-opacity-50"
               >
-                <span className={anonNames ? 'tw-blur-sm' : ''}>
-                  {connecting ? 'Connecting...' : `Connect as ${extensionUser.email}`}
-                </span>
+                {connecting ? 'Connecting...' : 'Login in Maia-2'}
               </button>
             )}
             <p className="tw-text-[11px] tw-text-muted-foreground tw-text-center">

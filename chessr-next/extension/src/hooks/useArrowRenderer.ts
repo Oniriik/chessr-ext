@@ -460,6 +460,10 @@ export function useArrowRenderer() {
         rank: arrow.rank,
       });
     }
+
+    // Force browser repaint — Chrome can defer SVG paints in content scripts
+    const svg = overlayRef.current?.getSVG();
+    if (svg) void svg.getBoundingClientRect();
   }, [
     suggestions,
     suggestedFen,
