@@ -69,10 +69,10 @@ export function useLinkingCheck() {
   const hasCheckedLinkingRef = useRef(false);
   const prevAccountsLengthRef = useRef(accounts.length);
 
-  // Reset check flag when accounts decrease (unlink happened)
+  // Reset check flag when accounts change (link or unlink happened)
   useEffect(() => {
-    if (accounts.length < prevAccountsLengthRef.current) {
-      logger.log(`Accounts decreased from ${prevAccountsLengthRef.current} to ${accounts.length}, resetting check flag`);
+    if (accounts.length !== prevAccountsLengthRef.current) {
+      logger.log(`Accounts changed from ${prevAccountsLengthRef.current} to ${accounts.length}, resetting check flag`);
       hasCheckedLinkingRef.current = false;
     }
     prevAccountsLengthRef.current = accounts.length;

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from .server import DEFAULT_PORT
-from .tray import MaiaTray
+from .tray import MaiaTray, load_config
 
 LOG_FORMAT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 
@@ -36,7 +36,8 @@ def main():
 
     logger.info(f"Starting Chessr Maia (model: {model_path})")
 
-    tray = MaiaTray(model_path=model_path, port=port)
+    config = load_config()
+    tray = MaiaTray(model_path=model_path, port=port, engine_config=config)
     tray.run()
 
 

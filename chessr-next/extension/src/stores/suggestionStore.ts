@@ -139,7 +139,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       return;
     }
 
-    logger.log(`Received ${suggestions.length} suggestions for ${requestId}, eval: ${positionEval}, mate: ${mateIn}, winRate: ${winRate}`);
+    logger.log(`[SuggestionStore] Received ${suggestions.length} suggestions for ${requestId}, eval: ${positionEval}, mate: ${mateIn}, winRate: ${winRate}, hidden: ${document.hidden}, ts: ${Date.now()}`);
 
     set({
       suggestions,

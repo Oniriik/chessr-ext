@@ -6,6 +6,9 @@ Handles board encoding, model inference, and move decoding.
 
 import json
 import os
+import platform
+from dataclasses import dataclass, field
+
 import chess
 import numpy as np
 import onnxruntime as ort
@@ -25,6 +28,35 @@ ELO_CATEGORIES = [
     (1900, 2000),  # 9
     (2000, 9999),  # 10
 ]
+
+
+@dataclass
+class EngineConfig:
+    provider: str = "auto"  # "auto" | "cpu" | "coreml" | "directml"
+    threads: int = 0         # 0 = auto (cpu_count // 2)
+
+
+def _resolve_provider(provider: str) -> tuple[list, str]:
+    """Returns (providers_list, resolved_name) — falls back to CPU if unavailable."""
+    available = ort.get_available_providers()
+
+    if provider == "auto":
+        if platform.system() == "Darwin" and "CoreMLExecutionProvider" in available:
+            return ["CoreMLExecutionProvider", "CPUExecutionProvider"], "coreml"
+        if platform.system() == "Windows" and "DmlExecutionProvider" in available:
+            return ["DmlExecutionProvider", "CPUExecutionProvider"], "directml"
+        return ["CPUExecutionProvider"], "cpu"
+
+    provider_map = {
+        "coreml": "CoreMLExecutionProvider",
+        "directml": "DmlExecutionProvider",
+        "cpu": "CPUExecutionProvider",
+    }
+    ep = provider_map.get(provider, "CPUExecutionProvider")
+    if ep in available:
+        providers = [ep, "CPUExecutionProvider"] if ep != "CPUExecutionProvider" else ["CPUExecutionProvider"]
+        return providers, provider
+    return ["CPUExecutionProvider"], "cpu"
 
 
 def _elo_to_category(elo: int) -> int:
@@ -104,22 +136,42 @@ def _softmax(x: np.ndarray) -> np.ndarray:
 
 
 class MaiaEngine:
-    def __init__(self, model_path: str):
+    def __init__(self, model_path: str, config: EngineConfig = None):
         """Initialize the Maia-2 ONNX engine.
 
         Args:
             model_path: Path to the .onnx model file.
+            config: Engine configuration (provider + threads).
         """
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model not found: {model_path}")
 
-        self.session = ort.InferenceSession(
-            model_path,
-            providers=["CPUExecutionProvider"],
-        )
+        self._model_path = model_path
+        config = config or EngineConfig()
+        self._apply_config(config)
         self.all_moves = _load_move_vocab()
         self.move_to_idx = {m: i for i, m in enumerate(self.all_moves)}
         self.idx_to_move = {i: m for i, m in enumerate(self.all_moves)}
+
+    def _apply_config(self, config: EngineConfig):
+        """Create (or recreate) the ONNX session with the given config."""
+        providers, self.active_provider = _resolve_provider(config.provider)
+        threads = config.threads if config.threads > 0 else max(1, (os.cpu_count() or 2) // 2)
+        self.active_threads = threads
+
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = threads
+        opts.inter_op_num_threads = 1
+
+        self.session = ort.InferenceSession(
+            self._model_path,
+            sess_options=opts,
+            providers=providers,
+        )
+
+    def reconfigure(self, config: EngineConfig):
+        """Hot-swap the ONNX session with new provider/thread config."""
+        self._apply_config(config)
 
     def predict(self, fen: str, elo_self: int, elo_oppo: int, top_n: int = 5) -> dict:
         """Run Maia-2 inference on a position.

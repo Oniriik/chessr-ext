@@ -15,11 +15,11 @@ function MaiaTargetEloSection() {
   const {
     maiaEloSelfAuto, setMaiaEloSelfAuto,
     maiaEloSelf, setMaiaEloSelf,
-    getMaiaEloSelf, userElo, opponentElo, autoEloBoost,
+    getMaiaEloSelf, userElo, autoEloBoost,
   } = useEngineStore();
 
   const effectiveElo = getMaiaEloSelf();
-  const autoLabel = opponentElo > 0 ? `${opponentElo} + ${autoEloBoost}` : `${userElo} + ${autoEloBoost}`;
+  const autoLabel = `${userElo} + ${autoEloBoost}`;
 
   return (
     <div className="tw-space-y-2">

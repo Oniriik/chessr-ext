@@ -8,15 +8,18 @@ import asyncio
 import base64
 import json
 import logging
+import os
 import platform
 import sys
 import threading
 from pathlib import Path
 
+import psutil
 import webview
+import onnxruntime as ort
 
 from . import __version__
-from .engine import MaiaEngine
+from .engine import MaiaEngine, EngineConfig, _resolve_provider
 from .server import MaiaServer, DEFAULT_PORT
 from .updater import check_for_update, download_and_open
 from . import auth as chessr_auth
@@ -24,6 +27,19 @@ from . import auth as chessr_auth
 logger = logging.getLogger("maia-gui")
 
 MAX_LOG_LINES = 200
+CONFIG_PATH = Path.home() / ".chessr" / "maia_config.json"
+
+
+def load_config() -> dict:
+    try:
+        return json.loads(CONFIG_PATH.read_text())
+    except Exception:
+        return {"provider": "auto", "threads": 0}
+
+
+def save_config(config: dict):
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONFIG_PATH.write_text(json.dumps(config))
 
 
 class _BufferHandler(logging.Handler):
@@ -93,6 +109,7 @@ HTML_TEMPLATE = """
     user-select: none;
     -webkit-user-select: none;
     padding-top: 28px;
+    overflow-y: auto;
   }
   .logo { width: 80px; height: 80px; margin-bottom: 8px; }
   .title { font-size: 28px; font-weight: 700; margin-bottom: 2px; }
@@ -151,7 +168,10 @@ HTML_TEMPLATE = """
   }
   .logs {
     width: calc(100% - 40px);
-    flex: 1;
+    min-height: 80px;
+    height: 110px;
+    max-height: 400px;
+    resize: vertical;
     background: #111827;
     border: 1px solid #1e293b;
     border-radius: 8px;
@@ -331,6 +351,114 @@ HTML_TEMPLATE = """
     color: #64748b;
     font-weight: 500;
   }
+  /* Metrics bar */
+  .metrics-bar {
+    width: calc(100% - 40px);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+  .metric {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: #111827;
+    border: 1px solid #1e293b;
+  }
+  .metric.green { color: #22c55e; border-color: rgba(34,197,94,0.2); }
+  .metric.orange { color: #f59e0b; border-color: rgba(245,158,11,0.2); }
+  .metric.red { color: #ef4444; border-color: rgba(239,68,68,0.2); }
+  .metric.muted { color: #64748b; }
+  /* Engine settings panel */
+  .settings-toggle {
+    width: calc(100% - 40px);
+    background: none;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    color: #64748b;
+    font-size: 12px;
+    font-family: inherit;
+    padding: 6px 12px;
+    cursor: pointer;
+    text-align: left;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .settings-toggle:hover { border-color: #334155; color: #94a3b8; }
+  .settings-toggle .arrow { transition: transform 0.2s; }
+  .settings-toggle.open .arrow { transform: rotate(90deg); }
+  .settings-panel {
+    display: none;
+    width: calc(100% - 40px);
+    background: #111827;
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .settings-panel.open { display: flex; }
+  .settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .settings-label { font-size: 12px; color: #94a3b8; }
+  .settings-select {
+    background: #0a0a1a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-family: inherit;
+    padding: 4px 8px;
+    outline: none;
+    cursor: pointer;
+  }
+  .settings-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-slider {
+    flex: 1;
+    accent-color: #38bdf8;
+  }
+  .settings-slider-val {
+    font-size: 12px;
+    color: #38bdf8;
+    font-weight: 600;
+    min-width: 20px;
+    text-align: right;
+  }
+  .settings-apply {
+    background: linear-gradient(135deg, #3b82f6, #22d3ee);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    align-self: flex-end;
+    transition: opacity 0.15s;
+  }
+  .settings-apply:hover { opacity: 0.9; }
+  .settings-apply:disabled { opacity: 0.5; cursor: wait; }
+  .settings-status {
+    font-size: 11px;
+    color: #64748b;
+    min-height: 14px;
+  }
 </style>
 </head>
 <body>
@@ -370,6 +498,35 @@ HTML_TEMPLATE = """
   </div>
   <div id="clients" class="clients">0 clients connected</div>
   <button id="btn" class="btn" onclick="pywebview.api.toggle()">Stop Server</button>
+
+  <!-- Metrics bar -->
+  <div class="metrics-bar" id="metrics-bar"></div>
+
+  <!-- Engine settings -->
+  <button class="settings-toggle" id="settings-toggle" onclick="toggleSettings()">
+    <span>&#9881; Engine Settings</span>
+    <span class="arrow">&#9654;</span>
+  </button>
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-row">
+      <span class="settings-label">Provider</span>
+      <select class="settings-select" id="provider-select">
+        <option value="auto">Auto (recommended)</option>
+        <option value="cpu">CPU only</option>
+      </select>
+    </div>
+    <div class="settings-row">
+      <span class="settings-label">CPU Threads</span>
+      <div class="settings-slider-row" style="flex:1; margin-left:12px;">
+        <input type="range" class="settings-slider" id="threads-slider" min="1" max="16" value="4"
+          oninput="document.getElementById('threads-val').textContent = this.value">
+        <span class="settings-slider-val" id="threads-val">4</span>
+      </div>
+    </div>
+    <div class="settings-status" id="settings-status"></div>
+    <button class="settings-apply" id="settings-apply" onclick="applySettings()">Apply</button>
+  </div>
+
   <div class="logs-label">Logs</div>
   <div id="logs" class="logs"></div>
   <div class="version">v{version}</div>
@@ -383,6 +540,12 @@ HTML_TEMPLATE = """
       if (text.includes('connected:')) return 'connect';
       if (text.includes('disconnected:')) return 'disconnect';
       return 'info';
+    }
+
+    function metricClass(pct) {
+      if (pct > 80) return 'red';
+      if (pct > 50) return 'orange';
+      return 'green';
     }
 
     async function refresh() {
@@ -412,6 +575,27 @@ HTML_TEMPLATE = """
           showAuth(authData);
         }
 
+        // Metrics bar
+        if (data.metrics) {
+          var m = data.metrics;
+          var bar = document.getElementById('metrics-bar');
+          var procCpuClass = metricClass(m.process_cpu_pct);
+          var sysCpuClass = metricClass(m.system_cpu_pct);
+          var ramClass = metricClass(m.system_ram_pct);
+          bar.innerHTML =
+            '<span class="metric ' + procCpuClass + '">App CPU: ' + m.process_cpu_pct.toFixed(1) + '%</span>' +
+            '<span class="metric ' + sysCpuClass + '">Sys CPU: ' + m.system_cpu_pct.toFixed(1) + '%</span>' +
+            '<span class="metric ' + ramClass + '">RAM: ' + Math.round(m.process_ram_mb) + ' MB</span>';
+        }
+
+        // Engine info → update settings status line
+        if (data.engine_info && data.engine_info.provider) {
+          var info = data.engine_info;
+          var providerLabel = {coreml: 'CoreML', directml: 'DirectML', cpu: 'CPU'}[info.provider] || info.provider;
+          document.getElementById('settings-status').textContent =
+            'Active: ' + providerLabel + ' · ' + info.threads + ' thread' + (info.threads > 1 ? 's' : '');
+        }
+
         // Update logs
         const logsEl = document.getElementById('logs');
         const lines = data.logs || [];
@@ -427,6 +611,7 @@ HTML_TEMPLATE = """
       } catch(e) {}
       setTimeout(refresh, 1500);
     }
+
     // Check for updates once on load
     async function checkUpdate() {
       try {
@@ -468,7 +653,6 @@ HTML_TEMPLATE = """
         badge.className = 'plan-badge plan-' + plan;
         currentAuthEmail = data.email;
         currentAuthPlan = plan;
-        // Show upgrade banner for free users
         upgradeBar.className = plan === 'free' ? 'upgrade-bar visible' : 'upgrade-bar';
       } else {
         form.style.display = 'flex';
@@ -508,7 +692,6 @@ HTML_TEMPLATE = """
       showAuth(null);
     }
 
-    // Allow Enter key to submit login
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && document.getElementById('auth-form').style.display !== 'none') {
         doLogin();
@@ -533,10 +716,62 @@ HTML_TEMPLATE = """
       while (true) {
         try {
           var ready = await pywebview.api.is_engine_ready();
-          if (ready) { hideLoading(); refresh(); return; }
+          if (ready) { hideLoading(); refresh(); initSettings(); return; }
         } catch(e) {}
         await new Promise(r => setTimeout(r, 300));
       }
+    }
+
+    // Settings panel
+    function toggleSettings() {
+      var toggle = document.getElementById('settings-toggle');
+      var panel = document.getElementById('settings-panel');
+      toggle.classList.toggle('open');
+      panel.classList.toggle('open');
+    }
+
+    async function initSettings() {
+      try {
+        var raw = await pywebview.api.get_engine_config();
+        var cfg = JSON.parse(raw);
+
+        // Populate provider options based on available providers
+        var sel = document.getElementById('provider-select');
+        sel.innerHTML = '<option value="auto">Auto (recommended)</option><option value="cpu">CPU only</option>';
+        if (cfg.available.includes('coreml')) {
+          sel.innerHTML += '<option value="coreml">CoreML (Apple GPU)</option>';
+        }
+        if (cfg.available.includes('directml')) {
+          sel.innerHTML += '<option value="directml">DirectML (GPU)</option>';
+        }
+        sel.value = cfg.provider;
+
+        // Thread slider
+        var slider = document.getElementById('threads-slider');
+        slider.max = cfg.cpu_count;
+        slider.value = cfg.threads || Math.max(1, Math.floor(cfg.cpu_count / 2));
+        document.getElementById('threads-val').textContent = slider.value;
+      } catch(e) {}
+    }
+
+    async function applySettings() {
+      var btn = document.getElementById('settings-apply');
+      var status = document.getElementById('settings-status');
+      var provider = document.getElementById('provider-select').value;
+      var threads = parseInt(document.getElementById('threads-slider').value);
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+      status.textContent = '';
+      try {
+        var raw = await pywebview.api.apply_engine_config(provider, threads);
+        var result = JSON.parse(raw);
+        var providerLabel = {coreml: 'CoreML', directml: 'DirectML', cpu: 'CPU'}[result.provider] || result.provider;
+        status.textContent = 'Active: ' + providerLabel + ' · ' + result.threads + ' thread' + (result.threads > 1 ? 's' : '');
+      } catch(e) {
+        status.textContent = 'Failed to apply settings';
+      }
+      btn.disabled = false;
+      btn.textContent = 'Apply';
     }
 
     window.addEventListener('pywebviewready', function() {
@@ -555,6 +790,8 @@ class Api:
 
     def __init__(self, app: "MaiaApp"):
         self._app = app
+        self._proc = psutil.Process()
+        self._proc.cpu_percent()  # First call initializes the counter
 
     def toggle(self):
         self._app.toggle_server()
@@ -564,12 +801,34 @@ class Api:
         auth = None
         if session:
             auth = {"email": session.get("email", ""), "plan": session.get("plan", "free")}
+
+        # Metrics
+        try:
+            metrics = {
+                "process_cpu_pct": round(self._proc.cpu_percent(interval=None), 1),
+                "process_ram_mb": round(self._proc.memory_info().rss / 1024 / 1024, 1),
+                "system_cpu_pct": round(psutil.cpu_percent(interval=None), 1),
+                "system_ram_pct": round(psutil.virtual_memory().percent, 1),
+            }
+        except Exception:
+            metrics = {}
+
+        # Engine info
+        engine_info = None
+        if self._app.engine:
+            engine_info = {
+                "provider": self._app.engine.active_provider,
+                "threads": self._app.engine.active_threads,
+            }
+
         return json.dumps({
             "running": self._app._is_running,
             "port": self._app.port,
             "clients": self._app.server.client_count if self._app._is_running and self._app.server else 0,
             "logs": _log_buffer.get_lines(),
             "auth": auth,
+            "metrics": metrics,
+            "engine_info": engine_info,
         })
 
     def check_update(self):
@@ -605,11 +864,42 @@ class Api:
             return json.dumps({"email": session["email"], "plan": session.get("plan", "free")})
         return json.dumps(None)
 
+    def get_engine_config(self):
+        cfg = self._app._engine_config
+        available = ort.get_available_providers()
+        available_simple = []
+        if "CoreMLExecutionProvider" in available:
+            available_simple.append("coreml")
+        if "DmlExecutionProvider" in available:
+            available_simple.append("directml")
+
+        return json.dumps({
+            "provider": cfg.get("provider", "auto"),
+            "threads": cfg.get("threads", 0),
+            "cpu_count": os.cpu_count() or 2,
+            "available": available_simple,
+        })
+
+    def apply_engine_config(self, provider: str, threads: int):
+        config = EngineConfig(provider=provider, threads=threads)
+        if self._app.engine:
+            logger.info(f"Reconfiguring engine: provider={provider}, threads={threads}")
+            self._app.engine.reconfigure(config)
+            logger.info(f"Engine reconfigured: active_provider={self._app.engine.active_provider}, threads={self._app.engine.active_threads}")
+        # Persist
+        new_cfg = {"provider": provider, "threads": threads}
+        self._app._engine_config = new_cfg
+        save_config(new_cfg)
+        return json.dumps({
+            "provider": self._app.engine.active_provider if self._app.engine else provider,
+            "threads": self._app.engine.active_threads if self._app.engine else threads,
+        })
+
 
 class MaiaApp:
     """Windowed desktop application for Chessr.io Maia."""
 
-    def __init__(self, model_path: str = None, engine: MaiaEngine = None, port: int = DEFAULT_PORT):
+    def __init__(self, model_path: str = None, engine: MaiaEngine = None, port: int = DEFAULT_PORT, engine_config: dict = None):
         self.port = port
         self._model_path = model_path
         self.engine = engine
@@ -617,11 +907,11 @@ class MaiaApp:
         self._is_running = False
         self._engine_ready = engine is not None
         self._session = chessr_auth.load_session()
+        self._engine_config = engine_config or {"provider": "auto", "threads": 0}
         self.server = None
 
     def run(self):
         """Launch the GUI (blocking)."""
-        # Build HTML (use replace instead of .format to avoid CSS brace conflicts)
         html = (HTML_TEMPLATE
             .replace("{logo_src}", _logo_base64())
             .replace("{port}", str(self.port))
@@ -633,11 +923,10 @@ class MaiaApp:
             "Chessr.io",
             html=html,
             width=420,
-            height=560,
+            height=620,
             resizable=False,
             js_api=api,
         )
-        # Start engine loading + server in background after window is created
         threading.Thread(target=self._load_and_start, daemon=True).start()
         webview.start()
 
@@ -646,8 +935,12 @@ class MaiaApp:
         if not self.engine and self._model_path:
             logger.info(f"Loading Maia-2 model from {self._model_path}")
             try:
-                self.engine = MaiaEngine(self._model_path)
-                logger.info("Model loaded successfully")
+                config = EngineConfig(
+                    provider=self._engine_config.get("provider", "auto"),
+                    threads=self._engine_config.get("threads", 0),
+                )
+                self.engine = MaiaEngine(self._model_path, config)
+                logger.info(f"Model loaded — provider: {self.engine.active_provider}, threads: {self.engine.active_threads}")
             except FileNotFoundError:
                 logger.error(f"Model not found at {self._model_path}")
                 return
@@ -662,7 +955,6 @@ class MaiaApp:
         )
         self._engine_ready = True
 
-        # Start WebSocket server
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self.server.start())

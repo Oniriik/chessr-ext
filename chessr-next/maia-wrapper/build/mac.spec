@@ -29,6 +29,7 @@ a = Analysis(
         'websockets.legacy',
         'websockets.legacy.server',
         'onnxruntime',
+        'psutil',
         'chess',
         'webview',
         'webview.platforms',

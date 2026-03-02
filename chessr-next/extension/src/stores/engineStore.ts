@@ -237,12 +237,11 @@ export const useEngineStore = create<EngineState>()(
         return baseElo + autoEloBoost;
       },
 
-      // Maia Target ELO: auto = opponent ELO + boost (same logic as default engine)
+      // Maia ELO self: auto = user's own ELO + boost (the level at which Maia predicts moves for the player)
       getMaiaEloSelf: () => {
-        const { maiaEloSelfAuto, autoEloBoost, opponentElo, userElo, maiaEloSelf } = get();
+        const { maiaEloSelfAuto, autoEloBoost, userElo, maiaEloSelf } = get();
         if (!maiaEloSelfAuto) return maiaEloSelf;
-        const baseElo = opponentElo > 0 ? opponentElo : userElo;
-        return baseElo + autoEloBoost;
+        return userElo + autoEloBoost;
       },
       getMaiaEloOppo: () => {
         const { maiaEloOppoAuto, opponentElo, maiaEloOppo } = get();

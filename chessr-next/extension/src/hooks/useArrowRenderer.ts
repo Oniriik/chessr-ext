@@ -225,7 +225,12 @@ export function useArrowRenderer() {
   // Draw arrows when suggestions change
   useEffect(() => {
     const renderer = rendererRef.current;
-    if (!renderer) return;
+    if (!renderer) {
+      logger.log('[ArrowRenderer] No renderer, skipping draw');
+      return;
+    }
+
+    logger.log(`[ArrowRenderer] useEffect fired — suggestions: ${suggestions?.length ?? 0}, hidden: ${document.hidden}, suggestedFen: ${suggestedFen?.slice(0, 20)}`);
 
     // Clear previous arrows
     renderer.clear();
@@ -329,16 +334,24 @@ export function useArrowRenderer() {
     }
 
     // Only show engine arrows on player's turn
-    if (!isPlayerTurn) return;
+    if (!isPlayerTurn) {
+      logger.log('[ArrowRenderer] Not player turn, skipping');
+      return;
+    }
 
     // No suggestions to draw
-    if (!suggestions || suggestions.length === 0) return;
+    if (!suggestions || suggestions.length === 0) {
+      logger.log('[ArrowRenderer] No suggestions to draw');
+      return;
+    }
 
     // Check if suggestions are for current position
     if (!currentFen || suggestedFen !== currentFen) {
-      logger.log('Suggestions are stale, waiting for new ones');
+      logger.log(`[ArrowRenderer] FEN mismatch — suggested: ${suggestedFen?.slice(0, 20)}, current: ${currentFen?.slice(0, 20)}`);
       return;
     }
+
+    logger.log(`[ArrowRenderer] Drawing ${suggestions.length} arrows`);
 
     // Check if we're showing a PV sequence (engine or opening) - these are mutually exclusive with regular arrows
     const isShowingEnginePv = showingPvIndex !== null && suggestions[showingPvIndex]?.pv;
@@ -463,7 +476,10 @@ export function useArrowRenderer() {
 
     // Force browser repaint — Chrome can defer SVG paints in content scripts
     const svg = overlayRef.current?.getSVG();
-    if (svg) void svg.getBoundingClientRect();
+    if (svg) {
+      void svg.getBoundingClientRect();
+      logger.log(`[ArrowRenderer] Repaint forced — SVG children: ${svg.querySelector('#arrows')?.childElementCount ?? 0}`);
+    }
   }, [
     suggestions,
     suggestedFen,
