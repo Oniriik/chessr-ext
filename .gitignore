@@ -9,6 +9,17 @@ extension/*.zip
 extension/*.crx
 extension/key.pem
 
+# Maia build artifacts
+chessr-next/maia-wrapper/dist/
+chessr-next/maia-wrapper/build/__pycache__/
+chessr-next/maia-wrapper/*.zip
+chessr-next/maia-wrapper/venv/
+chessr-next/maia-wrapper/=*
+chessr-next/maia-wrapper.zip
+chessr-next/extension/chessr.zip
+chessr-next/extension/chessr/
+chessr-next/extension/build/*.zip
+
 # Environment files
 .env
 .env.*
