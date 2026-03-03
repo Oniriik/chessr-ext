@@ -39,6 +39,7 @@ import {
   handleUnlinkDiscord,
   type InitDiscordLinkMessage,
 } from "./handlers/discordHandler.js";
+import { handleExplainMove } from "./handlers/explanationHandler.js";
 import { logConnection } from "./utils/logger.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
@@ -285,7 +286,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   // Handle preflight
   if (req.method === "OPTIONS") {
@@ -372,6 +373,182 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     };
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(stats));
+    return;
+  }
+
+  // Move explanation endpoint (proxies LLM call, keeps API key server-side)
+  if (req.url === "/api/explain-move" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk: string) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        // Verify auth token
+        const authHeader = req.headers["authorization"];
+        const token = authHeader?.startsWith("Bearer ")
+          ? authHeader.slice(7)
+          : null;
+
+        if (!token) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Authentication required" }));
+          return;
+        }
+
+        const { data: authData, error: authError } =
+          await supabase.auth.getUser(token);
+
+        if (authError || !authData.user) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid token" }));
+          return;
+        }
+
+        const userId = authData.user.id;
+
+        // Premium check (server-side, authoritative)
+        const { data: settings } = await supabase
+          .from("user_settings")
+          .select("plan")
+          .eq("user_id", userId)
+          .single();
+
+        const plan = settings?.plan || "free";
+        const premiumPlans = ["premium", "lifetime", "beta", "freetrial"];
+        if (!premiumPlans.includes(plan)) {
+          res.writeHead(403, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Premium feature" }));
+          return;
+        }
+
+        // Daily limit check (50/day, resets at midnight UTC)
+        const DAILY_LIMIT = 50;
+        const todayUTC = new Date();
+        todayUTC.setUTCHours(0, 0, 0, 0);
+
+        const { count: dailyCount } = await supabase
+          .from("user_activity")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("event_type", "explanation")
+          .gte("created_at", todayUTC.toISOString());
+
+        const currentUsage = dailyCount || 0;
+        if (currentUsage >= DAILY_LIMIT) {
+          res.writeHead(429, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error: "Daily limit reached",
+              dailyUsage: DAILY_LIMIT,
+              dailyLimit: DAILY_LIMIT,
+            }),
+          );
+          return;
+        }
+
+        const params = JSON.parse(body);
+        console.log(
+          `[Explain] ${authData.user.email} → ${params.moveSan} (${params.isMaia ? "Maia" : "Komodo"}) [${currentUsage + 1}/${DAILY_LIMIT}]`,
+        );
+
+        const explanation = await handleExplainMove(params);
+
+        // Log usage
+        await supabase.from("user_activity").insert({
+          user_id: userId,
+          event_type: "explanation",
+        });
+        await supabase.rpc("increment_stat", { stat_key: "total_explanations" });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            explanation,
+            dailyUsage: currentUsage + 1,
+            dailyLimit: DAILY_LIMIT,
+          }),
+        );
+      } catch (err) {
+        console.error("[Explain] Error:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error:
+              err instanceof Error ? err.message : "Failed to generate explanation",
+          }),
+        );
+      }
+    });
+    return;
+  }
+
+  // Explanation usage endpoint (returns daily quota for authenticated user)
+  if (req.url === "/api/explanation-usage" && req.method === "GET") {
+    (async () => {
+      try {
+        const authHeader = req.headers["authorization"];
+        const token = authHeader?.startsWith("Bearer ")
+          ? authHeader.slice(7)
+          : null;
+
+        if (!token) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Authentication required" }));
+          return;
+        }
+
+        const { data: authData, error: authError } =
+          await supabase.auth.getUser(token);
+
+        if (authError || !authData.user) {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid token" }));
+          return;
+        }
+
+        const userId = authData.user.id;
+
+        // Check plan
+        const { data: settings } = await supabase
+          .from("user_settings")
+          .select("plan")
+          .eq("user_id", userId)
+          .single();
+
+        const plan = settings?.plan || "free";
+        const premiumPlans = ["premium", "lifetime", "beta", "freetrial"];
+        if (!premiumPlans.includes(plan)) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({ dailyUsage: 0, dailyLimit: 0, isPremium: false }),
+          );
+          return;
+        }
+
+        const DAILY_LIMIT = 50;
+        const todayUTC = new Date();
+        todayUTC.setUTCHours(0, 0, 0, 0);
+
+        const { count } = await supabase
+          .from("user_activity")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("event_type", "explanation")
+          .gte("created_at", todayUTC.toISOString());
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            dailyUsage: count || 0,
+            dailyLimit: DAILY_LIMIT,
+            isPremium: true,
+          }),
+        );
+      } catch (err) {
+        console.error("[ExplanationUsage] Error:", err);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Internal server error" }));
+      }
+    })();
     return;
   }
 

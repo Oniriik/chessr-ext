@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
 import { useVersionStore } from '../../stores/versionStore';
+import { useSidebarStore } from '../../stores/sidebarStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
@@ -153,7 +154,8 @@ function AuthenticatedContent() {
 
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const compactBadge = containerWidth > 0 && containerWidth < 350;
-  const [showSettings, setShowSettings] = useState(false);
+  const showSettings = useSidebarStore((s) => s.showSettings);
+  const setShowSettings = useSidebarStore((s) => s.setShowSettings);
 
   // If update required, show only the update card (blocks everything else)
   if (updateRequired) {

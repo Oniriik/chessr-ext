@@ -13,6 +13,7 @@ import { PlansPanel } from '@/components/plans-panel'
 import { DiscordPanel } from '@/components/discord-panel'
 import { DataPanel } from '@/components/data-panel'
 import { LeaderboardPanel } from '@/components/leaderboard-panel'
+import { ExplanationsPanel } from '@/components/explanations-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
 import {
   LogOut,
@@ -25,13 +26,14 @@ import {
   Gift,
   MessageSquare,
   Trophy,
+  Sparkles,
   Menu,
   X,
   PanelLeftClose,
   PanelLeft,
 } from 'lucide-react'
 
-type TabId = 'live' | 'data' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard'
+type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard'
 
 interface NavItem {
   id: TabId
@@ -43,6 +45,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'live', label: 'Live', icon: Activity, group: 'Monitor' },
   { id: 'data', label: 'Data', icon: BarChart3, group: 'Monitor' },
+  { id: 'explanations', label: 'Explanations', icon: Sparkles, group: 'Monitor' },
   { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, group: 'Monitor' },
   { id: 'server', label: 'Server', icon: Server, group: 'Manage' },
   { id: 'logs', label: 'Logs', icon: ScrollText, group: 'Manage' },
@@ -119,6 +122,7 @@ export default function DashboardPage() {
     switch (activeTab) {
       case 'live': return <LivePanel />
       case 'data': return <DataPanel />
+      case 'explanations': return <ExplanationsPanel />
       case 'server': return <ServerPanel />
       case 'logs': return <LogsPanel />
       case 'users': return <UsersPanel userRole={userRole} userId={userId} userEmail={userEmail} />

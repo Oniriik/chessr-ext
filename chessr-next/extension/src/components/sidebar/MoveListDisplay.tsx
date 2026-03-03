@@ -8,7 +8,11 @@ import { useEngineStore } from '../../stores/engineStore';
 import { useOpeningTracker } from '../../hooks/useOpeningTracker';
 import { useAlternativeOpenings } from '../../hooks/useAlternativeOpenings';
 import { OpeningSuggestionCard } from './OpeningSuggestionCard';
-import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { useExplanationStore, useExplanation, useIsExplanationLoading, useExplanationDailyUsage, useExplanationDailyLimit } from '../../stores/explanationStore';
+import { useIsPremium, showUpgradeAlert } from '../../lib/planUtils';
+import { useSidebarStore } from '../../stores/sidebarStore';
+import { Tooltip } from '../ui/tooltip';
 import type { OpeningWithStats } from '../../lib/openingsDatabase';
 
 /**
@@ -148,11 +152,22 @@ interface SuggestionCardProps {
   onTogglePv: () => void;
   onPvHoverStart: () => void;
   onPvHoverEnd: () => void;
+  moveHistory: string[];
 }
 
-function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, arrowColor, isMaia, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd }: SuggestionCardProps) {
+function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, arrowColor, isMaia, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd, moveHistory }: SuggestionCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
   const config = CONFIDENCE_CONFIG[suggestion.confidenceLabel];
+  const explanation = useExplanation(fen, suggestion.move);
+  const isExplanationLoading = useIsExplanationLoading(fen, suggestion.move);
+  const explanationError = useExplanationStore((s) => s.error);
+  const fetchExplanation = useExplanationStore((s) => s.fetchExplanation);
+  const isPremium = useIsPremium();
+  const dailyUsage = useExplanationDailyUsage();
+  const dailyLimit = useExplanationDailyLimit();
+  const limitReached = dailyLimit > 0 && dailyUsage >= dailyLimit;
+  const getTargetElo = useEngineStore((s) => s.getTargetElo);
 
   // Convert PV to SAN notation
   const pvSan = useMemo(() => {
@@ -248,6 +263,74 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
               ? `${playerColor === 'black' ? 100 - suggestion.winRate : suggestion.winRate}%`
               : formatEval(suggestion.evaluation, suggestion.mateScore, playerColor)}
           </span>
+          {/* Explain button */}
+          {!isPremium ? (
+            <Tooltip content="Upgrade to unlock move explanations" side="top-left">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showUpgradeAlert('Move explanations require a premium subscription.');
+                }}
+                className="tw-h-6 tw-w-6 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-bg-transparent tw-text-muted-foreground/40 tw-cursor-not-allowed"
+              >
+                <Sparkles className="tw-w-3.5 tw-h-3.5" />
+              </button>
+            </Tooltip>
+          ) : (
+            <Tooltip
+              content={
+                limitReached && !explanation ? 'Daily limit reached'
+                : showExplanation ? 'Hide explanation'
+                : 'Get move explanation'
+              }
+              side="top-left"
+            >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (limitReached && !explanation) {
+                    useSidebarStore.getState().setShowSettings(true);
+                    return;
+                  }
+                  if (showExplanation) {
+                    setShowExplanation(false);
+                    return;
+                  }
+                  setShowExplanation(true);
+                  if (!explanation) {
+                    const moveSan = pvSan.length > 0 ? pvSan[0] : suggestion.move;
+                    fetchExplanation({
+                      fen,
+                      moveSan,
+                      moveUci: suggestion.move,
+                      evaluation: suggestion.evaluation,
+                      mateScore: suggestion.mateScore,
+                      winRate: suggestion.winRate,
+                      pvSan,
+                      playerColor: playerColor || 'white',
+                      moveHistory,
+                      isMaia,
+                      targetElo: getTargetElo(),
+                    });
+                  }
+                }}
+                disabled={limitReached && !explanation}
+                className={`tw-h-6 tw-w-6 tw-rounded-md tw-flex tw-items-center tw-justify-center tw-transition-colors ${
+                  limitReached && !explanation
+                    ? 'tw-bg-transparent tw-text-muted-foreground/40 tw-cursor-not-allowed'
+                    : showExplanation
+                      ? 'tw-bg-violet-500/20 tw-text-violet-400'
+                      : 'tw-bg-transparent tw-text-muted-foreground hover:tw-bg-muted'
+                }`}
+              >
+                {isExplanationLoading ? (
+                  <Loader2 className="tw-w-3.5 tw-h-3.5 tw-animate-spin" />
+                ) : (
+                  <Sparkles className="tw-w-3.5 tw-h-3.5" />
+                )}
+              </button>
+            </Tooltip>
+          )}
           {/* PV toggle button */}
           {suggestion.pv && suggestion.pv.length > 1 && (
             <button
@@ -296,6 +379,50 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           })}
         </div>
       )}
+
+      {/* Explanation text */}
+      {showExplanation && (
+        <div className="tw-mt-2 tw-px-2 tw-py-1.5 tw-rounded-md tw-bg-violet-500/10 tw-border tw-border-violet-500/20">
+          {isExplanationLoading ? (
+            <div className="tw-flex tw-items-center tw-gap-1.5 tw-py-1">
+              <Loader2 className="tw-w-3 tw-h-3 tw-animate-spin tw-text-violet-400" />
+              <span className="tw-text-[11px] tw-text-violet-300/70">Thinking...</span>
+            </div>
+          ) : explanation ? (
+            <p className="tw-text-[11px] tw-text-violet-200/80 tw-leading-relaxed tw-m-0">
+              {explanation.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
+                part.startsWith('**') && part.endsWith('**')
+                  ? <span key={i} className="tw-font-semibold tw-text-violet-300">{part.slice(2, -2)}</span>
+                  : part
+              )}
+            </p>
+          ) : explanationError ? (
+            <p className="tw-text-[11px] tw-text-rose-400/80 tw-m-0">
+              {explanationError}
+            </p>
+          ) : (
+            <p className="tw-text-[11px] tw-text-rose-400/80 tw-m-0">
+              Could not generate explanation
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Daily limit reached indicator */}
+      {limitReached && !explanation && isPremium && (
+        <div className="tw-mt-1.5 tw-flex tw-items-center tw-gap-1">
+          <span className="tw-text-[10px] tw-text-amber-400/70">Limit reached</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              useSidebarStore.getState().setShowSettings(true);
+            }}
+            className="tw-text-[10px] tw-text-violet-400 hover:tw-text-violet-300 tw-underline tw-bg-transparent tw-border-none tw-cursor-pointer tw-p-0"
+          >
+            Settings
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -325,11 +452,19 @@ export function MoveListDisplay() {
   const showingAlternativeIndex = useShowingAlternativeIndex();
   const setShowingAlternativeIndex = useSetShowingAlternativeIndex();
   const openingTracker = useOpeningTracker();
+  const clearExplanations = useExplanationStore((s) => s.clearExplanations);
 
   // Fetch alternative openings when deviated
   const { alternatives, alternativesCount, isLoading: isLoadingAlternatives } = useAlternativeOpenings(
     openingTracker.hasDeviated
   );
+
+  // Clear explanation cache when game ends
+  useEffect(() => {
+    if (!isGameStarted) {
+      clearExplanations();
+    }
+  }, [isGameStarted, clearExplanations]);
 
   // Handler for selecting an alternative opening
   const handleSelectAlternative = useCallback(
@@ -617,6 +752,7 @@ export function MoveListDisplay() {
                 onTogglePv={() => handlePvToggle(index)}
                 onPvHoverStart={() => handlePvHoverStart(index)}
                 onPvHoverEnd={handlePvHoverEnd}
+                moveHistory={moveHistory}
               />
             );
             })}

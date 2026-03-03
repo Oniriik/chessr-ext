@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLinkedAccountsStore, useLinkedAccounts, useIsLinkingLoading } from '../../../stores/linkedAccountsStore';
+import { useExplanationStore, useExplanationDailyUsage, useExplanationDailyLimit } from '../../../stores/explanationStore';
 import { webSocketManager } from '../../../lib/webSocket';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -9,6 +10,7 @@ import { CheckCircle, AlertCircle, Loader2, Crown, Clock, Sparkles, Lock, Link2,
 import { useDiscordStore } from '../../../stores/discordStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { getRealHref } from '../../../content/anonymousBlur';
+import { useIsPremium } from '../../../lib/planUtils';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
@@ -421,6 +423,64 @@ export function AccountTab() {
           </Button>
         )}
       </div>
+
+      {/* Move Explanations Quota */}
+      <ExplanationQuotaSection />
+    </div>
+  );
+}
+
+function ExplanationQuotaSection() {
+  const isPremium = useIsPremium();
+  const dailyUsage = useExplanationDailyUsage();
+  const dailyLimit = useExplanationDailyLimit();
+  const fetchUsage = useExplanationStore((s) => s.fetchUsage);
+
+  useEffect(() => {
+    if (isPremium) {
+      fetchUsage();
+    }
+  }, [isPremium, fetchUsage]);
+
+  const percentage = dailyLimit > 0 ? Math.min((dailyUsage / dailyLimit) * 100, 100) : 0;
+  const isNearLimit = percentage >= 80;
+  const isAtLimit = percentage >= 100;
+
+  return (
+    <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
+      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Move Explanations</Label>
+      {isPremium ? (
+        <div className="tw-p-3 tw-rounded-lg tw-bg-muted/50">
+          <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
+            <div className="tw-flex tw-items-center tw-gap-1.5">
+              <Sparkles className="tw-w-3.5 tw-h-3.5 tw-text-violet-400" />
+              <span className="tw-text-sm tw-font-medium">Daily Usage</span>
+            </div>
+            <span className={`tw-text-sm tw-font-mono tw-font-bold ${
+              isAtLimit ? 'tw-text-rose-400' : isNearLimit ? 'tw-text-amber-400' : 'tw-text-violet-400'
+            }`}>
+              {dailyUsage}/{dailyLimit}
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div className="tw-h-1.5 tw-rounded-full tw-bg-muted tw-overflow-hidden">
+            <div
+              className={`tw-h-full tw-rounded-full tw-transition-all tw-duration-300 ${
+                isAtLimit ? 'tw-bg-rose-500' : isNearLimit ? 'tw-bg-amber-500' : 'tw-bg-violet-500'
+              }`}
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+          <p className="tw-text-[10px] tw-text-muted-foreground tw-mt-1.5">
+            {isAtLimit ? 'Limit reached — resets at midnight UTC' : 'Resets at midnight UTC'}
+          </p>
+        </div>
+      ) : (
+        <div className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted/50 tw-border tw-border-dashed tw-border-border">
+          <Lock className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
+          <p className="tw-text-sm tw-text-muted-foreground">Upgrade to unlock move explanations</p>
+        </div>
+      )}
     </div>
   );
 }

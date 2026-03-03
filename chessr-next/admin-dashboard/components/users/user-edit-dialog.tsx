@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +29,7 @@ import {
   Globe,
   Eye,
   EyeOff,
+  ChevronDown,
 } from 'lucide-react'
 import {
   canModifyRoles,
@@ -97,6 +98,24 @@ export function UserEditDialog({
   onUnbanUser,
 }: UserEditDialogProps) {
   const [showIps, setShowIps] = useState(false)
+  const [showCooldown, setShowCooldown] = useState(false)
+  const [showUnlinked, setShowUnlinked] = useState(false)
+
+  // Split unlinked accounts into cooldown vs expired, deduplicate expired
+  const { withCooldown, withoutCooldown } = useMemo(() => {
+    if (!linkedAccounts?.unlinked) return { withCooldown: [], withoutCooldown: [] }
+    const cd = linkedAccounts.unlinked.filter((a) => a.hasCooldown)
+    const noCd = linkedAccounts.unlinked.filter((a) => !a.hasCooldown)
+    // Deduplicate by platform + platform_username (keep most recent)
+    const seen = new Set<string>()
+    const deduped = noCd.filter((a) => {
+      const key = `${a.platform}:${a.platform_username}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    return { withCooldown: cd, withoutCooldown: deduped }
+  }, [linkedAccounts?.unlinked])
 
   return (
     <Dialog open={!!editUser} onOpenChange={(open) => !open && onClose()}>
@@ -227,18 +246,20 @@ export function UserEditDialog({
                   </div>
                 )}
 
-                {/* Unlinked accounts with cooldown */}
-                {linkedAccounts.unlinked.length > 0 && (
+                {/* Unlinked with active cooldown (accordion) */}
+                {withCooldown.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Unlinked (with cooldown)</p>
-                    {linkedAccounts.unlinked.map((account) => (
+                    <button
+                      onClick={() => setShowCooldown(!showCooldown)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                    >
+                      <ChevronDown className={`w-3 h-3 transition-transform ${showCooldown ? '' : '-rotate-90'}`} />
+                      Unlinked with cooldown ({withCooldown.length})
+                    </button>
+                    {showCooldown && withCooldown.map((account) => (
                       <div
                         key={account.id}
-                        className={`flex items-center justify-between p-2 rounded-lg ${
-                          account.hasCooldown
-                            ? 'bg-amber-500/10 border border-amber-500/20'
-                            : 'bg-muted/30 border border-border/50'
-                        }`}
+                        className="flex items-center justify-between p-2 rounded-lg bg-amber-500/10 border border-amber-500/20"
                       >
                         <div className="flex items-center gap-2">
                           <Unlink className="w-4 h-4 text-muted-foreground" />
@@ -246,31 +267,54 @@ export function UserEditDialog({
                           <Badge variant="outline" className="text-xs">
                             {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
                           </Badge>
-                          {account.hasCooldown && (
-                            <span className="text-xs text-amber-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {account.hoursRemaining}h
-                            </span>
-                          )}
+                          <span className="text-xs text-amber-400 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {account.hoursRemaining}h
+                          </span>
                         </div>
-                        {account.hasCooldown && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onRemoveCooldown(account.id)}
-                            disabled={removingCooldown === account.id}
-                            className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300"
-                          >
-                            {removingCooldown === account.id ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <>
-                                <Trash2 className="w-3 h-3 mr-1" />
-                                Remove cooldown
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onRemoveCooldown(account.id)}
+                          disabled={removingCooldown === account.id}
+                          className="h-7 px-2 text-xs text-amber-400 hover:text-amber-300"
+                        >
+                          {removingCooldown === account.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <>
+                              <Trash2 className="w-3 h-3 mr-1" />
+                              Remove cooldown
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Unlinked without cooldown (accordion, deduplicated) */}
+                {withoutCooldown.length > 0 && (
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setShowUnlinked(!showUnlinked)}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                    >
+                      <ChevronDown className={`w-3 h-3 transition-transform ${showUnlinked ? '' : '-rotate-90'}`} />
+                      Unlinked ({withoutCooldown.length})
+                    </button>
+                    {showUnlinked && withoutCooldown.map((account) => (
+                      <div
+                        key={account.id}
+                        className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/50"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Unlink className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm">{account.platform_username}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
+                          </Badge>
+                        </div>
                       </div>
                     ))}
                   </div>

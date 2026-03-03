@@ -255,6 +255,35 @@ export async function GET(request: Request) {
       }
     }
 
+    // Fetch daily explanation count for premium users on this page
+    const premiumPlans = ['premium', 'lifetime', 'beta', 'freetrial']
+    const todayUTC = new Date()
+    todayUTC.setUTCHours(0, 0, 0, 0)
+
+    const premiumUserIds = paginatedUsers
+      .filter((u) => premiumPlans.includes(u.plan))
+      .map((u) => u.user_id)
+
+    if (premiumUserIds.length > 0) {
+      const { data: explRows } = await supabase
+        .from('user_activity')
+        .select('user_id')
+        .eq('event_type', 'explanation')
+        .gte('created_at', todayUTC.toISOString())
+        .in('user_id', premiumUserIds)
+
+      const explCountMap = new Map<string, number>()
+      explRows?.forEach((r) => {
+        explCountMap.set(r.user_id, (explCountMap.get(r.user_id) || 0) + 1)
+      })
+
+      paginatedUsers.forEach((u) => {
+        if (premiumPlans.includes(u.plan)) {
+          (u as Record<string, unknown>).daily_explanations = explCountMap.get(u.user_id) || 0
+        }
+      })
+    }
+
     return NextResponse.json({
       data: paginatedUsers,
       total,

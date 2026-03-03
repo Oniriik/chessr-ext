@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 interface TooltipProps {
   content: string;
   children: React.ReactNode;
-  side?: 'top' | 'bottom' | 'left' | 'right';
+  side?: 'top' | 'bottom' | 'left' | 'right' | 'top-left';
   className?: string;
 }
 
@@ -18,6 +18,7 @@ export function Tooltip({ content, children, side = 'top', className }: TooltipP
     bottom: 'tw-top-full tw-left-1/2 tw--translate-x-1/2 tw-mt-2',
     left: 'tw-right-full tw-top-1/2 tw--translate-y-1/2 tw-mr-2',
     right: 'tw-left-full tw-top-1/2 tw--translate-y-1/2 tw-ml-2',
+    'top-left': 'tw-bottom-full tw-right-0 tw-mb-2',
   };
 
   return (

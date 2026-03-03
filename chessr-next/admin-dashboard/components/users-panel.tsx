@@ -387,7 +387,16 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                       </div>
                     </td>
                     <td className="py-3 px-2"><Badge className={roleColors[user.role]}>{roleLabels[user.role]}</Badge></td>
-                    <td className="py-3 px-2"><Badge className={planColors[user.plan]}>{planLabels[user.plan]}</Badge></td>
+                    <td className="py-3 px-2">
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={planColors[user.plan]}>{planLabels[user.plan]}</Badge>
+                        {user.daily_explanations !== undefined && (
+                          <span className={`text-[10px] font-mono ${user.daily_explanations >= 50 ? 'text-rose-400' : user.daily_explanations >= 40 ? 'text-amber-400' : 'text-violet-400'}`}>
+                            {user.daily_explanations}/50
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-2 text-center">
                       <div className="flex items-center justify-center gap-1.5">
                         <span className={`text-sm ${user.linked_count > 0 ? 'text-emerald-400' : 'text-muted-foreground'}`}>{user.linked_count}</span>
@@ -434,6 +443,11 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge className={`${roleColors[user.role]} text-[10px]`}>{roleLabels[user.role]}</Badge>
                   <Badge className={`${planColors[user.plan]} text-[10px]`}>{planLabels[user.plan]}</Badge>
+                  {user.daily_explanations !== undefined && (
+                    <span className={`text-[10px] font-mono ${user.daily_explanations >= 50 ? 'text-rose-400' : 'text-violet-400'}`}>
+                      {user.daily_explanations}/50
+                    </span>
+                  )}
                   {user.linked_count > 0 && (
                     <span className="text-[10px] text-emerald-400">{user.linked_count} linked</span>
                   )}

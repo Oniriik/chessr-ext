@@ -18,6 +18,7 @@ export interface AdminUser {
   ban_reason: string | null
   banned_at: string | null
   banned_by: string | null
+  daily_explanations?: number
 }
 
 export interface AuthState {

@@ -12,14 +12,16 @@
   "license": "ISC",
   "description": "Chessr WebSocket server",
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.39",
     "@supabase/supabase-js": "^2.95.3",
+    "ai": "^6.0.109",
     "dotenv": "^17.3.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",
     "@types/ws": "^8.18.0",
-    "typescript": "^5.7.3",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
   }
 }
