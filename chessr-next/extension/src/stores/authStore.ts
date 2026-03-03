@@ -58,10 +58,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Small delay to ensure Chrome storage is ready
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Check if there's a session in storage first
+      // Check if there's a session in localStorage
       const storageKey = 'chessr-auth';
-      const stored = await chrome.storage.local.get(storageKey);
-      const hasStoredSession = !!stored[storageKey];
+      const storedValue = localStorage.getItem(storageKey);
+      const hasStoredSession = !!storedValue;
 
       // Listen for auth changes first (important for session restoration)
       supabase.auth.onAuthStateChange((event, session) => {
@@ -80,7 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // If no session but we have stored data, try to manually restore
       if (!session && hasStoredSession && !error) {
         try {
-          const storedData = JSON.parse(stored[storageKey]);
+          const storedData = JSON.parse(storedValue!);
           if (storedData?.access_token && storedData?.refresh_token) {
             const { data, error: setError } = await supabase.auth.setSession({
               access_token: storedData.access_token,

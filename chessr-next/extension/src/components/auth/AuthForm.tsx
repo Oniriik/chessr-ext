@@ -121,6 +121,8 @@ export function AuthForm({ compact = false }: AuthFormProps) {
         <form onSubmit={handleSubmit} className="tw-space-y-2 tw-flex-1">
           <Input
             type="email"
+            name="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email"
@@ -131,6 +133,8 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           {mode !== 'reset' && (
             <Input
               type="password"
+              name="password"
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
@@ -142,6 +146,8 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           {mode === 'signup' && (
             <Input
               type="password"
+              name="confirmPassword"
+              autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm password"
@@ -229,7 +235,9 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                 </div>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
@@ -251,7 +259,9 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                   </div>
                   <Input
                     id="password"
+                    name="password"
                     type="password"
+                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
@@ -274,7 +284,9 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                   </div>
                   <Input
                     id="confirmPassword"
+                    name="confirmPassword"
                     type="password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm your password"

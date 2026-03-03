@@ -203,7 +203,14 @@ async function fetchFromLichess(fen: string): Promise<OpeningData> {
   }
 
   if (!response.ok) {
-    throw new Error(`Lichess API error: ${response.status}`);
+    console.warn(`[OpeningHandler] Lichess API returned ${response.status}, skipping`);
+    return {
+      opening: null,
+      moves: [],
+      isInBook: false,
+      totalGames: 0,
+      statsUnavailable: true,
+    };
   }
 
   // Clear rate limit on successful request
