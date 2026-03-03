@@ -8,12 +8,9 @@ import asyncio
 import json
 import logging
 import time
-from typing import Callable
-
 import websockets
 
 from .engine import MaiaEngine
-from . import auth as chessr_auth
 
 logger = logging.getLogger("maia-server")
 logging.getLogger("websockets.server").setLevel(logging.WARNING)
@@ -26,15 +23,11 @@ class MaiaServer:
         self,
         engine: MaiaEngine,
         port: int = DEFAULT_PORT,
-        get_session: Callable[[], dict | None] = lambda: None,
-        set_session: Callable[[dict | None], None] = lambda s: None,
     ):
         self.engine = engine
         self.port = port
         self._server = None
         self._clients: set = set()
-        self._get_session = get_session
-        self._set_session = set_session
 
     async def _handle_client(self, websocket):
         self._clients.add(websocket)
@@ -69,62 +62,13 @@ class MaiaServer:
         if msg_type == "ping":
             return {"type": "pong"}
 
-        if msg_type == "get_auth":
-            return self._handle_get_auth()
-
-        if msg_type == "login_with_token":
-            return self._handle_login_with_token(msg)
-
         if msg_type == "analyze":
-            # Gate behind auth
-            session = self._get_session()
-            if not session:
-                return {
-                    "type": "auth_required",
-                    "requestId": msg.get("requestId"),
-                }
-            if session.get("plan", "free") == "free":
-                return {
-                    "type": "upgrade_required",
-                    "requestId": msg.get("requestId"),
-                }
             return self._handle_analyze(msg)
 
         return {
             "type": "error",
             "message": f"Unknown message type: {msg_type}",
         }
-
-    def _handle_get_auth(self) -> dict:
-        session = self._get_session()
-        if session:
-            return {
-                "type": "auth_status",
-                "logged_in": True,
-                "email": session.get("email", ""),
-                "plan": session.get("plan", "free"),
-            }
-        return {"type": "auth_status", "logged_in": False}
-
-    def _handle_login_with_token(self, msg: dict) -> dict:
-        access_token = msg.get("access_token", "")
-        refresh_token = msg.get("refresh_token", "")
-
-        if not access_token:
-            return {"type": "auth_status", "logged_in": False, "error": "Missing token"}
-
-        try:
-            session = chessr_auth.login_with_token(access_token, refresh_token)
-            self._set_session(session)
-            return {
-                "type": "auth_status",
-                "logged_in": True,
-                "email": session["email"],
-                "plan": session["plan"],
-            }
-        except Exception as e:
-            logger.warning(f"Token login failed: {e}")
-            return {"type": "auth_status", "logged_in": False, "error": str(e)}
 
     def _handle_analyze(self, msg: dict) -> dict:
         request_id = msg.get("requestId", "?")

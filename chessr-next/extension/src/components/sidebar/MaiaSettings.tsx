@@ -6,7 +6,7 @@ import { ChevronDown } from 'lucide-react';
 import { useEngineStore, type MaiaMode } from '../../stores/engineStore';
 import { useMaiaWebSocketStore } from '../../stores/maiaWebSocketStore';
 import { useAuthStore } from '../../stores/authStore';
-import { PlanBadge, type Plan } from '../ui/plan-badge';
+import { isPremium } from '../../lib/planUtils';
 
 // ============================================================================
 // Maia Target ELO Section (Your ELO)
@@ -125,22 +125,9 @@ function MaiaModeSection() {
 // Maia Connection Status Card
 // ============================================================================
 export function MaiaConnectionCard() {
-  const {
-    isConnected, isConnecting, connect,
-    maiaLoggedIn, maiaPlan,
-    loginWithExtensionAccount,
-  } = useMaiaWebSocketStore();
-  const extensionUser = useAuthStore((s) => s.user);
-  const [connecting, setConnecting] = useState(false);
-
-  const handleAutoConnect = async () => {
-    setConnecting(true);
-    try {
-      await loginWithExtensionAccount();
-    } finally {
-      setTimeout(() => setConnecting(false), 2000);
-    }
-  };
+  const { isConnected, isConnecting, connect } = useMaiaWebSocketStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
 
   return (
     <Card className="tw-bg-muted/50 tw-overflow-hidden">
@@ -163,8 +150,15 @@ export function MaiaConnectionCard() {
           </div>
         </div>
 
+        {/* Premium gate */}
+        {!premium && (
+          <p className="tw-text-xs tw-text-amber-500 tw-font-medium">
+            Upgrade to premium to use Maia engine
+          </p>
+        )}
+
         {/* Disconnected */}
-        {!isConnected && !isConnecting && (
+        {premium && !isConnected && !isConnecting && (
           <>
             <p className="tw-text-xs tw-text-muted-foreground">
               Launch the Chessr Maia app to connect
@@ -186,47 +180,11 @@ export function MaiaConnectionCard() {
           </>
         )}
 
-        {/* Connected + logged in */}
-        {isConnected && maiaLoggedIn && (
-          <div className="tw-space-y-1.5">
-            <div className="tw-flex tw-items-center tw-gap-2">
-              <span className="tw-text-xs tw-text-muted-foreground">
-                Logged in Maia-2
-              </span>
-              {maiaPlan && (
-                <PlanBadge plan={maiaPlan as Plan} compact />
-              )}
-            </div>
-            {maiaPlan === 'free' && (
-              <p className="tw-text-xs tw-text-amber-500 tw-font-medium">
-                Upgrade your plan to use Maia engine
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Connected + not logged in */}
-        {isConnected && !maiaLoggedIn && (
-          <div className="tw-space-y-2">
-            <p className="tw-text-xs tw-text-muted-foreground">
-              Connected to local Maia-2 engine on port 8765
-            </p>
-            <p className="tw-text-xs tw-text-amber-500 tw-font-medium">
-              Login required to get suggestions
-            </p>
-            {extensionUser && (
-              <button
-                onClick={handleAutoConnect}
-                disabled={connecting}
-                className="tw-w-full tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-bg-primary tw-text-primary-foreground hover:tw-bg-primary/90 tw-transition-colors disabled:tw-opacity-50"
-              >
-                {connecting ? 'Connecting...' : 'Login in Maia-2'}
-              </button>
-            )}
-            <p className="tw-text-[11px] tw-text-muted-foreground tw-text-center">
-              Or sign in directly in the Maia app
-            </p>
-          </div>
+        {/* Connected */}
+        {premium && isConnected && (
+          <p className="tw-text-xs tw-text-muted-foreground">
+            Connected to local Maia-2 engine
+          </p>
         )}
       </CardContent>
     </Card>

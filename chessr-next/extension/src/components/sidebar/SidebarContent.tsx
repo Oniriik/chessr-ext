@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { LogOut, X, Settings, ArrowLeft } from 'lucide-react';
 import { MaintenanceBanner } from './MaintenanceBanner';
 import { DiscordLinkBanner } from './DiscordLinkBanner';
+import { TipsBanner } from './TipsBanner';
 import { GameStatusCard } from './GameStatusCard';
 import { GameStatsCard } from './GameStatsCard';
 import { MoveListDisplay } from './MoveListDisplay';
@@ -189,6 +190,7 @@ function AuthenticatedContent() {
           <div className="tw-flex tw-flex-col tw-flex-1 tw-overflow-hidden tw-space-y-4">
             <MaintenanceBanner />
             <DiscordLinkBanner />
+            <TipsBanner />
             <GameStatusCard />
             <Tabs defaultValue="game" className="tw-w-full tw-flex-1 tw-flex tw-flex-col tw-overflow-hidden">
               <TabsList className="tw-w-full tw-flex-shrink-0">

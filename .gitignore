@@ -11,7 +11,9 @@ extension/key.pem
 
 # Maia build artifacts
 chessr-next/maia-wrapper/dist/
-chessr-next/maia-wrapper/build/__pycache__/
+chessr-next/maia-wrapper/build/
+chessr-next/maia-wrapper/maia compiled macos/
+chessr-next/maia-wrapper/*.spec
 chessr-next/maia-wrapper/*.zip
 chessr-next/maia-wrapper/venv/
 chessr-next/maia-wrapper/=*

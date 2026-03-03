@@ -22,7 +22,6 @@ from . import __version__
 from .engine import MaiaEngine, EngineConfig, _resolve_provider
 from .server import MaiaServer, DEFAULT_PORT
 from .updater import check_for_update, download_and_open
-from . import auth as chessr_auth
 
 logger = logging.getLogger("maia-gui")
 
@@ -228,99 +227,6 @@ HTML_TEMPLATE = """
     color: #94a3b8;
     cursor: wait;
   }
-  /* Auth section */
-  .auth-section {
-    width: calc(100% - 40px);
-    margin-bottom: 14px;
-  }
-  .auth-form {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .auth-input {
-    background: #111827;
-    border: 1px solid #1e293b;
-    border-radius: 6px;
-    padding: 8px 12px;
-    color: #fff;
-    font-size: 13px;
-    font-family: inherit;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  .auth-input:focus { border-color: #38bdf8; }
-  .auth-input::placeholder { color: #475569; }
-  .auth-submit {
-    background: linear-gradient(135deg, #3b82f6, #22d3ee);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-size: 13px;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    transition: opacity 0.15s;
-  }
-  .auth-submit:hover { opacity: 0.9; }
-  .auth-submit:disabled { opacity: 0.5; cursor: wait; }
-  .auth-error {
-    font-size: 11px;
-    color: #ef4444;
-    min-height: 14px;
-  }
-  .auth-connected {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .auth-email {
-    font-size: 12px;
-    color: #94a3b8;
-  }
-  .plan-badge {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 9999px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .plan-free { background: #1e293b; color: #64748b; }
-  .plan-freetrial { background: #1e293b; color: #22d3ee; }
-  .plan-premium { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-  .plan-lifetime { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-  .plan-beta { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
-  .auth-logout {
-    font-size: 11px;
-    color: #475569;
-    cursor: pointer;
-    background: none;
-    border: none;
-    font-family: inherit;
-    text-decoration: underline;
-    transition: color 0.15s;
-  }
-  .auth-logout:hover { color: #94a3b8; }
-  .upgrade-bar {
-    display: none;
-    width: calc(100% - 40px);
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 8px;
-    padding: 8px 14px;
-    margin-bottom: 12px;
-    text-align: center;
-  }
-  .upgrade-bar.visible { display: block; }
-  .upgrade-bar p {
-    font-size: 12px;
-    color: #f59e0b;
-    font-weight: 500;
-  }
   /* Loading overlay */
   .loading-overlay {
     position: fixed;
@@ -349,6 +255,27 @@ HTML_TEMPLATE = """
   .loading-text {
     font-size: 13px;
     color: #64748b;
+    font-weight: 500;
+  }
+  .progress-container {
+    width: 220px;
+    height: 4px;
+    background: #1e293b;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #22d3ee);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.6s ease;
+  }
+  .progress-pct {
+    font-size: 11px;
+    color: #475569;
     font-weight: 500;
   }
   /* Metrics bar */
@@ -467,27 +394,15 @@ HTML_TEMPLATE = """
     <div class="title" style="margin-bottom:4px;">chessr<span class="accent">.io</span></div>
     <div class="subtitle" style="margin-bottom:24px;">maia-2 engine</div>
     <div class="loading-spinner"></div>
-    <div class="loading-text" id="loading-text">Loading engine...</div>
+    <div class="loading-text" id="loading-text">Initializing...</div>
+    <div class="progress-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+    <div class="progress-pct" id="progress-pct">0%</div>
   </div>
   <img class="logo" src="{logo_src}" alt="Chessr.io">
   <div class="title">chessr<span class="accent">.io</span></div>
   <div class="subtitle">maia-2 engine</div>
-  <div id="auth-section" class="auth-section">
-    <div id="auth-form" class="auth-form">
-      <input id="auth-email" class="auth-input" type="email" placeholder="Email" autocomplete="email">
-      <input id="auth-pass" class="auth-input" type="password" placeholder="Password" autocomplete="current-password">
-      <button id="auth-submit" class="auth-submit" onclick="doLogin()">Sign in</button>
-      <div id="auth-error" class="auth-error"></div>
-    </div>
-    <div id="auth-connected" class="auth-connected" style="display:none;">
-      <span id="auth-email-display" class="auth-email"></span>
-      <span id="auth-plan" class="plan-badge plan-free"></span>
-      <button class="auth-logout" onclick="doLogout()">Sign out</button>
-    </div>
-  </div>
-  <div id="upgrade-bar" class="upgrade-bar">
-    <p>Upgrade your plan to use Maia-2 engine</p>
-  </div>
   <div id="update-bar" class="update-bar">
     <span class="update-text">Update <strong id="update-ver"></strong> available</span>
     <button id="update-btn" class="update-btn" onclick="doUpdate()">Update</button>
@@ -568,13 +483,6 @@ HTML_TEMPLATE = """
           btn.textContent = 'Start Server';
         }
 
-        // Sync auth state (picks up token login from extension via WS)
-        var authData = data.auth;
-        var newEmail = authData ? authData.email : null;
-        if (newEmail !== currentAuthEmail) {
-          showAuth(authData);
-        }
-
         // Metrics bar
         if (data.metrics) {
           var m = data.metrics;
@@ -636,76 +544,6 @@ HTML_TEMPLATE = """
       }
     }
 
-    let currentAuthEmail = null;
-    let currentAuthPlan = null;
-
-    function showAuth(data) {
-      var form = document.getElementById('auth-form');
-      var connected = document.getElementById('auth-connected');
-      var upgradeBar = document.getElementById('upgrade-bar');
-      if (data && data.email) {
-        form.style.display = 'none';
-        connected.style.display = 'flex';
-        document.getElementById('auth-email-display').textContent = data.email;
-        var badge = document.getElementById('auth-plan');
-        var plan = data.plan || 'free';
-        badge.textContent = plan;
-        badge.className = 'plan-badge plan-' + plan;
-        currentAuthEmail = data.email;
-        currentAuthPlan = plan;
-        upgradeBar.className = plan === 'free' ? 'upgrade-bar visible' : 'upgrade-bar';
-      } else {
-        form.style.display = 'flex';
-        connected.style.display = 'none';
-        upgradeBar.className = 'upgrade-bar';
-        currentAuthEmail = null;
-        currentAuthPlan = null;
-      }
-    }
-
-    async function doLogin() {
-      var email = document.getElementById('auth-email').value.trim();
-      var pass = document.getElementById('auth-pass').value;
-      var errEl = document.getElementById('auth-error');
-      var btn = document.getElementById('auth-submit');
-      if (!email || !pass) { errEl.textContent = 'Enter email and password'; return; }
-      errEl.textContent = '';
-      btn.disabled = true;
-      btn.textContent = 'Signing in...';
-      try {
-        var raw = await pywebview.api.login(email, pass);
-        var result = JSON.parse(raw);
-        if (result.error) {
-          errEl.textContent = result.error;
-        } else {
-          showAuth(result);
-        }
-      } catch(e) {
-        errEl.textContent = 'Connection error';
-      }
-      btn.disabled = false;
-      btn.textContent = 'Sign in';
-    }
-
-    async function doLogout() {
-      await pywebview.api.logout();
-      showAuth(null);
-    }
-
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' && document.getElementById('auth-form').style.display !== 'none') {
-        doLogin();
-      }
-    });
-
-    async function restoreAuth() {
-      try {
-        var raw = await pywebview.api.get_auth();
-        var data = JSON.parse(raw);
-        if (data) showAuth(data);
-      } catch(e) {}
-    }
-
     function hideLoading() {
       var overlay = document.getElementById('loading-overlay');
       overlay.classList.add('hidden');
@@ -713,12 +551,19 @@ HTML_TEMPLATE = """
     }
 
     async function waitForEngine() {
+      var bar = document.getElementById('progress-bar');
+      var pct = document.getElementById('progress-pct');
+      var text = document.getElementById('loading-text');
       while (true) {
         try {
-          var ready = await pywebview.api.is_engine_ready();
-          if (ready) { hideLoading(); refresh(); initSettings(); return; }
+          var raw = await pywebview.api.get_loading_progress();
+          var p = JSON.parse(raw);
+          bar.style.width = p.percent + '%';
+          pct.textContent = p.percent + '%';
+          text.textContent = p.step;
+          if (p.ready) { hideLoading(); refresh(); initSettings(); return; }
         } catch(e) {}
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 200));
       }
     }
 
@@ -777,7 +622,6 @@ HTML_TEMPLATE = """
     window.addEventListener('pywebviewready', function() {
       waitForEngine();
       checkUpdate();
-      restoreAuth();
     });
   </script>
 </body>
@@ -797,11 +641,6 @@ class Api:
         self._app.toggle_server()
 
     def get_status(self):
-        session = self._app._session
-        auth = None
-        if session:
-            auth = {"email": session.get("email", ""), "plan": session.get("plan", "free")}
-
         # Metrics
         try:
             metrics = {
@@ -826,7 +665,6 @@ class Api:
             "port": self._app.port,
             "clients": self._app.server.client_count if self._app._is_running and self._app.server else 0,
             "logs": _log_buffer.get_lines(),
-            "auth": auth,
             "metrics": metrics,
             "engine_info": engine_info,
         })
@@ -842,27 +680,15 @@ class Api:
             download_and_open(result["download_url"])
             logger.info("Update downloaded — opening installer")
 
-    def login(self, email, password):
-        try:
-            session = chessr_auth.login(email, password)
-            self._app._session = session
-            return json.dumps({"email": session["email"], "plan": session["plan"]})
-        except Exception as e:
-            return json.dumps({"error": str(e)})
-
-    def logout(self):
-        chessr_auth.logout()
-        self._app._session = None
-        logger.info("User signed out")
-
     def is_engine_ready(self):
         return self._app._engine_ready
 
-    def get_auth(self):
-        session = self._app._session
-        if session:
-            return json.dumps({"email": session["email"], "plan": session.get("plan", "free")})
-        return json.dumps(None)
+    def get_loading_progress(self):
+        return json.dumps({
+            "percent": self._app._loading_percent,
+            "step": self._app._loading_step,
+            "ready": self._app._engine_ready,
+        })
 
     def get_engine_config(self):
         cfg = self._app._engine_config
@@ -906,7 +732,8 @@ class MaiaApp:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._is_running = False
         self._engine_ready = engine is not None
-        self._session = chessr_auth.load_session()
+        self._loading_percent = 0
+        self._loading_step = "Initializing..."
         self._engine_config = engine_config or {"provider": "auto", "threads": 0}
         self.server = None
 
@@ -930,35 +757,43 @@ class MaiaApp:
         threading.Thread(target=self._load_and_start, daemon=True).start()
         webview.start()
 
+    def _set_progress(self, percent: int, step: str):
+        self._loading_percent = percent
+        self._loading_step = step
+
     def _load_and_start(self):
         """Load the engine (if needed) then start the WebSocket server."""
         if not self.engine and self._model_path:
+            self._set_progress(5, "Detecting hardware...")
             logger.info(f"Loading Maia-2 model from {self._model_path}")
             try:
                 config = EngineConfig(
                     provider=self._engine_config.get("provider", "auto"),
                     threads=self._engine_config.get("threads", 0),
                 )
+
+                self._set_progress(15, "Loading ONNX model...")
                 self.engine = MaiaEngine(self._model_path, config)
+                self._set_progress(80, "Model loaded")
                 logger.info(f"Model loaded — provider: {self.engine.active_provider}, threads: {self.engine.active_threads}")
             except FileNotFoundError:
+                self._set_progress(0, "Model file not found")
                 logger.error(f"Model not found at {self._model_path}")
                 return
             except Exception as e:
+                self._set_progress(0, f"Failed: {e}")
                 logger.error(f"Failed to load model: {e}")
                 return
 
-        self.server = MaiaServer(
-            self.engine, self.port,
-            get_session=lambda: self._session,
-            set_session=lambda s: setattr(self, '_session', s),
-        )
-        self._engine_ready = True
+        self._set_progress(90, "Starting server...")
+        self.server = MaiaServer(self.engine, self.port)
 
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         self._loop.run_until_complete(self.server.start())
         self._is_running = True
+        self._set_progress(100, "Ready")
+        self._engine_ready = True
         logger.info(f"Server listening on port {self.port}")
         self._loop.run_forever()
 

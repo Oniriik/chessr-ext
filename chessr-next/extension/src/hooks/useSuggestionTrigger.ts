@@ -36,7 +36,7 @@ export function useSuggestionTrigger() {
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected: isServerConnected, send } = useWebSocketStore();
-  const { isConnected: isMaiaConnected, connect: connectMaia, disconnect: disconnectMaia, maiaLoggedIn, maiaPlan } = useMaiaWebSocketStore();
+  const { isConnected: isMaiaConnected, connect: connectMaia, disconnect: disconnectMaia } = useMaiaWebSocketStore();
   const plan = useAuthStore((state) => state.plan);
   const needsLinking = useNeedsLinking();
 
@@ -53,8 +53,8 @@ export function useSuggestionTrigger() {
   }, [selectedEngine, connectMaia, disconnectMaia]);
 
   // Determine if we're ready to send
-  // For Maia: must be connected AND logged in with a non-free plan
-  const isMaiaReady = isMaiaConnected && maiaLoggedIn && maiaPlan !== 'free';
+  // For Maia: must be connected AND have a premium plan (checked via extension auth)
+  const isMaiaReady = isMaiaConnected && isPremium(plan);
   const isReady = selectedEngine === 'maia2' ? isMaiaReady : isServerConnected;
 
   // Combined effect for position and settings changes
@@ -179,8 +179,6 @@ export function useSuggestionTrigger() {
     requestSuggestions,
     send,
     plan,
-    maiaLoggedIn,
-    maiaPlan,
   ]);
 
   // Clear last FEN when game resets
