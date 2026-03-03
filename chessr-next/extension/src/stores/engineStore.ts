@@ -4,6 +4,7 @@ import * as chesscom from '../platforms/chesscom';
 import * as lichess from '../lib/lichess';
 import { FREE_LIMITS, isPremium } from '../lib/planUtils';
 import type { Plan } from '../components/ui/plan-badge';
+import { useWebSocketStore } from './webSocketStore';
 
 /**
  * Detect current platform from hostname
@@ -249,7 +250,13 @@ export const useEngineStore = create<EngineState>()(
       },
 
       // Setters
-      setSelectedEngine: (engine) => set({ selectedEngine: engine }),
+      setSelectedEngine: (engine) => {
+        set({ selectedEngine: engine });
+        const { send, isConnected } = useWebSocketStore.getState();
+        if (isConnected) {
+          send({ type: 'engine_update', engine });
+        }
+      },
       setMaiaEloSelfAuto: (auto) => set({ maiaEloSelfAuto: auto }),
       setMaiaEloOppoAuto: (auto) => set({ maiaEloOppoAuto: auto }),
       setMaiaEloSelf: (elo) => set({ maiaEloSelf: Math.max(400, Math.min(3000, elo)) }),

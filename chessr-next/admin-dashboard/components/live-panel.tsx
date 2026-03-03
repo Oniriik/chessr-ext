@@ -20,7 +20,7 @@ interface LiveData {
   }
   connectedUsers: number
   connectedClients: number
-  users: { id: string; email: string }[]
+  users: { id: string; email: string; engine?: string }[]
   pools: {
     komodo: PoolStats | null
     stockfish: PoolStats | null
@@ -295,6 +295,13 @@ export function LivePanel() {
                   <div className="flex items-center gap-2 min-w-0">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     <span className="text-sm truncate">{user.email}</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${
+                      user.engine === 'maia2'
+                        ? 'bg-violet-500/15 text-violet-400'
+                        : 'bg-blue-500/15 text-blue-400'
+                    }`}>
+                      {user.engine === 'maia2' ? 'Maia' : 'Komodo'}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-2">
                     <button

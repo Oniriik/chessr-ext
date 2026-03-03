@@ -32,12 +32,13 @@ interface TopUser {
 interface DataResponse {
   totalSuggestionsAllTime: number
   period: {
-    suggestions: number
+    komodoSuggestions: number
+    maiaSuggestions: number
     analyses: number
     activeUsers: number
   }
   timeline: {
-    activity: { time: string; suggestions: number; analyses: number }[]
+    activity: { time: string; komodo: number; maia: number; analyses: number }[]
     activeUsers: { time: string; count: number }[]
   }
   topUsers: TopUser[]
@@ -114,27 +115,37 @@ export function DataPanel() {
     return data.topUsers.filter((u) => u.discord_username)
   }, [data?.topUsers, discordOnly])
 
+  const periodLabel = isCustom ? 'Custom range' : TIME_PERIODS.find((p) => p.value === period)?.label
+
   const statCards = [
     {
       title: 'Total Suggestions',
       value: data?.totalSuggestionsAllTime?.toLocaleString() ?? '---',
-      description: 'All time',
+      description: 'All time (Komodo + Maia)',
       icon: TrendingUp,
       color: 'text-blue-400',
       bgColor: 'bg-blue-500/10',
     },
     {
-      title: 'Suggestions',
-      value: data?.period.suggestions?.toLocaleString() ?? '---',
-      description: isCustom ? 'Custom range' : TIME_PERIODS.find((p) => p.value === period)?.label,
+      title: 'Komodo',
+      value: data?.period.komodoSuggestions?.toLocaleString() ?? '---',
+      description: periodLabel,
       icon: Zap,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10',
     },
     {
+      title: 'Maia',
+      value: data?.period.maiaSuggestions?.toLocaleString() ?? '---',
+      description: periodLabel,
+      icon: Zap,
+      color: 'text-violet-400',
+      bgColor: 'bg-violet-500/10',
+    },
+    {
       title: 'Analyses',
       value: data?.period.analyses?.toLocaleString() ?? '---',
-      description: isCustom ? 'Custom range' : TIME_PERIODS.find((p) => p.value === period)?.label,
+      description: periodLabel,
       icon: Activity,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/10',
@@ -205,7 +216,7 @@ export function DataPanel() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         {statCards.map((stat) => (
           <Card key={stat.title} className="border-border/50 bg-card/50 backdrop-blur">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -236,9 +247,13 @@ export function DataPanel() {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={activityData}>
                   <defs>
-                    <linearGradient id="gradSuggestions" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="gradKomodo" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradMaia" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="gradAnalyses" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
@@ -270,10 +285,18 @@ export function DataPanel() {
                   <Legend />
                   <Area
                     type="monotone"
-                    dataKey="suggestions"
-                    name="Suggestions"
+                    dataKey="komodo"
+                    name="Komodo"
                     stroke="#10b981"
-                    fill="url(#gradSuggestions)"
+                    fill="url(#gradKomodo)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="maia"
+                    name="Maia"
+                    stroke="#8b5cf6"
+                    fill="url(#gradMaia)"
                     strokeWidth={2}
                   />
                   <Area

@@ -11,6 +11,7 @@ import {
   type Client,
   type SuggestionMessage,
 } from "./handlers/suggestionHandler.js";
+import { logActivity } from "./utils/activityLogger.js";
 import {
   initStockfishPool,
   handleAnalysisRequest,
@@ -353,6 +354,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     const connectedUsersList = Array.from(clients.values()).map((client) => ({
       id: client.user.id,
       email: client.user.email,
+      engine: client.engine || 'default',
     }));
 
     const stats = {
@@ -762,6 +764,14 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
         case "unlink_discord":
           handleUnlinkDiscord(client);
+          break;
+
+        case "engine_update":
+          client.engine = message.engine || 'default';
+          break;
+
+        case "log_maia_suggestion":
+          logActivity(userId, "maia_suggestion");
           break;
 
         default:

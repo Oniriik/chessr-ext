@@ -23,6 +23,10 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
   // Subscribe to WebSocket manager events
   webSocketManager.onConnect(() => {
     set({ isConnected: true, isConnecting: false, error: null });
+    // Report current engine selection to server
+    const { useEngineStore } = require('./engineStore');
+    const engine = useEngineStore.getState().selectedEngine;
+    webSocketManager.send({ type: 'engine_update', engine });
   });
 
   webSocketManager.onDisconnect(() => {

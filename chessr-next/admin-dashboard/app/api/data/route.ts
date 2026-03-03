@@ -20,12 +20,14 @@ function bucketize(
   bucketMs: number
 ) {
   // Initialize empty buckets
-  const suggestionsMap = new Map<number, number>()
+  const komodoMap = new Map<number, number>()
+  const maiaMap = new Map<number, number>()
   const analysesMap = new Map<number, number>()
   const usersMap = new Map<number, Set<string>>()
 
   for (let t = Math.floor(since / bucketMs) * bucketMs; t <= now; t += bucketMs) {
-    suggestionsMap.set(t, 0)
+    komodoMap.set(t, 0)
+    maiaMap.set(t, 0)
     analysesMap.set(t, 0)
     usersMap.set(t, new Set())
   }
@@ -36,7 +38,10 @@ function bucketize(
     const bucket = Math.floor(ts / bucketMs) * bucketMs
 
     if (row.event_type === 'suggestion') {
-      suggestionsMap.set(bucket, (suggestionsMap.get(bucket) || 0) + 1)
+      komodoMap.set(bucket, (komodoMap.get(bucket) || 0) + 1)
+      usersMap.get(bucket)?.add(row.user_id)
+    } else if (row.event_type === 'maia_suggestion') {
+      maiaMap.set(bucket, (maiaMap.get(bucket) || 0) + 1)
       usersMap.get(bucket)?.add(row.user_id)
     } else if (row.event_type === 'analysis') {
       analysesMap.set(bucket, (analysesMap.get(bucket) || 0) + 1)
@@ -44,11 +49,12 @@ function bucketize(
   }
 
   // Convert to arrays
-  const times = Array.from(suggestionsMap.keys()).sort((a, b) => a - b)
+  const times = Array.from(komodoMap.keys()).sort((a, b) => a - b)
 
   const activity = times.map((t) => ({
     time: new Date(t).toISOString(),
-    suggestions: suggestionsMap.get(t) || 0,
+    komodo: komodoMap.get(t) || 0,
+    maia: maiaMap.get(t) || 0,
     analyses: analysesMap.get(t) || 0,
   }))
 
@@ -130,16 +136,17 @@ export async function GET(request: Request) {
     }
 
     // Counts
-    const suggestions = rows.filter((r) => r.event_type === 'suggestion').length
+    const komodoSuggestions = rows.filter((r) => r.event_type === 'suggestion').length
+    const maiaSuggestions = rows.filter((r) => r.event_type === 'maia_suggestion').length
     const analyses = rows.filter((r) => r.event_type === 'analysis').length
     const uniqueUsers = new Set(
-      rows.filter((r) => r.event_type === 'suggestion').map((r) => r.user_id)
+      rows.filter((r) => r.event_type === 'suggestion' || r.event_type === 'maia_suggestion').map((r) => r.user_id)
     )
 
-    // Top 10 users by suggestion count
+    // Top 10 users by suggestion count (komodo + maia)
     const userSuggestionCounts = new Map<string, number>()
     for (const row of rows) {
-      if (row.event_type === 'suggestion') {
+      if (row.event_type === 'suggestion' || row.event_type === 'maia_suggestion') {
         userSuggestionCounts.set(row.user_id, (userSuggestionCounts.get(row.user_id) || 0) + 1)
       }
     }
@@ -185,17 +192,20 @@ export async function GET(request: Request) {
     // Timeline
     const timeline = bucketize(rows, since, now, bucketMs)
 
-    // All-time total suggestions
+    // All-time total suggestions (komodo + maia)
     const { data: globalStats } = await supabase
       .from('global_stats')
-      .select('value')
-      .eq('key', 'total_suggestions')
-      .single()
+      .select('key, value')
+      .in('key', ['total_suggestions', 'total_maia_suggestions'])
+
+    const totalKomodo = globalStats?.find((s) => s.key === 'total_suggestions')?.value || 0
+    const totalMaia = globalStats?.find((s) => s.key === 'total_maia_suggestions')?.value || 0
 
     return NextResponse.json({
-      totalSuggestionsAllTime: globalStats?.value || 0,
+      totalSuggestionsAllTime: totalKomodo + totalMaia,
       period: {
-        suggestions,
+        komodoSuggestions,
+        maiaSuggestions,
         analyses,
         activeUsers: uniqueUsers.size,
       },

@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-export type ActivityEventType = "suggestion" | "analysis";
+export type ActivityEventType = "suggestion" | "analysis" | "maia_suggestion";
 
 /**
  * Log a user activity event to Supabase
@@ -36,7 +36,7 @@ export function logActivity(
       }
     });
 
-  // 2. Increment global counter for suggestions (for Discord bot)
+  // 2. Increment global counters
   if (eventType === "suggestion") {
     supabase
       .rpc("increment_stat", { stat_key: "total_suggestions" })
@@ -44,6 +44,17 @@ export function logActivity(
         if (error) {
           console.error(
             "[Activity] Failed to increment counter:",
+            error.message
+          );
+        }
+      });
+  } else if (eventType === "maia_suggestion") {
+    supabase
+      .rpc("increment_stat", { stat_key: "total_maia_suggestions" })
+      .then(({ error }) => {
+        if (error) {
+          console.error(
+            "[Activity] Failed to increment maia counter:",
             error.message
           );
         }

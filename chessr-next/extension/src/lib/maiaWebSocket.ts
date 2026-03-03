@@ -1,12 +1,11 @@
 /**
  * Maia WebSocket Manager
  * Connects to the local Maia-2 wrapper (ws://localhost:8765)
- * Handles authentication state from the Maia desktop app.
  */
 
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { usePuzzleStore } from '../stores/puzzleStore';
-import { useMaiaWebSocketStore } from '../stores/maiaWebSocketStore';
+import { webSocketManager } from './webSocket';
 import { logger } from './logger';
 
 type ConnectionHandler = () => void;
@@ -52,8 +51,6 @@ class MaiaWebSocketManager {
       this._isConnecting = false;
       this.connectHandlers.forEach((h) => h());
       this.startPing();
-      // Auto-request auth status on connect
-      this.requestAuth();
     };
 
     this.ws.onmessage = (event) => {
@@ -113,24 +110,6 @@ class MaiaWebSocketManager {
     });
   }
 
-  /**
-   * Request the current auth status from Maia server
-   */
-  requestAuth(): void {
-    this.send({ type: 'get_auth' });
-  }
-
-  /**
-   * Login to Maia using tokens from the extension's Supabase session
-   */
-  loginWithToken(accessToken: string, refreshToken: string): void {
-    this.send({
-      type: 'login_with_token',
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    });
-  }
-
   send(data: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
@@ -151,35 +130,6 @@ class MaiaWebSocketManager {
 
   private handleMessage(data: Record<string, unknown>): void {
     if (data.type === 'pong') return;
-
-    if (data.type === 'auth_status') {
-      const loggedIn = data.logged_in as boolean;
-      if (loggedIn) {
-        useMaiaWebSocketStore.getState().setMaiaAuth(
-          data.email as string,
-          data.plan as string,
-        );
-      } else {
-        useMaiaWebSocketStore.getState().clearMaiaAuth();
-      }
-      return;
-    }
-
-    if (data.type === 'auth_required') {
-      const requestId = data.requestId as string;
-      if (requestId) {
-        useSuggestionStore.getState().receiveError(requestId, 'Login required in Maia app');
-      }
-      return;
-    }
-
-    if (data.type === 'upgrade_required') {
-      const requestId = data.requestId as string;
-      if (requestId) {
-        useSuggestionStore.getState().receiveError(requestId, 'Upgrade your plan to use Maia engine');
-      }
-      return;
-    }
 
     if (data.type === 'analysis_result') {
       const moves = data.moves as Array<{ move: string; probability: number }>;
@@ -226,6 +176,9 @@ class MaiaWebSocketManager {
           winRateWhitePct,
           suggestions,
         );
+
+        // Log Maia suggestion to server for activity tracking
+        webSocketManager.send({ type: 'log_maia_suggestion' });
       }
     } else if (data.type === 'error') {
       const requestId = data.requestId as string;

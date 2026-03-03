@@ -16,6 +16,7 @@ export interface Client {
     id: string;
     email: string;
   };
+  engine?: string; // 'default' | 'maia2'
 }
 
 export interface SuggestionMessage {

@@ -54,7 +54,7 @@ export async function GET() {
     // Real-time stats from WebSocket server
     let connectedUsers = 0
     let connectedClients = 0
-    let users: { id: string; email: string }[] = []
+    let users: { id: string; email: string; engine?: string }[] = []
     let pools = null
     let queues = null
 
