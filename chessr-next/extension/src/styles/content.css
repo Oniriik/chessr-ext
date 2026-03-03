@@ -7,6 +7,14 @@
   display: contents;
 }
 
+/* Storm/Racer: unset fixed flex so our sidebar fits */
+.storm .puz-side__top,
+.storm .puz-side__table,
+.racer .puz-side__top,
+.racer .puz-side__table {
+  flex: unset !important;
+}
+
 /* Anonymous mode blur for platform page elements */
 .chessr-anon-blur {
   filter: blur(5px) !important;

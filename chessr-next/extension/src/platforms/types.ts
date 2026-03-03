@@ -20,6 +20,8 @@ export interface MountPoint {
   position: 'before' | 'after' | 'prepend' | 'append';
   component: ComponentType<any>;
   props?: Record<string, unknown>;
+  /** Styles to apply to the mounted container */
+  containerStyles?: Partial<CSSStyleDeclaration>;
   /** Styles to apply to the target element's parent */
   parentStyles?: Partial<CSSStyleDeclaration>;
 }

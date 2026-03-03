@@ -24,6 +24,7 @@ interface PuzzleState {
 
   // Settings
   autoHint: boolean;
+  autoPlay: boolean;
   puzzleEngine: PuzzleEngine;
 
   // Engine search settings (Komodo only)
@@ -43,6 +44,7 @@ interface PuzzleState {
   setSolved: (solved: boolean) => void;
   setFen: (fen: string | null) => void;
   setAutoHint: (enabled: boolean) => void;
+  setAutoPlay: (enabled: boolean) => void;
   setPuzzleEngine: (engine: PuzzleEngine) => void;
   setSearchMode: (mode: PuzzleSearchMode) => void;
   setSearchNodes: (value: number) => void;
@@ -67,10 +69,11 @@ export const usePuzzleStore = create<PuzzleState>()(
   playerColor: null,
   currentFen: null,
   autoHint: true, // Auto hint enabled by default
+  autoPlay: false,
   puzzleEngine: 'komodo' as PuzzleEngine,
-  searchMode: 'nodes' as PuzzleSearchMode,
+  searchMode: 'depth' as PuzzleSearchMode,
   searchNodes: 1_000_000,
-  searchDepth: 20,
+  searchDepth: 5,
   searchMovetime: 2000,
   suggestions: [],
   suggestion: null,
@@ -120,6 +123,11 @@ export const usePuzzleStore = create<PuzzleState>()(
   setAutoHint: (enabled) => {
     logger.log(`[puzzle] autoHint: ${enabled}`);
     set({ autoHint: enabled });
+  },
+
+  setAutoPlay: (enabled) => {
+    logger.log(`[puzzle] autoPlay: ${enabled}`);
+    set({ autoPlay: enabled });
   },
 
   setPuzzleEngine: (engine) => {
@@ -184,6 +192,7 @@ export const usePuzzleStore = create<PuzzleState>()(
       name: 'chessr-puzzle-settings',
       partialize: (state) => ({
         autoHint: state.autoHint,
+        autoPlay: state.autoPlay,
         puzzleEngine: state.puzzleEngine,
         searchMode: state.searchMode,
         searchNodes: state.searchNodes,

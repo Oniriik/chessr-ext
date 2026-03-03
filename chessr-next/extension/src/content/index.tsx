@@ -19,8 +19,14 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
   const targetElement = document.querySelector(mountPoint.selector);
   if (!targetElement) return;
 
-  // Already mounted
-  if (mountedRoots.has(mountPoint.id)) return;
+  // Already mounted — but check if container is still in the document
+  const existing = mountedRoots.get(mountPoint.id);
+  if (existing) {
+    if (existing.container.isConnected) return;
+    // Container was detached (SPA re-render), clean up and re-mount
+    existing.root.unmount();
+    mountedRoots.delete(mountPoint.id);
+  }
 
   const container = document.createElement('div');
   container.id = `chessr-${mountPoint.id}`;
@@ -46,6 +52,11 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
       targetElement.appendChild(container);
       parentForStyles = targetElement;
       break;
+  }
+
+  // Apply container styles if specified
+  if (mountPoint.containerStyles) {
+    Object.assign(container.style, mountPoint.containerStyles);
   }
 
   // Apply parent styles if specified
@@ -100,7 +111,7 @@ updateMounts();
 // Initialize anonymous blur for platform page elements
 initAnonymousBlur();
 
-// Watch for URL changes (SPA navigation)
+// Watch for URL changes and DOM updates (SPA navigation + async rendering)
 let lastUrl = getRealHref();
 const observer = new MutationObserver(() => {
   const currentReal = getRealHref();
@@ -108,6 +119,9 @@ const observer = new MutationObserver(() => {
     lastUrl = currentReal;
     updateMounts();
     rescanAnonymousBlur();
+  } else {
+    // Retry mounting components whose selectors weren't found initially
+    updateMounts();
   }
 });
 

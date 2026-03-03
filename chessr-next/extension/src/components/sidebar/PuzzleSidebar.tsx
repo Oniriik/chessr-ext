@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles } from 'lucide-react';
+import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles, Zap } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
@@ -9,61 +9,85 @@ import { useAuthStore } from '../../stores/authStore';
 import { usePuzzleStore, type PuzzleSearchMode, type PuzzleEngine } from '../../stores/puzzleStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 import { useMaiaWebSocketStore } from '../../stores/maiaWebSocketStore';
-import { extractFenFromBoard, getPlayerColorFromDOM } from '../../lib/chesscom/extractFenFromBoard';
+import { extractFenFromBoard as chesscomExtractFen, getPlayerColorFromDOM as chesscomGetPlayerColor } from '../../lib/chesscom/extractFenFromBoard';
+import { extractFenFromBoard as lichessExtractFen, getPlayerColorFromDOM as lichessGetPlayerColor, detectPuzzleStarted as lichessDetectStarted, detectPuzzleSolved as lichessDetectSolved } from '../../lib/lichess/puzzleFen';
 import { usePuzzleSuggestionTrigger } from '../../hooks/usePuzzleSuggestionTrigger';
 import { usePuzzleArrowRenderer } from '../../hooks/usePuzzleArrowRenderer';
+import { usePlatform } from '../../contexts/PlatformContext';
 import { logger } from '../../lib/logger';
 import { usePlanLimits } from '../../lib/planUtils';
 
 /**
  * Hook that detects puzzle state and syncs with puzzle store
+ * Platform-aware: uses Chess.com or Lichess extractors based on current platform
  */
 function usePuzzleDetection() {
   const { isStarted, isSolved, playerColor, setStarted, setSolved, setFen } = usePuzzleStore();
+  const { platform } = usePlatform();
+  const isLichess = platform.id === 'lichess';
 
   const detect = useCallback(() => {
-    // Check if puzzle is solved
-    const solvedElement = !!document.querySelector('.coach-dialogue-solved');
-    if (solvedElement !== isSolved) {
-      logger.log(`[puzzle-detect] Solved state changed: ${solvedElement}`);
-      setSolved(solvedElement);
-    }
-
-    // If solved, don't process further
-    if (solvedElement) {
-      return;
-    }
-
-    // Method 1: Learning puzzles have the "to move" heading
-    const toMoveHeading = document.querySelector('[data-cy="to-move-section-heading"]');
-    // Method 2: Rated puzzles have the coach feedback element
-    const coachFeedback = document.querySelector('.cc-coach-feedback-detail-colorToMove');
-    // Method 3: Daily puzzles have the message color indicator
-    const dailyColorIndicator = document.querySelector('.message-color-to-move-square');
-    // Method 4: Puzzle rush has section heading with color
-    const rushHeading = document.querySelector('.section-heading-component.section-heading-lightGrey, .section-heading-component.section-heading-black');
-    const newIsStarted = !!(toMoveHeading || coachFeedback || dailyColorIndicator || rushHeading);
-
-    // Detect player color
-    const newPlayerColor = getPlayerColorFromDOM();
-
-    // Update store if changed
-    if (newIsStarted !== isStarted || newPlayerColor !== playerColor) {
-      logger.log(`[puzzle-detect] State changed: isStarted=${newIsStarted}, playerColor=${newPlayerColor}`);
-      setStarted(newIsStarted, newPlayerColor);
-    }
-
-    // Extract FEN if puzzle is started
-    if (newIsStarted) {
-      const fen = extractFenFromBoard();
-      if (fen) {
-        const fenPosition = fen.split(' ')[0];
-        const fenTurn = fen.split(' ')[1];
-        logger.log(`[puzzle-detect] FEN extracted: turn=${fenTurn}, position=${fenPosition.substring(0, 20)}...`);
+    if (isLichess) {
+      // --- Lichess detection ---
+      const newIsSolved = lichessDetectSolved();
+      if (newIsSolved !== isSolved) {
+        logger.log(`[puzzle-detect-lichess] Solved state changed: ${newIsSolved}`);
+        setSolved(newIsSolved);
       }
-      setFen(fen);
+
+      if (newIsSolved) return;
+
+      const newIsStarted = lichessDetectStarted();
+      const newPlayerColor = lichessGetPlayerColor();
+
+      if (newIsStarted !== isStarted || newPlayerColor !== playerColor) {
+        logger.log(`[puzzle-detect-lichess] State changed: isStarted=${newIsStarted}, playerColor=${newPlayerColor}`);
+        setStarted(newIsStarted, newPlayerColor);
+      }
+
+      if (newIsStarted) {
+        const fen = lichessExtractFen();
+        if (fen) {
+          const fenPosition = fen.split(' ')[0];
+          const fenTurn = fen.split(' ')[1];
+          logger.log(`[puzzle-detect-lichess] FEN extracted: turn=${fenTurn}, position=${fenPosition.substring(0, 20)}...`);
+        }
+        setFen(fen);
+      }
+    } else {
+      // --- Chess.com detection ---
+      const solvedElement = !!document.querySelector('.coach-dialogue-solved');
+      if (solvedElement !== isSolved) {
+        logger.log(`[puzzle-detect] Solved state changed: ${solvedElement}`);
+        setSolved(solvedElement);
+      }
+
+      if (solvedElement) return;
+
+      const toMoveHeading = document.querySelector('[data-cy="to-move-section-heading"]');
+      const coachFeedback = document.querySelector('.cc-coach-feedback-detail-colorToMove');
+      const dailyColorIndicator = document.querySelector('.message-color-to-move-square');
+      const rushHeading = document.querySelector('.section-heading-component.section-heading-lightGrey, .section-heading-component.section-heading-black');
+      const newIsStarted = !!(toMoveHeading || coachFeedback || dailyColorIndicator || rushHeading);
+
+      const newPlayerColor = chesscomGetPlayerColor();
+
+      if (newIsStarted !== isStarted || newPlayerColor !== playerColor) {
+        logger.log(`[puzzle-detect] State changed: isStarted=${newIsStarted}, playerColor=${newPlayerColor}`);
+        setStarted(newIsStarted, newPlayerColor);
+      }
+
+      if (newIsStarted) {
+        const fen = chesscomExtractFen();
+        if (fen) {
+          const fenPosition = fen.split(' ')[0];
+          const fenTurn = fen.split(' ')[1];
+          logger.log(`[puzzle-detect] FEN extracted: turn=${fenTurn}, position=${fenPosition.substring(0, 20)}...`);
+        }
+        setFen(fen);
+      }
     }
-  }, [isStarted, isSolved, playerColor, setStarted, setSolved, setFen]);
+  }, [isStarted, isSolved, playerColor, isLichess, setStarted, setSolved, setFen]);
 
   useEffect(() => {
     // Initial detection
@@ -78,7 +102,7 @@ function usePuzzleDetection() {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class'],
+      attributeFilter: ['class', 'style'],
     });
 
     return () => observer.disconnect();
@@ -222,7 +246,7 @@ function formatSearchValue(mode: PuzzleSearchMode, nodes: number, depth: number,
 
 function PuzzleControls() {
   const {
-    autoHint, setAutoHint, isLoading, isStarted,
+    autoHint, setAutoHint, autoPlay, setAutoPlay, isLoading, isStarted,
     puzzleEngine, setPuzzleEngine,
     searchMode, setSearchMode, searchNodes, setSearchNodes,
     searchDepth, setSearchDepth, searchMovetime, setSearchMovetime,
@@ -313,6 +337,20 @@ function PuzzleControls() {
             onCheckedChange={setAutoHint}
           />
         </div>
+
+        {/* Auto play toggle (requires auto hint) */}
+        {autoHint && (
+          <div className="tw-flex tw-items-center tw-justify-between">
+            <div className="tw-flex tw-items-center tw-gap-2">
+              <Zap className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
+              <span className="tw-text-sm tw-text-foreground">Auto Play</span>
+            </div>
+            <Switch
+              checked={autoPlay}
+              onCheckedChange={setAutoPlay}
+            />
+          </div>
+        )}
 
         {/* Search mode selector (Komodo only) */}
         {!isMaia && (
