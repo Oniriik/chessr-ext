@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../ui/card';
 import { Slider } from '../ui/slider';
 import { Checkbox } from '../ui/checkbox';
@@ -12,6 +13,7 @@ import { isPremium } from '../../lib/planUtils';
 // Maia Target ELO Section (Your ELO)
 // ============================================================================
 function MaiaTargetEloSection() {
+  const { t } = useTranslation('engine');
   const {
     maiaEloSelfAuto, setMaiaEloSelfAuto,
     maiaEloSelf, setMaiaEloSelf,
@@ -24,7 +26,7 @@ function MaiaTargetEloSection() {
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <p className="tw-text-sm tw-font-medium">Target ELO</p>
+        <p className="tw-text-sm tw-font-medium">{t('targetElo')}</p>
         <span className="tw-text-base tw-font-bold tw-text-primary">
           {effectiveElo}
         </span>
@@ -44,7 +46,7 @@ function MaiaTargetEloSection() {
           onCheckedChange={(checked) => setMaiaEloSelfAuto(checked === true)}
         />
         <span className="tw-text-xs tw-text-muted-foreground">
-          Auto ({autoLabel})
+          {t('auto')} ({autoLabel})
         </span>
       </label>
     </div>
@@ -55,6 +57,7 @@ function MaiaTargetEloSection() {
 // Maia Opponent ELO Section
 // ============================================================================
 function MaiaOpponentEloSection() {
+  const { t } = useTranslation('engine');
   const {
     maiaEloOppoAuto, setMaiaEloOppoAuto,
     maiaEloOppo, setMaiaEloOppo,
@@ -66,7 +69,7 @@ function MaiaOpponentEloSection() {
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <p className="tw-text-sm tw-font-medium">Opponent ELO</p>
+        <p className="tw-text-sm tw-font-medium">{t('opponentElo')}</p>
         <span className="tw-text-base tw-font-bold tw-text-primary">
           {effectiveElo}
         </span>
@@ -86,7 +89,7 @@ function MaiaOpponentEloSection() {
           onCheckedChange={(checked) => setMaiaEloOppoAuto(checked === true)}
         />
         <span className="tw-text-xs tw-text-muted-foreground">
-          Auto ({opponentElo})
+          {t('auto')} ({opponentElo})
         </span>
       </label>
     </div>
@@ -97,25 +100,26 @@ function MaiaOpponentEloSection() {
 // Maia Mode Section
 // ============================================================================
 function MaiaModeSection() {
+  const { t } = useTranslation('engine');
   const { maiaMode, setMaiaMode } = useEngineStore();
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
-        <span className="tw-text-sm tw-font-medium">Mode</span>
+        <span className="tw-text-sm tw-font-medium">{t('mode')}</span>
         <select
           value={maiaMode}
           onChange={(e) => setMaiaMode(e.target.value as MaiaMode)}
           className="tw-w-[140px] tw-h-9 tw-px-3 tw-py-1 tw-text-sm tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer tw-appearance-none tw-bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22none%22%20stroke%3D%22%23888%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m2%204%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] tw-bg-[length:12px] tw-bg-[right_8px_center] tw-bg-no-repeat tw-pr-8"
         >
-          <option value="rapid">Rapid</option>
-          <option value="blitz">Blitz</option>
+          <option value="rapid">{t('rapid')}</option>
+          <option value="blitz">{t('blitz')}</option>
         </select>
       </div>
       <p className="tw-text-xs tw-text-muted-foreground">
         {maiaMode === 'rapid'
-          ? 'Trained on rapid games — more thoughtful, positional play'
-          : 'Trained on blitz games — faster, more intuitive decisions'}
+          ? t('rapidDesc')
+          : t('blitzDesc')}
       </p>
     </div>
   );
@@ -125,6 +129,7 @@ function MaiaModeSection() {
 // Maia Connection Status Card
 // ============================================================================
 export function MaiaConnectionCard() {
+  const { t } = useTranslation(['engine', 'common']);
   const { isConnected, isConnecting, connect } = useMaiaWebSocketStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
@@ -133,7 +138,7 @@ export function MaiaConnectionCard() {
     <Card className="tw-bg-muted/50 tw-overflow-hidden">
       <CardContent className="tw-p-4 tw-space-y-2">
         <div className="tw-flex tw-items-center tw-justify-between">
-          <span className="tw-text-sm tw-font-semibold">Maia-2 Connection</span>
+          <span className="tw-text-sm tw-font-semibold">{t('maia2Connection')}</span>
           <div className="tw-flex tw-items-center tw-gap-2">
             <span
               className={`tw-h-2 tw-w-2 tw-rounded-full ${
@@ -145,7 +150,7 @@ export function MaiaConnectionCard() {
               }`}
             />
             <span className="tw-text-xs tw-text-muted-foreground">
-              {isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected'}
+              {isConnected ? t('connected') : isConnecting ? t('connecting') : t('disconnected')}
             </span>
           </div>
         </div>
@@ -153,7 +158,7 @@ export function MaiaConnectionCard() {
         {/* Premium gate */}
         {!premium && (
           <p className="tw-text-xs tw-text-amber-500 tw-font-medium">
-            Upgrade to premium to use Maia engine
+            {t('upgradePremiumMaia')}
           </p>
         )}
 
@@ -161,20 +166,20 @@ export function MaiaConnectionCard() {
         {premium && !isConnected && !isConnecting && (
           <>
             <p className="tw-text-xs tw-text-muted-foreground">
-              Launch the Chessr Maia app to connect
+              {t('launchMaiaApp')}
             </p>
             <div className="tw-flex tw-gap-2">
               <button
                 onClick={() => window.open('https://download.chessr.io', '_blank')}
                 className="tw-flex-1 tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-bg-primary tw-text-primary-foreground hover:tw-bg-primary/90 tw-transition-colors"
               >
-                Download
+                {t('common:download')}
               </button>
               <button
                 onClick={() => connect()}
                 className="tw-flex-1 tw-h-8 tw-text-xs tw-font-medium tw-rounded-md tw-border tw-border-input tw-bg-background hover:tw-bg-muted tw-transition-colors"
               >
-                Retry connection
+                {t('retryConnection')}
               </button>
             </div>
           </>
@@ -183,7 +188,7 @@ export function MaiaConnectionCard() {
         {/* Connected */}
         {premium && isConnected && (
           <p className="tw-text-xs tw-text-muted-foreground">
-            Connected to local Maia-2 engine
+            {t('connectedToMaia')}
           </p>
         )}
       </CardContent>
@@ -195,6 +200,7 @@ export function MaiaConnectionCard() {
 // Main MaiaSettings Card (Collapsible)
 // ============================================================================
 export function MaiaSettings() {
+  const { t } = useTranslation('engine');
   const [expanded, setExpanded] = useState(true);
   const { getMaiaEloSelf, getMaiaEloOppo, maiaMode } = useEngineStore();
 
@@ -209,7 +215,7 @@ export function MaiaSettings() {
         className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-4 tw-cursor-pointer hover:tw-bg-muted/30 tw-transition-all tw-duration-200 tw-bg-transparent tw-rounded-lg"
       >
         <div className="tw-flex tw-flex-col tw-items-start tw-gap-1.5 tw-flex-1">
-          <span className="tw-text-sm tw-font-semibold">Maia-2 Settings</span>
+          <span className="tw-text-sm tw-font-semibold">{t('maia2Settings')}</span>
           {!expanded && (
             <div className="tw-flex tw-items-center tw-gap-1.5 tw-text-[11px]">
               <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded tw-font-medium">

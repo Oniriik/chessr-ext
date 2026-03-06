@@ -1,0 +1,18 @@
+{
+  "puzzleSolved": "Puzzle résolu !",
+  "greatJob": "Bravo ! Essayez le suivant",
+  "startPuzzle": "Lancez un puzzle pour obtenir des suggestions",
+  "clickHintBelow": "Cliquez sur indice ci-dessous",
+  "waiting": "En attente...",
+  "autoHint": "Indice auto",
+  "autoPlay": "Jeu auto",
+  "showHint": "Afficher l'indice",
+  "connectingToServer": "Connexion au serveur...",
+  "maiaConnectedFull": "Maia connecté — pleine puissance",
+  "connectingToMaia": "Connexion à Maia...",
+  "maiaDisconnected": "Maia déconnecté — lancez l'application",
+  "puzzleHints": "Indices de puzzle",
+  "upgradePuzzleSuggestions": "Passez à Premium pour débloquer les suggestions de puzzle",
+  "getBestMove": "Obtenez le meilleur coup pour chaque puzzle",
+  "komodoDragon": "Komodo Dragon"
+}

@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, Loader2, X, Check, ChevronDown, BookOpen, Lock } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -194,6 +195,7 @@ interface SelectedOpeningProps {
 }
 
 function SelectedOpening({ label, opening, onClear, color }: SelectedOpeningProps) {
+  const { t } = useTranslation('game');
   const pieceColor = color === 'white' ? 'tw-bg-white' : 'tw-bg-zinc-800';
   const ringColor = color === 'white' ? 'tw-ring-white/30' : 'tw-ring-zinc-600/30';
 
@@ -227,7 +229,7 @@ function SelectedOpening({ label, opening, onClear, color }: SelectedOpeningProp
         </div>
       ) : (
         <div className="tw-flex tw-items-center tw-justify-center tw-px-2 tw-py-3 tw-rounded-lg tw-bg-muted/20 tw-border tw-border-dashed tw-border-border/40">
-          <span className="tw-text-[11px] tw-text-muted-foreground/70">Search below</span>
+          <span className="tw-text-[11px] tw-text-muted-foreground/70">{t('searchBelow')}</span>
         </div>
       )}
     </div>
@@ -253,6 +255,8 @@ function OpeningRow({
   onSelectWhite,
   onSelectBlack,
 }: OpeningRowProps) {
+  const { t } = useTranslation(['game', 'common']);
+
   const formatGames = (n: number) => {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (n >= 1_000) return `${(n / 1_000).toFixed(0)}k`;
@@ -272,7 +276,7 @@ function OpeningRow({
         </span>
         <span className="tw-text-sm tw-font-medium tw-truncate tw-flex-1">{opening.name}</span>
         <span className="tw-text-[10px] tw-text-muted-foreground tw-flex-shrink-0">
-          {formatGames(opening.totalGames)} games
+          {formatGames(opening.totalGames)} {t('common:games')}
         </span>
       </div>
 
@@ -299,7 +303,7 @@ function OpeningRow({
                   ? 'tw-bg-white tw-text-zinc-900 tw-ring-2 tw-ring-primary'
                   : 'tw-bg-white/90 tw-text-zinc-700 hover:tw-ring-2 hover:tw-ring-white/50'
               }`}
-              title="Use as White"
+              title={t('game:useAsWhite')}
             >
               {isWhiteSelected && <Check className="tw-h-3.5 tw-w-3.5" />}
             </button>
@@ -312,7 +316,7 @@ function OpeningRow({
                   ? 'tw-bg-zinc-800 tw-text-white tw-ring-2 tw-ring-primary'
                   : 'tw-bg-zinc-700 tw-text-zinc-300 hover:tw-ring-2 hover:tw-ring-zinc-500/50'
               }`}
-              title="Use as Black"
+              title={t('game:useAsBlack')}
             >
               {isBlackSelected && <Check className="tw-h-3.5 tw-w-3.5" />}
             </button>
@@ -333,6 +337,7 @@ const WHITE_MOVES = ['e4', 'd4', 'c4', 'nf3', 'g3', 'b3', 'f4'];
 export function OpeningRepertoireSelector() {
   const { repertoire, setWhiteOpening, setBlackOpening } = useOpeningStore();
   const { canUseFullOpeningDatabase } = usePlanLimits();
+  const { t } = useTranslation(['game', 'common']);
   const [expanded, setExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [colorFilter, setColorFilter] = useState<'white' | 'black' | null>(null);
@@ -568,13 +573,13 @@ export function OpeningRepertoireSelector() {
       >
         <div className="tw-flex tw-items-center tw-gap-3 tw-flex-1">
           <BookOpen className="tw-h-4 tw-w-4 tw-text-muted-foreground" />
-          <span className="tw-text-sm tw-font-semibold">Opening Repertoire</span>
+          <span className="tw-text-sm tw-font-semibold">{t('game:openingRepertoire')}</span>
           {!canUseFullOpeningDatabase && (
-            <UpgradeButton tooltip="Unlock 12,000+ openings" />
+            <UpgradeButton tooltip={t('game:unlockOpenings')} />
           )}
           {!expanded && selectedCount > 0 && (
             <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded-full tw-text-xs tw-font-medium">
-              {selectedCount} selected
+              {t('common:selected', { count: selectedCount })}
             </span>
           )}
         </div>
@@ -590,13 +595,13 @@ export function OpeningRepertoireSelector() {
             {/* Current selections: White and Black side by side */}
             <div className="tw-flex tw-gap-3">
               <SelectedOpening
-                label="White"
+                label={t('common:white')}
                 opening={repertoire.white}
                 onClear={handleClearWhite}
                 color="white"
               />
               <SelectedOpening
-                label="Black"
+                label={t('common:black')}
                 opening={repertoire.black}
                 onClear={handleClearBlack}
                 color="black"
@@ -610,7 +615,7 @@ export function OpeningRepertoireSelector() {
                 <Input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Italian, Sicilian, e4..."
+                  placeholder={t('game:searchPlaceholder')}
                   className="tw-pl-9 tw-pr-9 tw-h-9"
                 />
                 {searchQuery && (
@@ -636,7 +641,7 @@ export function OpeningRepertoireSelector() {
                   }`}
                 >
                   <div className="tw-w-2.5 tw-h-2.5 tw-rounded-sm tw-bg-white tw-ring-1 tw-ring-zinc-300" />
-                  White
+                  {t('common:white')}
                 </button>
                 <button
                   onClick={() => { setColorFilter(colorFilter === 'black' ? null : 'black'); setCounterMode(false); }}
@@ -647,7 +652,7 @@ export function OpeningRepertoireSelector() {
                   }`}
                 >
                   <div className="tw-w-2.5 tw-h-2.5 tw-rounded-sm tw-bg-zinc-800 tw-ring-1 tw-ring-zinc-600" />
-                  Black
+                  {t('common:black')}
                 </button>
                 {canUseCounter && (
                   <button
@@ -659,7 +664,7 @@ export function OpeningRepertoireSelector() {
                     }`}
                     title="Find Black responses to this opening"
                   >
-                    Counter
+                    {t('game:counter')}
                   </button>
                 )}
               </div>
@@ -675,12 +680,12 @@ export function OpeningRepertoireSelector() {
                 {noResultsQuery && !canUseFullOpeningDatabase ? (
                   <>
                     <p className="tw-text-sm tw-text-muted-foreground">
-                      No results for "{noResultsQuery}"
+                      {t('game:noResultsFor', { query: noResultsQuery })}
                     </p>
                     <div className="tw-flex tw-items-center tw-justify-center tw-gap-2 tw-mt-2">
                       <Lock className="tw-h-3.5 tw-w-3.5 tw-text-yellow-500" />
                       <p className="tw-text-xs tw-text-yellow-500/90">
-                        Upgrade for 12,000+ openings
+                        {t('game:upgradeForOpenings')}
                       </p>
                       <UpgradeButton tooltip="Unlock full opening database" />
                     </div>
@@ -688,10 +693,10 @@ export function OpeningRepertoireSelector() {
                 ) : (
                   <>
                     <p className="tw-text-sm tw-text-muted-foreground">
-                      No openings found
+                      {t('game:noOpeningsFound')}
                     </p>
                     <p className="tw-text-xs tw-text-muted-foreground/70 tw-mt-1">
-                      Try a different search term
+                      {t('game:tryDifferentSearch')}
                     </p>
                   </>
                 )}

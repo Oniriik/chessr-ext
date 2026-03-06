@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePuzzleStore } from '../stores/puzzleStore';
 import { OverlayManager } from '../content/overlay/OverlayManager';
 import { ArrowRenderer } from '../content/overlay/ArrowRenderer';
@@ -74,6 +75,7 @@ function parseUciMove(uciMove: string): { from: string; to: string } | null {
  * Hook that renders hint arrows for puzzles
  */
 export function usePuzzleArrowRenderer() {
+  const { t } = useTranslation('game');
   const { isStarted, playerColor, suggestions } = usePuzzleStore();
 
   const overlayRef = useRef<OverlayManager | null>(null);
@@ -157,7 +159,7 @@ export function usePuzzleArrowRenderer() {
       }
 
       const color = ARROW_COLORS[i] || ARROW_COLORS[ARROW_COLORS.length - 1];
-      const label = i === 0 ? 'Best' : `#${i + 1}`;
+      const label = i === 0 ? t('boardBadgeBest') : `#${i + 1}`;
 
       logger.log(`[puzzle-arrow] Drawing hint ${i + 1}: ${parsed.from} → ${parsed.to}`);
 
@@ -169,7 +171,7 @@ export function usePuzzleArrowRenderer() {
         label,
       });
     }
-  }, [suggestions, resizeCounter]);
+  }, [suggestions, resizeCounter, t]);
 
   // Update overlay when player color changes (board flip)
   useEffect(() => {

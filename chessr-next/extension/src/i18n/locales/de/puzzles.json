@@ -1,0 +1,18 @@
+{
+  "puzzleSolved": "Aufgabe gelöst!",
+  "greatJob": "Gut gemacht! Versuche die nächste",
+  "startPuzzle": "Starte eine Aufgabe, um Vorschläge zu erhalten",
+  "clickHintBelow": "Klicke unten auf Hinweis",
+  "waiting": "Warte...",
+  "autoHint": "Auto-Hinweis",
+  "autoPlay": "Auto-Spiel",
+  "showHint": "Hinweis anzeigen",
+  "connectingToServer": "Verbinde mit Server...",
+  "maiaConnectedFull": "Maia verbunden — volle Stärke",
+  "connectingToMaia": "Verbinde mit Maia...",
+  "maiaDisconnected": "Maia getrennt — starte die App",
+  "puzzleHints": "Aufgaben-Hinweise",
+  "upgradePuzzleSuggestions": "Upgrade, um Aufgaben-Vorschläge freizuschalten",
+  "getBestMove": "Erhalte den besten Zug für jede Aufgabe",
+  "komodoDragon": "Komodo Dragon"
+}

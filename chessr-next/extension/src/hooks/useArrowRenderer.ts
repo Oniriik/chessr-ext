@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Chess } from 'chess.js';
+import { useTranslation } from 'react-i18next';
 import { useGameStore } from '../stores/gameStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSuggestionStore, type Suggestion, type ConfidenceLabel } from '../stores/suggestionStore';
@@ -12,16 +13,25 @@ import { useOpeningStore } from '../stores/openingStore';
 import { useOpeningTracker } from './useOpeningTracker';
 import { useAlternativeOpenings } from './useAlternativeOpenings';
 import { OverlayManager } from '../content/overlay/OverlayManager';
-import { ArrowRenderer } from '../content/overlay/ArrowRenderer';
+import { ArrowRenderer, type Badge } from '../content/overlay/ArrowRenderer';
 import { logger } from '../lib/logger';
 
-// Confidence label to badge text
-const CONFIDENCE_LABELS: Record<ConfidenceLabel, string> = {
-  very_reliable: 'Best',
-  reliable: 'Safe',
-  playable: 'OK',
-  risky: 'Risky',
-  speculative: 'Risky',
+// Confidence label to badge type key (for color mapping)
+const CONFIDENCE_TYPES: Record<ConfidenceLabel, string> = {
+  very_reliable: 'best',
+  reliable: 'safe',
+  playable: 'ok',
+  risky: 'risky',
+  speculative: 'risky',
+};
+
+// Confidence label to i18n key
+const CONFIDENCE_I18N: Record<ConfidenceLabel, string> = {
+  very_reliable: 'boardBadgeBest',
+  reliable: 'boardBadgeSafe',
+  playable: 'boardBadgeOk',
+  risky: 'boardBadgeRisky',
+  speculative: 'boardBadgeRisky',
 };
 
 // Piece symbols for capture badges
@@ -29,19 +39,22 @@ const PIECE_SYMBOLS: Record<string, string> = {
   p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚',
 };
 
-// Piece names for promotion
-const PIECE_NAMES: Record<string, string> = {
-  q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight',
+// Piece name i18n keys for promotion
+const PIECE_I18N: Record<string, string> = {
+  q: 'boardPieceQueen', r: 'boardPieceRook', b: 'boardPieceBishop', n: 'boardPieceKnight',
 };
 
 /**
  * Build badges for a suggestion
  */
-function buildBadges(suggestion: Suggestion, fen: string): string[] {
-  const badges: string[] = [];
+function buildBadges(suggestion: Suggestion, fen: string, t: (key: string, opts?: Record<string, unknown>) => string): Badge[] {
+  const badges: Badge[] = [];
 
   // Quality badge
-  badges.push(CONFIDENCE_LABELS[suggestion.confidenceLabel]);
+  badges.push({
+    type: CONFIDENCE_TYPES[suggestion.confidenceLabel],
+    label: t(CONFIDENCE_I18N[suggestion.confidenceLabel]),
+  });
 
   // Compute move flags using chess.js
   try {
@@ -54,21 +67,22 @@ function buildBadges(suggestion: Suggestion, fen: string): string[] {
     if (move) {
       // Mate badge
       if (suggestion.mateScore !== undefined && suggestion.mateScore !== null) {
-        badges.push(`Mate ${Math.abs(suggestion.mateScore)}`);
+        badges.push({ type: 'mate', label: t('boardBadgeMateIn', { count: Math.abs(suggestion.mateScore) }) });
       } else if (chess.isCheckmate()) {
-        badges.push('Mate');
+        badges.push({ type: 'mate', label: t('boardBadgeMate') });
       } else if (chess.isCheck()) {
-        badges.push('Check');
+        badges.push({ type: 'check', label: t('boardBadgeCheck') });
       }
 
       // Capture badge
       if (move.captured) {
-        badges.push(`x ${PIECE_SYMBOLS[move.captured] || ''}`);
+        badges.push({ type: 'capture', label: `x ${PIECE_SYMBOLS[move.captured] || ''}` });
       }
 
       // Promotion badge
       if (move.promotion) {
-        badges.push(`${PIECE_SYMBOLS[move.promotion] || '♛'} ${PIECE_NAMES[move.promotion] || 'Queen'}`);
+        const pieceName = t(PIECE_I18N[move.promotion] || 'boardPieceQueen');
+        badges.push({ type: 'promotion', label: `${PIECE_SYMBOLS[move.promotion] || '♛'} ${pieceName}` });
       }
     }
   } catch {
@@ -146,6 +160,7 @@ function isBoardFlipped(): boolean {
 }
 
 export function useArrowRenderer() {
+  const { t } = useTranslation('game');
   const { isGameStarted, playerColor, currentTurn, chessInstance } =
     useGameStore();
   const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex, showingOpeningMoves, showingAlternativeIndex } = useSuggestionStore();
@@ -328,7 +343,7 @@ export function useArrowRenderer() {
           to: arrow.to,
           color: openingArrowColor,
           winRate: 0,
-          label: showDetailedMoveSuggestion ? `Alt ${arrow.rank}` : undefined, // Alt 1, Alt 2, Alt 3
+          label: showDetailedMoveSuggestion ? t('boardBadgeAlt', { rank: arrow.rank }) : undefined,
         });
       }
     }
@@ -403,7 +418,7 @@ export function useArrowRenderer() {
           to: openingParsed.to,
           color: openingArrowColor,
           winRate: 0,
-          label: showDetailedMoveSuggestion ? 'Opening' : undefined,
+          label: showDetailedMoveSuggestion ? t('boardBadgeOpening') : undefined,
         });
       }
     }
@@ -433,7 +448,7 @@ export function useArrowRenderer() {
     );
 
     // Build arrow data with length for sorting
-    const arrowData: { from: string; to: string; color: string; opacity: number; length: number; badges: string[]; rank: number }[] = [];
+    const arrowData: { from: string; to: string; color: string; opacity: number; length: number; badges: Badge[]; rank: number }[] = [];
 
     suggestionsToShow.forEach((suggestion, index) => {
       const parsed = parseUciMove(suggestion.move);
@@ -441,7 +456,7 @@ export function useArrowRenderer() {
 
       // Build badges if setting is enabled
       const badges = showDetailedMoveSuggestion && currentFen
-        ? buildBadges(suggestion, currentFen)
+        ? buildBadges(suggestion, currentFen, t)
         : [];
 
       arrowData.push({
@@ -508,6 +523,7 @@ export function useArrowRenderer() {
     openingTracker.openingMoves,
     openingTracker.currentMoveIndex,
     resizeCounter, // Trigger redraw when board resizes
+    t, // Trigger redraw on language change
   ]);
 
   // Update overlay when player color changes (board flip)

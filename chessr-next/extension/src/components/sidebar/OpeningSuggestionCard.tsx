@@ -4,6 +4,7 @@
  * When deviated, shows compatible opening alternatives with preview
  */
 
+import { useTranslation } from 'react-i18next';
 import type { SavedOpening } from '../../stores/openingStore';
 import type { OpeningWithStats } from '../../lib/openingsDatabase';
 import { BookOpen, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react';
@@ -98,6 +99,7 @@ function AlternativeOpeningRow({
   onHoverPreviewEnd: () => void;
   color: string;
 }) {
+  const { t } = useTranslation('game');
   const winRate = playerColor === 'white' ? opening.whiteWinRate : opening.blackWinRate;
 
   return (
@@ -136,7 +138,7 @@ function AlternativeOpeningRow({
                 ? 'tw-bg-primary/20 tw-text-primary'
                 : 'tw-text-muted-foreground hover:tw-bg-muted'
             }`}
-            title={isShowingPreview ? 'Hide moves' : 'Show moves'}
+            title={isShowingPreview ? t('hideMoves') : t('showMoves')}
           >
             {isShowingPreview ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
           </button>
@@ -186,6 +188,7 @@ export function OpeningSuggestionCard({
   openingColor = '#a855f7',
 }: OpeningSuggestionCardProps) {
   const { canSeeAlternativeOpenings } = usePlanLimits();
+  const { t } = useTranslation(['game', 'common']);
   // Find the index of the next player move in the opening sequence
   const nextMoveIndex =
     nextMove && isFollowing
@@ -228,7 +231,7 @@ export function OpeningSuggestionCard({
           {/* Deviation badge */}
           {hasDeviated && (
             <span className="tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded-md tw-font-medium tw-bg-rose-500/15 tw-text-rose-400">
-              Deviated
+              {t('game:deviated')}
             </span>
           )}
         </div>
@@ -252,7 +255,7 @@ export function OpeningSuggestionCard({
                 ? 'tw-bg-primary/20 tw-text-primary'
                 : 'tw-bg-transparent tw-text-muted-foreground hover:tw-bg-muted'
             }`}
-            title={isShowingMoves ? 'Hide moves' : 'Show moves'}
+            title={isShowingMoves ? t('game:hideMoves') : t('game:showMoves')}
           >
             {isShowingMoves ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
           </button>
@@ -290,7 +293,7 @@ export function OpeningSuggestionCard({
       {hasDeviated && (
         <div className="tw-mt-3 tw-pt-2 tw-border-t tw-border-rose-500/20">
           <div className="tw-text-[10px] tw-font-medium tw-text-muted-foreground tw-uppercase tw-tracking-wide tw-mb-2">
-            Alternative Openings
+            {t('game:alternativeOpenings')}
           </div>
 
           {isLoadingAlternatives ? (
@@ -306,10 +309,10 @@ export function OpeningSuggestionCard({
                 </div>
                 <div>
                   <p className="tw-text-sm tw-font-semibold tw-text-foreground">
-                    {alternatives.length || alternativesCount} Alternatives Found
+                    {t('game:alternativesFound', { count: alternatives.length || alternativesCount })}
                   </p>
                   <p className="tw-text-xs tw-text-muted-foreground tw-mt-1">
-                    See compatible openings for this position
+                    {t('game:seeCompatibleOpenings')}
                   </p>
                 </div>
               </div>
@@ -318,12 +321,12 @@ export function OpeningSuggestionCard({
                 className="tw-w-full tw-mt-4 tw-py-2 tw-px-3 tw-rounded-md tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-text-sm tw-font-medium tw-transition-colors tw-flex tw-items-center tw-justify-center tw-gap-2"
               >
                 <Sparkles className="tw-w-4 tw-h-4" />
-                Upgrade to Unlock
+                {t('common:upgradeToUnlock')}
               </button>
             </div>
           ) : alternatives.length === 0 ? (
             <div className="tw-text-center tw-py-3">
-              <p className="tw-text-xs tw-text-muted-foreground">No alternatives found</p>
+              <p className="tw-text-xs tw-text-muted-foreground">{t('game:noAlternativesFound')}</p>
             </div>
           ) : (
             <div className="tw-space-y-1.5">

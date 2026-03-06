@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Cpu, Sparkles, X } from 'lucide-react';
 import { useMaintenanceStore } from '../../stores/maintenanceStore';
 import { useDiscordStore } from '../../stores/discordStore';
@@ -9,8 +10,8 @@ const STORAGE_KEY = 'chessr-last-tip-id';
 interface Tip {
   id: string;
   icon: typeof Cpu;
-  title: string;
-  subtitle: string;
+  titleKey: string;
+  subtitleKey: string;
   action: 'settings' | null;
 }
 
@@ -18,15 +19,15 @@ const TIPS: Tip[] = [
   {
     id: 'maia-engine',
     icon: Cpu,
-    title: 'Try Maia Engine',
-    subtitle: 'Play like a human at any ELO — configure in Settings',
+    titleKey: 'tipMaiaTitle',
+    subtitleKey: 'tipMaiaDesc',
     action: 'settings',
   },
   {
     id: 'move-explanations',
     icon: Sparkles,
-    title: 'Move Explanations',
-    subtitle: 'Click the sparkles icon on any suggested move to get explanations',
+    titleKey: 'tipExplanationsTitle',
+    subtitleKey: 'tipExplanationsDesc',
     action: null,
   },
 ];
@@ -44,6 +45,7 @@ export function TipsBanner() {
   const inGuild = useDiscordStore((s) => s.inGuild);
   const [dismissed, setDismissed] = useState(false);
   const [tip] = useState(getNextTip);
+  const { t } = useTranslation('banners');
 
   if (scheduledAt || !isLinked || !inGuild || dismissed) return null;
 
@@ -70,8 +72,8 @@ export function TipsBanner() {
         <Icon className="tw-w-4 tw-h-4 tw-text-violet-400" />
       </div>
       <div className="tw-flex-1 tw-min-w-0">
-        <p className="tw-text-xs tw-font-semibold">{tip.title}</p>
-        <p className="tw-text-[10px] tw-text-violet-300/70 tw-leading-tight">{tip.subtitle}</p>
+        <p className="tw-text-xs tw-font-semibold">{t(tip.titleKey)}</p>
+        <p className="tw-text-[10px] tw-text-violet-300/70 tw-leading-tight">{t(tip.subtitleKey)}</p>
       </div>
       <button
         onClick={handleDismiss}

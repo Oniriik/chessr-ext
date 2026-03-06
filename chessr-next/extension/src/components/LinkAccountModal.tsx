@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link2, AlertCircle, Loader2, User, Clock, Sparkles } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
@@ -39,6 +40,8 @@ interface ErrorDisplayProps {
 }
 
 function ErrorDisplay({ error }: ErrorDisplayProps) {
+  const { t } = useTranslation(['banners', 'common']);
+
   // Cooldown gets special orange styling with upgrade button
   if (error.code === 'COOLDOWN') {
     return (
@@ -46,10 +49,10 @@ function ErrorDisplay({ error }: ErrorDisplayProps) {
         <div className="tw-flex tw-items-start tw-gap-2">
           <Clock className="tw-w-4 tw-h-4 tw-flex-shrink-0 tw-mt-0.5" />
           <div className="tw-flex-1">
-            <div className="tw-font-semibold tw-mb-0.5">Cooldown Active</div>
+            <div className="tw-font-semibold tw-mb-0.5">{t('banners:cooldownActive')}</div>
             <div className="tw-opacity-80 tw-mb-2">
               {error.hoursRemaining
-                ? `You need to wait ${error.hoursRemaining} more hours before linking this account again.`
+                ? t('banners:cooldownWait', { hours: error.hoursRemaining })
                 : error.message}
             </div>
             <Button
@@ -59,7 +62,7 @@ function ErrorDisplay({ error }: ErrorDisplayProps) {
               onClick={() => window.open(UPGRADE_URL, '_blank')}
             >
               <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
-              Upgrade to skip cooldown
+              {t('banners:upgradeSkipCooldown')}
             </Button>
           </div>
         </div>
@@ -68,8 +71,8 @@ function ErrorDisplay({ error }: ErrorDisplayProps) {
   }
 
   const title =
-    error.code === 'ALREADY_LINKED' ? 'Account Already Linked' :
-    error.code === 'LIMIT_REACHED' ? 'Limit Reached' : 'Error';
+    error.code === 'ALREADY_LINKED' ? t('banners:accountAlreadyLinked') :
+    error.code === 'LIMIT_REACHED' ? t('banners:limitReached') : t('common:error');
 
   return (
     <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-text-destructive tw-text-xs tw-rounded-lg tw-p-3">
@@ -92,6 +95,7 @@ export function LinkAccountModal() {
   const { setLoading, setLinkError } = useLinkedAccountsStore();
   const { signOut } = useAuthStore();
   const anonNames = useSettingsStore((s) => s.anonNames);
+  const { t } = useTranslation(['banners', 'common']);
   const [isLinking, setIsLinking] = useState(false);
 
   // Check if cooldown is active
@@ -157,7 +161,7 @@ export function LinkAccountModal() {
             {pendingProfile.username}
           </p>
           <p className="tw-text-xs tw-text-muted-foreground">
-            {platformName} Account
+            {t('banners:platformAccount', { platform: platformName })}
           </p>
         </div>
 
@@ -165,9 +169,9 @@ export function LinkAccountModal() {
         <div className="tw-p-4 tw-flex-1 tw-flex tw-flex-col">
           {/* Ratings */}
           <div className="tw-flex tw-justify-center tw-gap-3 tw-mb-4">
-            <RatingBadge label="Bullet" rating={pendingProfile.ratings.bullet} />
-            <RatingBadge label="Blitz" rating={pendingProfile.ratings.blitz} />
-            <RatingBadge label="Rapid" rating={pendingProfile.ratings.rapid} />
+            <RatingBadge label={t('banners:bullet')} rating={pendingProfile.ratings.bullet} />
+            <RatingBadge label={t('banners:blitz')} rating={pendingProfile.ratings.blitz} />
+            <RatingBadge label={t('banners:rapid')} rating={pendingProfile.ratings.rapid} />
           </div>
 
           {/* Cooldown message - shown instead of info box when cooldown is active */}
@@ -176,9 +180,9 @@ export function LinkAccountModal() {
               <div className="tw-flex tw-items-start tw-gap-2">
                 <Clock className="tw-w-4 tw-h-4 tw-text-warning tw-flex-shrink-0 tw-mt-0.5" />
                 <div className="tw-text-xs tw-text-warning">
-                  <span className="tw-font-semibold">Cooldown Active</span>
+                  <span className="tw-font-semibold">{t('banners:cooldownActive')}</span>
                   <p className="tw-opacity-80 tw-mt-1">
-                    This account was recently unlinked. You need to wait {cooldownHours} more hours before linking it again, or upgrade to Premium to skip the cooldown.
+                    {t('banners:cooldownUnlinked', { hours: cooldownHours })}
                   </p>
                 </div>
               </div>
@@ -188,8 +192,8 @@ export function LinkAccountModal() {
               <div className="tw-flex tw-items-start tw-gap-2">
                 <Link2 className="tw-w-4 tw-h-4 tw-text-primary tw-flex-shrink-0 tw-mt-0.5" />
                 <div className="tw-text-xs tw-text-muted-foreground">
-                  <span className="tw-font-medium tw-text-foreground">Link your account</span> to use Chessr.
-                  Each {platformName} account can only be linked to one Chessr account.
+                  <span className="tw-font-medium tw-text-foreground">{t('banners:linkAccount')}</span> {t('banners:linkAccountDesc')}
+                  {' '}{t('banners:eachAccountLimit', { platform: platformName })}
                 </div>
               </div>
             </div>
@@ -209,7 +213,7 @@ export function LinkAccountModal() {
                 onClick={() => window.open(UPGRADE_URL, '_blank')}
               >
                 <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
-                Upgrade to Skip Cooldown
+                {t('banners:upgradeToSkipCooldown')}
               </Button>
             ) : (
               <Button
@@ -220,12 +224,12 @@ export function LinkAccountModal() {
                 {isLoading ? (
                   <>
                     <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
-                    Linking...
+                    {t('banners:linking')}
                   </>
                 ) : (
                   <>
                     <Link2 className="tw-w-4 tw-h-4 tw-mr-2" />
-                    Link This Account
+                    {t('banners:linkThisAccount')}
                   </>
                 )}
               </Button>
@@ -237,7 +241,7 @@ export function LinkAccountModal() {
               onClick={() => signOut()}
               disabled={isLoading}
             >
-              Sign Out
+              {t('common:signOut')}
             </Button>
           </div>
         </div>

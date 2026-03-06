@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../ui/card';
 import { Slider } from '../ui/slider';
 import { Checkbox } from '../ui/checkbox';
@@ -6,8 +7,8 @@ import { Switch } from '../ui/switch';
 import { ChevronDown } from 'lucide-react';
 import {
   useEngineStore,
-  getAmbitionLabel,
-  getAmbitionDescription,
+  getAmbitionLabelKey,
+  getAmbitionDescKey,
   PERSONALITIES,
   PERSONALITY_INFO,
   type Personality,
@@ -20,6 +21,7 @@ import { UpgradeButton } from '../ui/plan-badge';
 // Target ELO Section
 // ============================================================================
 function TargetEloSection() {
+  const { t } = useTranslation(['engine', 'common']);
   const {
     opponentElo,
     userElo,
@@ -43,8 +45,8 @@ function TargetEloSection() {
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div className="tw-flex tw-items-center tw-gap-1.5">
-          <p className="tw-text-sm tw-font-medium">Target ELO</p>
-          {isLimited && <UpgradeButton tooltip="Unlock ELO 2000-3500" />}
+          <p className="tw-text-sm tw-font-medium">{t('targetElo')}</p>
+          {isLimited && <UpgradeButton tooltip={t('unlockEloRange')} />}
         </div>
         <span className="tw-text-base tw-font-bold tw-text-primary">
           {displayElo}
@@ -65,7 +67,7 @@ function TargetEloSection() {
           onCheckedChange={(checked) => setTargetEloAuto(checked === true)}
         />
         <span className="tw-text-xs tw-text-muted-foreground">
-          Auto ({autoLabel})
+          {t('auto')} ({autoLabel})
         </span>
       </label>
     </div>
@@ -76,6 +78,7 @@ function TargetEloSection() {
 // Ambition Section
 // ============================================================================
 function AmbitionSection() {
+  const { t } = useTranslation('engine');
   const { ambition, ambitionAuto, setAmbition, setAmbitionAuto } = useEngineStore();
   const { canControlAmbition } = usePlanLimits();
   const isLimited = !canControlAmbition;
@@ -89,15 +92,15 @@ function AmbitionSection() {
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div className="tw-flex tw-items-center tw-gap-1.5">
-          <p className="tw-text-sm tw-font-medium">Ambition</p>
-          {isLimited && <UpgradeButton tooltip="Unlock full ambition control" />}
+          <p className="tw-text-sm tw-font-medium">{t('ambition')}</p>
+          {isLimited && <UpgradeButton tooltip={t('unlockAmbition')} />}
         </div>
         <div className="tw-flex tw-items-center tw-gap-2">
           {!effectiveAuto && (
             <span className="tw-text-xs tw-text-muted-foreground">{displayAmbition}%</span>
           )}
           <span className="tw-text-base tw-font-bold tw-text-primary">
-            {effectiveAuto ? 'Auto' : getAmbitionLabel(displayAmbition)}
+            {effectiveAuto ? t('auto') : t(getAmbitionLabelKey(displayAmbition))}
           </span>
         </div>
       </div>
@@ -117,12 +120,12 @@ function AmbitionSection() {
           disabled={isLimited}
         />
         <span className="tw-text-xs tw-text-muted-foreground">
-          Auto (engine default)
+          {t('autoEngineDefault')}
         </span>
       </label>
       {!effectiveAuto && (
         <p className="tw-text-xs tw-text-muted-foreground">
-          {getAmbitionDescription(displayAmbition)}
+          {t(getAmbitionDescKey(displayAmbition))}
         </p>
       )}
     </div>
@@ -135,6 +138,7 @@ function AmbitionSection() {
 // Personality Section
 // ============================================================================
 function PersonalitySection() {
+  const { t } = useTranslation('engine');
   const { personality, setPersonality } = useEngineStore();
   const { isPersonalityAllowed } = usePlanLimits();
   const info = PERSONALITY_INFO[personality];
@@ -152,8 +156,8 @@ function PersonalitySection() {
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div className="tw-flex tw-items-center tw-gap-1.5">
-          <span className="tw-text-sm tw-font-medium">Personality</span>
-          {!isPersonalityAllowed('Human') && <UpgradeButton tooltip="Unlock all 8 personalities" />}
+          <span className="tw-text-sm tw-font-medium">{t('personality')}</span>
+          {!isPersonalityAllowed('Human') && <UpgradeButton tooltip={t('unlockPersonalities')} />}
         </div>
         <select
           value={currentAllowed ? personality : 'Default'}
@@ -164,13 +168,13 @@ function PersonalitySection() {
             const allowed = isPersonalityAllowed(p);
             return (
               <option key={p} value={p} disabled={!allowed}>
-                {PERSONALITY_INFO[p].label}{!allowed ? ' 🔒' : ''}
+                {t(PERSONALITY_INFO[p].labelKey)}{!allowed ? ' 🔒' : ''}
               </option>
             );
           })}
         </select>
       </div>
-      <p className="tw-text-xs tw-text-muted-foreground">{info.description}</p>
+      <p className="tw-text-xs tw-text-muted-foreground">{t(info.descKey)}</p>
     </div>
   );
 }
@@ -179,6 +183,7 @@ function PersonalitySection() {
 // Variety Section
 // ============================================================================
 function VarietySection() {
+  const { t } = useTranslation('engine');
   const { variety, setVariety } = useEngineStore();
   const { canUseVariety } = usePlanLimits();
   const isLimited = !canUseVariety;
@@ -189,8 +194,8 @@ function VarietySection() {
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div className="tw-flex tw-items-center tw-gap-1.5">
-          <span className="tw-text-sm tw-font-medium">Move Variety</span>
-          {isLimited && <UpgradeButton tooltip="Unlock move variety control" />}
+          <span className="tw-text-sm tw-font-medium">{t('moveVariety')}</span>
+          {isLimited && <UpgradeButton tooltip={t('unlockVariety')} />}
         </div>
         <span className="tw-text-base tw-font-bold tw-text-primary">{displayVariety}</span>
       </div>
@@ -205,8 +210,8 @@ function VarietySection() {
       />
       <p className="tw-text-xs tw-text-muted-foreground">
         {displayVariety === 0
-          ? 'Engine always plays the strongest move'
-          : 'Higher values make moves less predictable but not always optimal'}
+          ? t('varietyZero')
+          : t('varietyDesc')}
       </p>
     </div>
   );
@@ -216,20 +221,21 @@ function VarietySection() {
 // Armageddon Section
 // ============================================================================
 function ArmageddonSection() {
+  const { t } = useTranslation(['engine', 'common']);
   const { armageddon, setArmageddon } = useEngineStore();
   const playerColor = useGameStore((state) => state.playerColor);
   const { canUseArmageddon } = usePlanLimits();
 
-  const colorLabel = playerColor === 'white' ? 'White' : playerColor === 'black' ? 'Black' : 'You';
+  const colorLabel = playerColor === 'white' ? t('common:white') : playerColor === 'black' ? t('common:black') : 'You';
 
   return (
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div className="tw-flex tw-items-center tw-gap-1.5">
-          <span className="tw-text-sm tw-font-medium">Armageddon</span>
-          {!canUseArmageddon && <UpgradeButton tooltip="Unlock Armageddon mode" />}
+          <span className="tw-text-sm tw-font-medium">{t('armageddon')}</span>
+          {!canUseArmageddon && <UpgradeButton tooltip={t('unlockArmageddon')} />}
           {canUseArmageddon && armageddon && (
-            <span className="tw-text-xs tw-text-red-400">{colorLabel} must win</span>
+            <span className="tw-text-xs tw-text-red-400">{t('mustWin', { color: colorLabel })}</span>
           )}
         </div>
         <Switch
@@ -241,8 +247,8 @@ function ArmageddonSection() {
       </div>
       <p className="tw-text-xs tw-text-muted-foreground">
         {armageddon && canUseArmageddon
-          ? 'Engine will play aggressively to avoid draws'
-          : 'Enable to force wins — draws count as losses'}
+          ? t('armageddonActive')
+          : t('armageddonDesc')}
       </p>
     </div>
   );
@@ -252,6 +258,7 @@ function ArmageddonSection() {
 // Unlock ELO Section (visible only when targetElo >= 3000)
 // ============================================================================
 function UnlockEloSection() {
+  const { t } = useTranslation('engine');
   const {
     getTargetElo, disableLimitStrength, setDisableLimitStrength,
     searchMode, setSearchMode, searchNodes, setSearchNodes,
@@ -276,7 +283,7 @@ function UnlockEloSection() {
     <div className="tw-space-y-2">
       <div className="tw-flex tw-items-center tw-justify-between">
         <div>
-          <span className="tw-text-sm tw-font-medium">Unlock Full Strength</span>
+          <span className="tw-text-sm tw-font-medium">{t('unlockFullStrength')}</span>
         </div>
         <Switch
           checked={disableLimitStrength}
@@ -284,7 +291,7 @@ function UnlockEloSection() {
         />
       </div>
       <p className="tw-text-xs tw-text-muted-foreground">
-        Unlock maximum engine strength at 3500 ELO
+        {t('unlockFullStrengthDesc')}
       </p>
       {disableLimitStrength && (
         <div className="tw-space-y-2 tw-pt-1">
@@ -295,9 +302,9 @@ function UnlockEloSection() {
                 onChange={(e) => setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
                 className="tw-h-7 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
               >
-                <option value="nodes">Nodes</option>
-                <option value="depth">Depth</option>
-                <option value="movetime">Move Time</option>
+                <option value="nodes">{t('nodes')}</option>
+                <option value="depth">{t('depth')}</option>
+                <option value="movetime">{t('moveTime')}</option>
               </select>
             </div>
             <span className="tw-text-base tw-font-bold tw-text-primary">{formatSearchValue()}</span>
@@ -339,12 +346,13 @@ function UnlockEloSection() {
 // Main EloSettings Card (Collapsible)
 // ============================================================================
 export function EloSettings() {
+  const { t } = useTranslation('engine');
   const [expanded, setExpanded] = useState(true);
   const { getTargetElo, personality, ambition, ambitionAuto, armageddon } = useEngineStore();
   const { canControlAmbition, canUseArmageddon } = usePlanLimits();
 
   const targetElo = getTargetElo();
-  const personalityLabel = PERSONALITY_INFO[personality].label;
+  const personalityLabel = t(PERSONALITY_INFO[personality].labelKey);
   const isArmageddonActive = canUseArmageddon && armageddon;
   const effectiveAuto = !canControlAmbition || ambitionAuto;
 
@@ -356,12 +364,12 @@ export function EloSettings() {
         className="tw-w-full tw-flex tw-items-center tw-justify-between tw-p-4 tw-cursor-pointer hover:tw-bg-muted/30 tw-transition-all tw-duration-200 tw-bg-transparent tw-rounded-lg"
       >
         <div className="tw-flex tw-flex-col tw-items-start tw-gap-1.5 tw-flex-1">
-          <span className="tw-text-sm tw-font-semibold">Engine Settings</span>
+          <span className="tw-text-sm tw-font-semibold">{t('engineSettings')}</span>
           {!expanded && (
             <div className="tw-flex tw-items-center tw-gap-1.5 tw-text-[11px]">
               {isArmageddonActive ? (
                 <span className="tw-px-2 tw-py-0.5 tw-bg-red-500/20 tw-text-red-400 tw-rounded tw-font-medium">
-                  Armageddon
+                  {t('armageddon')}
                 </span>
               ) : (
                 <span className="tw-px-2 tw-py-0.5 tw-bg-primary/10 tw-text-primary tw-rounded tw-font-medium">
@@ -369,7 +377,7 @@ export function EloSettings() {
                 </span>
               )}
               <span className="tw-text-muted-foreground">•</span>
-              <span className="tw-text-muted-foreground">{effectiveAuto ? 'Auto' : `${ambition}%`} ambition</span>
+              <span className="tw-text-muted-foreground">{effectiveAuto ? t('auto') : `${ambition}%`} {t('ambition').toLowerCase()}</span>
               <span className="tw-text-muted-foreground">•</span>
               <span className="tw-text-muted-foreground">{personalityLabel}</span>
             </div>

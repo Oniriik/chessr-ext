@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { Button } from '../ui/button';
@@ -24,6 +25,7 @@ function DiscordIcon({ className }: { className?: string }) {
 }
 
 export function AuthForm({ compact = false }: AuthFormProps) {
+  const { t } = useTranslation(['auth', 'common']);
   const { signIn, signUp, resetPassword, resendConfirmationEmail, loading, error, clearError } = useAuthStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
@@ -44,12 +46,12 @@ export function AuthForm({ compact = false }: AuthFormProps) {
     clearError();
 
     if (mode === 'signup' && password !== confirmPassword) {
-      setLocalError('Passwords do not match');
+      setLocalError(t('auth:passwordsDoNotMatch'));
       return;
     }
 
     if (password.length < 6 && mode !== 'reset') {
-      setLocalError('Password must be at least 6 characters');
+      setLocalError(t('auth:passwordMinLength'));
       return;
     }
 
@@ -64,13 +66,13 @@ export function AuthForm({ compact = false }: AuthFormProps) {
     } else if (mode === 'signup') {
       const result = await signUp(email, password);
       if (result.success) {
-        setSuccessMessage('Account created! Please check your email to verify your account.');
+        setSuccessMessage(t('auth:accountCreated'));
         setConfirmedEmail(email);
       }
     } else if (mode === 'reset') {
       const result = await resetPassword(email);
       if (result.success) {
-        setSuccessMessage('Password reset email sent. Check your inbox.');
+        setSuccessMessage(t('auth:resetEmailSent'));
       }
     }
   };
@@ -82,7 +84,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
     setResendingEmail(false);
     if (result.success) {
       setNeedsEmailConfirmation(false);
-      setSuccessMessage('Confirmation email resent!');
+      setSuccessMessage(t('auth:confirmationResent'));
     }
   };
 
@@ -112,7 +114,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           <div>
             <span className="tw-text-lg tw-font-semibold">Chessr.io</span>
             <p className="tw-text-xs tw-text-muted-foreground">
-              {mode === 'login' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Reset password'}
+              {mode === 'login' ? t('auth:signIn') : mode === 'signup' ? t('auth:createAccount') : t('auth:resetPassword')}
             </p>
           </div>
         </div>
@@ -125,7 +127,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email"
+            placeholder={t('auth:email')}
             required
             className="tw-bg-muted/30 tw-h-9 tw-text-sm"
           />
@@ -137,7 +139,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
+              placeholder={t('auth:password')}
               required
               className="tw-bg-muted/30 tw-h-9 tw-text-sm"
             />
@@ -150,7 +152,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm password"
+              placeholder={t('auth:confirmPassword')}
               required
               className="tw-bg-muted/30 tw-h-9 tw-text-sm"
             />
@@ -172,7 +174,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           >
             {loading ? (
               <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
-            ) : mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Sign Up' : 'Reset'}
+            ) : mode === 'login' ? t('auth:signIn') : mode === 'signup' ? t('auth:signUp') : t('auth:reset')}
           </Button>
         </form>
 
@@ -181,16 +183,16 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           {mode === 'login' ? (
             <>
               <Button variant="link" size="sm" onClick={() => switchMode('signup')} className="tw-h-auto tw-p-0 tw-text-xs">
-                Create account
+                {t('auth:createAccount')}
               </Button>
               {' · '}
               <Button variant="link" size="sm" onClick={() => switchMode('reset')} className="tw-h-auto tw-p-0 tw-text-xs tw-text-muted-foreground">
-                Forgot password?
+                {t('auth:forgotPassword')}
               </Button>
             </>
           ) : (
             <Button variant="link" size="sm" onClick={() => switchMode('login')} className="tw-h-auto tw-p-0 tw-text-xs">
-              Back to login
+              {t('auth:backToLogin')}
             </Button>
           )}
         </div>
@@ -214,10 +216,10 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           </h1>
           <p className="tw-text-xs tw-text-muted-foreground">
             {mode === 'login'
-              ? 'Sign in to your account'
+              ? t('auth:signInToAccount')
               : mode === 'signup'
-                ? 'Create a new account'
-                : 'Reset your password'}
+                ? t('auth:createNewAccount')
+                : t('auth:resetYourPassword')}
           </p>
         </div>
 
@@ -227,7 +229,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
             {/* Email */}
             <div className="tw-space-y-1.5">
               <Label htmlFor="email" className="tw-text-xs tw-text-muted-foreground">
-                Email
+                {t('auth:email')}
               </Label>
               <div className="tw-relative">
                 <div className="tw-absolute tw-left-3 tw-top-0 tw-h-full tw-flex tw-items-center tw-pointer-events-none tw-z-10">
@@ -240,7 +242,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
+                  placeholder={t('auth:emailPlaceholder')}
                   required
                   className="tw-pl-10 tw-bg-muted/30 focus:tw-bg-muted/50"
                 />
@@ -251,7 +253,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
             {mode !== 'reset' && (
               <div className="tw-space-y-1.5">
                 <Label htmlFor="password" className="tw-text-xs tw-text-muted-foreground">
-                  Password
+                  {t('auth:password')}
                 </Label>
                 <div className="tw-relative">
                   <div className="tw-absolute tw-left-3 tw-top-0 tw-h-full tw-flex tw-items-center tw-pointer-events-none tw-z-10">
@@ -264,7 +266,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
+                    placeholder={t('auth:enterPassword')}
                     required
                     className="tw-pl-10 tw-bg-muted/30 focus:tw-bg-muted/50"
                   />
@@ -276,7 +278,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
             {mode === 'signup' && (
               <div className="tw-space-y-1.5">
                 <Label htmlFor="confirmPassword" className="tw-text-xs tw-text-muted-foreground">
-                  Confirm Password
+                  {t('auth:confirmPassword')}
                 </Label>
                 <div className="tw-relative">
                   <div className="tw-absolute tw-left-3 tw-top-0 tw-h-full tw-flex tw-items-center tw-pointer-events-none tw-z-10">
@@ -289,7 +291,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                     autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm your password"
+                    placeholder={t('auth:confirmYourPassword')}
                     required
                     className="tw-pl-10 tw-bg-muted/30 focus:tw-bg-muted/50"
                   />
@@ -307,8 +309,8 @@ export function AuthForm({ compact = false }: AuthFormProps) {
             {/* Email confirmation needed */}
             {needsEmailConfirmation && confirmedEmail && (
               <div className="tw-bg-warning/10 tw-border tw-border-warning/30 tw-text-warning tw-text-xs tw-rounded-lg tw-p-3">
-                <div className="tw-font-semibold tw-mb-1">Verify your email</div>
-                <div className="tw-opacity-80">We sent a confirmation email to:</div>
+                <div className="tw-font-semibold tw-mb-1">{t('auth:verifyEmail')}</div>
+                <div className="tw-opacity-80">{t('auth:sentConfirmationTo')}</div>
                 <div className="tw-font-medium tw-mt-0.5 tw-mb-2">{confirmedEmail}</div>
                 <Button
                   type="button"
@@ -319,7 +321,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                   className="tw-h-auto tw-p-0 tw-text-xs tw-text-warning hover:tw-text-warning/80"
                 >
                   {resendingEmail && <Loader2 className="tw-w-3 tw-h-3 tw-animate-spin tw-mr-1" />}
-                  Resend email
+                  {t('auth:resendEmail')}
                 </Button>
               </div>
             )}
@@ -329,8 +331,8 @@ export function AuthForm({ compact = false }: AuthFormProps) {
               <div className="tw-bg-success/10 tw-border tw-border-success/30 tw-text-success tw-text-xs tw-rounded-lg tw-p-3">
                 {confirmedEmail && !needsEmailConfirmation ? (
                   <>
-                    <div className="tw-font-semibold tw-mb-1">Verify your email</div>
-                    <div className="tw-opacity-80">We sent a confirmation email to:</div>
+                    <div className="tw-font-semibold tw-mb-1">{t('auth:verifyEmail')}</div>
+                    <div className="tw-opacity-80">{t('auth:sentConfirmationTo')}</div>
                     <div className="tw-font-medium tw-mt-0.5">{confirmedEmail}</div>
                   </>
                 ) : (
@@ -348,11 +350,11 @@ export function AuthForm({ compact = false }: AuthFormProps) {
               {loading ? (
                 <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
               ) : mode === 'login' ? (
-                'Sign In'
+                t('auth:signIn')
               ) : mode === 'signup' ? (
-                'Sign Up'
+                t('auth:signUp')
               ) : (
-                'Send Reset Email'
+                t('auth:sendResetEmail')
               )}
             </Button>
           </form>
@@ -367,17 +369,17 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                   onClick={() => switchMode('reset')}
                   className="tw-w-full tw-text-muted-foreground hover:tw-text-foreground tw-h-auto tw-p-0"
                 >
-                  Forgot password?
+                  {t('auth:forgotPassword')}
                 </Button>
                 <div className="tw-text-muted-foreground">
-                  Don't have an account?{' '}
+                  {t('auth:dontHaveAccount')}{' '}
                   <Button
                     variant="link"
                     size="sm"
                     onClick={() => switchMode('signup')}
                     className="tw-h-auto tw-p-0 tw-text-xs"
                   >
-                    Sign up
+                    {t('auth:signUp')}
                   </Button>
                 </div>
               </>
@@ -385,14 +387,14 @@ export function AuthForm({ compact = false }: AuthFormProps) {
 
             {mode === 'signup' && (
               <div className="tw-text-muted-foreground">
-                Already have an account?{' '}
+                {t('auth:alreadyHaveAccount')}{' '}
                 <Button
                   variant="link"
                   size="sm"
                   onClick={() => switchMode('login')}
                   className="tw-h-auto tw-p-0 tw-text-xs"
                 >
-                  Sign in
+                  {t('auth:signIn')}
                 </Button>
               </div>
             )}
@@ -404,7 +406,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                 onClick={() => switchMode('login')}
                 className="tw-w-full tw-text-muted-foreground hover:tw-text-foreground tw-h-auto tw-p-0"
               >
-                <ArrowLeft className="tw-w-3 tw-h-3 tw-mr-1" /> Back to login
+                <ArrowLeft className="tw-w-3 tw-h-3 tw-mr-1" /> {t('auth:backToLogin')}
               </Button>
             )}
           </div>
@@ -425,7 +427,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                   <path d="M2 12h20" />
                   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
-                Website
+                {t('common:website')}
               </a>
               <a
                 href={DISCORD_URL}
@@ -434,7 +436,7 @@ export function AuthForm({ compact = false }: AuthFormProps) {
                 className="tw-flex tw-items-center tw-justify-center tw-gap-2 tw-flex-1 tw-py-2.5 tw-px-4 tw-rounded-lg tw-bg-[#5865F2]/10 hover:tw-bg-[#5865F2]/20 tw-text-[#5865F2] tw-text-sm tw-font-medium tw-transition-colors"
               >
                 <DiscordIcon className="tw-w-4 tw-h-4" />
-                Discord
+                {t('common:discord')}
               </a>
             </div>
           </div>

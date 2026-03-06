@@ -18,6 +18,7 @@ export interface MoveExplanationParams {
   moveHistory: string[];
   isMaia: boolean;
   targetElo?: number;
+  language?: string;
 }
 
 export interface ExplanationResponse {

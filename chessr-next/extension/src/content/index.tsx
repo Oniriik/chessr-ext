@@ -3,6 +3,7 @@ import { getPlatformContext, MountPoint, RouteId } from '../platforms';
 import { PlatformProvider } from '../contexts/PlatformContext';
 import { initAnonymousBlur, rescanAnonymousBlur, getRealHref } from './anonymousBlur';
 import '../styles/content.css';
+import '../i18n/i18n';
 
 const mountedRoots: Map<string, { root: Root; container: HTMLElement }> = new Map();
 

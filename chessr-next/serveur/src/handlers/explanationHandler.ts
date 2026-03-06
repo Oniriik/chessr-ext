@@ -23,6 +23,7 @@ export interface MoveExplanationParams {
   moveHistory: string[];
   isMaia: boolean;
   targetElo?: number;
+  language?: string;
 }
 
 const SYSTEM_PROMPT = `You are an elite human chess coach explaining a suggested move to the player.
@@ -43,6 +44,14 @@ Include:
 Be practical and human. No engine tone.
 Do not repeat the move name or mention evaluation numbers.
 Avoid generic statements.`;
+
+const LANGUAGE_INSTRUCTIONS: Record<string, string> = {
+  fr: `Respond in French. Use proper French chess terminology: ouverture, milieu de partie, finale, échec, échec et mat, roque, nulle, clouage, fourchette, enfilade, pion, cavalier, fou, tour, dame, roi.`,
+  es: `Respond in Spanish. Use proper Spanish chess terminology: apertura, medio juego, final, jaque, jaque mate, enroque, tablas, clavada, horquilla, peón, caballo, alfil, torre, dama, rey.`,
+  'pt-BR': `Respond in Brazilian Portuguese. Use proper Portuguese chess terminology: abertura, meio-jogo, final, xeque, xeque-mate, roque, empate, cravada, garfo, peão, cavalo, bispo, torre, dama, rei.`,
+  de: `Respond in German. Use proper German chess terminology: Eröffnung, Mittelspiel, Endspiel, Schach, Schachmatt, Rochade, Remis, Fesselung, Gabel, Bauer, Springer, Läufer, Turm, Dame, König.`,
+  ar: `Respond in Arabic. Use proper Arabic chess terminology: افتتاحية, وسط اللعبة, نهاية اللعبة, كش, كش مات, تبييت, تعادل, تثبيت, شوكة, بيدق, حصان, فيل, رخ, وزير, ملك.`,
+};
 
 function formatContinuation(
   pvSan: string[],
@@ -87,9 +96,17 @@ export async function handleExplainMove(
 ): Promise<string> {
   const userPrompt = buildUserPrompt(params);
 
+  // Add language instruction if not English
+  const langInstruction = params.language && params.language !== 'en'
+    ? LANGUAGE_INSTRUCTIONS[params.language]
+    : null;
+  const systemPrompt = langInstruction
+    ? `${SYSTEM_PROMPT}\n\n${langInstruction}`
+    : SYSTEM_PROMPT;
+
   const { text } = await generateText({
     model,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     prompt: userPrompt,
     temperature: 0.4,
     maxOutputTokens: 200,

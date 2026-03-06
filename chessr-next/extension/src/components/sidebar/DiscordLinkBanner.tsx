@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { ExternalLink } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useDiscordStore } from '../../stores/discordStore';
@@ -17,6 +18,7 @@ function DiscordIcon({ className }: { className?: string }) {
 export function DiscordLinkBanner() {
   const plan = useAuthStore((s) => s.plan);
   const { isLinked, inGuild, freetrialUsed, isLinking, setLinking } = useDiscordStore();
+  const { t } = useTranslation('banners');
 
   // Linked + in guild → no banner
   if (isLinked && inGuild) return null;
@@ -34,8 +36,8 @@ export function DiscordLinkBanner() {
           <DiscordIcon className="tw-w-4.5 tw-h-4.5 tw-text-[#5865F2]" />
         </div>
         <div className="tw-flex-1 tw-min-w-0">
-          <p className="tw-text-xs tw-font-semibold">Join our Discord</p>
-          <p className="tw-text-[10px] tw-text-[#8b95d6] tw-leading-tight">Get real-time updates and help from the community</p>
+          <p className="tw-text-xs tw-font-semibold">{t('joinDiscord')}</p>
+          <p className="tw-text-[10px] tw-text-[#8b95d6] tw-leading-tight">{t('joinDiscordDesc')}</p>
         </div>
         <ExternalLink className="tw-w-3.5 tw-h-3.5 tw-text-[#5865F2]/60 tw-flex-shrink-0" />
       </a>
@@ -44,11 +46,11 @@ export function DiscordLinkBanner() {
 
   // Not linked → show "Link Discord" with contextual message
   const title = plan === 'free' && !freetrialUsed
-    ? 'Get 3 days free'
-    : 'Link Discord';
+    ? t('get3DaysFree')
+    : t('linkDiscord');
   const subtitle = plan === 'free' && !freetrialUsed
-    ? 'Connect your Discord to start your free trial'
-    : 'Connect your Discord account';
+    ? t('connectDiscordFreeTrial')
+    : t('connectDiscordAccount');
 
   const handleClick = () => {
     if (isLinking) return;
@@ -70,7 +72,7 @@ export function DiscordLinkBanner() {
       </div>
       <div className="tw-flex-1 tw-min-w-0">
         {isLinking ? (
-          <p className="tw-text-xs tw-font-medium">Redirecting to Discord...</p>
+          <p className="tw-text-xs tw-font-medium">{t('redirectingToDiscord')}</p>
         ) : (
           <>
             <p className="tw-text-xs tw-font-semibold">{title}</p>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Gamepad2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { useGameStore } from '../../stores/gameStore';
@@ -25,6 +26,7 @@ function PieceIndicator({ color, isActive = false, size = 'md' }: PieceIndicator
 }
 
 export function GameStatusCard() {
+  const { t } = useTranslation('common');
   const { isGameStarted, playerColor, currentTurn, redetect } = useGameStore();
 
   // Waiting state - friendly and minimal
@@ -38,10 +40,10 @@ export function GameStatusCard() {
             </div>
             <div className="tw-text-left">
               <p className="tw-text-sm tw-font-medium tw-text-foreground">
-                Ready to play
+                {t('readyToPlay')}
               </p>
               <p className="tw-text-xs tw-text-muted-foreground">
-                Start a game to see analysis
+                {t('startGameToSeeAnalysis')}
               </p>
             </div>
           </div>
@@ -62,7 +64,7 @@ export function GameStatusCard() {
             <button
               onClick={redetect}
               className="tw-relative tw-group tw-bg-transparent tw-border-0 tw-p-0 tw-cursor-pointer"
-              title="Refresh detection"
+              title={t('refreshDetection')}
             >
               <PieceIndicator
                 color={playerColor || 'white'}
@@ -73,9 +75,9 @@ export function GameStatusCard() {
               </div>
             </button>
             <div className="tw-leading-tight">
-              <p className="tw-text-xs tw-text-muted-foreground">You play</p>
+              <p className="tw-text-xs tw-text-muted-foreground">{t('youPlay')}</p>
               <p className="tw-text-sm tw-font-semibold">
-                {playerColor === 'white' ? 'White' : 'Black'}
+                {playerColor === 'white' ? t('white') : t('black')}
               </p>
             </div>
           </div>
@@ -90,7 +92,7 @@ export function GameStatusCard() {
               isYourTurn ? 'tw-bg-primary tw-animate-pulse' : 'tw-bg-muted-foreground/50'
             }`} />
             <span className="tw-text-xs tw-font-medium">
-              {isYourTurn ? 'Your turn' : 'Opponent\'s turn'}
+              {isYourTurn ? t('yourTurn') : t('opponentsTurn')}
             </span>
           </div>
         </div>

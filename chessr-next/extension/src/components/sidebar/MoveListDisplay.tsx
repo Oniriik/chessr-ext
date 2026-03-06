@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Chess } from 'chess.js';
 import { useSuggestions, useIsSuggestionLoading, useSuggestedFen, useSelectedSuggestionIndex, useSetSelectedSuggestionIndex, useSetHoveredSuggestionIndex, useShowingPvIndex, useSetShowingPvIndex, useShowingOpeningMoves, useSetShowingOpeningMoves, useShowingAlternativeIndex, useSetShowingAlternativeIndex, type Suggestion, type ConfidenceLabel } from '../../stores/suggestionStore';
 import { useGameStore } from '../../stores/gameStore';
@@ -27,11 +28,11 @@ function hexToRgba(hex: string, alpha: number): string {
 
 // Confidence label display config - coherent color palette
 const CONFIDENCE_CONFIG: Record<ConfidenceLabel, { label: string; bgClass: string; textClass: string; emoji?: string }> = {
-  very_reliable: { label: 'Best', bgClass: 'tw-bg-emerald-500/15', textClass: 'tw-text-emerald-400', emoji: '✓' },
-  reliable: { label: 'Good', bgClass: 'tw-bg-sky-500/15', textClass: 'tw-text-sky-400' },
-  playable: { label: 'OK', bgClass: 'tw-bg-slate-500/15', textClass: 'tw-text-slate-300' },
-  risky: { label: 'Sharp', bgClass: 'tw-bg-amber-500/15', textClass: 'tw-text-amber-400' },
-  speculative: { label: 'Risky', bgClass: 'tw-bg-rose-500/15', textClass: 'tw-text-rose-400' },
+  very_reliable: { label: 'confidenceBest', bgClass: 'tw-bg-emerald-500/15', textClass: 'tw-text-emerald-400', emoji: '✓' },
+  reliable: { label: 'confidenceGood', bgClass: 'tw-bg-sky-500/15', textClass: 'tw-text-sky-400' },
+  playable: { label: 'confidenceOk', bgClass: 'tw-bg-slate-500/15', textClass: 'tw-text-slate-300' },
+  risky: { label: 'confidenceSharp', bgClass: 'tw-bg-amber-500/15', textClass: 'tw-text-amber-400' },
+  speculative: { label: 'confidenceRisky', bgClass: 'tw-bg-rose-500/15', textClass: 'tw-text-rose-400' },
 };
 
 // Piece symbols for capture badges
@@ -156,6 +157,7 @@ interface SuggestionCardProps {
 }
 
 function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen, playerColor, arrowColor, isMaia, onSelect, onHoverStart, onHoverEnd, onTogglePv, onPvHoverStart, onPvHoverEnd, moveHistory }: SuggestionCardProps) {
+  const { t } = useTranslation(['game', 'common']);
   const [isHovered, setIsHovered] = useState(false);
   const [showExplanation, setShowExplanation] = useState(false);
   const config = CONFIDENCE_CONFIG[suggestion.confidenceLabel];
@@ -238,7 +240,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           </span>
           {/* Quality badge */}
           <span className={`tw-text-[10px] tw-px-1.5 tw-py-0.5 tw-rounded-md tw-font-medium ${config.bgClass} ${config.textClass}`}>
-            {config.label}
+            {t(config.label)}
           </span>
           {/* Effect badges */}
           {effectBadges.map((badge, i) => (
@@ -265,7 +267,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           </span>
           {/* Explain button */}
           {!isPremium ? (
-            <Tooltip content="Upgrade to unlock move explanations" side="top-left">
+            <Tooltip content={t('upgradeToUnlockExplanations')} side="top-left">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -279,9 +281,9 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           ) : (
             <Tooltip
               content={
-                limitReached && !explanation ? 'Daily limit reached'
-                : showExplanation ? 'Hide explanation'
-                : 'Get move explanation'
+                limitReached && !explanation ? t('dailyLimitReached')
+                : showExplanation ? t('hideExplanation')
+                : t('getExplanation')
               }
               side="top-left"
             >
@@ -351,7 +353,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
                   ? 'tw-bg-primary/20 tw-text-primary'
                   : 'tw-bg-transparent tw-text-muted-foreground hover:tw-bg-muted'
               }`}
-              title={isShowingPv ? 'Hide line' : 'Show line'}
+              title={isShowingPv ? t('hideLine') : t('showLine')}
             >
               {isShowingPv ? <Eye className="tw-w-3.5 tw-h-3.5" /> : <EyeOff className="tw-w-3.5 tw-h-3.5" />}
             </button>
@@ -386,7 +388,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
           {isExplanationLoading ? (
             <div className="tw-flex tw-items-center tw-gap-1.5 tw-py-1">
               <Loader2 className="tw-w-3 tw-h-3 tw-animate-spin tw-text-violet-400" />
-              <span className="tw-text-[11px] tw-text-violet-300/70">Thinking...</span>
+              <span className="tw-text-[11px] tw-text-violet-300/70">{t('thinking')}</span>
             </div>
           ) : explanation ? (
             <p className="tw-text-[11px] tw-text-violet-200/80 tw-leading-relaxed tw-m-0">
@@ -402,7 +404,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
             </p>
           ) : (
             <p className="tw-text-[11px] tw-text-rose-400/80 tw-m-0">
-              Could not generate explanation
+              {t('couldNotGenerate')}
             </p>
           )}
         </div>
@@ -411,7 +413,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
       {/* Daily limit reached indicator */}
       {limitReached && !explanation && isPremium && (
         <div className="tw-mt-1.5 tw-flex tw-items-center tw-gap-1">
-          <span className="tw-text-[10px] tw-text-amber-400/70">Limit reached</span>
+          <span className="tw-text-[10px] tw-text-amber-400/70">{t('limitReached')}</span>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -419,7 +421,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
             }}
             className="tw-text-[10px] tw-text-violet-400 hover:tw-text-violet-300 tw-underline tw-bg-transparent tw-border-none tw-cursor-pointer tw-p-0"
           >
-            Settings
+            {t('common:settings')}
           </button>
         </div>
       )}
@@ -428,6 +430,7 @@ function SuggestionCard({ suggestion, rank, isSelected, isShowingPv, flags, fen,
 }
 
 export function MoveListDisplay() {
+  const { t } = useTranslation(['game', 'common']);
   const { isGameStarted, playerColor, moveHistory } = useGameStore();
   const { setWhiteOpening, setBlackOpening, openingArrowColor } = useOpeningStore();
   const {
@@ -710,17 +713,17 @@ export function MoveListDisplay() {
       {/* Engine suggestions section */}
       <div>
         <div className="tw-text-[10px] tw-font-medium tw-text-muted-foreground tw-uppercase tw-tracking-wide tw-mb-2">
-          Engine Analysis
+          {t('engineAnalysis')}
         </div>
 
         {isLoading && suggestions.length === 0 ? (
           <div className="tw-flex tw-items-center tw-justify-center tw-py-6 tw-text-muted-foreground">
             <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
-            <span className="tw-text-xs">Analyzing...</span>
+            <span className="tw-text-xs">{t('analyzing')}</span>
           </div>
         ) : suggestions.length === 0 ? (
           <div className="tw-text-center tw-py-6">
-            <p className="tw-text-xs tw-text-muted-foreground">Waiting for position</p>
+            <p className="tw-text-xs tw-text-muted-foreground">{t('waitingForPosition')}</p>
           </div>
         ) : (
           <div className="tw-space-y-1.5">

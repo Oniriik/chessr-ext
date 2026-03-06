@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TrendingDown, TrendingUp, Minus, Lock } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { useGameStore } from '../../stores/gameStore';
@@ -57,21 +58,23 @@ function ClassificationItem({ label, count, colorClass }: ClassificationItemProp
 // Mapping for display - coherent color palette
 const CLASSIFICATION_CONFIG: {
   key: MoveClassification | 'brilliant' | 'great' | 'book';
-  label: string;
+  labelKey: string | null; // i18n key, null means use static symbol
+  staticLabel: string | null; // static symbol (not translated)
   colorClass: string;
 }[] = [
-  { key: 'brilliant' as never, label: '!!', colorClass: 'tw-text-cyan-400' },
-  { key: 'great' as never, label: '!', colorClass: 'tw-text-cyan-400' },
-  { key: 'best', label: 'Best', colorClass: 'tw-text-emerald-400' },
-  { key: 'excellent', label: 'Exc', colorClass: 'tw-text-emerald-300' },
-  { key: 'good', label: 'Good', colorClass: 'tw-text-slate-200' },
-  { key: 'book' as never, label: 'Book', colorClass: 'tw-text-violet-400' },
-  { key: 'inaccuracy', label: '?!', colorClass: 'tw-text-amber-400' },
-  { key: 'mistake', label: '?', colorClass: 'tw-text-orange-400' },
-  { key: 'blunder', label: '??', colorClass: 'tw-text-rose-400' },
+  { key: 'brilliant' as never, labelKey: null, staticLabel: '!!', colorClass: 'tw-text-cyan-400' },
+  { key: 'great' as never, labelKey: null, staticLabel: '!', colorClass: 'tw-text-cyan-400' },
+  { key: 'best', labelKey: 'statsBest', staticLabel: null, colorClass: 'tw-text-emerald-400' },
+  { key: 'excellent', labelKey: 'statsExc', staticLabel: null, colorClass: 'tw-text-emerald-300' },
+  { key: 'good', labelKey: 'statsGood', staticLabel: null, colorClass: 'tw-text-slate-200' },
+  { key: 'book' as never, labelKey: 'statsBook', staticLabel: null, colorClass: 'tw-text-violet-400' },
+  { key: 'inaccuracy', labelKey: null, staticLabel: '?!', colorClass: 'tw-text-amber-400' },
+  { key: 'mistake', labelKey: null, staticLabel: '?', colorClass: 'tw-text-orange-400' },
+  { key: 'blunder', labelKey: null, staticLabel: '??', colorClass: 'tw-text-rose-400' },
 ];
 
 export function GameStatsCard() {
+  const { t } = useTranslation(['game', 'common']);
   const { isGameStarted } = useGameStore();
   const accuracy = useAccuracy();
   const trend = useAccuracyTrend();
@@ -93,9 +96,9 @@ export function GameStatsCard() {
       <CardContent className="tw-p-3">
         {/* Header */}
         <div className="tw-flex tw-items-center tw-justify-between tw-mb-3">
-          <span className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-muted-foreground">Performance</span>
+          <span className="tw-text-xs tw-font-semibold tw-uppercase tw-tracking-wide tw-text-muted-foreground">{t('game:performance')}</span>
           <span className={`tw-text-[10px] ${isIdle ? 'tw-text-muted-foreground' : 'tw-text-primary/80'}`}>
-            {isIdle ? 'Ready to track' : `${moveCount} moves`}
+            {isIdle ? t('game:readyToTrack') : `${moveCount} ${t('common:moves')}`}
           </span>
         </div>
 
@@ -112,7 +115,7 @@ export function GameStatsCard() {
               <div className="tw-flex tw-items-center tw-gap-1 tw-mt-0.5">
                 <TrendIcon trend={trend} />
                 <span className="tw-text-[10px] tw-text-muted-foreground">
-                  {trend === 'up' ? 'improving' : trend === 'down' ? 'declining' : 'stable'}
+                  {trend === 'up' ? t('game:improving') : trend === 'down' ? t('game:declining') : t('game:stable')}
                 </span>
               </div>
             )}
@@ -123,7 +126,7 @@ export function GameStatsCard() {
             {CLASSIFICATION_CONFIG.map((config) => (
               <ClassificationItem
                 key={config.key}
-                label={config.label}
+                label={config.labelKey ? t(`game:${config.labelKey}`) : config.staticLabel!}
                 count={
                   isIdle
                     ? 0
@@ -140,7 +143,7 @@ export function GameStatsCard() {
         {/* Phase stats */}
         {!isIdle && moveCount > 0 && (
           <div className="tw-mt-2 tw-pt-2 tw-border-t tw-border-border">
-            <span className="tw-text-[10px] tw-text-muted-foreground tw-block tw-mb-1">Accuracy by phase</span>
+            <span className="tw-text-[10px] tw-text-muted-foreground tw-block tw-mb-1">{t('game:accuracyByPhase')}</span>
             <div className="tw-relative">
               {/* Actual or fake stats */}
               <div className={`tw-grid tw-grid-cols-3 tw-gap-1 tw-text-center ${!canSeePhaseAccuracy ? 'tw-blur-[3px] tw-select-none' : ''}`}>
@@ -159,13 +162,13 @@ export function GameStatsCard() {
                   return (
                     <div key={phase} className="tw-flex tw-flex-col tw-leading-tight">
                       <span className="tw-text-[10px] tw-text-muted-foreground tw-capitalize">
-                        {phase}
+                        {t(`game:${phase}`)}
                       </span>
                       <span className={`tw-text-xs tw-font-medium ${displayAccuracy !== null ? getAccuracyColor(displayAccuracy) : ''}`}>
                         {displayAccuracy !== null ? displayAccuracy : '-'}
                       </span>
                       <span className="tw-text-[10px] tw-text-muted-foreground">
-                        {displayMoves} moves
+                        {displayMoves} {t('common:moves')}
                       </span>
                     </div>
                   );
@@ -177,7 +180,7 @@ export function GameStatsCard() {
                 <div className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center">
                   <div className="tw-flex tw-items-center tw-gap-1.5 tw-px-2 tw-py-1 tw-rounded-full tw-bg-background/80 tw-backdrop-blur-sm tw-border tw-border-border">
                     <Lock className="tw-w-3 tw-h-3 tw-text-amber-400" />
-                    <span className="tw-text-[10px] tw-font-medium">Unlock with Premium</span>
+                    <span className="tw-text-[10px] tw-font-medium">{t('game:unlockWithPremium')}</span>
                   </div>
                 </div>
               )}

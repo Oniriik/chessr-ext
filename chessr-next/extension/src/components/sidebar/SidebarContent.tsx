@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
 import { useVersionStore } from '../../stores/versionStore';
@@ -77,6 +78,7 @@ function SidebarHeader({
   showSettings: boolean;
   onSettingsToggle: () => void;
 }) {
+  const { t } = useTranslation(['common', 'game']);
   const { signOut, plan, planExpiry } = useAuthStore();
   const { toggle } = useSidebar();
 
@@ -90,11 +92,11 @@ function SidebarHeader({
               size="icon"
               onClick={onSettingsToggle}
               className="tw-h-8 tw-w-8"
-              title="Back"
+              title={t('common:back')}
             >
               <ArrowLeft className="tw-h-4 tw-w-4" />
             </Button>
-            <span className="tw-text-lg tw-font-semibold">Settings</span>
+            <span className="tw-text-lg tw-font-semibold">{t('common:settings')}</span>
           </>
         ) : (
           <>
@@ -109,7 +111,7 @@ function SidebarHeader({
               size="icon"
               onClick={onSettingsToggle}
               className="tw-h-6 tw-w-6"
-              title="Settings"
+              title={t('common:settings')}
             >
               <Settings className="tw-h-4 tw-w-4" />
             </Button>
@@ -123,7 +125,7 @@ function SidebarHeader({
           size="icon"
           onClick={signOut}
           className="tw-h-8 tw-w-8"
-          title="Sign out"
+          title={t('common:signOut')}
         >
           <LogOut className="tw-h-4 tw-w-4" />
         </Button>
@@ -132,7 +134,7 @@ function SidebarHeader({
           size="icon"
           onClick={toggle}
           className="tw-h-8 tw-w-8"
-          title="Close sidebar"
+          title={t('common:closeSidebar')}
         >
           <X className="tw-h-4 tw-w-4" />
         </Button>
@@ -142,6 +144,8 @@ function SidebarHeader({
 }
 
 function AuthenticatedContent() {
+  const { t } = useTranslation(['common', 'game']);
+
   // Check version on mount
   const { updateRequired, checkVersion } = useVersionStore();
   useEffect(() => {
@@ -194,8 +198,8 @@ function AuthenticatedContent() {
             <GameStatusCard />
             <Tabs defaultValue="game" className="tw-w-full tw-flex-1 tw-flex tw-flex-col tw-overflow-hidden">
               <TabsList className="tw-w-full tw-flex-shrink-0">
-                <TabsTrigger value="game" className="tw-flex-1">Game Infos</TabsTrigger>
-                <TabsTrigger value="engine" className="tw-flex-1">Engine</TabsTrigger>
+                <TabsTrigger value="game" className="tw-flex-1">{t('game:gameInfos')}</TabsTrigger>
+                <TabsTrigger value="engine" className="tw-flex-1">{t('game:engine')}</TabsTrigger>
               </TabsList>
               <TabsContent value="game" className="tw-flex-1 tw-overflow-y-auto tw-space-y-4">
                 <GameStatsCard />

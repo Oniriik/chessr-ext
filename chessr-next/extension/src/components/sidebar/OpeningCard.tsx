@@ -2,6 +2,7 @@
  * OpeningCard - Displays current opening info and book moves
  */
 
+import { useTranslation } from 'react-i18next';
 import { BookOpen, BookX, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { useOpeningStore } from '../../stores/openingStore';
@@ -75,6 +76,7 @@ function BookMoveRow({ move, rank, playerColor }: BookMoveRowProps) {
 }
 
 export function OpeningCard() {
+  const { t } = useTranslation(['game', 'common']);
   const { playerColor } = useGameStore();
   const {
     isInBook,
@@ -99,7 +101,7 @@ export function OpeningCard() {
         <CardContent>
           <div className="tw-flex tw-items-center tw-justify-center tw-gap-2 tw-py-2">
             <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
-            <span className="tw-text-sm tw-text-muted-foreground">Loading opening data...</span>
+            <span className="tw-text-sm tw-text-muted-foreground">{t('game:loadingOpeningData')}</span>
           </div>
         </CardContent>
       </Card>
@@ -113,12 +115,12 @@ export function OpeningCard() {
         <CardHeader className="tw-p-0 tw-pb-2">
           <CardTitle className="tw-text-sm tw-flex tw-items-center tw-gap-2">
             <BookOpen className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
-            <span>Opening Book</span>
+            <span>{t('game:openingBook')}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="tw-p-0">
           <p className="tw-text-xs tw-text-muted-foreground">
-            Stats: <span className="tw-font-medium">n/a</span>
+            Stats: <span className="tw-font-medium">{t('game:statsNA')}</span>
           </p>
         </CardContent>
       </Card>
@@ -132,12 +134,12 @@ export function OpeningCard() {
         <CardHeader className="tw-p-0 tw-pb-2">
           <CardTitle className="tw-text-sm tw-flex tw-items-center tw-gap-2">
             <BookX className="tw-w-4 tw-h-4 tw-text-amber-500" />
-            <span>Out of Book</span>
+            <span>{t('game:outOfBook')}</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="tw-p-0">
           <p className="tw-text-xs tw-text-muted-foreground">
-            Left opening theory at move {Math.ceil(leftBookAtMove / 2)}
+            {t('game:leftTheoryAtMove', { move: Math.ceil(leftBookAtMove / 2) })}
           </p>
         </CardContent>
       </Card>
@@ -151,7 +153,7 @@ export function OpeningCard() {
         <CardHeader className="tw-p-0 tw-pb-3">
           <CardTitle className="tw-text-sm tw-flex tw-items-center tw-gap-2">
             <BookOpen className="tw-w-4 tw-h-4 tw-text-purple-500" />
-            <span>{openingName ?? 'Opening Book'}</span>
+            <span>{openingName ?? t('game:openingBook')}</span>
             {eco && (
               <span className="tw-text-xs tw-text-muted-foreground tw-font-normal">
                 ({eco})
@@ -163,19 +165,19 @@ export function OpeningCard() {
           <div className="tw-space-y-3">
             {/* Legend */}
             <div className="tw-flex tw-items-center tw-justify-between tw-text-xs tw-text-muted-foreground">
-              <span>Book moves</span>
+              <span>{t('game:bookMoves')}</span>
               <div className="tw-flex tw-items-center tw-gap-2">
                 <span className="tw-flex tw-items-center tw-gap-1">
                   <div className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-white tw-border tw-border-border/50" />
-                  White
+                  {t('common:white')}
                 </span>
                 <span className="tw-flex tw-items-center tw-gap-1">
                   <div className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-zinc-400" />
-                  Draw
+                  {t('common:draw')}
                 </span>
                 <span className="tw-flex tw-items-center tw-gap-1">
                   <div className="tw-w-2 tw-h-2 tw-rounded-full tw-bg-zinc-800" />
-                  Black
+                  {t('common:black')}
                 </span>
               </div>
             </div>

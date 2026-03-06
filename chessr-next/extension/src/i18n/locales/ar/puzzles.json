@@ -1,0 +1,18 @@
+{
+  "puzzleSolved": "تم حل الأحجية!",
+  "greatJob": "أحسنت! جرّب الأحجية التالية",
+  "startPuzzle": "ابدأ أحجية للحصول على اقتراحات",
+  "clickHintBelow": "انقر على التلميح أدناه",
+  "waiting": "في الانتظار...",
+  "autoHint": "تلميح تلقائي",
+  "autoPlay": "لعب تلقائي",
+  "showHint": "عرض التلميح",
+  "connectingToServer": "جارٍ الاتصال بالخادم...",
+  "maiaConnectedFull": "Maia متصل — قوة كاملة",
+  "connectingToMaia": "جارٍ الاتصال بـ Maia...",
+  "maiaDisconnected": "Maia غير متصل — شغّل التطبيق",
+  "puzzleHints": "تلميحات الأحجية",
+  "upgradePuzzleSuggestions": "قم بالترقية لفتح اقتراحات الأحجيات",
+  "getBestMove": "احصل على أفضل نقلة لأي أحجية",
+  "komodoDragon": "Komodo Dragon"
+}

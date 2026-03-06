@@ -8,6 +8,7 @@ import {
   fetchExplanationUsage,
   type MoveExplanationParams,
 } from '../lib/explanationClient';
+import { useSettingsStore } from './settingsStore';
 
 interface ExplanationState {
   // Cache: "fen:moveUci" → explanation text
@@ -52,7 +53,8 @@ export const useExplanationStore = create<ExplanationState>()((set, get) => ({
     set({ loadingKey: key, error: null });
 
     try {
-      const { explanation, dailyUsage, dailyLimit } = await fetchMoveExplanation(params);
+      const language = useSettingsStore.getState().language || 'en';
+      const { explanation, dailyUsage, dailyLimit } = await fetchMoveExplanation({ ...params, language });
       set((state) => ({
         cache: { ...state.cache, [key]: explanation },
         loadingKey: null,

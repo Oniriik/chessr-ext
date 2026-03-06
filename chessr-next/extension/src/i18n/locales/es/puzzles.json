@@ -1,0 +1,18 @@
+{
+  "puzzleSolved": "¡Puzzle resuelto!",
+  "greatJob": "¡Buen trabajo! Prueba el siguiente",
+  "startPuzzle": "Inicia un puzzle para obtener sugerencias",
+  "clickHintBelow": "Haz clic en la pista de abajo",
+  "waiting": "Esperando...",
+  "autoHint": "Pista auto",
+  "autoPlay": "Juego auto",
+  "showHint": "Mostrar pista",
+  "connectingToServer": "Conectando al servidor...",
+  "maiaConnectedFull": "Maia conectado — máxima potencia",
+  "connectingToMaia": "Conectando a Maia...",
+  "maiaDisconnected": "Maia desconectado — inicia la aplicación",
+  "puzzleHints": "Pistas de puzzle",
+  "upgradePuzzleSuggestions": "Mejora a Premium para desbloquear sugerencias de puzzle",
+  "getBestMove": "Obtén la mejor jugada para cada puzzle",
+  "komodoDragon": "Komodo Dragon"
+}

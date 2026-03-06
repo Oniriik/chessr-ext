@@ -44,52 +44,68 @@ export const PERSONALITIES: Personality[] = [
   'Human',
 ];
 
-export const PERSONALITY_INFO: Record<Personality, { label: string; description: string }> = {
+export const PERSONALITY_INFO: Record<Personality, { label: string; description: string; labelKey: string; descKey: string }> = {
   Default: {
     label: 'Engine',
     description: 'Plays like an engine with minimal errors.',
+    labelKey: 'personalityEngine',
+    descKey: 'personalityEngineDesc',
   },
   Aggressive: {
     label: 'Aggressive',
     description: 'Attacks relentlessly, prefers active pieces, biased toward Queen play.',
+    labelKey: 'personalityAggressive',
+    descKey: 'personalityAggressiveDesc',
   },
   Defensive: {
     label: 'Defensive',
     description: 'Emphasizes king safety and solid position above all.',
+    labelKey: 'personalityDefensive',
+    descKey: 'personalityDefensiveDesc',
   },
   Active: {
     label: 'Active',
     description: 'Tends toward open positions and well-placed pieces.',
+    labelKey: 'personalityActive',
+    descKey: 'personalityActiveDesc',
   },
   Positional: {
     label: 'Positional',
     description: 'Solid play, maneuvering, more closed positions.',
+    labelKey: 'personalityPositional',
+    descKey: 'personalityPositionalDesc',
   },
   Endgame: {
     label: 'Endgame',
     description: 'Prefers playing through to win by promoting a pawn.',
+    labelKey: 'personalityEndgame',
+    descKey: 'personalityEndgameDesc',
   },
   Beginner: {
     label: 'Beginner',
     description: "Doesn't understand fundamentals, looks to check and capture.",
+    labelKey: 'personalityBeginner',
+    descKey: 'personalityBeginnerDesc',
   },
   Human: {
     label: 'Human',
     description: 'Optimized to play like strong human players.',
+    labelKey: 'personalityHuman',
+    descKey: 'personalityHumanDesc',
   },
 };
 
 // Ambition labels (maps directly to Komodo contempt -100 to 100)
 export const AMBITION_LEVELS = [
-  { threshold: -100, label: 'Draw Seeker', description: 'Actively seeks draws at all costs' },
-  { threshold: -70, label: 'Fortress', description: 'Builds impenetrable positions' },
-  { threshold: -40, label: 'Solid', description: 'Favors stability and low-risk play' },
-  { threshold: -15, label: 'Cautious', description: 'Slightly conservative approach' },
-  { threshold: 0, label: 'Balanced', description: 'Objective, neutral play' },
-  { threshold: 15, label: 'Confident', description: 'Slightly favors winning chances' },
-  { threshold: 40, label: 'Ambitious', description: 'Prefers dynamic, unbalanced positions' },
-  { threshold: 70, label: 'Aggressive', description: 'Actively avoids draws' },
-  { threshold: 90, label: 'Ruthless', description: 'Maximum aggression, no compromises' },
+  { threshold: -100, label: 'Draw Seeker', description: 'Actively seeks draws at all costs', labelKey: 'ambitionDrawSeeker', descKey: 'ambitionDrawSeekerDesc' },
+  { threshold: -70, label: 'Fortress', description: 'Builds impenetrable positions', labelKey: 'ambitionFortress', descKey: 'ambitionFortressDesc' },
+  { threshold: -40, label: 'Solid', description: 'Favors stability and low-risk play', labelKey: 'ambitionSolid', descKey: 'ambitionSolidDesc' },
+  { threshold: -15, label: 'Cautious', description: 'Slightly conservative approach', labelKey: 'ambitionCautious', descKey: 'ambitionCautiousDesc' },
+  { threshold: 0, label: 'Balanced', description: 'Objective, neutral play', labelKey: 'ambitionBalanced', descKey: 'ambitionBalancedDesc' },
+  { threshold: 15, label: 'Confident', description: 'Slightly favors winning chances', labelKey: 'ambitionConfident', descKey: 'ambitionConfidentDesc' },
+  { threshold: 40, label: 'Ambitious', description: 'Prefers dynamic, unbalanced positions', labelKey: 'ambitionAmbitious', descKey: 'ambitionAmbitiousDesc' },
+  { threshold: 70, label: 'Aggressive', description: 'Actively avoids draws', labelKey: 'ambitionAggressive', descKey: 'ambitionAggressiveDesc' },
+  { threshold: 90, label: 'Ruthless', description: 'Maximum aggression, no compromises', labelKey: 'ambitionRuthless', descKey: 'ambitionRuthlessDesc' },
 ] as const;
 
 export function getAmbitionLabel(value: number): string {
@@ -108,6 +124,24 @@ export function getAmbitionDescription(value: number): string {
     }
   }
   return AMBITION_LEVELS[0].description;
+}
+
+export function getAmbitionLabelKey(value: number): string {
+  for (let i = AMBITION_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= AMBITION_LEVELS[i].threshold) {
+      return AMBITION_LEVELS[i].labelKey;
+    }
+  }
+  return AMBITION_LEVELS[0].labelKey;
+}
+
+export function getAmbitionDescKey(value: number): string {
+  for (let i = AMBITION_LEVELS.length - 1; i >= 0; i--) {
+    if (value >= AMBITION_LEVELS[i].threshold) {
+      return AMBITION_LEVELS[i].descKey;
+    }
+  }
+  return AMBITION_LEVELS[0].descKey;
 }
 
 // Search mode for full strength (nodes, depth, or movetime)

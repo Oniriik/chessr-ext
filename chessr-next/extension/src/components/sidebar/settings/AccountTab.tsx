@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { type TFunction } from 'i18next';
+import i18n from '../../../i18n/i18n';
 import { useAuthStore } from '../../../stores/authStore';
 import { useLinkedAccountsStore, useLinkedAccounts, useIsLinkingLoading } from '../../../stores/linkedAccountsStore';
 import { useExplanationStore, useExplanationDailyUsage, useExplanationDailyLimit } from '../../../stores/explanationStore';
@@ -14,7 +17,7 @@ import { useIsPremium } from '../../../lib/planUtils';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(i18n.language, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -44,41 +47,46 @@ const planColors: Record<Plan, { bg: string; text: string }> = {
   free: { bg: '#EAB308', text: '#574407' },
 };
 
-function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
+function getPlanInfo(plan: Plan, expiry: Date | null, t: TFunction): PlanInfo {
   const colors = planColors[plan];
 
   switch (plan) {
     case 'lifetime':
       return {
-        title: 'Lifetime Access',
-        description: 'You have permanent access.',
+        title: t('lifetimeAccess'),
+        description: t('lifetimeDesc'),
         icon: <Sparkles className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
         bgColor: `${colors.bg}20`,
       };
     case 'beta':
       return {
-        title: 'Beta Tester',
-        description: 'Thank you for being an early supporter! Enjoy lifetime access.',
+        title: t('betaTester'),
+        description: t('betaDesc'),
         icon: <Crown className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
         bgColor: `${colors.bg}20`,
       };
     case 'premium':
       const premiumDays = expiry ? getDaysUntilExpiry(expiry) : 0;
       return {
-        title: 'Premium',
+        title: t('premium'),
         description: expiry
-          ? `Your subscription renews on ${formatExpiryDate(expiry)}${premiumDays <= 7 ? ` (${premiumDays} days left)` : ''}`
-          : 'Premium subscription active.',
+          ? premiumDays <= 7
+            ? t('premiumDaysLeft', { date: formatExpiryDate(expiry), days: premiumDays })
+            : t('premiumRenews', { date: formatExpiryDate(expiry) })
+          : t('premiumActive'),
         icon: <Crown className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
         bgColor: `${colors.bg}20`,
       };
     case 'freetrial':
       const trialDays = expiry ? getDaysUntilExpiry(expiry) : 0;
+      const remaining = trialDays > 0
+        ? t('freeTrialRemaining', { days: trialDays })
+        : t('trialExpired');
       return {
-        title: 'Free Trial',
+        title: t('freeTrial'),
         description: expiry
-          ? `${trialDays > 0 ? `${trialDays} days remaining` : 'Trial expired'} - Ends ${formatExpiryDate(expiry)}`
-          : 'Trial period active.',
+          ? t('freeTrialEnds', { remaining, date: formatExpiryDate(expiry) })
+          : t('trialActive'),
         icon: <Clock className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
         bgColor: `${colors.bg}20`,
         showUpgrade: true,
@@ -86,8 +94,8 @@ function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
     case 'free':
     default:
       return {
-        title: 'Free Plan',
-        description: 'Upgrade to unlock all features and boost your game.',
+        title: t('freePlan'),
+        description: t('freePlanDesc'),
         icon: <Lock className="tw-w-5 tw-h-5" style={{ color: colors.bg }} />,
         bgColor: `${colors.bg}20`,
         showUpgrade: true,
@@ -98,6 +106,7 @@ function getPlanInfo(plan: Plan, expiry: Date | null): PlanInfo {
 const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
 
 function LinkedAccountsSection() {
+  const { t } = useTranslation('settings');
   const linkedAccounts = useLinkedAccounts();
   const isLoading = useIsLinkingLoading();
   const { setLoading } = useLinkedAccountsStore();
@@ -121,10 +130,10 @@ function LinkedAccountsSection() {
   if (linkedAccounts.length === 0) {
     return (
       <div className="tw-space-y-2 tw-pt-4 tw-border-t tw-border-border">
-        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Linked Accounts</Label>
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('linkedAccounts')}</Label>
         <div className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted/50 tw-border tw-border-dashed tw-border-border">
           <Link2 className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
-          <p className="tw-text-sm tw-text-muted-foreground">No accounts linked yet</p>
+          <p className="tw-text-sm tw-text-muted-foreground">{t('noAccountsLinked')}</p>
         </div>
       </div>
     );
@@ -132,7 +141,7 @@ function LinkedAccountsSection() {
 
   return (
     <div className="tw-space-y-2 tw-pt-4 tw-border-t tw-border-border">
-      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Linked Accounts</Label>
+      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('linkedAccounts')}</Label>
       <div className="tw-space-y-2">
         {linkedAccounts.map((account) => {
           const platformName = account.platform === 'chesscom' ? 'Chess.com' : 'Lichess';
@@ -171,7 +180,7 @@ function LinkedAccountsSection() {
                 className="tw-h-8 tw-w-8 tw-flex-shrink-0"
                 onClick={() => handleUnlink(account.id)}
                 disabled={isLoading || isUnlinking}
-                title="Unlink account"
+                title={t('unlinkAccount')}
               >
                 {isUnlinking ? (
                   <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
@@ -188,6 +197,7 @@ function LinkedAccountsSection() {
 }
 
 function DiscordSection() {
+  const { t } = useTranslation('settings');
   const { isLinked, discordUsername, discordAvatar, isLinking, setLinking } = useDiscordStore();
   const anonNames = useSettingsStore((s) => s.anonNames);
 
@@ -234,7 +244,7 @@ function DiscordSection() {
             size="icon"
             className="tw-h-8 tw-w-8 tw-flex-shrink-0"
             onClick={handleUnlink}
-            title="Unlink Discord"
+            title={t('unlinkDiscord')}
           >
             <Unlink className="tw-w-4 tw-h-4" />
           </Button>
@@ -247,7 +257,7 @@ function DiscordSection() {
         >
           <MessageCircle className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
           <p className="tw-text-sm tw-text-muted-foreground">
-            {isLinking ? 'Redirecting to Discord...' : 'Link your Discord account'}
+            {isLinking ? t('redirectingToDiscord') : t('linkDiscordAccount')}
           </p>
         </button>
       )}
@@ -256,6 +266,7 @@ function DiscordSection() {
 }
 
 export function AccountTab() {
+  const { t } = useTranslation(['settings', 'common']);
   const { user, plan, planExpiry, changePassword, loading } = useAuthStore();
   const anonNames = useSettingsStore((s) => s.anonNames);
   const [oldPassword, setOldPassword] = useState('');
@@ -266,14 +277,14 @@ export function AccountTab() {
 
   const isEmailVerified = !!user?.email_confirmed_at;
   const signupDate = user?.created_at
-    ? new Date(user.created_at).toLocaleDateString('en-US', {
+    ? new Date(user.created_at).toLocaleDateString(i18n.language, {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
       })
     : null;
 
-  const planInfo = getPlanInfo(plan, planExpiry);
+  const planInfo = getPlanInfo(plan, planExpiry, t);
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -281,12 +292,12 @@ export function AccountTab() {
     setPasswordSuccess(false);
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match');
+      setPasswordError(t('settings:passwordsDoNotMatch'));
       return;
     }
 
     if (newPassword.length < 6) {
-      setPasswordError('Password must be at least 6 characters');
+      setPasswordError(t('settings:passwordMinLength'));
       return;
     }
 
@@ -297,7 +308,7 @@ export function AccountTab() {
       setNewPassword('');
       setConfirmPassword('');
     } else {
-      setPasswordError(result.error || 'Failed to change password');
+      setPasswordError(result.error || t('settings:failedToChangePassword'));
     }
   };
 
@@ -305,18 +316,18 @@ export function AccountTab() {
     <div className="tw-space-y-6">
       {/* Email Section */}
       <div className="tw-space-y-2">
-        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Email</Label>
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('settings:emailSection')}</Label>
         <div className="tw-flex tw-items-center tw-gap-2">
           <span className={`tw-text-sm tw-text-foreground ${anonNames ? 'tw-blur-sm' : ''}`}>{user?.email}</span>
           {isEmailVerified ? (
             <span className="tw-flex tw-items-center tw-gap-1 tw-text-xs tw-text-success">
               <CheckCircle className="tw-w-3 tw-h-3" />
-              Verified
+              {t('settings:verified')}
             </span>
           ) : (
             <span className="tw-flex tw-items-center tw-gap-1 tw-text-xs tw-text-warning">
               <AlertCircle className="tw-w-3 tw-h-3" />
-              Not verified
+              {t('settings:notVerified')}
             </span>
           )}
         </div>
@@ -325,7 +336,7 @@ export function AccountTab() {
       {/* Signup Date */}
       {signupDate && (
         <div className="tw-space-y-2">
-          <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Member since</Label>
+          <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('settings:memberSince')}</Label>
           <p className="tw-text-sm tw-text-foreground">{signupDate}</p>
         </div>
       )}
@@ -338,38 +349,38 @@ export function AccountTab() {
 
       {/* Change Password Section */}
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
-        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Change Password</Label>
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('settings:changePassword')}</Label>
         <form onSubmit={handleChangePassword} className="tw-space-y-3">
           <div className="tw-space-y-1">
-            <Label htmlFor="old-password" className="tw-text-xs">Current Password</Label>
+            <Label htmlFor="old-password" className="tw-text-xs">{t('settings:currentPassword')}</Label>
             <Input
               id="old-password"
               type="password"
               value={oldPassword}
               onChange={(e) => setOldPassword(e.target.value)}
-              placeholder="Enter current password"
+              placeholder={t('settings:enterCurrentPassword')}
               className="tw-h-8 tw-text-sm"
             />
           </div>
           <div className="tw-space-y-1">
-            <Label htmlFor="new-password" className="tw-text-xs">New Password</Label>
+            <Label htmlFor="new-password" className="tw-text-xs">{t('settings:newPassword')}</Label>
             <Input
               id="new-password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Enter new password"
+              placeholder={t('settings:enterNewPassword')}
               className="tw-h-8 tw-text-sm"
             />
           </div>
           <div className="tw-space-y-1">
-            <Label htmlFor="confirm-password" className="tw-text-xs">Confirm New Password</Label>
+            <Label htmlFor="confirm-password" className="tw-text-xs">{t('settings:confirmNewPassword')}</Label>
             <Input
               id="confirm-password"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
+              placeholder={t('settings:confirmNewPasswordPlaceholder')}
               className="tw-h-8 tw-text-sm"
             />
           </div>
@@ -377,7 +388,7 @@ export function AccountTab() {
             <p className="tw-text-xs tw-text-destructive">{passwordError}</p>
           )}
           {passwordSuccess && (
-            <p className="tw-text-xs tw-text-success">Password changed successfully!</p>
+            <p className="tw-text-xs tw-text-success">{t('settings:passwordChanged')}</p>
           )}
           <Button
             type="submit"
@@ -388,10 +399,10 @@ export function AccountTab() {
             {loading ? (
               <>
                 <Loader2 className="tw-w-3 tw-h-3 tw-animate-spin tw-mr-1" />
-                Changing...
+                {t('settings:changing')}
               </>
             ) : (
-              'Change Password'
+              t('settings:changePassword')
             )}
           </Button>
         </form>
@@ -399,7 +410,7 @@ export function AccountTab() {
 
       {/* Billing Section */}
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
-        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Subscription</Label>
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('settings:subscription')}</Label>
         <div className="tw-flex tw-items-center tw-gap-3 tw-p-3 tw-rounded-lg tw-bg-muted">
           <div className="tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full" style={{ backgroundColor: planInfo.bgColor }}>
             {planInfo.icon}
@@ -419,7 +430,7 @@ export function AccountTab() {
             onClick={() => window.open(UPGRADE_URL, '_blank')}
           >
             <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
-            Upgrade Now
+            {t('common:upgradeNow')}
           </Button>
         )}
       </div>
@@ -431,6 +442,7 @@ export function AccountTab() {
 }
 
 function ExplanationQuotaSection() {
+  const { t } = useTranslation('settings');
   const isPremium = useIsPremium();
   const dailyUsage = useExplanationDailyUsage();
   const dailyLimit = useExplanationDailyLimit();
@@ -448,13 +460,13 @@ function ExplanationQuotaSection() {
 
   return (
     <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
-      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Move Explanations</Label>
+      <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('moveExplanations')}</Label>
       {isPremium ? (
         <div className="tw-p-3 tw-rounded-lg tw-bg-muted/50">
           <div className="tw-flex tw-items-center tw-justify-between tw-mb-2">
             <div className="tw-flex tw-items-center tw-gap-1.5">
               <Sparkles className="tw-w-3.5 tw-h-3.5 tw-text-violet-400" />
-              <span className="tw-text-sm tw-font-medium">Daily Usage</span>
+              <span className="tw-text-sm tw-font-medium">{t('dailyUsage')}</span>
             </div>
             <span className={`tw-text-sm tw-font-mono tw-font-bold ${
               isAtLimit ? 'tw-text-rose-400' : isNearLimit ? 'tw-text-amber-400' : 'tw-text-violet-400'
@@ -472,13 +484,13 @@ function ExplanationQuotaSection() {
             />
           </div>
           <p className="tw-text-[10px] tw-text-muted-foreground tw-mt-1.5">
-            {isAtLimit ? 'Limit reached — resets at midnight UTC' : 'Resets at midnight UTC'}
+            {isAtLimit ? t('limitReachedResets') : t('resetsAtMidnight')}
           </p>
         </div>
       ) : (
         <div className="tw-flex tw-items-center tw-gap-2 tw-p-3 tw-rounded-lg tw-bg-muted/50 tw-border tw-border-dashed tw-border-border">
           <Lock className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
-          <p className="tw-text-sm tw-text-muted-foreground">Upgrade to unlock move explanations</p>
+          <p className="tw-text-sm tw-text-muted-foreground">{t('upgradeToUnlockExplanations')}</p>
         </div>
       )}
     </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../ui/card';
 import {
   useEngineStore,
@@ -7,6 +8,7 @@ import {
 } from '../../stores/engineStore';
 
 export function PersonalitySelect() {
+  const { t } = useTranslation('engine');
   const { personality, setPersonality } = useEngineStore();
   const info = PERSONALITY_INFO[personality];
 
@@ -14,7 +16,7 @@ export function PersonalitySelect() {
     <Card className="tw-bg-muted/50">
       <CardContent className="tw-p-4 tw-space-y-2">
         <div className="tw-flex tw-items-center tw-justify-between">
-          <span className="tw-text-sm tw-font-medium">PERSONALITY</span>
+          <span className="tw-text-sm tw-font-medium">{t('personality')}</span>
           <select
             value={personality}
             onChange={(e) => setPersonality(e.target.value as Personality)}
@@ -22,12 +24,12 @@ export function PersonalitySelect() {
           >
             {PERSONALITIES.map((p) => (
               <option key={p} value={p}>
-                {PERSONALITY_INFO[p].label}
+                {t(PERSONALITY_INFO[p].labelKey)}
               </option>
             ))}
           </select>
         </div>
-        <p className="tw-text-xs tw-text-muted-foreground">{info.description}</p>
+        <p className="tw-text-xs tw-text-muted-foreground">{t(info.descKey)}</p>
       </CardContent>
     </Card>
   );

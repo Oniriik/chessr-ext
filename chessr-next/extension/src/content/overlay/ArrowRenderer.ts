@@ -4,13 +4,18 @@
 
 import { OverlayManager } from './OverlayManager';
 
+export interface Badge {
+  type: string;  // Key for color mapping (e.g., 'best', 'safe', 'mate', 'check')
+  label: string; // Translated display text
+}
+
 export interface ArrowOptions {
   from: string; // e.g., "e2"
   to: string; // e.g., "e4"
   color: string; // Hex color
   thickness?: number;
   opacity?: number;
-  badges?: string[]; // Labels to display on the arrow
+  badges?: Badge[]; // Labels to display on the arrow
   rank?: number; // Move rank (1, 2, 3...)
 }
 
@@ -24,7 +29,7 @@ export interface PvArrowOptions {
 
 interface SquareBadgeInfo {
   ranks: number[];
-  badges: Map<number, string[]>; // rank -> badges
+  badges: Map<number, Badge[]>; // rank -> badges
   color: Map<number, string>; // rank -> color
   currentY: number;
   openingBadgeHeight?: number; // Height reserved for opening badge at top
@@ -63,25 +68,22 @@ export class ArrowRenderer {
     return this.hoveredIndex !== null ? this.hoveredIndex : this.selectedIndex;
   }
 
+  private static readonly BADGE_COLORS: Record<string, { bg: string; text: string }> = {
+    best: { bg: 'rgba(34, 197, 94, 0.95)', text: 'white' },
+    safe: { bg: 'rgba(59, 130, 246, 0.95)', text: 'white' },
+    ok: { bg: 'rgba(107, 114, 128, 0.95)', text: 'white' },
+    risky: { bg: 'rgba(239, 68, 68, 0.95)', text: 'white' },
+    mate: { bg: 'rgba(234, 179, 8, 0.95)', text: 'white' },
+    check: { bg: 'rgba(234, 179, 8, 0.95)', text: 'white' },
+    capture: { bg: 'rgba(255, 255, 255, 0.95)', text: 'black' },
+    promotion: { bg: 'rgba(99, 102, 241, 0.95)', text: 'white' },
+  };
+
   /**
-   * Get badge colors based on text
+   * Get badge colors based on type key
    */
-  private getBadgeColor(badgeText: string): { bg: string; text: string } {
-    // Quality labels
-    if (badgeText.includes('Best')) return { bg: 'rgba(34, 197, 94, 0.95)', text: 'white' };
-    if (badgeText.includes('Safe')) return { bg: 'rgba(59, 130, 246, 0.95)', text: 'white' };
-    if (badgeText.includes('OK')) return { bg: 'rgba(107, 114, 128, 0.95)', text: 'white' };
-    if (badgeText.includes('Risky')) return { bg: 'rgba(239, 68, 68, 0.95)', text: 'white' };
-
-    // Effect badges
-    if (badgeText.includes('Mate')) return { bg: 'rgba(234, 179, 8, 0.95)', text: 'white' };
-    if (badgeText.includes('Check')) return { bg: 'rgba(234, 179, 8, 0.95)', text: 'white' };
-    if (badgeText.startsWith('x ')) return { bg: 'rgba(255, 255, 255, 0.95)', text: 'black' };
-    if (badgeText.includes('Queen') || badgeText.includes('Rook') || badgeText.includes('Bishop') || badgeText.includes('Knight')) {
-      return { bg: 'rgba(99, 102, 241, 0.95)', text: 'white' };
-    }
-
-    return { bg: 'rgba(107, 114, 128, 0.95)', text: 'white' };
+  private getBadgeColor(badgeType: string): { bg: string; text: string } {
+    return ArrowRenderer.BADGE_COLORS[badgeType] || { bg: 'rgba(107, 114, 128, 0.95)', text: 'white' };
   }
 
   /**
@@ -90,7 +92,7 @@ export class ArrowRenderer {
   private drawBadges(
     toSquare: string,
     toPos: { x: number; y: number },
-    badges: string[],
+    badges: Badge[],
     rank: number,
     arrowColor: string
   ): void {
@@ -162,11 +164,11 @@ export class ArrowRenderer {
       layer.appendChild(badgesGroup);
 
       let currentY = squareTop + squarePadding + openingOffset;
-      for (const badgeText of badges) {
-        const colors = this.getBadgeColor(badgeText);
+      for (const badge of badges) {
+        const colors = this.getBadgeColor(badge.type);
         const badgeGroup = this.drawBadge(
           { x: squareRight - squarePadding, y: currentY },
-          badgeText,
+          badge.label,
           colors.bg,
           colors.text,
           scale
@@ -339,7 +341,7 @@ export class ArrowRenderer {
    */
   private drawActiveBadgesLeft(
     container: SVGGElement,
-    badges: string[],
+    badges: Badge[],
     startX: number,
     startY: number,
     scale: number
@@ -350,11 +352,11 @@ export class ArrowRenderer {
     const spacing = Math.max(1, Math.round(1 * scale));
     let currentY = startY;
 
-    for (const badgeText of badges) {
-      const colors = this.getBadgeColor(badgeText);
+    for (const badge of badges) {
+      const colors = this.getBadgeColor(badge.type);
       const badgeGroup = this.drawBadgeElementLeft(
         { x: startX, y: currentY },
-        badgeText,
+        badge.label,
         colors.bg,
         colors.text,
         scale

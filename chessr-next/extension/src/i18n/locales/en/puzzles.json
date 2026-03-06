@@ -1,0 +1,18 @@
+{
+  "puzzleSolved": "Puzzle Solved!",
+  "greatJob": "Great job! Try the next one",
+  "startPuzzle": "Start a puzzle to get suggestions",
+  "clickHintBelow": "Click hint below",
+  "waiting": "Waiting...",
+  "autoHint": "Auto Hint",
+  "autoPlay": "Auto Play",
+  "showHint": "Show Hint",
+  "connectingToServer": "Connecting to server...",
+  "maiaConnectedFull": "Maia connected \u2014 full power",
+  "connectingToMaia": "Connecting to Maia...",
+  "maiaDisconnected": "Maia disconnected \u2014 launch the app",
+  "puzzleHints": "Puzzle Hints",
+  "upgradePuzzleSuggestions": "Upgrade to unlock puzzle suggestions",
+  "getBestMove": "Get the best move for any puzzle",
+  "komodoDragon": "Komodo Dragon"
+}

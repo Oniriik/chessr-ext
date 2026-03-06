@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { useOpeningStore } from '../../../stores/openingStore';
 import { Label } from '../../ui/label';
@@ -28,6 +29,7 @@ function ColorPicker({
 }
 
 export function SuggestionsTab() {
+  const { t } = useTranslation('settings');
   const {
     numberOfSuggestions,
     useSameColorForAllArrows,
@@ -50,7 +52,7 @@ export function SuggestionsTab() {
       {/* Number of Suggestions */}
       <div className="tw-space-y-2">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
-          Number of suggestions
+          {t('numberOfSuggestions')}
         </Label>
         <select
           value={numberOfSuggestions}
@@ -66,17 +68,17 @@ export function SuggestionsTab() {
       {/* Arrow Colors Section */}
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
-          Arrow Colors
+          {t('arrowColors')}
         </Label>
 
         {/* Use Same Color Toggle */}
         <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
           <div className="tw-space-y-0.5">
             <Label className="tw-text-sm tw-font-medium">
-              Use same color for all arrows
+              {t('useSameColor')}
             </Label>
             <p className="tw-text-xs tw-text-muted-foreground">
-              Apply a single color to all suggestion arrows
+              {t('useSameColorDesc')}
             </p>
           </div>
           <Switch
@@ -89,27 +91,27 @@ export function SuggestionsTab() {
         <div className="tw-space-y-3 tw-pt-2">
           {useSameColorForAllArrows ? (
             <ColorPicker
-              label="Arrow color"
+              label={t('arrowColor')}
               value={singleArrowColor}
               onChange={setSingleArrowColor}
             />
           ) : (
             <>
               <ColorPicker
-                label="1st arrow color"
+                label={t('firstArrowColor')}
                 value={firstArrowColor}
                 onChange={setFirstArrowColor}
               />
               {numberOfSuggestions >= 2 && (
                 <ColorPicker
-                  label="2nd arrow color"
+                  label={t('secondArrowColor')}
                   value={secondArrowColor}
                   onChange={setSecondArrowColor}
                 />
               )}
               {numberOfSuggestions >= 3 && (
                 <ColorPicker
-                  label="3rd arrow color"
+                  label={t('thirdArrowColor')}
                   value={thirdArrowColor}
                   onChange={setThirdArrowColor}
                 />
@@ -122,10 +124,10 @@ export function SuggestionsTab() {
       {/* Opening Arrow Color Section */}
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
-          Opening Color
+          {t('openingColor')}
         </Label>
         <ColorPicker
-          label="Opening arrow & card color"
+          label={t('openingArrowColor')}
           value={openingArrowColor}
           onChange={setOpeningArrowColor}
         />

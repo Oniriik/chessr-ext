@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles, Zap } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
@@ -124,6 +125,7 @@ function formatMove(uciMove: string): string {
 
 function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boolean; isSolved: boolean; playerColor: 'white' | 'black' | null }) {
   const { suggestion, autoHint, isLoading } = usePuzzleStore();
+  const { t } = useTranslation(['puzzles', 'common', 'game']);
 
   // Solved state
   if (isSolved) {
@@ -136,10 +138,10 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
             </div>
             <div className="tw-text-left">
               <p className="tw-text-sm tw-font-medium tw-text-green-500">
-                Puzzle Solved!
+                {t('puzzles:puzzleSolved')}
               </p>
               <p className="tw-text-xs tw-text-muted-foreground">
-                Great job! Try the next one
+                {t('puzzles:greatJob')}
               </p>
             </div>
           </div>
@@ -158,10 +160,10 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
             </div>
             <div className="tw-text-left">
               <p className="tw-text-sm tw-font-medium tw-text-foreground">
-                Ready to play
+                {t('common:readyToPlay')}
               </p>
               <p className="tw-text-xs tw-text-muted-foreground">
-                Start a puzzle to get suggestions
+                {t('puzzles:startPuzzle')}
               </p>
             </div>
           </div>
@@ -170,7 +172,7 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
     );
   }
 
-  const colorLabel = playerColor === 'white' ? 'White' : 'Black';
+  const colorLabel = playerColor === 'white' ? t('common:white') : t('common:black');
 
   // Determine what to show in the badge
   let badgeContent: React.ReactNode;
@@ -190,7 +192,7 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
     badgeContent = (
       <>
         <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin" />
-        <span className="tw-text-xs tw-font-medium">Analyzing...</span>
+        <span className="tw-text-xs tw-font-medium">{t('game:analyzing')}</span>
       </>
     );
   } else if (!autoHint) {
@@ -198,7 +200,7 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
     badgeContent = (
       <>
         <Puzzle className="tw-w-4 tw-h-4" />
-        <span className="tw-text-xs tw-font-medium">Click hint below</span>
+        <span className="tw-text-xs tw-font-medium">{t('puzzles:clickHintBelow')}</span>
       </>
     );
     badgeStyle = 'tw-bg-muted tw-text-muted-foreground';
@@ -207,7 +209,7 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
     badgeContent = (
       <>
         <Puzzle className="tw-w-4 tw-h-4" />
-        <span className="tw-text-xs tw-font-medium">Waiting...</span>
+        <span className="tw-text-xs tw-font-medium">{t('puzzles:waiting')}</span>
       </>
     );
   }
@@ -221,7 +223,7 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
               playerColor === 'white' ? 'tw-bg-white' : 'tw-bg-zinc-800'
             }`} />
             <div className="tw-leading-tight">
-              <p className="tw-text-xs tw-text-muted-foreground">You play</p>
+              <p className="tw-text-xs tw-text-muted-foreground">{t('common:youPlay')}</p>
               <p className="tw-text-sm tw-font-semibold">{colorLabel}</p>
             </div>
           </div>
@@ -255,6 +257,7 @@ function PuzzleControls() {
   const { isConnected: isMaiaConnected, isConnecting: isMaiaConnecting } = useMaiaWebSocketStore();
   const triggerHint = usePuzzleSuggestionTrigger();
   const { canUsePuzzleHints } = usePlanLimits();
+  const { t } = useTranslation(['puzzles', 'common', 'game', 'engine', 'settings']);
 
   const isMaia = puzzleEngine === 'maia2';
   const isConnected = isMaia ? isMaiaConnected : isServerConnected;
@@ -272,10 +275,10 @@ function PuzzleControls() {
             </div>
             <div>
               <p className="tw-text-sm tw-font-medium tw-text-foreground">
-                Puzzle Hints
+                {t('puzzles:puzzleHints')}
               </p>
               <p className="tw-text-xs tw-text-muted-foreground">
-                Upgrade to unlock puzzle suggestions
+                {t('puzzles:upgradePuzzleSuggestions')}
               </p>
             </div>
           </div>
@@ -285,7 +288,7 @@ function PuzzleControls() {
             size="sm"
           >
             <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
-            Upgrade Now
+            {t('common:upgradeNow')}
           </Button>
         </CardContent>
       </Card>
@@ -297,14 +300,14 @@ function PuzzleControls() {
       <CardContent className="tw-py-3 tw-px-4 tw-space-y-3">
         {/* Engine selector */}
         <div className="tw-flex tw-items-center tw-justify-between">
-          <span className="tw-text-sm tw-font-medium">Engine</span>
+          <span className="tw-text-sm tw-font-medium">{t('game:engine')}</span>
           <select
             value={puzzleEngine}
             onChange={(e) => setPuzzleEngine(e.target.value as PuzzleEngine)}
             className="tw-h-8 tw-px-3 tw-py-1 tw-text-xs tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer"
           >
-            <option value="komodo">Komodo Dragon</option>
-            <option value="maia2">Maia-2 (Local)</option>
+            <option value="komodo">{t('puzzles:komodoDragon')}</option>
+            <option value="maia2">{t('settings:maia2Local')}</option>
           </select>
         </div>
 
@@ -321,7 +324,7 @@ function PuzzleControls() {
               }`}
             />
             <span className="tw-text-xs tw-text-muted-foreground">
-              {isMaiaConnected ? 'Maia connected — full power' : isMaiaConnecting ? 'Connecting to Maia...' : 'Maia disconnected — launch the app'}
+              {isMaiaConnected ? t('puzzles:maiaConnectedFull') : isMaiaConnecting ? t('puzzles:connectingToMaia') : t('puzzles:maiaDisconnected')}
             </span>
           </div>
         )}
@@ -330,7 +333,7 @@ function PuzzleControls() {
         <div className="tw-flex tw-items-center tw-justify-between">
           <div className="tw-flex tw-items-center tw-gap-2">
             <Lightbulb className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
-            <span className="tw-text-sm tw-text-foreground">Auto Hint</span>
+            <span className="tw-text-sm tw-text-foreground">{t('puzzles:autoHint')}</span>
           </div>
           <Switch
             checked={autoHint}
@@ -343,7 +346,7 @@ function PuzzleControls() {
           <div className="tw-flex tw-items-center tw-justify-between">
             <div className="tw-flex tw-items-center tw-gap-2">
               <Zap className="tw-w-4 tw-h-4 tw-text-muted-foreground" />
-              <span className="tw-text-sm tw-text-foreground">Auto Play</span>
+              <span className="tw-text-sm tw-text-foreground">{t('puzzles:autoPlay')}</span>
             </div>
             <Switch
               checked={autoPlay}
@@ -362,9 +365,9 @@ function PuzzleControls() {
                   onChange={(e) => setSearchMode(e.target.value as PuzzleSearchMode)}
                   className="tw-h-7 tw-px-2 tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-xs"
                 >
-                  <option value="nodes">Nodes</option>
-                  <option value="depth">Depth</option>
-                  <option value="movetime">Move Time</option>
+                  <option value="nodes">{t('engine:nodes')}</option>
+                  <option value="depth">{t('engine:depth')}</option>
+                  <option value="movetime">{t('engine:moveTime')}</option>
                 </select>
               </div>
               <span className="tw-text-base tw-font-bold tw-text-primary">
@@ -412,12 +415,12 @@ function PuzzleControls() {
             {isLoading ? (
               <>
                 <Loader2 className="tw-w-4 tw-h-4 tw-mr-2 tw-animate-spin" />
-                Loading...
+                {t('common:loading')}
               </>
             ) : (
               <>
                 <Lightbulb className="tw-w-4 tw-h-4 tw-mr-2" />
-                Show Hint
+                {t('puzzles:showHint')}
               </>
             )}
           </Button>
@@ -425,7 +428,7 @@ function PuzzleControls() {
 
         {!isConnected && !isMaia && (
           <p className="tw-text-xs tw-text-muted-foreground tw-text-center">
-            Connecting to server...
+            {t('puzzles:connectingToServer')}
           </p>
         )}
       </CardContent>
@@ -435,6 +438,7 @@ function PuzzleControls() {
 
 function PuzzleHeader() {
   const { signOut } = useAuthStore();
+  const { t } = useTranslation('common');
 
   return (
     <div className="tw-flex tw-items-center tw-justify-between tw-mb-4">
@@ -446,7 +450,7 @@ function PuzzleHeader() {
         />
         <span className="tw-text-lg tw-font-semibold">Chessr.io</span>
         <span className="tw-text-xs tw-text-muted-foreground tw-bg-muted tw-px-2 tw-py-0.5 tw-rounded">
-          Puzzle
+          {t('common:puzzle')}
         </span>
       </div>
       <Button
@@ -454,7 +458,7 @@ function PuzzleHeader() {
         size="icon"
         onClick={signOut}
         className="tw-h-8 tw-w-8"
-        title="Sign out"
+        title={t('common:signOut')}
       >
         <LogOut className="tw-h-4 tw-w-4" />
       </Button>
@@ -466,6 +470,7 @@ function AuthenticatedPuzzleContent() {
   const { isStarted, isSolved, playerColor } = usePuzzleDetection();
   const { init, connect } = useWebSocketStore();
   const { canUsePuzzleHints } = usePlanLimits();
+  const { t } = useTranslation(['puzzles', 'common']);
 
   // Initialize WebSocket manager and connect
   useEffect(() => {
@@ -490,10 +495,10 @@ function AuthenticatedPuzzleContent() {
                 </div>
                 <div>
                   <p className="tw-text-base tw-font-semibold tw-text-foreground">
-                    Puzzle Hints
+                    {t('puzzles:puzzleHints')}
                   </p>
                   <p className="tw-text-sm tw-text-muted-foreground tw-mt-1">
-                    Get the best move for any puzzle
+                    {t('puzzles:getBestMove')}
                   </p>
                 </div>
               </div>
@@ -502,7 +507,7 @@ function AuthenticatedPuzzleContent() {
                 className="tw-w-full tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-font-medium"
               >
                 <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
-                Upgrade to Unlock
+                {t('common:upgradeToUnlock')}
               </Button>
             </CardContent>
           </Card>
