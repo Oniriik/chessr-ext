@@ -19,10 +19,10 @@ COPY . .
 
 # Create cron jobs
 # Check plan expirations every 10 minutes
-# Update ratings every 30 minutes
+# Update ratings every 10 minutes
 # Note: signup notifications are handled by the Discord bot
 RUN echo "*/10 * * * * cd /app && pnpm check-expirations >> /proc/1/fd/1 2>&1" > /etc/crontabs/root && \
-    echo "*/30 * * * * cd /app && pnpm update-ratings >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
+    echo "*/10 * * * * cd /app && pnpm update-ratings >> /proc/1/fd/1 2>&1" >> /etc/crontabs/root
 
 # Create startup script that logs and runs crond
 RUN echo '#!/bin/sh' > /start.sh && \
