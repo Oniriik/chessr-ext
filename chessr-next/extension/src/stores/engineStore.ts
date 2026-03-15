@@ -1,25 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import * as chesscom from '../platforms/chesscom';
-import * as lichess from '../lib/lichess';
 import { FREE_LIMITS, isPremium } from '../lib/planUtils';
 import type { Plan } from '../components/ui/plan-badge';
 import { useWebSocketStore } from './webSocketStore';
 
 /**
- * Detect current platform from hostname
+ * Get platform-specific detection functions (lazy to avoid circular deps)
  */
-function detectPlatform(): 'chesscom' | 'lichess' {
+async function getPlatformModule() {
   const hostname = window.location.hostname;
-  if (hostname.includes('lichess.org')) return 'lichess';
-  return 'chesscom';
-}
-
-/**
- * Get platform-specific detection functions
- */
-function getPlatformModule() {
-  return detectPlatform() === 'lichess' ? lichess : chesscom;
+  if (hostname.includes('lichess.org')) {
+    return await import('../lib/lichess');
+  }
+  return await import('../platforms/chesscom');
 }
 
 // Komodo Dragon Personalities
@@ -231,7 +224,7 @@ interface EngineState {
   setSearchMovetime: (value: number) => void;
 
   // Auto-detect from DOM
-  detectFromDOM: () => void;
+  detectFromDOM: () => Promise<void>;
 
   // Enforce plan limits (reset settings that exceed free limits)
   enforcePlanLimits: (plan: Plan) => void;
@@ -313,8 +306,8 @@ export const useEngineStore = create<EngineState>()(
       setSearchMovetime: (value) => set({ searchMovetime: Math.max(500, Math.min(5000, value)) }),
 
       // Detect ratings from DOM (platform-aware)
-      detectFromDOM: () => {
-        const platformModule = getPlatformModule();
+      detectFromDOM: async () => {
+        const platformModule = await getPlatformModule();
         const ratings = platformModule.detectRatings();
 
         if (ratings.playerRating) {

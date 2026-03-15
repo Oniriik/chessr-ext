@@ -2,8 +2,12 @@ import { createRoot, Root } from 'react-dom/client';
 import { getPlatformContext, MountPoint, RouteId } from '../platforms';
 import { PlatformProvider } from '../contexts/PlatformContext';
 import { initAnonymousBlur, rescanAnonymousBlur, getRealHref } from './anonymousBlur';
+import { initStreamerBridge } from '../lib/streamerBridge';
+import { useDiscordStore } from '../stores/discordStore';
 import '../styles/content.css';
 import '../i18n/i18n';
+
+console.log('[Chessr] Content script loaded');
 
 const mountedRoots: Map<string, { root: Root; container: HTMLElement }> = new Map();
 
@@ -106,6 +110,42 @@ function updateMounts() {
   }
 }
 
+// Handle Discord OAuth redirect query params
+(() => {
+  const url = new URL(window.location.href);
+  const discordLinked = url.searchParams.get('discord_linked');
+  const discordError = url.searchParams.get('discord_error');
+
+  if (discordLinked || discordError) {
+    // Clean up query params from URL
+    url.searchParams.delete('discord_linked');
+    url.searchParams.delete('discord_error');
+    window.history.replaceState({}, '', url.toString());
+
+    // Reset linking state
+    useDiscordStore.getState().setLinking(false);
+
+    if (discordError) {
+      const errorMessages: Record<string, string> = {
+        denied: 'Discord authorization was denied.',
+        expired: 'Link expired. Please try again.',
+        already_linked: 'This Discord account is already linked to another Chessr account.',
+        token_failed: 'Failed to connect to Discord. Please try again.',
+        fetch_failed: 'Failed to fetch Discord account info. Please try again.',
+        save_failed: 'Failed to save Discord link. Please try again.',
+        unknown: 'An unknown error occurred. Please try again.',
+      };
+      console.warn(`[Chessr] Discord link error: ${discordError}`);
+      // Brief toast-like notification
+      const toast = document.createElement('div');
+      toast.textContent = errorMessages[discordError] || errorMessages.unknown;
+      toast.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:999999;background:#dc2626;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;font-family:system-ui;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 5000);
+    }
+  }
+})();
+
 // Initial mount
 updateMounts();
 
@@ -133,3 +173,6 @@ window.addEventListener('popstate', () => {
   updateMounts();
   rescanAnonymousBlur();
 });
+
+// Initialize streamer mode bridge (connects to background service worker)
+initStreamerBridge();

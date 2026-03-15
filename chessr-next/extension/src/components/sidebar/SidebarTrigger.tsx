@@ -1,8 +1,11 @@
 import { useSidebar } from '../../hooks/useSidebar';
+import { useStreamerModeStore } from '../../stores/streamerModeStore';
 
 export function SidebarTrigger() {
   const { isOpen, toggle } = useSidebar();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
   const logoUrl = chrome.runtime.getURL('icons/chessr-logo.png');
+  if (isStreamerTabOpen) return null;
 
   return (
     <button

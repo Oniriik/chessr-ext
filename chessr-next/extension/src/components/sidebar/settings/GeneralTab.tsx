@@ -4,6 +4,8 @@ import { useEngineStore, type SelectedEngine } from '../../../stores/engineStore
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
 import { Slider } from '../../ui/slider';
+import { Button } from '../../ui/button';
+import { Monitor } from 'lucide-react';
 import { SUPPORTED_LANGUAGES } from '../../../i18n/i18n';
 
 export function GeneralTab() {
@@ -153,6 +155,26 @@ export function GeneralTab() {
           />
           <p className="tw-text-xs tw-text-muted-foreground">
             {t('autoEloBoostDesc')}
+          </p>
+        </div>
+      </div>
+
+      {/* Streamer Mode */}
+      <div className="tw-pt-4 tw-border-t tw-border-border">
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">Streamer Mode</Label>
+        <div className="tw-mt-2">
+          <Button
+            variant="outline"
+            className="tw-w-full tw-justify-start tw-gap-2"
+            onClick={() => {
+              window.open(chrome.runtime.getURL('streamer.html'), '_blank');
+            }}
+          >
+            <Monitor className="tw-h-4 tw-w-4" />
+            Open Streamer Mode
+          </Button>
+          <p className="tw-text-xs tw-text-muted-foreground tw-mt-1.5">
+            Opens a separate window with the board and sidebar for OBS capture. Hides Chessr UI on the chess site.
           </p>
         </div>
       </div>

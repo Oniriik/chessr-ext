@@ -1,5 +1,6 @@
 import { MountPoint } from '../types';
 import { FloatingSidebar } from '../../components/sidebar/FloatingSidebar';
+import { GameDetector } from '../../components/sidebar/GameDetector';
 import { LichessSidebarTrigger } from '../../components/sidebar/LichessSidebarTrigger';
 import { PuzzleSidebar } from '../../components/sidebar/PuzzleSidebar';
 
@@ -20,6 +21,14 @@ export function getMountPoints(): MountPoint[] {
       selector: 'body',
       position: 'append',
       component: FloatingSidebar,
+    },
+    // Game detector — always mounted so DOM watchers run even in streamer mode
+    {
+      id: 'game-detector',
+      route: ['game'],
+      selector: 'body',
+      position: 'append',
+      component: GameDetector,
     },
     // Puzzle sidebar for training/streak (appended inside metas area)
     {

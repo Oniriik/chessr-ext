@@ -10,6 +10,7 @@ import { isDisposableEmail, isDisposableEmailAsync, DISPOSABLE_EMAIL_ERROR } fro
 import { isRateLimited, recordFailedAttempt, resetAttempts, RATE_LIMIT_ERROR } from '../lib/rateLimiter';
 import type { Plan } from '../components/ui/plan-badge';
 import { useEngineStore } from './engineStore';
+import { useDiscordStore } from './discordStore';
 
 const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
 
@@ -58,9 +59,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Small delay to ensure Chrome storage is ready
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Check if there's a session in localStorage
+      // Check if there's a session in chrome.storage.local
       const storageKey = 'chessr-auth';
-      const storedValue = localStorage.getItem(storageKey);
+      const stored = await chrome.storage.local.get(storageKey);
+      const storedValue = stored[storageKey] ?? null;
       const hasStoredSession = !!storedValue;
 
       // Listen for auth changes first (important for session restoration)
@@ -293,6 +295,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       // Enforce free limits after sign out
       useEngineStore.getState().enforcePlanLimits('free');
+      // Clear Discord state
+      useDiscordStore.getState().reset();
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Sign out failed';
       set({ loading: false, error: message });

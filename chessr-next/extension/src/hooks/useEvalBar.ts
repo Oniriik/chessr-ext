@@ -8,6 +8,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useEngineStore } from '../stores/engineStore';
+import { useStreamerModeStore } from '../stores/streamerModeStore';
 import { EvalBar } from '../content/overlay/EvalBar';
 
 /**
@@ -37,6 +38,7 @@ export function useEvalBar() {
   const { positionEval, mateIn, winRate, suggestedFen } = useSuggestionStore();
   const { showEvalBar, evalBarMode } = useSettingsStore();
   const { selectedEngine } = useEngineStore();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
 
   // Force winrate mode when using Maia (no centipawn eval available)
   const effectiveEvalBarMode = selectedEngine === 'maia2' ? 'winrate' as const : evalBarMode;
@@ -46,8 +48,8 @@ export function useEvalBar() {
 
   // Initialize eval bar when game starts or player color changes
   useEffect(() => {
-    // Clean up when game ends or eval bar is disabled
-    if (!isGameStarted || !showEvalBar) {
+    // Clean up when game ends, eval bar is disabled, or streamer mode is active
+    if (!isGameStarted || !showEvalBar || isStreamerTabOpen) {
       if (evalBarRef.current) {
         evalBarRef.current.destroy();
         evalBarRef.current = null;
@@ -80,7 +82,7 @@ export function useEvalBar() {
         isInitializedRef.current = false;
       }
     };
-  }, [isGameStarted, playerColor, showEvalBar]);
+  }, [isGameStarted, playerColor, showEvalBar, isStreamerTabOpen]);
 
   // Update eval bar when position eval changes (pass raw values, bar handles flipping)
   useEffect(() => {

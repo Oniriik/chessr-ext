@@ -1,4 +1,5 @@
 import { useSidebar } from '../../hooks/useSidebar';
+import { useStreamerModeStore } from '../../stores/streamerModeStore';
 import { SidebarContent } from './SidebarContent';
 
 /**
@@ -8,6 +9,8 @@ import { SidebarContent } from './SidebarContent';
  */
 export function FloatingSidebar() {
   const { isOpen } = useSidebar();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
+  if (isStreamerTabOpen) return null;
 
   return (
     <div

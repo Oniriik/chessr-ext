@@ -3,8 +3,8 @@
   "version": "2.0.9",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch --mode development",
-    "build": "tsc && vite build"
+    "dev": "BUILD_TARGET=content vite build --watch --mode development & BUILD_TARGET=background vite build --watch --mode development & vite build --watch --mode development",
+    "build": "tsc && BUILD_TARGET=content vite build && BUILD_TARGET=background vite build && vite build"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",
@@ -17,6 +17,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@supabase/supabase-js": "^2.49.1",
     "chess.js": "^1.0.0-beta.8",
+    "chessground": "^9.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "i18next": "^25.8.14",

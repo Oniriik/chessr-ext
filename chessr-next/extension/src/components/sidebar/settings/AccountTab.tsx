@@ -212,8 +212,7 @@ function DiscordSection() {
 
   const handleUnlink = () => {
     webSocketManager.send({ type: 'unlink_discord' });
-    useDiscordStore.getState().setLinked(false, null, null);
-    useDiscordStore.getState().setInGuild(false);
+    // State will be updated by discord_unlink_success WebSocket handler
   };
 
   return (

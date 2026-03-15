@@ -1,4 +1,5 @@
 import { useSidebar } from '../../hooks/useSidebar';
+import { useStreamerModeStore } from '../../stores/streamerModeStore';
 
 /**
  * Floating trigger button for Lichess.
@@ -6,10 +7,9 @@ import { useSidebar } from '../../hooks/useSidebar';
  */
 export function LichessSidebarTrigger() {
   const { isOpen, toggle } = useSidebar();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
   const logoUrl = chrome.runtime.getURL('icons/chessr-logo.png');
-
-  // Hide trigger when sidebar is open
-  if (isOpen) return null;
+  if (isStreamerTabOpen || isOpen) return null;
 
   return (
     <button

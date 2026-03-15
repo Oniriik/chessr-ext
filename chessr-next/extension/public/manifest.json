@@ -13,10 +13,14 @@
     {
       "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*"],
       "js": ["content.js"],
-      "css": ["content.css"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "world": "ISOLATED"
     }
   ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -31,8 +35,12 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*"],
+      "resources": ["icons/*", "assets/*"],
       "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*"]
+    },
+    {
+      "resources": ["streamer.html"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

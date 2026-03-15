@@ -1,23 +1,15 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import { extractMovesFromDOM, replayMoves, getChessState, type ChessState } from '../lib/chess';
-import * as chesscom from '../platforms/chesscom';
-import * as lichess from '../lib/lichess';
-
 /**
- * Detect current platform from hostname
+ * Get platform-specific detection functions (lazy to avoid circular deps)
  */
-function detectPlatform(): 'chesscom' | 'lichess' {
+async function getPlatformModule() {
   const hostname = window.location.hostname;
-  if (hostname.includes('lichess.org')) return 'lichess';
-  return 'chesscom';
-}
-
-/**
- * Get platform-specific detection functions
- */
-function getPlatformModule() {
-  return detectPlatform() === 'lichess' ? lichess : chesscom;
+  if (hostname.includes('lichess.org')) {
+    return await import('../lib/lichess');
+  }
+  return await import('../platforms/chesscom');
 }
 
 interface GameState {
@@ -38,7 +30,7 @@ interface GameState {
   // Chess actions
   syncFromDOM: () => void;
   reset: () => void;
-  redetect: () => void;
+  redetect: () => Promise<void>;
 
   // Selectors (computed from chessInstance)
   getChessState: () => ChessState | null;
@@ -106,8 +98,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
    * Re-detect player color and current turn from DOM
    * Platform-aware: works on both Chess.com and Lichess
    */
-  redetect: () => {
-    const platformModule = getPlatformModule();
+  redetect: async () => {
+    const platformModule = await getPlatformModule();
     const playerColor = platformModule.detectPlayerColor();
     const currentTurn = platformModule.detectCurrentTurn();
     set({ playerColor, currentTurn });

@@ -74,7 +74,7 @@ function parseUciMove(uciMove: string): { from: string; to: string } | null {
 /**
  * Hook that renders hint arrows for puzzles
  */
-export function usePuzzleArrowRenderer() {
+export function usePuzzleArrowRenderer(disabled = false) {
   const { t } = useTranslation('game');
   const { isStarted, playerColor, suggestions } = usePuzzleStore();
 
@@ -90,7 +90,7 @@ export function usePuzzleArrowRenderer() {
 
   // Initialize overlay when puzzle starts
   useEffect(() => {
-    if (!isStarted) {
+    if (disabled || !isStarted) {
       // Clean up when puzzle ends
       if (overlayRef.current) {
         overlayRef.current.offResize(handleResize);
@@ -134,7 +134,7 @@ export function usePuzzleArrowRenderer() {
         isInitializedRef.current = false;
       }
     };
-  }, [isStarted, playerColor, handleResize]);
+  }, [isStarted, playerColor, handleResize, disabled]);
 
   // Draw arrows when suggestions change
   useEffect(() => {

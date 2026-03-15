@@ -10,6 +10,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useSuggestionStore, type Suggestion, type ConfidenceLabel } from '../stores/suggestionStore';
 import { useOpeningStore } from '../stores/openingStore';
+import { useStreamerModeStore } from '../stores/streamerModeStore';
 import { useOpeningTracker } from './useOpeningTracker';
 import { useAlternativeOpenings } from './useAlternativeOpenings';
 import { OverlayManager } from '../content/overlay/OverlayManager';
@@ -174,6 +175,7 @@ export function useArrowRenderer() {
     showDetailedMoveSuggestion,
   } = useSettingsStore();
   const { showOpeningArrows, openingArrowColor } = useOpeningStore();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
   const openingTracker = useOpeningTracker();
   const { alternatives } = useAlternativeOpenings(openingTracker.hasDeviated);
 
@@ -242,6 +244,13 @@ export function useArrowRenderer() {
     const renderer = rendererRef.current;
     if (!renderer) {
       logger.log('[ArrowRenderer] No renderer, skipping draw');
+      return;
+    }
+
+    // Hide arrows when streamer mode is active
+    if (isStreamerTabOpen) {
+      renderer.clear();
+      renderer.clearOpeningArrows();
       return;
     }
 
@@ -523,6 +532,7 @@ export function useArrowRenderer() {
     openingTracker.openingMoves,
     openingTracker.currentMoveIndex,
     resizeCounter, // Trigger redraw when board resizes
+    isStreamerTabOpen, // Hide arrows in streamer mode
     t, // Trigger redraw on language change
   ]);
 

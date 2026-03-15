@@ -180,14 +180,15 @@ export async function handleDiscordCallback(
     return;
   }
 
-  // Consume nonce (one-time use)
-  nonceStore.delete(nonce);
-
-  // Check TTL
+  // Check TTL before consuming nonce
   if (Date.now() - nonceEntry.createdAt > NONCE_TTL) {
+    nonceStore.delete(nonce);
     redirect(res, returnUrl, 'discord_error=expired');
     return;
   }
+
+  // Consume nonce (one-time use)
+  nonceStore.delete(nonce);
 
   const { userId, userEmail } = nonceEntry;
 
@@ -297,23 +298,20 @@ export async function handleDiscordCallback(
         updateData.freetrial_used = true;
         planChanged = true;
 
-        // Record in Discord freetrial history
-        await supabase.from('discord_freetrial_history').insert({
+        // Record in Discord freetrial history FIRST (prevents double-grant on retry)
+        const { error: historyError } = await supabase.from('discord_freetrial_history').insert({
           discord_id: discordId,
           user_id: userId,
         });
 
-        // Log plan change
-        await supabase.from('plan_activity_logs').insert({
-          user_id: userId,
-          user_email: userEmail,
-          action_type: 'discord_link',
-          old_plan: 'free',
-          new_plan: 'freetrial',
-          old_expiry: null,
-          new_expiry: expiry,
-          reason: `Discord linked: ${discordUsername} (${discordId})`,
-        });
+        if (historyError) {
+          console.error('[Discord] Failed to record freetrial history:', historyError.message);
+          // Don't grant trial if we can't record it (prevents abuse)
+          delete updateData.plan;
+          delete updateData.plan_expiry;
+          delete updateData.freetrial_used;
+          planChanged = false;
+        }
       } else {
         console.log(`[Discord] Discord ${discordId} already used freetrial, skipping trial for ${userEmail}`);
       }
@@ -329,6 +327,23 @@ export async function handleDiscordCallback(
       console.error('[Discord] Update failed:', updateError.message);
       redirect(res, returnUrl, 'discord_error=save_failed');
       return;
+    }
+
+    // Log plan change after successful update
+    if (planChanged) {
+      const { error: logError } = await supabase.from('plan_activity_logs').insert({
+        user_id: userId,
+        user_email: userEmail,
+        action_type: 'discord_link',
+        old_plan: 'free',
+        new_plan: 'freetrial',
+        old_expiry: null,
+        new_expiry: updateData.plan_expiry,
+        reason: `Discord linked: ${discordUsername} (${discordId})`,
+      });
+      if (logError) {
+        console.error('[Discord] Failed to log plan change:', logError.message);
+      }
     }
 
     console.log(

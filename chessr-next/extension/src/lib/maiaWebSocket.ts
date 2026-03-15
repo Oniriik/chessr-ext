@@ -138,10 +138,9 @@ class MaiaWebSocketManager {
       const fen = data.fen as string;
       const isPuzzle = requestId.startsWith('puzzle-');
 
-      // Maia returns win_prob from side-to-move's perspective
-      // SuggestionStore expects white's perspective
-      const isBlackToMove = fen.includes(' b ');
-      const winProbWhite = isBlackToMove ? 1 - winProb : winProb;
+      // Server mirrors the board for black-to-move then flips win_prob back,
+      // so win_prob is always from white's perspective already.
+      const winProbWhite = winProb;
 
       const positionEval = winProbToEval(winProbWhite);
       const winRateWhitePct = Math.round(winProbWhite * 100);

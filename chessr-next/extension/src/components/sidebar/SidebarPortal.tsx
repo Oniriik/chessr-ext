@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSidebar } from '../../hooks/useSidebar';
+import { useStreamerModeStore } from '../../stores/streamerModeStore';
 import { SidebarContent } from './SidebarContent';
 import { PortalContainerProvider } from '../../contexts/PortalContainerContext';
 
@@ -13,9 +14,11 @@ interface SidebarPortalProps {
 
 export function SidebarPortal({ originalSidebarSelector, inheritClass }: SidebarPortalProps) {
   const { isOpen } = useSidebar();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
   const [container, setContainer] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
+    if (isStreamerTabOpen) return;
     const originalSidebar = document.querySelector(originalSidebarSelector) as HTMLElement;
     if (!originalSidebar) return;
 
@@ -55,10 +58,11 @@ export function SidebarPortal({ originalSidebarSelector, inheritClass }: Sidebar
         origSidebar.style.display = '';
       }
     };
-  }, [originalSidebarSelector, inheritClass, isOpen]);
+  }, [originalSidebarSelector, inheritClass, isOpen, isStreamerTabOpen]);
 
   // Toggle visibility when isOpen changes
   useEffect(() => {
+    if (isStreamerTabOpen) return;
     const originalSidebar = document.querySelector(originalSidebarSelector) as HTMLElement;
     const chessrSidebar = document.getElementById('chessr-sidebar');
 
@@ -71,7 +75,7 @@ export function SidebarPortal({ originalSidebarSelector, inheritClass }: Sidebar
         chessrSidebar.style.display = 'none';
       }
     }
-  }, [isOpen, originalSidebarSelector]);
+  }, [isOpen, originalSidebarSelector, isStreamerTabOpen]);
 
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -90,7 +94,7 @@ export function SidebarPortal({ originalSidebarSelector, inheritClass }: Sidebar
     setPortalContainer(portalEl);
   }, [container]);
 
-  if (!container) return null;
+  if (isStreamerTabOpen || !container) return null;
 
   return createPortal(
     <PortalContainerProvider value={portalContainer}>

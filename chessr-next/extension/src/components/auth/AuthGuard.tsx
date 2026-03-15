@@ -3,8 +3,6 @@ import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 import { useAccountsFetched } from '../../stores/linkedAccountsStore';
-import { useSuggestionTrigger } from '../../hooks/useSuggestionTrigger';
-import { useAnalysisTrigger } from '../../hooks/useAnalysisTrigger';
 import { useArrowRenderer } from '../../hooks/useArrowRenderer';
 import { useEvalBar } from '../../hooks/useEvalBar';
 import { useLinkingCheck } from '../../hooks/useLinkingCheck';
@@ -17,36 +15,27 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const { user, initializing, initialize } = useAuthStore();
-  const { isConnected, init: initWebSocket, connect: connectWebSocket, destroy: destroyWebSocket } = useWebSocketStore();
-  const accountsFetched = useAccountsFetched();
 
-  // Initialize auth
+  const { isConnected, init: initWebSocket, connect: connectWebSocket } = useWebSocketStore();
+
+  // Ensure auth is initialized regardless of which route/page we're on
   useEffect(() => {
     initialize();
   }, [initialize]);
 
-  // Initialize and connect WebSocket when user is authenticated
+  // Connect WebSocket when authenticated (so it works on all pages, not just game routes)
   useEffect(() => {
     if (user) {
       initWebSocket();
       connectWebSocket();
     }
+  }, [user, initWebSocket, connectWebSocket]);
+  const accountsFetched = useAccountsFetched();
 
-    return () => {
-      destroyWebSocket();
-    };
-  }, [user, initWebSocket, connectWebSocket, destroyWebSocket]);
-
-  // Auto-trigger suggestions on player turn
-  useSuggestionTrigger();
-
-  // Auto-trigger analysis after player moves
-  useAnalysisTrigger();
-
-  // Draw suggestion arrows on board
+  // Draw suggestion arrows on board (UI-only, hidden in streamer mode)
   useArrowRenderer();
 
-  // Show eval bar next to board
+  // Show eval bar next to board (UI-only, hidden in streamer mode)
   useEvalBar();
 
   // Check if user needs to link their platform account

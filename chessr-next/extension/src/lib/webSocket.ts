@@ -296,6 +296,12 @@ class WebSocketManager {
           } else if (data.type === 'discord_link_error') {
             logger.error('Discord link error:', data.error);
             useDiscordStore.getState().setLinking(false);
+          } else if (data.type === 'discord_unlink_success') {
+            logger.log('Discord unlinked successfully');
+            useDiscordStore.getState().setLinked(false, null, null);
+            useDiscordStore.getState().setInGuild(false);
+          } else if (data.type === 'discord_unlink_error') {
+            logger.error('Discord unlink error:', data.error);
           } else if (data.type === 'banned') {
             // Server detected user is banned - force sign out
             logger.log('User banned by server:', data.reason);

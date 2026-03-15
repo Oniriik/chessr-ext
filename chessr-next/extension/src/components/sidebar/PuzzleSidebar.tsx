@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles, Zap } from 'lucide-react';
+import { Puzzle, LogOut, Loader2, Play, Lightbulb, CheckCircle2, Lock, Sparkles, Zap, Monitor } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Switch } from '../ui/switch';
@@ -17,6 +17,7 @@ import { usePuzzleArrowRenderer } from '../../hooks/usePuzzleArrowRenderer';
 import { usePlatform } from '../../contexts/PlatformContext';
 import { logger } from '../../lib/logger';
 import { usePlanLimits } from '../../lib/planUtils';
+import { useStreamerModeStore } from '../../stores/streamerModeStore';
 
 /**
  * Hook that detects puzzle state and syncs with puzzle store
@@ -246,7 +247,7 @@ function formatSearchValue(mode: PuzzleSearchMode, nodes: number, depth: number,
   }
 }
 
-function PuzzleControls() {
+function PuzzleControls({ triggerHint }: { triggerHint: () => void }) {
   const {
     autoHint, setAutoHint, autoPlay, setAutoPlay, isLoading, isStarted,
     puzzleEngine, setPuzzleEngine,
@@ -255,7 +256,6 @@ function PuzzleControls() {
   } = usePuzzleStore();
   const { isConnected: isServerConnected } = useWebSocketStore();
   const { isConnected: isMaiaConnected, isConnecting: isMaiaConnecting } = useMaiaWebSocketStore();
-  const triggerHint = usePuzzleSuggestionTrigger();
   const { canUsePuzzleHints } = usePlanLimits();
   const { t } = useTranslation(['puzzles', 'common', 'game', 'engine', 'settings']);
 
@@ -453,20 +453,31 @@ function PuzzleHeader() {
           {t('common:puzzle')}
         </span>
       </div>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={signOut}
-        className="tw-h-8 tw-w-8"
-        title={t('common:signOut')}
-      >
-        <LogOut className="tw-h-4 tw-w-4" />
-      </Button>
+      <div className="tw-flex tw-items-center tw-gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => window.open(chrome.runtime.getURL('streamer.html'), '_blank')}
+          className="tw-h-8 tw-w-8"
+          title="Streamer Mode"
+        >
+          <Monitor className="tw-h-4 tw-w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={signOut}
+          className="tw-h-8 tw-w-8"
+          title={t('common:signOut')}
+        >
+          <LogOut className="tw-h-4 tw-w-4" />
+        </Button>
+      </div>
     </div>
   );
 }
 
-function AuthenticatedPuzzleContent() {
+function AuthenticatedPuzzleContent({ hidden }: { hidden?: boolean }) {
   const { isStarted, isSolved, playerColor } = usePuzzleDetection();
   const { init, connect } = useWebSocketStore();
   const { canUsePuzzleHints } = usePlanLimits();
@@ -478,8 +489,14 @@ function AuthenticatedPuzzleContent() {
     connect();
   }, [init, connect]);
 
-  // Render hint arrows on the board (only for premium)
-  usePuzzleArrowRenderer();
+  // Render hint arrows on the board (only for premium) — skip in streamer mode
+  usePuzzleArrowRenderer(hidden);
+
+  // Auto-trigger suggestions when FEN changes (must run even in streamer mode)
+  const triggerHint = usePuzzleSuggestionTrigger();
+
+  // In streamer mode, keep hooks running but hide UI
+  if (hidden) return null;
 
   // Free users: show only upgrade card
   if (!canUsePuzzleHints) {
@@ -521,7 +538,7 @@ function AuthenticatedPuzzleContent() {
       <PuzzleHeader />
       <div className="tw-flex-1 tw-flex tw-flex-col">
         <PuzzleStatusCard isStarted={isStarted} isSolved={isSolved} playerColor={playerColor} />
-        <PuzzleControls />
+        <PuzzleControls triggerHint={triggerHint} />
       </div>
     </Card>
   );
@@ -529,10 +546,17 @@ function AuthenticatedPuzzleContent() {
 
 export function PuzzleSidebar() {
   const { user, initializing, initialize } = useAuthStore();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
 
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // In streamer mode: still render AuthenticatedPuzzleContent (so hooks run)
+  // but pass hidden=true to skip UI rendering
+  if (isStreamerTabOpen) {
+    return user ? <AuthenticatedPuzzleContent hidden /> : null;
+  }
 
   return (
     <div id="chessr-root" className="tw-h-[400px]">

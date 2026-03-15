@@ -1,6 +1,7 @@
 import { Info } from 'lucide-react';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useAuthStore } from '../../stores/authStore';
+import { useStreamerModeStore } from '../../stores/streamerModeStore';
 import { Tooltip } from '../ui/tooltip';
 
 /**
@@ -9,7 +10,9 @@ import { Tooltip } from '../ui/tooltip';
  */
 export function BaseSidebarTrigger() {
   const { isOpen, toggle } = useSidebar();
+  const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
   const { user, initializing } = useAuthStore();
+  if (isStreamerTabOpen) return null;
   const logoUrl = chrome.runtime.getURL('icons/chessr-logo.png');
   const isLoggedOut = !initializing && !user;
 

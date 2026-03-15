@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Streamer page root - dark theme with CSS variables */
+#root {
+  /* Background & Foreground */
+  --background: 240 20% 5%;
+  --foreground: 240 6% 90%;
+
+  /* Card */
+  --card: 233 19% 8%;
+  --card-foreground: 240 6% 90%;
+
+  /* Popover */
+  --popover: 233 19% 8%;
+  --popover-foreground: 240 6% 90%;
+
+  /* Primary - Blue */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary - Cyan */
+  --secondary: 188 86% 53%;
+  --secondary-foreground: 0 0% 0%;
+
+  /* Muted */
+  --muted: 235 21% 13%;
+  --muted-foreground: 240 5% 65%;
+
+  /* Accent */
+  --accent: 235 21% 13%;
+  --accent-foreground: 240 6% 90%;
+
+  /* Destructive - Red */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Success - Green */
+  --success: 142 76% 36%;
+  --success-foreground: 0 0% 100%;
+
+  /* Warning - Yellow/Orange */
+  --warning: 38 92% 50%;
+  --warning-foreground: 0 0% 0%;
+
+  /* Danger */
+  --danger: 0 84% 60%;
+  --danger-foreground: 0 0% 100%;
+
+  /* Border & Input */
+  --border: 236 20% 20%;
+  --input: 236 20% 20%;
+  --ring: 217 91% 60%;
+
+  /* Radius */
+  --radius: 0.5rem;
+
+  /* Base styles */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--background));
+  min-height: 100vh;
+}
+
+/* Box sizing reset */
+#root *,
+#root *::before,
+#root *::after {
+  box-sizing: border-box;
+  border-width: 0;
+  border-style: solid;
+  border-color: hsl(var(--border));
+}
+
+#root svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+#root button {
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Custom scrollbar */
+#root ::-webkit-scrollbar {
+  width: 6px;
+}
+
+#root ::-webkit-scrollbar-track {
+  background: hsl(var(--background));
+}
+
+#root ::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+
+#root ::-webkit-scrollbar-thumb:hover {
+  background: hsl(236 20% 30%);
+}
+
+/* Board wrapper — square, sized via JS state */
+.streamer-board-wrapper {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.streamer-board-inner {
+  width: 100%;
+  height: 100%;
+}
+
+/* Drag handle below the board */
+.streamer-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 18px;
+  margin-top: 4px;
+  cursor: ns-resize;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+  touch-action: none;
+  user-select: none;
+}
+
+.streamer-resize-handle:hover,
+.streamer-resize-handle:active {
+  opacity: 1;
+  background: hsl(var(--muted));
+}
+
+/* Chessground board styling */
+.streamer-board-wrapper cg-board {
+  background-color: #302e2b;
+}
+
+/* Custom arrow brushes for chessground */
+.streamer-board-wrapper .cg-shapes .cg-custom svg {
+  overflow: visible;
+}

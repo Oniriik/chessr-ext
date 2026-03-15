@@ -8,25 +8,27 @@ import { createClient } from '@supabase/supabase-js';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Storage adapter using localStorage for session persistence
+// Storage adapter using chrome.storage.local — shared across all extension contexts
+// (content script, streamer page, popup, etc.)
 const storageAdapter = {
   getItem: async (key: string): Promise<string | null> => {
     try {
-      return localStorage.getItem(key);
+      const result = await chrome.storage.local.get(key);
+      return result[key] ?? null;
     } catch {
       return null;
     }
   },
   setItem: async (key: string, value: string): Promise<void> => {
     try {
-      localStorage.setItem(key, value);
+      await chrome.storage.local.set({ [key]: value });
     } catch {
       // Ignore storage errors
     }
   },
   removeItem: async (key: string): Promise<void> => {
     try {
-      localStorage.removeItem(key);
+      await chrome.storage.local.remove(key);
     } catch {
       // Ignore storage errors
     }

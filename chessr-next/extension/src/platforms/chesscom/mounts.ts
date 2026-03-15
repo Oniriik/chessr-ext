@@ -2,6 +2,7 @@ import { MountPoint } from '../types';
 import { SidebarMount } from '../../components/sidebar/SidebarMount';
 import { BaseSidebarTrigger } from '../../components/sidebar/BaseSidebarTrigger';
 import { FloatingSidebar } from '../../components/sidebar/FloatingSidebar';
+import { GameDetector } from '../../components/sidebar/GameDetector';
 import { PuzzleSidebar } from '../../components/sidebar/PuzzleSidebar';
 
 export function getMountPoints(): MountPoint[] {
@@ -63,6 +64,14 @@ export function getMountPoints(): MountPoint[] {
       parentStyles: {
         gap: '8px',
       },
+    },
+    // Game detector — always mounted so DOM watchers run even in streamer mode
+    {
+      id: 'game-detector',
+      route: ['play-computer', 'game-computer', 'play-online', 'game'],
+      selector: 'body',
+      position: 'append',
+      component: GameDetector,
     },
     // Puzzle pages
     {

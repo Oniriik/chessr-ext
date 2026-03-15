@@ -21,8 +21,6 @@ import { useEngineStore } from '../../stores/engineStore';
 import { UpdateRequiredCard } from './UpdateRequiredCard';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
-import { useGameDetection } from '../../hooks/useGameDetection';
-import { useOpeningTrigger } from '../../hooks/useOpeningTrigger';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 
@@ -151,11 +149,6 @@ function AuthenticatedContent() {
   useEffect(() => {
     checkVersion();
   }, [checkVersion]);
-
-  // Initialize game detection (waits for move list, observes changes)
-  useGameDetection();
-  // Initialize opening book features
-  useOpeningTrigger();
 
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const compactBadge = containerWidth > 0 && containerWidth < 350;
