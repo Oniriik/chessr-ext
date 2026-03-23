@@ -276,19 +276,21 @@ export function AccountTab() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [isCanceled, setIsCanceled] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from('subscriptions')
-      .select('status, interval')
+      .select('status, interval, canceled_at')
       .eq('user_id', user.id)
       .limit(1)
       .single()
       .then(({ data }) => {
         setHasActiveSubscription(data?.status === 'active' && !!data?.interval);
+        setIsCanceled(data?.status === 'canceled' || !!data?.canceled_at);
       });
-  }, [user]);
+  }, [user, plan]);
 
   const isEmailVerified = !!user?.email_confirmed_at;
   const signupDate = user?.created_at
@@ -427,17 +429,31 @@ export function AccountTab() {
       <div className="tw-space-y-3 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">{t('settings:subscription')}</Label>
         <div className="tw-flex tw-items-center tw-gap-3 tw-p-3 tw-rounded-lg tw-bg-muted">
-          <div className="tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full" style={{ backgroundColor: planInfo.bgColor }}>
-            {planInfo.icon}
+          <div className="tw-flex tw-items-center tw-justify-center tw-w-10 tw-h-10 tw-rounded-full" style={{ backgroundColor: isCanceled ? '#9c404020' : planInfo.bgColor }}>
+            {isCanceled ? <AlertCircle className="tw-w-5 tw-h-5" style={{ color: '#9c4040' }} /> : planInfo.icon}
           </div>
           <div className="tw-flex-1">
-            <p className="tw-text-sm tw-font-medium tw-text-foreground">{planInfo.title}</p>
+            <p className="tw-text-sm tw-font-medium tw-text-foreground">
+              {isCanceled ? 'Canceled' : planInfo.title}
+            </p>
             <p className="tw-text-xs tw-text-muted-foreground">
-              {planInfo.description}
+              {isCanceled && planExpiry
+                ? `Access until ${planExpiry.toLocaleDateString(i18n.language, { year: 'numeric', month: 'long', day: 'numeric' })}`
+                : planInfo.description}
             </p>
           </div>
         </div>
-        {plan === 'premium' || hasActiveSubscription ? (
+        {isCanceled ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="tw-w-full"
+            onClick={() => openBillingPage()}
+          >
+            <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
+            Resubscribe
+          </Button>
+        ) : plan === 'premium' || hasActiveSubscription ? (
           <Button
             variant="outline"
             size="sm"
