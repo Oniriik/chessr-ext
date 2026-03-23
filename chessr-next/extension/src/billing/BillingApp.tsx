@@ -136,9 +136,10 @@ export function BillingApp() {
   const [canceling, setCanceling] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [switchPreview, setSwitchPreview] = useState<{
-    credit: string | null;
-    charge: string | null;
+    credit: { amount: string; currency: string } | null;
+    charge: { amount: string; currency: string } | null;
     result: { action: string; amount: string; currency: string } | null;
+    tax: string | null;
     nextBilledAt: string | null;
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -197,33 +198,28 @@ export function BillingApp() {
   };
 
   const canSwitchToYearly = isCurrentPlan('premium', userPlan) && !subCanceled && subInterval === 'monthly';
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
 
-  // Fetch preview when toggle changes and user has active sub
+  // Fetch preview when toggle is yearly and user can switch
   useEffect(() => {
-    // Only allow monthly → yearly switch
     if (!canSwitchToYearly || billing !== 'yearly' || !session?.access_token) {
       setSwitchPreview(null);
       return;
     }
     setLoadingPreview(true);
+    setSwitchPreview(null);
     fetch(`${SERVER_URL}/api/paddle/preview-switch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ plan: billing }),
+      body: JSON.stringify({ plan: 'yearly' }),
     })
       .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          setSwitchPreview(null);
-        } else {
-          setSwitchPreview(data);
-        }
-      })
+      .then((data) => setSwitchPreview(data.error ? null : data))
       .catch(() => setSwitchPreview(null))
       .finally(() => setLoadingPreview(false));
-  }, [billing, canSwitchToYearly]);
+  }, [canSwitchToYearly, billing]);
 
-  const handleSwitch = async (targetPlan: 'monthly' | 'yearly') => {
+  const handleSwitch = async () => {
     const token = session?.access_token;
     if (!token) return;
     setSwitching(true);
@@ -232,12 +228,13 @@ export function BillingApp() {
       const res = await fetch(`${SERVER_URL}/api/paddle/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ plan: targetPlan }),
+        body: JSON.stringify({ plan: 'yearly' }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: 'Unknown error' }));
         throw new Error(data.error);
       }
+      setShowSwitchModal(false);
       // Wait for webhooks to update DB
       if (userRef.current) {
         await new Promise((r) => setTimeout(r, 3000));
@@ -681,41 +678,36 @@ export function BillingApp() {
                   }}>Canceled</button>
                 ) : (
                   <>
-                    {/* Switch monthly → yearly */}
+                    {/* Switch monthly → yearly button */}
                     {canSwitchToYearly && billing === 'yearly' ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* Preview breakdown */}
-                        {loadingPreview && (
-                          <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Spinner /></div>
-                        )}
+                        {/* Inline preview on card */}
                         {switchPreview?.result && !loadingPreview && (
-                          <div style={{
-                            padding: '8px 10px', borderRadius: 8, background: '#0f1a2e', border: '1px solid #1e3a5f',
-                            fontSize: 10, color: '#93c5fd',
-                          }}>
-                            {switchPreview.credit && <div>Credit from monthly: <strong>€{(Number(switchPreview.credit) / 100).toFixed(2)}</strong></div>}
-                            {switchPreview.result.action === 'charge' && (
-                              <div style={{ marginTop: 2 }}>You pay now: <strong>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</strong></div>
-                            )}
-                            {switchPreview.nextBilledAt && (
-                              <div style={{ marginTop: 2, color: 'rgba(255,255,255,0.4)' }}>
-                                Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                          <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>You pay now</span>
+                              <span style={{ fontWeight: 600, color: '#fff' }}>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
+                            </div>
+                            {switchPreview.credit && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
+                                <span>Includes -€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)} credit</span>
                               </div>
                             )}
                           </div>
                         )}
+                        {loadingPreview && (
+                          <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Spinner /></div>
+                        )}
                         <button
-                          onClick={() => handleSwitch('yearly')}
-                          disabled={switching}
+                          onClick={() => setShowSwitchModal(true)}
                           style={{
                             width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
                             fontWeight: 700, fontSize: 13, color: '#fff',
                             background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
                             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                            opacity: switching ? 0.5 : 1,
                           }}
                         >
-                          {switching ? <Spinner /> : <>Switch to Yearly (save 30%) <ArrowRightIcon /></>}
+                          Switch to Yearly (save 30%) <ArrowRightIcon />
                         </button>
                       </div>
                     ) : (
@@ -836,6 +828,109 @@ export function BillingApp() {
           </div>
         </div>
       </div>
+
+      {/* Switch to Yearly Modal */}
+      {showSwitchModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.7)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget && !switching) setShowSwitchModal(false); }}
+        >
+          <div style={{ width: 400, borderRadius: 12, background: '#111119', border: '1px solid #2a2a3e', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e1e2e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Switch to Yearly</span>
+              <button
+                onClick={() => !switching && setShowSwitchModal(false)}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              >×</button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              {/* Loading */}
+              {loadingPreview && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '20px 0', color: '#93c5fd', fontSize: 12 }}>
+                  <Spinner /> Loading proration details...
+                </div>
+              )}
+
+              {/* Preview breakdown */}
+              {switchPreview && !loadingPreview && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 12px' }}>
+                    Save 30% by switching to yearly billing.
+                  </p>
+                  <div style={{ padding: 12, borderRadius: 8, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 12 }}>
+                    {switchPreview.credit && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: '#4ade80' }}>
+                        <span>Credit (remaining monthly)</span>
+                        <span>-€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.charge && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'rgba(255,255,255,0.6)' }}>
+                        <span>Yearly plan</span>
+                        <span>€{(Number(switchPreview.charge.amount) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.tax && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'rgba(255,255,255,0.4)' }}>
+                        <span>VAT</span>
+                        <span>€{(Number(switchPreview.tax) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.result && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #1e3a5f', fontWeight: 600, color: '#fff' }}>
+                        <span>Amount paid</span>
+                        <span>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.nextBilledAt && (
+                      <div style={{ marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                        Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Error fallback */}
+              {!switchPreview && !loadingPreview && (
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px' }}>
+                  Switch to yearly and save 30%. You'll be charged a prorated amount for the remaining period.
+                </p>
+              )}
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setShowSwitchModal(false)}
+                  disabled={switching}
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSwitch()}
+                  disabled={switching || loadingPreview}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
+                    fontWeight: 600, fontSize: 13, color: '#fff',
+                    background: switching || loadingPreview ? '#1a2a4a' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                    cursor: switching || loadingPreview ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    opacity: switching || loadingPreview ? 0.5 : 1,
+                  }}
+                >
+                  {switching ? <><Spinner /> Switching...</> : 'Confirm Switch'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cancel Modal */}
       {cancelStep !== 'hidden' && (

@@ -554,12 +554,23 @@ export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerRespo
       const summary = preview.updateSummary;
       const immediate = preview.immediateTransaction;
 
+      // Extract line items for detailed breakdown (amounts include tax)
+      const lineItems = (immediate?.details as any)?.lineItems || [];
+      const creditLine = lineItems.find((li: any) => li.proration);
+      const chargeLine = lineItems.find((li: any) => !li.proration);
+
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        credit: summary?.credit ? { amount: summary.credit.amount, currency: summary.credit.currencyCode } : null,
-        charge: summary?.charge ? { amount: summary.charge.amount, currency: summary.charge.currencyCode } : null,
-        result: summary?.result ? { action: summary.result.action, amount: summary.result.amount, currency: summary.result.currencyCode } : null,
-        immediateTotal: immediate?.details?.totals ? { subtotal: immediate.details.totals.subtotal, tax: immediate.details.totals.tax, total: immediate.details.totals.total, currency: immediate.details.totals.currencyCode } : null,
+        // TTC amounts from line items
+        credit: creditLine ? { amount: creditLine.totals.total, currency: creditLine.totals.currencyCode || 'EUR' } : null,
+        charge: chargeLine ? { amount: chargeLine.totals.total, currency: chargeLine.totals.currencyCode || 'EUR' } : null,
+        // Total TTC from immediate transaction
+        result: immediate?.details?.totals ? {
+          action: 'charge',
+          amount: immediate.details.totals.total,
+          currency: immediate.details.totals.currencyCode || 'EUR',
+        } : (summary?.result ? { action: summary.result.action, amount: summary.result.amount, currency: summary.result.currencyCode } : null),
+        tax: immediate?.details?.totals?.tax || null,
         nextBilledAt: preview.nextBilledAt,
       }));
     } catch (err) {
