@@ -134,6 +134,7 @@ export function BillingApp() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelDetails, setCancelDetails] = useState('');
   const [canceling, setCanceling] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
@@ -186,6 +187,35 @@ export function BillingApp() {
     }
     setConfirming(false);
     setSuccess(true);
+  };
+
+  const handleSwitch = async (targetPlan: 'monthly' | 'yearly') => {
+    const token = session?.access_token;
+    if (!token) return;
+    setSwitching(true);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/paddle/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ plan: targetPlan }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.error);
+      }
+      // Wait for webhooks to update DB
+      if (userRef.current) {
+        await new Promise((r) => setTimeout(r, 3000));
+        await fetchPlan(userRef.current.id);
+        await fetchTrialData();
+        chrome.runtime.sendMessage({ type: 'plan_updated', plan: useAuthStore.getState().plan });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to switch plan');
+    } finally {
+      setSwitching(false);
+    }
   };
 
   const cancelReasons = [
@@ -609,20 +639,57 @@ export function BillingApp() {
                     {subInterval ? ` (${subInterval})` : ''}
                   </div>
                 ) : null}
-                <button disabled style={{
-                  width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                  fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>{subCanceled ? 'Canceled' : 'Current Plan'}</button>
+                {subCanceled ? (
+                  <button disabled style={{
+                    width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                    fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>Canceled</button>
+                ) : (
+                  <>
+                    {/* Switch plan button */}
+                    {subInterval && subInterval !== billing && (
+                      <button
+                        onClick={() => handleSwitch(billing)}
+                        disabled={switching}
+                        style={{
+                          width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                          fontWeight: 700, fontSize: 13, color: '#fff',
+                          background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          opacity: switching ? 0.5 : 1,
+                        }}
+                      >
+                        {switching ? <Spinner /> : <>Switch to {billing === 'yearly' ? 'Yearly' : 'Monthly'} {billing === 'yearly' ? '(save 30%)' : ''} <ArrowRightIcon /></>}
+                      </button>
+                    )}
 
-                {/* Cancel link */}
-                {!subCanceled && (
-                  <button
-                    onClick={() => { setCancelStep('reason'); setCancelReason(''); setCancelDetails(''); }}
-                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 10, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
-                  >
-                    Cancel subscription
-                  </button>
+                    {/* Current plan indicator */}
+                    {subInterval === billing && (
+                      <button disabled style={{
+                        width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                        fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>Current Plan ({subInterval})</button>
+                    )}
+
+                    {/* No interval info — just show current plan */}
+                    {!subInterval && (
+                      <button disabled style={{
+                        width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                        fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>Current Plan</button>
+                    )}
+
+                    {/* Cancel link */}
+                    <button
+                      onClick={() => { setCancelStep('reason'); setCancelReason(''); setCancelDetails(''); }}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 10, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
+                    >
+                      Cancel subscription
+                    </button>
+                  </>
                 )}
               </div>
               );

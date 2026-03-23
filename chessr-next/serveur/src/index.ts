@@ -46,6 +46,7 @@ import {
   handlePaddleWebhook,
   handlePaddleCheckout,
   handlePaddleCancel,
+  handlePaddleSwitch,
   handlePaddleSubscriptionStatus,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
@@ -634,6 +635,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Paddle checkout (link user ↔ customer)
   if (req.url === "/api/paddle/checkout" && req.method === "POST") {
     handlePaddleCheckout(req, res);
+    return;
+  }
+
+  // Paddle switch plan (monthly ↔ yearly)
+  if (req.url === "/api/paddle/switch" && req.method === "POST") {
+    handlePaddleSwitch(req, res);
     return;
   }
 

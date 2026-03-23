@@ -433,6 +433,73 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
   });
 }
 
+// ─── Switch plan endpoint ────────────────────────────────────────────────────
+// POST /api/paddle/switch — switch between monthly ↔ yearly with proration
+
+export function handlePaddleSwitch(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { plan } = JSON.parse(body) as { plan: "monthly" | "yearly" };
+      const priceId = PADDLE_PRICES[plan];
+
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan. Use: monthly or yearly" }));
+        return;
+      }
+
+      const userId = authData.user.id;
+
+      // Get current subscription
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription found" }));
+        return;
+      }
+
+      // Update subscription with proration
+      const updated = await paddle.subscriptions.update(sub.paddle_subscription_id, {
+        items: [{ priceId, quantity: 1 }],
+        prorationBillingMode: "prorated_immediately",
+      });
+
+      console.log(`[Paddle] Switch to ${plan} for ${authData.user.email} (${sub.paddle_subscription_id})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, nextBilledAt: updated.nextBilledAt }));
+    } catch (err) {
+      console.error("[Paddle] Switch error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to switch plan" }));
+    }
+  });
+}
+
 // ─── Cancel subscription endpoint ────────────────────────────────────────────
 // POST /api/paddle/cancel — cancels subscription at end of billing period
 
