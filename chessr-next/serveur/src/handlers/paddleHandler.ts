@@ -400,15 +400,11 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
       });
 
       const txnId = transaction.id;
-      const serverBase = PADDLE_ENVIRONMENT === "sandbox"
-        ? "https://engine.chessr.io"
-        : "https://engine.chessr.io";
-      const checkoutUrl = `${serverBase}/checkout?txn=${txnId}`;
 
       console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (txn=${txnId})`);
 
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ checkoutUrl }));
+      res.end(JSON.stringify({ transactionId: txnId }));
     } catch (err) {
       console.error("[Paddle] Checkout error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
