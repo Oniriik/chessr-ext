@@ -689,7 +689,7 @@ async function handleLeaderboardCommand(interaction) {
   const medals = ['🥇', '🥈', '🥉'];
   const lines = leaderboard.map((u, i) => {
     const prefix = i < 3 ? medals[i] : `\`${i + 1}.\``;
-    return `${prefix} <@${u.discordId}> — **${u.elo}**`;
+    return `${prefix} @${u.username} — **${u.elo}**`;
   });
 
   await interaction.editReply({
