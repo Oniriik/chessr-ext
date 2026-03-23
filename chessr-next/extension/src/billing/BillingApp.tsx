@@ -173,11 +173,14 @@ export function BillingApp() {
         (!beforeSubId && sub?.status === 'active');
 
       if (changed) {
+        // Wait a bit more for all webhooks to settle (interval, period end, etc.)
+        await new Promise((r) => setTimeout(r, 3000));
+        await fetchPlan(currentUser.id);
+        await fetchTrialData();
         setConfirming(false);
         setSuccess(true);
         setSubCanceled(false);
-        await fetchTrialData();
-        chrome.runtime.sendMessage({ type: 'plan_updated', plan: newPlan });
+        chrome.runtime.sendMessage({ type: 'plan_updated', plan: useAuthStore.getState().plan });
         return;
       }
     }
