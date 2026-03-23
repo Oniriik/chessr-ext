@@ -686,10 +686,17 @@ async function handleLeaderboardCommand(interaction) {
     return;
   }
 
+  // Pre-fetch guild members so Discord resolves mentions on all clients
+  const guild = interaction.guild;
+  if (guild) {
+    const ids = leaderboard.map(u => u.discordId).filter(Boolean);
+    await guild.members.fetch({ user: ids }).catch(() => {});
+  }
+
   const medals = ['🥇', '🥈', '🥉'];
   const lines = leaderboard.map((u, i) => {
     const prefix = i < 3 ? medals[i] : `\`${i + 1}.\``;
-    return `${prefix} @${u.username} — **${u.elo}**`;
+    return `${prefix} <@${u.discordId}> — **${u.elo}**`;
   });
 
   await interaction.editReply({
