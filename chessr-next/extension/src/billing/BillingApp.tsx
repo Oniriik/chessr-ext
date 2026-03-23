@@ -58,7 +58,7 @@ const lifetimeExtras = [
 
 function isCurrentPlan(plan: 'free' | 'premium' | 'lifetime', userPlan: Plan): boolean {
   if (plan === 'free') return userPlan === 'free';
-  if (plan === 'premium') return userPlan === 'premium' || userPlan === 'freetrial';
+  if (plan === 'premium') return userPlan === 'premium'; // freetrial is NOT premium — user can still subscribe
   if (plan === 'lifetime') return userPlan === 'lifetime';
   return false;
 }
@@ -120,6 +120,9 @@ export function BillingApp() {
   const [confirming, setConfirming] = useState(false);
   const [freetrialUsed, setFreetrialUsed] = useState<boolean | null>(null); // null = loading
   const [discordLinked, setDiscordLinked] = useState<boolean | null>(null);
+  const [subInterval, setSubInterval] = useState<string | null>(null); // 'monthly' | 'yearly' | null
+  const [subRenewalDate, setSubRenewalDate] = useState<Date | null>(null);
+  const [subCanceled, setSubCanceled] = useState(false);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
@@ -148,7 +151,7 @@ export function BillingApp() {
     initialize();
   }, [initialize]);
 
-  // Fetch freetrial eligibility from Supabase
+  // Fetch freetrial eligibility and subscription info from Supabase
   const fetchTrialData = async () => {
     if (!user) return;
     const { data } = await supabase
@@ -158,6 +161,19 @@ export function BillingApp() {
       .single();
     setFreetrialUsed(data?.freetrial_used ?? true);
     setDiscordLinked(!!data?.discord_id);
+
+    // Fetch subscription details
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('interval, current_period_end, status, canceled_at')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single();
+    if (sub) {
+      setSubInterval(sub.interval || null);
+      setSubRenewalDate(sub.current_period_end ? new Date(sub.current_period_end) : null);
+      setSubCanceled(sub.status === 'canceled' || !!sub.canceled_at);
+    }
   };
 
   useEffect(() => {
@@ -363,9 +379,9 @@ export function BillingApp() {
           {/* Free */}
           <div style={{
             position: 'relative', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column',
-            border: isFree ? '1px solid #3b82f6' : '1px solid #1e1e2e', background: '#111119',
+            border: isFree && userPlan !== 'freetrial' ? '1px solid #3b82f6' : '1px solid #1e1e2e', background: '#111119',
           }}>
-            {isFree && (
+            {isFree && userPlan !== 'freetrial' && (
               <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)', padding: '4px 10px', borderRadius: '0 0 8px 8px', background: '#3b82f6', color: '#fff', fontSize: 10, fontWeight: 700 }}>
                 Current Plan
               </div>
@@ -393,20 +409,20 @@ export function BillingApp() {
               fontWeight: 600, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#111119', cursor: 'default',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              {isFree ? 'Current Plan' : 'Free'}
+              {isFree && userPlan !== 'freetrial' ? 'Current Plan' : 'Free'}
             </button>
           </div>
 
           {/* Premium */}
           <div style={{
             position: 'relative', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column',
-            border: isPremium ? '1px solid #3b82f6' : '1px solid #1e3a5f', background: isPremium ? '#0f1a2e' : '#0d1526',
+            border: isPremium || userPlan === 'freetrial' ? '1px solid #3b82f6' : '1px solid #1e3a5f', background: isPremium || userPlan === 'freetrial' ? '#0f1a2e' : '#0d1526',
           }}>
             <div
               style={{
                 position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
                 padding: '4px 10px', borderRadius: '0 0 8px 8px',
-                background: userPlan === 'freetrial' ? '#9c4040' : isPremium ? '#3b82f6' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                background: userPlan === 'freetrial' ? '#9c4040' : isPremium && subCanceled ? '#9c4040' : isPremium ? '#3b82f6' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
                 color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
                 cursor: userPlan === 'freetrial' && planExpiry ? 'help' : 'default',
               }}
@@ -414,7 +430,7 @@ export function BillingApp() {
                 ? `Expires: ${planExpiry.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
                 : undefined}
             >
-              {userPlan === 'freetrial' ? '⏱ Free Trial' : isPremium ? 'Current Plan' : <><CrownIcon size={10} color="#fff" /> Most Popular</>}
+              {userPlan === 'freetrial' ? '⏱ Free Trial' : isPremium && subCanceled ? '⚠ Canceled' : isPremium ? 'Current Plan' : <><CrownIcon size={10} color="#fff" /> Most Popular</>}
             </div>
             <div style={{ marginBottom: 16, paddingTop: 12 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Premium</h3>
@@ -471,26 +487,57 @@ export function BillingApp() {
                 </div>
               ))}
             </div>
-            {isPremium ? (
-              <button disabled style={{
-                width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{userPlan === 'freetrial' ? 'Free Trial Active' : 'Current Plan'}</button>
-            ) : (
-              <button
-                onClick={() => handleSelect(billing)}
-                disabled={loading !== null}
-                style={{
+            {isPremium ? (() => {
+              const expiryDate = subRenewalDate || planExpiry;
+              return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {subCanceled && expiryDate ? (
+                  <div style={{
+                    padding: '6px 10px', borderRadius: 8, background: '#2d1f1f', border: '1px solid #5c3030',
+                    fontSize: 10, color: '#f0a0a0', textAlign: 'center',
+                  }}>
+                    Canceled — access until {expiryDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                  </div>
+                ) : expiryDate ? (
+                  <div style={{
+                    padding: '6px 10px', borderRadius: 8, background: '#0f1a2e', border: '1px solid #1e3a5f',
+                    fontSize: 10, color: '#93c5fd', textAlign: 'center',
+                  }}>
+                    Renews {expiryDate.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                    {subInterval ? ` (${subInterval})` : ''}
+                  </div>
+                ) : null}
+                <button disabled style={{
                   width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                  fontWeight: 700, fontSize: 13, color: '#fff',
-                  background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  opacity: loading !== null ? 0.5 : 1,
-                }}
-              >
-                {loading === billing ? <Spinner /> : <>Subscribe {billing === 'yearly' ? 'Yearly' : 'Monthly'} <ArrowRightIcon /></>}
-              </button>
+                  fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{subCanceled ? 'Canceled' : 'Current Plan'}</button>
+              </div>
+              );
+            })() : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {userPlan === 'freetrial' && planExpiry && (
+                  <div style={{
+                    padding: '6px 10px', borderRadius: 8, background: '#2d1f1f', border: '1px solid #5c3030',
+                    fontSize: 10, color: '#f0a0a0', textAlign: 'center',
+                  }}>
+                    ⏱ Free trial ends {planExpiry.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                  </div>
+                )}
+                <button
+                  onClick={() => handleSelect(billing)}
+                  disabled={loading !== null}
+                  style={{
+                    width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                    fontWeight: 700, fontSize: 13, color: '#fff',
+                    background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    opacity: loading !== null ? 0.5 : 1,
+                  }}
+                >
+                  {loading === billing ? <Spinner /> : <>Subscribe {billing === 'yearly' ? 'Yearly' : 'Monthly'} <ArrowRightIcon /></>}
+                </button>
+              </div>
             )}
           </div>
 

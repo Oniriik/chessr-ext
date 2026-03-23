@@ -14,7 +14,9 @@ import { useDiscordStore } from '../../../stores/discordStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { getRealHref } from '../../../content/anonymousBlur';
 import { useIsPremium } from '../../../lib/planUtils';
-import { openCheckout, type CheckoutPlan } from '../../../lib/checkoutClient';
+import { useUpgradeModal } from '../../UpgradeModal';
+import { openBillingPage } from '../../../lib/checkoutClient';
+import { supabase } from '../../../lib/supabase';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
@@ -104,12 +106,6 @@ function getPlanInfo(plan: Plan, expiry: Date | null, t: TFunction): PlanInfo {
   }
 }
 
-// Plan selection for checkout
-const CHECKOUT_PLANS: { key: CheckoutPlan; label: string; price: string }[] = [
-  { key: 'monthly', label: 'Monthly', price: '€2.99/mo' },
-  { key: 'yearly', label: 'Yearly', price: '€24.99/yr' },
-  { key: 'lifetime', label: 'Lifetime', price: '€49.99' },
-];
 
 function LinkedAccountsSection() {
   const { t } = useTranslation('settings');
@@ -279,6 +275,20 @@ export function AccountTab() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('subscriptions')
+      .select('status, interval')
+      .eq('user_id', user.id)
+      .limit(1)
+      .single()
+      .then(({ data }) => {
+        setHasActiveSubscription(data?.status === 'active' && !!data?.interval);
+      });
+  }, [user]);
 
   const isEmailVerified = !!user?.email_confirmed_at;
   const signupDate = user?.created_at
@@ -427,28 +437,27 @@ export function AccountTab() {
             </p>
           </div>
         </div>
-        {planInfo.showUpgrade && (
-          <div className="tw-space-y-2">
-            {CHECKOUT_PLANS.map((cp) => (
-              <Button
-                key={cp.key}
-                variant="outline"
-                size="sm"
-                className="tw-w-full tw-justify-between"
-                onClick={() => {
-                  const token = useAuthStore.getState().session?.access_token;
-                  if (token) openCheckout(cp.key, token);
-                }}
-              >
-                <span className="tw-flex tw-items-center tw-gap-1">
-                  <Sparkles className="tw-w-3 tw-h-3" />
-                  {cp.label}
-                </span>
-                <span className="tw-text-xs tw-text-muted-foreground">{cp.price}</span>
-              </Button>
-            ))}
-          </div>
-        )}
+        {plan === 'premium' || hasActiveSubscription ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="tw-w-full"
+            onClick={() => openBillingPage()}
+          >
+            <Crown className="tw-w-3 tw-h-3 tw-mr-1" />
+            Manage Subscription
+          </Button>
+        ) : planInfo.showUpgrade ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="tw-w-full"
+            onClick={() => useUpgradeModal.getState().open()}
+          >
+            <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
+            {t('common:upgradeNow')}
+          </Button>
+        ) : null}
       </div>
 
       {/* Move Explanations Quota */}

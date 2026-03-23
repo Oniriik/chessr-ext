@@ -279,13 +279,20 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
         case "subscription.updated": {
           const sub = event.data;
           const productId = sub.items?.[0]?.price?.product_id;
+          // Paddle sends scheduled_change.action = "cancel" when user cancels
+          // but status is still "active" until effective_at
+          const scheduledCancel = sub.scheduled_change?.action === "cancel";
+          const effectiveStatus = scheduledCancel ? "canceled" : sub.status;
+          const effectiveExpiry = scheduledCancel
+            ? sub.scheduled_change.effective_at
+            : sub.next_billed_at;
           await updateUserPlan(
             sub.customer_id,
             sub.id,
             productId,
-            sub.status,
-            sub.next_billed_at || null,
-            sub.canceled_at || null,
+            effectiveStatus,
+            effectiveExpiry || null,
+            sub.canceled_at || (scheduledCancel ? new Date().toISOString() : null),
           );
           break;
         }
