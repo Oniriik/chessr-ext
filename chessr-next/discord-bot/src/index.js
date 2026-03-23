@@ -686,24 +686,17 @@ async function handleLeaderboardCommand(interaction) {
     return;
   }
 
-  // Fetch guild members to get current display names
-  const memberMap = new Map();
+  // Pre-fetch guild members so Discord resolves mentions on all clients
   const guild = interaction.guild;
   if (guild) {
     const ids = leaderboard.map(u => u.discordId).filter(Boolean);
-    const fetched = await guild.members.fetch({ user: ids }).catch(() => null);
-    if (fetched) {
-      for (const [id, member] of fetched) {
-        memberMap.set(id, member.displayName);
-      }
-    }
+    await guild.members.fetch({ user: ids }).catch(() => {});
   }
 
   const medals = ['🥇', '🥈', '🥉'];
   const lines = leaderboard.map((u, i) => {
     const prefix = i < 3 ? medals[i] : `\`${i + 1}.\``;
-    const name = memberMap.get(u.discordId) || u.username;
-    return `${prefix} @${name} — **${u.elo}**`;
+    return `${prefix} <@${u.discordId}> — **${u.elo}**`;
   });
 
   await interaction.editReply({
