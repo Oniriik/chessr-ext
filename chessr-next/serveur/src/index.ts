@@ -559,6 +559,64 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Paddle checkout page (loads Paddle.js and opens checkout overlay)
+  if (req.url?.startsWith("/checkout") && req.method === "GET") {
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const txnId = urlObj.searchParams.get("txn");
+
+    if (!txnId) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Missing txn parameter");
+      return;
+    }
+
+    const paddleEnv = process.env.PADDLE_ENVIRONMENT || "sandbox";
+    const paddleJs = paddleEnv === "sandbox"
+      ? "https://sandbox-cdn.paddle.com/paddle/v2/paddle.js"
+      : "https://cdn.paddle.com/paddle/v2/paddle.js";
+    const clientToken = process.env.PADDLE_CLIENT_TOKEN || "";
+
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chessr — Checkout</title>
+  <script src="${paddleJs}"><\/script>
+  <style>
+    body { margin: 0; background: #08080f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .loading { text-align: center; }
+    .loading p { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 16px; }
+    .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div class="spinner"></div>
+    <p>Opening checkout...</p>
+  </div>
+  <script>
+    Paddle.Initialize({
+      token: "${clientToken}",
+      ${paddleEnv === "sandbox" ? 'environment: "sandbox",' : ""}
+      checkout: {
+        settings: {
+          successUrl: "https://chessr.io/checkout/success",
+          theme: "dark"
+        }
+      }
+    });
+    Paddle.Checkout.open({
+      transactionId: "${txnId}"
+    });
+  <\/script>
+</body>
+</html>`);
+    return;
+  }
+
   // Paddle webhook
   if (req.url === "/api/paddle/webhook" && req.method === "POST") {
     handlePaddleWebhook(req, res);
