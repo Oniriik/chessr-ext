@@ -124,6 +124,12 @@ export function BillingApp() {
   const [subRenewalDate, setSubRenewalDate] = useState<Date | null>(null);
   const [subCanceled, setSubCanceled] = useState(false);
 
+  // Cancel flow state
+  const [cancelStep, setCancelStep] = useState<'hidden' | 'reason' | 'confirm'>('hidden');
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelDetails, setCancelDetails] = useState('');
+  const [canceling, setCanceling] = useState(false);
+
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
     if (!user) return;
@@ -144,6 +150,44 @@ export function BillingApp() {
     // Timeout — show success anyway (payment went through, webhook may be delayed)
     setConfirming(false);
     setSuccess(true);
+  };
+
+  const cancelReasons = [
+    'Too expensive',
+    'Not using it enough',
+    'Missing features I need',
+    'Switching to another tool',
+    'Just testing / temporary',
+  ];
+
+  const handleCancel = async () => {
+    const token = session?.access_token;
+    if (!token) return;
+    setCanceling(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/paddle/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          reason: cancelReason,
+          details: cancelReason === 'Other' ? cancelDetails : null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.error);
+      }
+      // Re-fetch data
+      if (user) {
+        await fetchPlan(user.id);
+        await fetchTrialData();
+      }
+      setCancelStep('hidden');
+    } catch (err: any) {
+      setError(err.message || 'Failed to cancel');
+    } finally {
+      setCanceling(false);
+    }
   };
 
   // Initialize auth
@@ -512,6 +556,96 @@ export function BillingApp() {
                   fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>{subCanceled ? 'Canceled' : 'Current Plan'}</button>
+
+                {/* Cancel link */}
+                {!subCanceled && (
+                  <button
+                    onClick={() => { setCancelStep('reason'); setCancelReason(''); setCancelDetails(''); }}
+                    style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 10, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
+                  >
+                    Cancel subscription
+                  </button>
+                )}
+
+                {/* Cancel flow — Step 1: Reason */}
+                {cancelStep === 'reason' && (
+                  <div style={{ padding: 12, borderRadius: 8, background: '#1a1a2e', border: '1px solid #2a2a3e', marginTop: 4 }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>Why are you canceling?</p>
+                    {cancelReasons.map((r) => (
+                      <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+                        <input
+                          type="radio"
+                          name="cancel-reason"
+                          checked={cancelReason === r}
+                          onChange={() => setCancelReason(r)}
+                          style={{ accentColor: '#3b82f6' }}
+                        />
+                        {r}
+                      </label>
+                    ))}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+                      <input
+                        type="radio"
+                        name="cancel-reason"
+                        checked={cancelReason === 'Other'}
+                        onChange={() => setCancelReason('Other')}
+                        style={{ accentColor: '#3b82f6' }}
+                      />
+                      Other
+                    </label>
+                    {cancelReason === 'Other' && (
+                      <input
+                        type="text"
+                        value={cancelDetails}
+                        onChange={(e) => setCancelDetails(e.target.value)}
+                        placeholder="Tell us more..."
+                        style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #2a2a3e', background: '#111119', color: '#fff', fontSize: 11, marginBottom: 6, outline: 'none' }}
+                      />
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button
+                        onClick={() => setCancelStep('hidden')}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 6, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        Nevermind
+                      </button>
+                      <button
+                        onClick={() => cancelReason && setCancelStep('confirm')}
+                        disabled={!cancelReason}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 6, border: 'none', background: cancelReason ? '#9c4040' : '#3a2020', color: '#fff', fontSize: 11, cursor: cancelReason ? 'pointer' : 'default', opacity: cancelReason ? 1 : 0.5 }}
+                      >
+                        Continue
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cancel flow — Step 2: Confirm */}
+                {cancelStep === 'confirm' && (
+                  <div style={{ padding: 12, borderRadius: 8, background: '#2d1f1f', border: '1px solid #5c3030', marginTop: 4 }}>
+                    <p style={{ fontSize: 11, fontWeight: 600, color: '#f0a0a0', margin: '0 0 6px' }}>Are you sure?</p>
+                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 10px' }}>
+                      {(subRenewalDate || planExpiry)
+                        ? `You'll keep access until ${(subRenewalDate || planExpiry)!.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.`
+                        : 'Your subscription will be canceled at the end of the current period.'}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => setCancelStep('reason')}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 6, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 11, cursor: 'pointer' }}
+                      >
+                        Go back
+                      </button>
+                      <button
+                        onClick={handleCancel}
+                        disabled={canceling}
+                        style={{ flex: 1, padding: '6px 0', borderRadius: 6, border: 'none', background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer', opacity: canceling ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                      >
+                        {canceling ? <Spinner /> : 'Cancel Subscription'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               );
             })() : (

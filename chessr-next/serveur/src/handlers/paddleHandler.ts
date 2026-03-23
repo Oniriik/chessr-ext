@@ -433,6 +433,79 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
   });
 }
 
+// ─── Cancel subscription endpoint ────────────────────────────────────────────
+// POST /api/paddle/cancel — cancels subscription at end of billing period
+
+export function handlePaddleCancel(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const userId = authData.user.id;
+      const userEmail = authData.user.email || "";
+
+      // Parse reason
+      const { reason, details } = JSON.parse(body || "{}");
+
+      // Get subscription
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, plan, interval")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription found" }));
+        return;
+      }
+
+      // Cancel via Paddle API at end of billing period
+      await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+        effectiveFrom: "next_billing_period",
+      });
+
+      console.log(`[Paddle] Cancel requested by ${userEmail} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
+
+      // Store cancel reason
+      if (reason) {
+        await supabase.from("cancel_reasons").insert({
+          user_id: userId,
+          user_email: userEmail,
+          reason,
+          details: details || null,
+          plan: sub.plan,
+          interval: sub.interval,
+        });
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error("[Paddle] Cancel error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to cancel subscription" }));
+    }
+  });
+}
+
 // ─── Subscription status endpoint ────────────────────────────────────────────
 // GET /api/paddle/subscription — returns current subscription for authenticated user
 
