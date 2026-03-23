@@ -348,7 +348,11 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
       const userId = authData.user.id;
       const userEmail = authData.user.email || "";
 
-      // Check if user already has a Paddle customer ID
+      console.log(`[Paddle] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}, priceId=${priceId}`);
+
+      // Get or create Paddle customer
+      let customerId: string | undefined;
+
       const { data: existingSub } = await supabase
         .from("subscriptions")
         .select("paddle_customer_id")
@@ -356,17 +360,26 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
         .limit(1)
         .single();
 
-      let customerId = existingSub?.paddle_customer_id;
+      if (existingSub?.paddle_customer_id) {
+        // Verify customer still exists in Paddle
+        try {
+          await paddle.customers.get(existingSub.paddle_customer_id);
+          customerId = existingSub.paddle_customer_id;
+          console.log(`[Paddle] Reusing customer: ${customerId}`);
+        } catch {
+          console.log(`[Paddle] Customer ${existingSub.paddle_customer_id} not found, creating new one`);
+          // Clear stale reference
+          await supabase.from("subscriptions").delete().eq("user_id", userId);
+        }
+      }
 
-      // Create Paddle customer if needed
       if (!customerId) {
         const customer = await paddle.customers.create({
           email: userEmail,
-          customData: { userId },
         });
         customerId = customer.id;
+        console.log(`[Paddle] Created customer: ${customerId}`);
 
-        // Store the link
         await supabase.from("subscriptions").upsert(
           {
             user_id: userId,
@@ -379,7 +392,7 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
         );
       }
 
-      // Create a transaction to get a checkout URL
+      // Create transaction to get checkout URL
       const transaction = await paddle.transactions.create({
         items: [{ priceId, quantity: 1 }],
         customerId,
