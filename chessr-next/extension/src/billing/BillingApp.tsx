@@ -111,15 +111,15 @@ const Spinner = () => (
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function BillingApp() {
-  const { initialize, session, plan: userPlan, fetchPlan, user } = useAuthStore();
+  const { initialize, session, plan: userPlan, planExpiry, fetchPlan, user } = useAuthStore();
   const [billing, setBilling] = useState<BillingCycle>('yearly');
   const [loading, setLoading] = useState<CheckoutPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paddleReady, setPaddleReady] = useState(false);
   const [success, setSuccess] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [freetrialUsed, setFreetrialUsed] = useState(true); // default true = hide trial
-  const [discordLinked, setDiscordLinked] = useState(false);
+  const [freetrialUsed, setFreetrialUsed] = useState<boolean | null>(null); // null = loading
+  const [discordLinked, setDiscordLinked] = useState<boolean | null>(null);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
@@ -149,20 +149,43 @@ export function BillingApp() {
   }, [initialize]);
 
   // Fetch freetrial eligibility from Supabase
-  useEffect(() => {
+  const fetchTrialData = async () => {
     if (!user) return;
-    supabase
+    const { data } = await supabase
       .from('user_settings')
       .select('freetrial_used, discord_id')
       .eq('user_id', user.id)
-      .single()
-      .then(({ data }) => {
-        setFreetrialUsed(data?.freetrial_used ?? true);
-        setDiscordLinked(!!data?.discord_id);
-      });
+      .single();
+    setFreetrialUsed(data?.freetrial_used ?? true);
+    setDiscordLinked(!!data?.discord_id);
+  };
+
+  useEffect(() => {
+    fetchTrialData();
   }, [user]);
 
-  const canClaimTrial = !freetrialUsed && !discordLinked && userPlan === 'free';
+  // Handle return from Discord OAuth — re-fetch data and plan
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('discord_linked') && user) {
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+      // Re-fetch after a short delay (webhook/DB may need a moment)
+      const refresh = async () => {
+        for (let i = 0; i < 5; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          await fetchPlan(user.id);
+          await fetchTrialData();
+          const newPlan = useAuthStore.getState().plan;
+          if (newPlan !== 'free') break;
+        }
+      };
+      refresh();
+    }
+  }, [user]);
+
+  const trialDataLoaded = freetrialUsed !== null && discordLinked !== null;
+  const canClaimTrial = trialDataLoaded && !freetrialUsed && !discordLinked && userPlan === 'free';
 
   // Initialize Paddle
   useEffect(() => {
@@ -379,13 +402,19 @@ export function BillingApp() {
             position: 'relative', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column',
             border: isPremium ? '1px solid #3b82f6' : '1px solid #1e3a5f', background: isPremium ? '#0f1a2e' : '#0d1526',
           }}>
-            <div style={{
-              position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
-              padding: '4px 10px', borderRadius: '0 0 8px 8px',
-              background: isPremium ? '#3b82f6' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-              color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
-            }}>
-              {isPremium ? 'Current Plan' : <><CrownIcon size={10} color="#fff" /> Most Popular</>}
+            <div
+              style={{
+                position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)',
+                padding: '4px 10px', borderRadius: '0 0 8px 8px',
+                background: userPlan === 'freetrial' ? '#9c4040' : isPremium ? '#3b82f6' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
+                cursor: userPlan === 'freetrial' && planExpiry ? 'help' : 'default',
+              }}
+              title={userPlan === 'freetrial' && planExpiry
+                ? `Expires: ${planExpiry.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
+                : undefined}
+            >
+              {userPlan === 'freetrial' ? '⏱ Free Trial' : isPremium ? 'Current Plan' : <><CrownIcon size={10} color="#fff" /> Most Popular</>}
             </div>
             <div style={{ marginBottom: 16, paddingTop: 12 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Premium</h3>
@@ -425,7 +454,7 @@ export function BillingApp() {
                   <DiscordIcon />
                   Connect Discord for 3-Day Free Trial
                 </button>
-              ) : !freetrialUsed && discordLinked && userPlan === 'free' ? (
+              ) : trialDataLoaded && !freetrialUsed && discordLinked && userPlan === 'free' ? (
                 <p style={{ fontSize: 10, color: '#22d3ee', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
                   <SparklesIcon /> 3-day free trial • No card required
                 </p>
@@ -447,7 +476,7 @@ export function BillingApp() {
                 width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
                 fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>Current Plan</button>
+              }}>{userPlan === 'freetrial' ? 'Free Trial Active' : 'Current Plan'}</button>
             ) : (
               <button
                 onClick={() => handleSelect(billing)}

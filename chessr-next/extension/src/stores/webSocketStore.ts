@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { webSocketManager } from '../lib/webSocket';
+import { useEngineStore } from './engineStore';
 
 interface WebSocketState {
   isConnected: boolean;
@@ -24,7 +25,6 @@ export const useWebSocketStore = create<WebSocketState>((set) => {
   webSocketManager.onConnect(() => {
     set({ isConnected: true, isConnecting: false, error: null });
     // Report current engine selection to server
-    const { useEngineStore } = require('./engineStore');
     const engine = useEngineStore.getState().selectedEngine;
     webSocketManager.send({ type: 'engine_update', engine });
   });
