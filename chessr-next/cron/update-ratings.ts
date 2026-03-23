@@ -1,8 +1,8 @@
 /**
- * Update Ratings (batched)
- * Each run processes BATCH_SIZE accounts starting from a cursor,
- * then saves the cursor for the next run. Runs every 30 minutes.
- * With BATCH_SIZE=25 and 30min interval, all accounts cycle in ~6h for 300 accounts.
+ * Update Ratings (staleness-based)
+ * Each run fetches up to BATCH_SIZE accounts whose ratings haven't been
+ * updated in the last 30 minutes, ordered by oldest first.
+ * Runs every minute via cron, so stale accounts are picked up quickly.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -14,7 +14,7 @@ const supabase = createClient(
 
 const BATCH_SIZE = 25;
 const RATE_LIMIT_MS = 500;
-const CURSOR_KEY = 'ratings_cursor';
+const STALE_MINUTES = 15;
 
 async function fetchChesscomRatings(username: string) {
   const res = await fetch(
@@ -44,53 +44,32 @@ async function fetchLichessRatings(username: string) {
   };
 }
 
-async function getCursor(): Promise<string> {
-  const { data } = await supabase
-    .from('global_stats')
-    .select('value')
-    .eq('key', CURSOR_KEY)
-    .single();
-  return data?.value || '';
-}
-
-async function saveCursor(cursor: string) {
-  await supabase
-    .from('global_stats')
-    .upsert({ key: CURSOR_KEY, value: cursor, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-}
-
 async function updateRatings() {
-  console.log(`[Cron] Updating ratings batch at ${new Date().toISOString()}`);
+  console.log(`[Cron] Updating ratings at ${new Date().toISOString()}`);
 
-  const cursor = await getCursor();
+  const staleThreshold = new Date(Date.now() - STALE_MINUTES * 60 * 1000).toISOString();
 
-  // Fetch next batch of accounts after cursor, ordered by id
-  let query = supabase
+  // Fetch accounts that haven't been updated in STALE_MINUTES, oldest first
+  // Also includes accounts that have never been updated (ratings_updated_at is null)
+  const { data: accounts, error } = await supabase
     .from('linked_accounts')
-    .select('id, platform, platform_username')
+    .select('id, platform, platform_username, ratings_updated_at')
     .is('unlinked_at', null)
-    .order('id', { ascending: true })
+    .or(`ratings_updated_at.is.null,ratings_updated_at.lt.${staleThreshold}`)
+    .order('ratings_updated_at', { ascending: true, nullsFirst: true })
     .limit(BATCH_SIZE);
-
-  if (cursor) {
-    query = query.gt('id', cursor);
-  }
-
-  const { data: accounts, error } = await query;
 
   if (error) {
     console.error('[Cron] Failed to fetch accounts:', error.message);
     return;
   }
 
-  // If no accounts found, we've reached the end — reset cursor
   if (!accounts || accounts.length === 0) {
-    console.log('[Cron] Reached end of accounts, resetting cursor');
-    await saveCursor('');
+    console.log('[Cron] All accounts are up to date');
     return;
   }
 
-  console.log(`[Cron] Processing batch of ${accounts.length} accounts (cursor: ${cursor || 'start'})`);
+  console.log(`[Cron] Processing ${accounts.length} stale accounts`);
 
   let updated = 0;
   let failed = 0;
@@ -133,11 +112,7 @@ async function updateRatings() {
     }
   }
 
-  // Save cursor to last processed account id
-  const lastId = accounts[accounts.length - 1].id;
-  await saveCursor(lastId);
-
-  console.log(`[Cron] Batch complete: ${updated} updated, ${failed} failed — next cursor: ${lastId}`);
+  console.log(`[Cron] Batch complete: ${updated} updated, ${failed} failed`);
 }
 
 updateRatings();
