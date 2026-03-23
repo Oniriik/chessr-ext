@@ -401,13 +401,12 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
           customerId = customer.id;
           console.log(`[Paddle] Created customer: ${customerId}`);
         } catch (createErr: any) {
-          // Customer already exists in Paddle — find by email
-          if (createErr?.code === 'conflict' || createErr?.type === 'request_error') {
-            const customers = await paddle.customers.list({ email: [userEmail] });
-            for await (const c of customers) {
-              customerId = c.id;
-              console.log(`[Paddle] Found existing customer: ${customerId}`);
-              break;
+          // Customer already exists in Paddle — extract ID from error detail
+          if (createErr?.code === 'customer_already_exists') {
+            const match = createErr.detail?.match(/ctm_\w+/);
+            if (match) {
+              customerId = match[0];
+              console.log(`[Paddle] Customer already exists: ${customerId}`);
             }
           }
           if (!customerId) throw createErr;
