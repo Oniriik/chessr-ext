@@ -394,11 +394,24 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
       }
 
       if (!customerId) {
-        const customer = await paddle.customers.create({
-          email: userEmail,
-        });
-        customerId = customer.id;
-        console.log(`[Paddle] Created customer: ${customerId}`);
+        try {
+          const customer = await paddle.customers.create({
+            email: userEmail,
+          });
+          customerId = customer.id;
+          console.log(`[Paddle] Created customer: ${customerId}`);
+        } catch (createErr: any) {
+          // Customer already exists in Paddle — find by email
+          if (createErr?.code === 'conflict' || createErr?.type === 'request_error') {
+            const customers = await paddle.customers.list({ email: [userEmail] });
+            for await (const c of customers) {
+              customerId = c.id;
+              console.log(`[Paddle] Found existing customer: ${customerId}`);
+              break;
+            }
+          }
+          if (!customerId) throw createErr;
+        }
 
         await supabase.from("subscriptions").upsert(
           {
