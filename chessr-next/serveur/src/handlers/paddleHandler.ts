@@ -399,14 +399,13 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
         customData: { userId },
       });
 
-      const checkoutUrl = transaction.checkout?.url;
+      const txnId = transaction.id;
 
-      if (!checkoutUrl) {
-        console.error("[Paddle] No checkout URL returned", transaction);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Failed to create checkout" }));
-        return;
-      }
+      // Build the Paddle-hosted checkout URL directly
+      const checkoutBase = PADDLE_ENVIRONMENT === "sandbox"
+        ? "https://sandbox-checkout.paddle.com"
+        : "https://checkout.paddle.com";
+      const checkoutUrl = `${checkoutBase}/checkout/${txnId}`;
 
       console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (${checkoutUrl})`);
 
