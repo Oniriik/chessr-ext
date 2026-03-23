@@ -8,6 +8,7 @@ const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replac
 export type CheckoutPlan = 'monthly' | 'yearly' | 'lifetime';
 
 export async function openCheckout(plan: CheckoutPlan, token: string): Promise<void> {
+  console.log('[Checkout] Requesting:', SERVER_URL, 'plan:', plan);
   const res = await fetch(`${SERVER_URL}/api/paddle/checkout`, {
     method: 'POST',
     headers: {
@@ -16,6 +17,7 @@ export async function openCheckout(plan: CheckoutPlan, token: string): Promise<v
     },
     body: JSON.stringify({ plan }),
   });
+  console.log('[Checkout] Response status:', res.status);
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({ error: 'Unknown error' }));
