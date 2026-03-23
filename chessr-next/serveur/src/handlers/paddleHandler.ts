@@ -96,7 +96,7 @@ async function updateUserPlan(
 
   const userId = sub.user_id;
 
-  // Update subscription record
+  // Update subscription record (upsert by user_id — one subscription per user)
   await supabase
     .from("subscriptions")
     .upsert(
@@ -112,7 +112,7 @@ async function updateUserPlan(
         canceled_at: canceledAt,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "paddle_subscription_id" },
+      { onConflict: "user_id" },
     );
 
   // Update user_settings based on subscription status
