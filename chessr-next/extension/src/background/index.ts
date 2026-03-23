@@ -79,3 +79,10 @@ chrome.runtime.onConnect.addListener((port) => {
 chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('streamer.html') });
 });
+
+// Handle messages from content scripts
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'open_billing') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('billing.html') });
+  }
+});

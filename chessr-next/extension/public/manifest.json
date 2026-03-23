@@ -39,7 +39,7 @@
       "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*"]
     },
     {
-      "resources": ["streamer.html"],
+      "resources": ["streamer.html", "billing.html"],
       "matches": ["<all_urls>"]
     }
   ]

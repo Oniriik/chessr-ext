@@ -133,18 +133,31 @@ async function updateUserPlan(
 
     console.log(`[Paddle] ${userId} → plan=${mapping.plan}, expiry=${planExpiry}`);
   } else if (status === "canceled" || status === "past_due") {
-    // On cancellation, keep plan active until period end
-    // The cron job (check-expirations) will downgrade when expired
-    if (canceledAt) {
+    const expiresAt = nextBilledAt || canceledAt;
+    const isExpired = expiresAt && new Date(expiresAt).getTime() <= Date.now();
+
+    if (isExpired) {
+      // Immediate cancel — downgrade to free now
       await supabase
         .from("user_settings")
         .update({
-          plan_expiry: nextBilledAt || canceledAt,
+          plan: "free",
+          plan_expiry: null,
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
+      console.log(`[Paddle] ${userId} → canceled immediately, set to free`);
+    } else if (expiresAt) {
+      // End-of-period cancel — keep plan active until expiry
+      await supabase
+        .from("user_settings")
+        .update({
+          plan_expiry: expiresAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", userId);
+      console.log(`[Paddle] ${userId} → canceled, active until ${expiresAt}`);
     }
-    console.log(`[Paddle] ${userId} → ${status}, expires=${nextBilledAt || canceledAt}`);
   }
 
   // Log the plan change

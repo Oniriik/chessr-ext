@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
-const target = process.env.BUILD_TARGET; // 'content' | 'background' | undefined (streamer)
+const target = process.env.BUILD_TARGET; // 'content' | 'background' | 'billing' | undefined (streamer)
 const isWatch = process.argv.includes('--watch');
 
 function buildConfig() {
@@ -28,6 +28,21 @@ function buildConfig() {
         input: resolve(__dirname, 'src/background/index.ts'),
         output: {
           entryFileNames: 'background.js',
+          assetFileNames: 'assets/[name]-[hash].[ext]',
+        },
+      },
+      publicDir: false as const,
+    };
+  }
+
+  if (target === 'billing') {
+    return {
+      emptyOutDir: false,
+      rollupOptions: {
+        input: resolve(__dirname, 'src/billing/index.tsx'),
+        output: {
+          format: 'iife' as const,
+          entryFileNames: 'billing.js',
           assetFileNames: 'assets/[name]-[hash].[ext]',
         },
       },
