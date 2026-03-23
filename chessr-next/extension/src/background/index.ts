@@ -80,9 +80,13 @@ chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('streamer.html') });
 });
 
-// Handle messages from content scripts
+// Handle messages from content scripts and billing page
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'open_billing') {
     chrome.tabs.create({ url: chrome.runtime.getURL('billing.html') });
+  }
+  if (message.type === 'plan_updated') {
+    // Relay to all content script tabs so they refresh the plan
+    broadcastToContentPorts(message);
   }
 });

@@ -37,6 +37,7 @@ import {
 import {
   handleInitDiscordLink,
   handleDiscordCallback,
+  handleDiscordLinkHttp,
   handleUnlinkDiscord,
   type InitDiscordLinkMessage,
 } from "./handlers/discordHandler.js";
@@ -346,6 +347,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Discord OAuth callback
   if (req.url?.startsWith("/discord/callback") && req.method === "GET") {
     handleDiscordCallback(req, res);
+    return;
+  }
+
+  // Discord link (HTTP — for billing page)
+  if (req.url === "/api/discord/link" && req.method === "POST") {
+    handleDiscordLinkHttp(req, res);
     return;
   }
 

@@ -5,6 +5,7 @@
  * to the streamer page. Receives streamer_status to toggle UI visibility.
  */
 
+import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useOpeningStore } from '../stores/openingStore';
@@ -314,6 +315,13 @@ function connect() {
       // Send full state when streamer connects
       if (message.isOpen) {
         sendFullState();
+      }
+    }
+    if (message.type === 'plan_updated') {
+      // Billing page notified that the plan changed — refresh from Supabase
+      const { user } = useAuthStore.getState();
+      if (user) {
+        useAuthStore.getState().fetchPlan(user.id);
       }
     }
   });

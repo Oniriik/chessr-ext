@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { supabase } from '../lib/supabase';
 import type { Plan } from '../components/ui/plan-badge';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -95,6 +96,12 @@ const ArrowRightIcon = () => (
   </svg>
 );
 
+const DiscordIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.095 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+  </svg>
+);
+
 const Spinner = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: 'spin 0.8s linear infinite' }}>
     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -110,21 +117,29 @@ export function BillingApp() {
   const [error, setError] = useState<string | null>(null);
   const [paddleReady, setPaddleReady] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [freetrialUsed, setFreetrialUsed] = useState(true); // default true = hide trial
+  const [discordLinked, setDiscordLinked] = useState(false);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
     if (!user) return;
+    setConfirming(true);
     const originalPlan = userPlan;
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 2000));
       await fetchPlan(user.id);
       const newPlan = useAuthStore.getState().plan;
       if (newPlan !== originalPlan && newPlan !== 'free') {
+        setConfirming(false);
         setSuccess(true);
+        // Notify other extension pages (content script) to refresh plan
+        chrome.runtime.sendMessage({ type: 'plan_updated', plan: newPlan });
         return;
       }
     }
-    // Even if polling didn't catch it, show success (payment went through)
+    // Timeout — show success anyway (payment went through, webhook may be delayed)
+    setConfirming(false);
     setSuccess(true);
   };
 
@@ -132,6 +147,22 @@ export function BillingApp() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  // Fetch freetrial eligibility from Supabase
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('user_settings')
+      .select('freetrial_used, discord_id')
+      .eq('user_id', user.id)
+      .single()
+      .then(({ data }) => {
+        setFreetrialUsed(data?.freetrial_used ?? true);
+        setDiscordLinked(!!data?.discord_id);
+      });
+  }, [user]);
+
+  const canClaimTrial = !freetrialUsed && !discordLinked && userPlan === 'free';
 
   // Initialize Paddle
   useEffect(() => {
@@ -185,6 +216,9 @@ export function BillingApp() {
           successUrl: undefined, // stay on page
         },
       });
+
+      // Start polling immediately — will detect plan change after webhook processes
+      pollForPlanUpdate();
 
     } catch (err: any) {
       console.error('[Billing] Checkout error:', err);
@@ -278,10 +312,18 @@ export function BillingApp() {
           </div>
         </div>
 
+        {/* Confirming */}
+        {confirming && (
+          <div style={{ textAlign: 'center', marginBottom: 16, padding: '12px 16px', borderRadius: 8, background: '#1a1a2e', border: '1px solid #2a3a5c', color: '#93c5fd', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <Spinner />
+            Waiting for payment confirmation...
+          </div>
+        )}
+
         {/* Success */}
         {success && (
           <div style={{ textAlign: 'center', marginBottom: 16, padding: '12px 16px', borderRadius: 8, background: '#052e16', border: '1px solid #166534', color: '#4ade80', fontSize: 13, fontWeight: 600 }}>
-            🎉 Payment successful! Your plan has been upgraded. You can close this tab.
+            🎉 Payment successful! Your plan has been upgraded to <strong>{useAuthStore.getState().plan}</strong>. You can close this tab.
           </div>
         )}
 
@@ -357,9 +399,37 @@ export function BillingApp() {
                 <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>€{premium.price}</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{premium.period}</span>
               </div>
-              <p style={{ fontSize: 10, color: '#22d3ee', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <SparklesIcon /> 3-day free trial • No card required
-              </p>
+              {canClaimTrial ? (
+                <button
+                  onClick={async () => {
+                    const token = session?.access_token;
+                    if (!token) return;
+                    try {
+                      const res = await fetch(`${SERVER_URL}/api/discord/link`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ returnUrl: chrome.runtime.getURL('billing.html') }),
+                      });
+                      const { url } = await res.json();
+                      if (url) window.location.href = url;
+                    } catch (err) {
+                      console.error('[Billing] Discord link error:', err);
+                    }
+                  }}
+                  style={{
+                    margin: '6px 0 0', padding: '6px 10px', borderRadius: 8, border: 'none',
+                    background: '#5865F2', color: '#fff', fontSize: 10, fontWeight: 600,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                  }}
+                >
+                  <DiscordIcon />
+                  Connect Discord for 3-Day Free Trial
+                </button>
+              ) : !freetrialUsed && discordLinked && userPlan === 'free' ? (
+                <p style={{ fontSize: 10, color: '#22d3ee', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <SparklesIcon /> 3-day free trial • No card required
+                </p>
+              ) : null}
             </div>
             <div style={{ marginBottom: 16, flex: 1 }}>
               <p style={{ fontSize: 10, fontWeight: 600, color: '#fff', margin: '0 0 8px' }}>Everything in Free, plus:</p>

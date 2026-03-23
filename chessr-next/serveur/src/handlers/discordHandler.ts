@@ -89,6 +89,65 @@ export interface InitDiscordLinkMessage {
 }
 
 // =============================================================================
+// HTTP Handler: POST /api/discord/link — returns Discord OAuth URL
+// =============================================================================
+
+export function handleDiscordLinkHttp(req: IncomingMessage, res: ServerResponse): void {
+  let body = '';
+  req.on('data', (chunk) => (body += chunk));
+  req.on('end', async () => {
+    try {
+      // Auth check
+      const authHeader = req.headers['authorization'];
+      const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+      if (!token) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Authentication required' }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token' }));
+        return;
+      }
+
+      const { returnUrl } = JSON.parse(body || '{}');
+      const finalReturnUrl = returnUrl || 'https://chessr.io';
+
+      // Generate nonce and store mapping
+      const nonce = generateNonce();
+      nonceStore.set(nonce, {
+        userId: authData.user.id,
+        userEmail: authData.user.email || '',
+        createdAt: Date.now(),
+      });
+
+      // Build Discord OAuth URL
+      const state = encodeState(nonce, finalReturnUrl);
+      const params = new URLSearchParams({
+        client_id: DISCORD_CLIENT_ID,
+        redirect_uri: DISCORD_REDIRECT_URI,
+        response_type: 'code',
+        scope: 'identify guilds',
+        state,
+      });
+
+      const url = `https://discord.com/api/oauth2/authorize?${params.toString()}`;
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ url }));
+    } catch (err) {
+      console.error('[Discord] Link HTTP error:', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal error' }));
+    }
+  });
+}
+
+// =============================================================================
 // WebSocket Handler: init_discord_link
 // =============================================================================
 
