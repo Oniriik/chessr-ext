@@ -41,6 +41,11 @@ import {
   type InitDiscordLinkMessage,
 } from "./handlers/discordHandler.js";
 import { handleExplainMove } from "./handlers/explanationHandler.js";
+import {
+  handlePaddleWebhook,
+  handlePaddleCheckout,
+  handlePaddleSubscriptionStatus,
+} from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
@@ -551,6 +556,24 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         res.end(JSON.stringify({ error: "Internal server error" }));
       }
     })();
+    return;
+  }
+
+  // Paddle webhook
+  if (req.url === "/api/paddle/webhook" && req.method === "POST") {
+    handlePaddleWebhook(req, res);
+    return;
+  }
+
+  // Paddle checkout (link user ↔ customer)
+  if (req.url === "/api/paddle/checkout" && req.method === "POST") {
+    handlePaddleCheckout(req, res);
+    return;
+  }
+
+  // Paddle subscription status
+  if (req.url === "/api/paddle/subscription" && req.method === "GET") {
+    handlePaddleSubscriptionStatus(req, res);
     return;
   }
 

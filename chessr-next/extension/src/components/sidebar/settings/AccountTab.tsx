@@ -14,6 +14,7 @@ import { useDiscordStore } from '../../../stores/discordStore';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { getRealHref } from '../../../content/anonymousBlur';
 import { useIsPremium } from '../../../lib/planUtils';
+import { openCheckout, type CheckoutPlan } from '../../../lib/checkoutClient';
 import type { Plan } from '../../ui/plan-badge';
 
 function formatExpiryDate(date: Date): string {
@@ -103,7 +104,12 @@ function getPlanInfo(plan: Plan, expiry: Date | null, t: TFunction): PlanInfo {
   }
 }
 
-const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
+// Plan selection for checkout
+const CHECKOUT_PLANS: { key: CheckoutPlan; label: string; price: string }[] = [
+  { key: 'monthly', label: 'Monthly', price: '€2.99/mo' },
+  { key: 'yearly', label: 'Yearly', price: '€24.99/yr' },
+  { key: 'lifetime', label: 'Lifetime', price: '€49.99' },
+];
 
 function LinkedAccountsSection() {
   const { t } = useTranslation('settings');
@@ -422,15 +428,26 @@ export function AccountTab() {
           </div>
         </div>
         {planInfo.showUpgrade && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="tw-w-full"
-            onClick={() => window.open(UPGRADE_URL, '_blank')}
-          >
-            <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
-            {t('common:upgradeNow')}
-          </Button>
+          <div className="tw-space-y-2">
+            {CHECKOUT_PLANS.map((cp) => (
+              <Button
+                key={cp.key}
+                variant="outline"
+                size="sm"
+                className="tw-w-full tw-justify-between"
+                onClick={() => {
+                  const token = useAuthStore.getState().session?.access_token;
+                  if (token) openCheckout(cp.key, token);
+                }}
+              >
+                <span className="tw-flex tw-items-center tw-gap-1">
+                  <Sparkles className="tw-w-3 tw-h-3" />
+                  {cp.label}
+                </span>
+                <span className="tw-text-xs tw-text-muted-foreground">{cp.price}</span>
+              </Button>
+            ))}
+          </div>
         )}
       </div>
 
