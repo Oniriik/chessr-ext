@@ -500,6 +500,76 @@ export function handlePaddleSwitch(req: IncomingMessage, res: ServerResponse) {
   });
 }
 
+// ─── Preview switch endpoint ─────────────────────────────────────────────────
+// POST /api/paddle/preview-switch — preview proration for plan switch
+
+export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { plan } = JSON.parse(body) as { plan: "monthly" | "yearly" };
+      const priceId = PADDLE_PRICES[plan];
+
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan" }));
+        return;
+      }
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id")
+        .eq("user_id", authData.user.id)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription" }));
+        return;
+      }
+
+      const preview = await paddle.subscriptions.previewUpdate(sub.paddle_subscription_id, {
+        items: [{ priceId, quantity: 1 }],
+        prorationBillingMode: "prorated_immediately",
+      });
+
+      const summary = preview.updateSummary;
+      const immediate = preview.immediateTransaction;
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        credit: summary?.credit ? { amount: summary.credit.amount, currency: summary.credit.currencyCode } : null,
+        charge: summary?.charge ? { amount: summary.charge.amount, currency: summary.charge.currencyCode } : null,
+        result: summary?.result ? { action: summary.result.action, amount: summary.result.amount, currency: summary.result.currencyCode } : null,
+        immediateTotal: immediate?.details?.totals ? { subtotal: immediate.details.totals.subtotal, tax: immediate.details.totals.tax, total: immediate.details.totals.total, currency: immediate.details.totals.currencyCode } : null,
+        nextBilledAt: preview.nextBilledAt,
+      }));
+    } catch (err) {
+      console.error("[Paddle] Preview switch error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to preview switch" }));
+    }
+  });
+}
+
 // ─── Cancel subscription endpoint ────────────────────────────────────────────
 // POST /api/paddle/cancel — cancels subscription at end of billing period
 

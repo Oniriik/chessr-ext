@@ -47,6 +47,7 @@ import {
   handlePaddleCheckout,
   handlePaddleCancel,
   handlePaddleSwitch,
+  handlePaddlePreviewSwitch,
   handlePaddleSubscriptionStatus,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
@@ -635,6 +636,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Paddle checkout (link user ↔ customer)
   if (req.url === "/api/paddle/checkout" && req.method === "POST") {
     handlePaddleCheckout(req, res);
+    return;
+  }
+
+  // Paddle preview switch (proration breakdown)
+  if (req.url === "/api/paddle/preview-switch" && req.method === "POST") {
+    handlePaddlePreviewSwitch(req, res);
     return;
   }
 

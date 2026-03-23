@@ -135,6 +135,13 @@ export function BillingApp() {
   const [cancelDetails, setCancelDetails] = useState('');
   const [canceling, setCanceling] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [switchPreview, setSwitchPreview] = useState<{
+    credit: string | null;
+    charge: string | null;
+    result: { action: string; amount: string; currency: string } | null;
+    nextBilledAt: string | null;
+  } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
@@ -188,6 +195,33 @@ export function BillingApp() {
     setConfirming(false);
     setSuccess(true);
   };
+
+  const canSwitchToYearly = isCurrentPlan('premium', userPlan) && !subCanceled && subInterval === 'monthly';
+
+  // Fetch preview when toggle changes and user has active sub
+  useEffect(() => {
+    // Only allow monthly → yearly switch
+    if (!canSwitchToYearly || billing !== 'yearly' || !session?.access_token) {
+      setSwitchPreview(null);
+      return;
+    }
+    setLoadingPreview(true);
+    fetch(`${SERVER_URL}/api/paddle/preview-switch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ plan: billing }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) {
+          setSwitchPreview(null);
+        } else {
+          setSwitchPreview(data);
+        }
+      })
+      .catch(() => setSwitchPreview(null))
+      .finally(() => setLoadingPreview(false));
+  }, [billing, canSwitchToYearly]);
 
   const handleSwitch = async (targetPlan: 'monthly' | 'yearly') => {
     const token = session?.access_token;
@@ -647,39 +681,49 @@ export function BillingApp() {
                   }}>Canceled</button>
                 ) : (
                   <>
-                    {/* Switch plan button */}
-                    {subInterval && subInterval !== billing && (
-                      <button
-                        onClick={() => handleSwitch(billing)}
-                        disabled={switching}
-                        style={{
-                          width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                          fontWeight: 700, fontSize: 13, color: '#fff',
-                          background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-                          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          opacity: switching ? 0.5 : 1,
-                        }}
-                      >
-                        {switching ? <Spinner /> : <>Switch to {billing === 'yearly' ? 'Yearly' : 'Monthly'} {billing === 'yearly' ? '(save 30%)' : ''} <ArrowRightIcon /></>}
-                      </button>
-                    )}
-
-                    {/* Current plan indicator */}
-                    {subInterval === billing && (
+                    {/* Switch monthly → yearly */}
+                    {canSwitchToYearly && billing === 'yearly' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Preview breakdown */}
+                        {loadingPreview && (
+                          <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Spinner /></div>
+                        )}
+                        {switchPreview?.result && !loadingPreview && (
+                          <div style={{
+                            padding: '8px 10px', borderRadius: 8, background: '#0f1a2e', border: '1px solid #1e3a5f',
+                            fontSize: 10, color: '#93c5fd',
+                          }}>
+                            {switchPreview.credit && <div>Credit from monthly: <strong>€{(Number(switchPreview.credit) / 100).toFixed(2)}</strong></div>}
+                            {switchPreview.result.action === 'charge' && (
+                              <div style={{ marginTop: 2 }}>You pay now: <strong>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</strong></div>
+                            )}
+                            {switchPreview.nextBilledAt && (
+                              <div style={{ marginTop: 2, color: 'rgba(255,255,255,0.4)' }}>
+                                Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleSwitch('yearly')}
+                          disabled={switching}
+                          style={{
+                            width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                            fontWeight: 700, fontSize: 13, color: '#fff',
+                            background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            opacity: switching ? 0.5 : 1,
+                          }}
+                        >
+                          {switching ? <Spinner /> : <>Switch to Yearly (save 30%) <ArrowRightIcon /></>}
+                        </button>
+                      </div>
+                    ) : (
                       <button disabled style={{
                         width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
                         fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>Current Plan ({subInterval})</button>
-                    )}
-
-                    {/* No interval info — just show current plan */}
-                    {!subInterval && (
-                      <button disabled style={{
-                        width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                        fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>Current Plan</button>
+                      }}>Current Plan{subInterval ? ` (${subInterval})` : ''}</button>
                     )}
 
                     {/* Cancel link */}
