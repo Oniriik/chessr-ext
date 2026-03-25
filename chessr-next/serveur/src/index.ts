@@ -47,8 +47,7 @@ import {
   handlePaddleCheckout,
   handlePaddleCancel,
   handlePaddleSwitch,
-  handlePaddlePreviewSwitch,
-  handlePaddlePreviewLifetime,
+  handlePaddlePreviewUpgrade,
   handlePaddleUpgradeLifetime,
   handlePaddleSubscriptionStatus,
   handlePaddlePrices,
@@ -642,21 +641,15 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
-  // Paddle preview switch (proration breakdown)
-  if (req.url === "/api/paddle/preview-switch" && req.method === "POST") {
-    handlePaddlePreviewSwitch(req, res);
+  // Paddle preview upgrade (proration breakdown for yearly or lifetime)
+  if (req.url === "/api/paddle/preview-upgrade" && req.method === "POST") {
+    handlePaddlePreviewUpgrade(req, res);
     return;
   }
 
   // Paddle switch plan (monthly ↔ yearly)
   if (req.url === "/api/paddle/switch" && req.method === "POST") {
     handlePaddleSwitch(req, res);
-    return;
-  }
-
-  // Paddle preview lifetime upgrade
-  if (req.url === "/api/paddle/preview-lifetime" && req.method === "POST") {
-    handlePaddlePreviewLifetime(req, res);
     return;
   }
 

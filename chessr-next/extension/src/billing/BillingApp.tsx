@@ -135,19 +135,15 @@ export function BillingApp() {
   const [cancelDetails, setCancelDetails] = useState('');
   const [canceling, setCanceling] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const [switchPreview, setSwitchPreview] = useState<{
-    credit: string | null;
-    charge: string | null;
-    tax: string | null;
-    total: string | null;
-    nextBilledAt: string | null;
-  } | null>(null);
+  type UpgradePreview = {
+    planLabel: string; planPrice: string; discount: string | null;
+    prorate: string | null; total: string; nextBilledAt: string | null;
+  };
+  const [switchPreview, setSwitchPreview] = useState<UpgradePreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [dynamicPrices, setDynamicPrices] = useState<Record<string, { price: string; original: string | null; currency: string }> | null>(null);
   const [showLifetimeModal, setShowLifetimeModal] = useState(false);
-  const [lifetimePreview, setLifetimePreview] = useState<{
-    lifetimePrice: string; discount: string | null; credit: string | null; total: string; currency: string; currentInterval: string;
-  } | null>(null);
+  const [lifetimePreview, setLifetimePreview] = useState<UpgradePreview | null>(null);
   const [loadingLifetimePreview, setLoadingLifetimePreview] = useState(false);
   const [upgradingLifetime, setUpgradingLifetime] = useState(false);
 
@@ -215,7 +211,7 @@ export function BillingApp() {
     }
     setLoadingPreview(true);
     setSwitchPreview(null);
-    fetch(`${SERVER_URL}/api/paddle/preview-switch`, {
+    fetch(`${SERVER_URL}/api/paddle/preview-upgrade`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ plan: 'yearly' }),
@@ -452,9 +448,10 @@ export function BillingApp() {
     setLoadingLifetimePreview(true);
     setLifetimePreview(null);
     try {
-      const res = await fetch(`${SERVER_URL}/api/paddle/preview-lifetime`, {
+      const res = await fetch(`${SERVER_URL}/api/paddle/preview-upgrade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ plan: 'lifetime' }),
       });
       const data = await res.json();
       if (!data.error) setLifetimePreview(data);
@@ -748,15 +745,15 @@ export function BillingApp() {
                     {canSwitchToYearly && billing === 'yearly' ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {/* Inline preview on card */}
-                        {switchPreview?.total && !loadingPreview && (
+                        {switchPreview && !loadingPreview && (
                           <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span>You pay</span>
                               <span style={{ fontWeight: 600, color: '#fff' }}>{switchPreview.total}</span>
                             </div>
-                            {switchPreview.credit && (
+                            {switchPreview.prorate && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
-                                <span>Includes -{switchPreview.credit} prorate</span>
+                                <span>Includes -{switchPreview.prorate} prorate</span>
                               </div>
                             )}
                           </div>
@@ -875,9 +872,9 @@ export function BillingApp() {
                       <span>You pay</span>
                       <span style={{ fontWeight: 600, color: '#fff' }}>{lifetimePreview.total}</span>
                     </div>
-                    {lifetimePreview.credit && (
+                    {lifetimePreview.prorate && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
-                        <span>Includes -{lifetimePreview.credit} prorate</span>
+                        <span>Includes -{lifetimePreview.prorate} prorate</span>
                       </div>
                     )}
                   </div>
@@ -938,30 +935,26 @@ export function BillingApp() {
             {switchPreview && !loadingPreview && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                 <div style={{ padding: '10px 12px', borderRadius: 8, background: '#0a0a12', border: '1px solid #1e1e2e', fontSize: 11 }}>
-                  {switchPreview.charge && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.6)' }}>
-                      <span>Yearly plan</span>
-                      <span style={{ color: '#fff' }}>{switchPreview.charge}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.6)' }}>
+                    <span>{switchPreview.planLabel}</span>
+                    <span style={{ color: '#fff' }}>{switchPreview.planPrice}</span>
+                  </div>
+                  {switchPreview.discount && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
+                      <span>Discount</span>
+                      <span>-{switchPreview.discount}</span>
                     </div>
                   )}
-                  {switchPreview.credit && (
+                  {switchPreview.prorate && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
                       <span>Remaining subscription prorate</span>
-                      <span>-{switchPreview.credit}</span>
+                      <span>-{switchPreview.prorate}</span>
                     </div>
                   )}
-                  {switchPreview.tax && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.4)' }}>
-                      <span>Tax</span>
-                      <span>{switchPreview.tax}</span>
-                    </div>
-                  )}
-                  {switchPreview.total && (
-                    <div style={{ borderTop: '1px solid #1e1e2e', paddingTop: 6, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#fff' }}>
-                      <span>You pay</span>
-                      <span>{switchPreview.total}</span>
-                    </div>
-                  )}
+                  <div style={{ borderTop: '1px solid #1e1e2e', paddingTop: 6, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#fff' }}>
+                    <span>You pay</span>
+                    <span>{switchPreview.total}</span>
+                  </div>
                 </div>
                 {switchPreview.nextBilledAt && (
                   <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', margin: 0, textAlign: 'center' }}>
@@ -1017,8 +1010,8 @@ export function BillingApp() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                 <div style={{ padding: '10px 12px', borderRadius: 8, background: '#0a0a12', border: '1px solid #1e1e2e', fontSize: 11 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.6)' }}>
-                    <span>Lifetime price</span>
-                    <span style={{ color: '#fff' }}>{lifetimePreview.lifetimePrice}</span>
+                    <span>{lifetimePreview.planLabel}</span>
+                    <span style={{ color: '#fff' }}>{lifetimePreview.planPrice}</span>
                   </div>
                   {lifetimePreview.discount && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
@@ -1026,10 +1019,10 @@ export function BillingApp() {
                       <span>-{lifetimePreview.discount}</span>
                     </div>
                   )}
-                  {lifetimePreview.credit && (
+                  {lifetimePreview.prorate && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
                       <span>Remaining subscription prorate</span>
-                      <span>-{lifetimePreview.credit}</span>
+                      <span>-{lifetimePreview.prorate}</span>
                     </div>
                   )}
                   <div style={{ borderTop: '1px solid #1e1e2e', paddingTop: 6, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#fff' }}>

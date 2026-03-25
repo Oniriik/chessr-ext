@@ -535,10 +535,11 @@ export function handlePaddleSwitch(req: IncomingMessage, res: ServerResponse) {
   });
 }
 
-// ─── Preview switch endpoint ─────────────────────────────────────────────────
-// POST /api/paddle/preview-switch — preview proration for plan switch
+// ─── Unified preview upgrade endpoint ─────────────────────────────────────────
+// POST /api/paddle/preview-upgrade — preview proration for upgrading to yearly or lifetime
+// Body: { plan: "yearly" | "lifetime" }
 
-export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerResponse) {
+export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResponse) {
   let body = "";
   req.on("data", (chunk) => (body += chunk));
   req.on("end", async () => {
@@ -559,85 +560,18 @@ export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerRespo
         return;
       }
 
-      const { plan } = JSON.parse(body) as { plan: "monthly" | "yearly" };
-      const priceId = PADDLE_PRICES[plan];
+      const { plan } = JSON.parse(body) as { plan: string };
+      const targetPriceId = PADDLE_PRICES[plan];
 
-      if (!priceId) {
+      if (!targetPriceId || (plan !== "yearly" && plan !== "lifetime")) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid plan" }));
+        res.end(JSON.stringify({ error: "Invalid plan. Use: yearly or lifetime" }));
         return;
       }
 
       const { data: sub } = await supabase
         .from("subscriptions")
-        .select("paddle_subscription_id")
-        .eq("user_id", authData.user.id)
-        .limit(1)
-        .single();
-
-      if (!sub?.paddle_subscription_id) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "No active subscription" }));
-        return;
-      }
-
-      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
-      const preview = await paddle.subscriptions.previewUpdate(sub.paddle_subscription_id, {
-        items: [{ priceId, quantity: 1 }],
-        prorationBillingMode: "prorated_immediately",
-        ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
-      });
-
-      const immediate = preview.immediateTransaction;
-      const currencyCode = (immediate?.details?.totals as any)?.currencyCode || (preview as any).currencyCode || "USD";
-      const fmt = (amount: number) => formatAmount(amount, currencyCode);
-
-      // Extract line items for detailed breakdown
-      const lineItems = (immediate?.details as any)?.lineItems || [];
-      const creditLine = lineItems.find((li: any) => li.proration);
-      const chargeLine = lineItems.find((li: any) => !li.proration);
-      const totals = immediate?.details?.totals;
-
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        credit: creditLine ? fmt(Number(creditLine.totals.total)) : null,
-        charge: chargeLine ? fmt(Number(chargeLine.totals.total)) : null,
-        tax: totals?.tax && Number(totals.tax) > 0 ? fmt(Number(totals.tax)) : null,
-        total: totals ? fmt(Number(totals.total)) : null,
-        nextBilledAt: preview.nextBilledAt,
-      }));
-    } catch (err) {
-      console.error("[Paddle] Preview switch error:", err);
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Failed to preview switch" }));
-    }
-  });
-}
-
-// ─── Preview lifetime upgrade endpoint ────────────────────────────────────────
-// POST /api/paddle/preview-lifetime — preview credit from canceling current sub + lifetime price
-
-export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerResponse) {
-  (async () => {
-    try {
-      const authHeader = req.headers["authorization"];
-      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-      if (!token) {
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Authentication required" }));
-        return;
-      }
-
-      const { data: authData, error: authError } = await supabase.auth.getUser(token);
-      if (authError || !authData.user) {
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid token" }));
-        return;
-      }
-
-      const { data: sub } = await supabase
-        .from("subscriptions")
-        .select("paddle_subscription_id, current_period_end, interval")
+        .select("paddle_subscription_id, interval")
         .eq("user_id", authData.user.id)
         .limit(1)
         .single();
@@ -651,26 +585,27 @@ export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerRes
       // Get client IP for localized pricing
       const forwarded = req.headers["x-forwarded-for"];
       const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
+      const ipParam = clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {};
 
-      // Get localized lifetime price via pricing preview
-      const discountId = process.env.PADDLE_DISCOUNT_ID;
-      const lifetimePriceId = PADDLE_PRICES["lifetime"];
-      const preview = await paddle.pricingPreview.preview({
-        items: [{ priceId: lifetimePriceId, quantity: 1 }],
-        ...(clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {}),
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+
+      // Get localized target price via pricing preview
+      const targetPreview = await paddle.pricingPreview.preview({
+        items: [{ priceId: targetPriceId, quantity: 1 }],
+        ...ipParam,
         ...(discountId ? { discountId } : {}),
       });
 
-      const lineItem = (preview as any).details?.lineItems?.[0];
-      const totals = lineItem?.totals;
-      const formatted = lineItem?.formattedTotals;
-      const currencyCode = (preview as any).currencyCode || "USD";
+      const targetLine = (targetPreview as any).details?.lineItems?.[0];
+      const targetTotals = targetLine?.totals;
+      const currencyCode = (targetPreview as any).currencyCode || "USD";
+      const fmt = (amount: number) => formatAmount(amount, currencyCode);
 
-      const lifetimeTotal = Number(totals?.total || 0);
-      const lifetimeDiscount = Number(totals?.discount || 0);
-      const lifetimeOriginal = lifetimeTotal + lifetimeDiscount;
+      const targetTotal = Number(targetTotals?.total || 0);
+      const targetDiscount = Number(targetTotals?.discount || 0);
+      const targetOriginal = targetTotal + targetDiscount;
 
-      // Get subscription from Paddle to calculate remaining credit
+      // Get subscription from Paddle to calculate remaining prorate
       const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
       const currentItem = subscription.items?.[0];
       const billingStart = subscription.currentBillingPeriod?.startsAt;
@@ -681,41 +616,47 @@ export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerRes
       if (currentItem?.price?.id) {
         const subPreview = await paddle.pricingPreview.preview({
           items: [{ priceId: currentItem.price.id, quantity: 1 }],
-          ...(clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {}),
+          ...ipParam,
         });
         const subLine = (subPreview as any).details?.lineItems?.[0];
         localizedSubPrice = Number(subLine?.totals?.total || 0);
       }
 
-      let credit = 0;
+      let prorate = 0;
       if (billingStart && billingEnd && localizedSubPrice > 0) {
         const start = new Date(billingStart).getTime();
         const end = new Date(billingEnd).getTime();
         const now = Date.now();
         const totalDays = (end - start) / (1000 * 60 * 60 * 24);
         const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
-        credit = Math.round((remainingDays / totalDays) * localizedSubPrice);
+        prorate = Math.round((remainingDays / totalDays) * localizedSubPrice);
       }
 
-      const finalTotal = Math.max(0, lifetimeTotal - credit);
+      const finalTotal = Math.max(0, targetTotal - prorate);
 
-      const fmt = (amount: number) => formatAmount(amount, currencyCode);
+      // Next billed at (only for yearly subscription switch)
+      let nextBilledAt: string | null = null;
+      if (plan === "yearly") {
+        nextBilledAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      const planLabel = plan === "yearly" ? "Yearly plan" : "Lifetime";
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        lifetimePrice: fmt(lifetimeOriginal),
-        discount: lifetimeDiscount > 0 ? fmt(lifetimeDiscount) : null,
-        credit: credit > 0 ? fmt(credit) : null,
+        planLabel,
+        planPrice: fmt(targetOriginal),
+        discount: targetDiscount > 0 ? fmt(targetDiscount) : null,
+        prorate: prorate > 0 ? fmt(prorate) : null,
         total: fmt(finalTotal),
-        currentInterval: sub.interval,
-        currency: currencyCode,
+        nextBilledAt,
       }));
     } catch (err) {
-      console.error("[Paddle] Preview lifetime error:", err);
+      console.error("[Paddle] Preview upgrade error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "Failed to preview lifetime upgrade" }));
+      res.end(JSON.stringify({ error: "Failed to preview upgrade" }));
     }
-  })();
+  });
 }
 
 // ─── Upgrade to lifetime endpoint ────────────────────────────────────────────
