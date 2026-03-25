@@ -611,15 +611,17 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
       const billingStart = subscription.currentBillingPeriod?.startsAt;
       const billingEnd = subscription.currentBillingPeriod?.endsAt;
 
-      // Get localized price for current subscription plan
+      // Get localized price for current subscription plan (same currency as target)
       let localizedSubPrice = 0;
       if (currentItem?.price?.id) {
         const subPreview = await paddle.pricingPreview.preview({
           items: [{ priceId: currentItem.price.id, quantity: 1 }],
           ...ipParam,
+          currencyCode,
         });
         const subLine = (subPreview as any).details?.lineItems?.[0];
         localizedSubPrice = Number(subLine?.totals?.total || 0);
+        console.log(`[Paddle] Preview upgrade: targetCurrency=${currencyCode}, subPrice=${localizedSubPrice}, targetTotal=${targetTotal}, ip=${clientIp}`);
       }
 
       let prorate = 0;
