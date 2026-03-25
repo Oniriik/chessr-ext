@@ -143,7 +143,7 @@ export function BillingApp() {
     nextBilledAt: string | null;
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
-  const [dynamicPrices, setDynamicPrices] = useState<Record<string, { price: string; original: string | null; currency: string; currencySymbol: string }> | null>(null);
+  const [dynamicPrices, setDynamicPrices] = useState<Record<string, { price: string; original: string | null; currency: string }> | null>(null);
   const [showLifetimeModal, setShowLifetimeModal] = useState(false);
   const [lifetimePreview, setLifetimePreview] = useState<{
     lifetimePrice: number; discount: number; credit: number; total: number; currency: string; currentInterval: string;
@@ -490,17 +490,16 @@ export function BillingApp() {
     }
   };
 
-  const sym = dynamicPrices?.monthly?.currencySymbol || '€';
   const premium = billing === 'yearly'
-    ? { price: dynamicPrices?.yearly?.price || '24.99', original: dynamicPrices?.yearly?.original || null, period: '/year' }
-    : { price: dynamicPrices?.monthly?.price || '2.99', original: dynamicPrices?.monthly?.original || null, period: '/month' };
+    ? { price: dynamicPrices?.yearly?.price || '€24.99', original: dynamicPrices?.yearly?.original || null, period: '/year' }
+    : { price: dynamicPrices?.monthly?.price || '€2.99', original: dynamicPrices?.monthly?.original || null, period: '/month' };
 
   const isFree = isCurrentPlan('free', userPlan);
   const isPremium = isCurrentPlan('premium', userPlan);
   const isLifetime = isCurrentPlan('lifetime', userPlan);
 
   // Loading state
-  if (!session) {
+  if (!session || !dynamicPrices) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <Spinner />
@@ -660,12 +659,12 @@ export function BillingApp() {
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Premium</h3>
               {premium.original && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{sym}{premium.original}</span>
+                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{premium.original}</span>
                   <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>-15%</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>{sym}{premium.price}</span>
+                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>{premium.price}</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{premium.period}</span>
               </div>
               {canClaimTrial ? (
@@ -839,12 +838,12 @@ export function BillingApp() {
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Lifetime</h3>
               {dynamicPrices?.lifetime?.original && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{sym}{dynamicPrices.lifetime.original}</span>
+                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{dynamicPrices.lifetime.original}</span>
                   <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>Discount</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>{sym}{dynamicPrices?.lifetime?.price || '50'}</span>
+                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>{dynamicPrices?.lifetime?.price || '€50'}</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>/one-time</span>
               </div>
               <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '4px 0 0' }}>Pay once, own forever</p>

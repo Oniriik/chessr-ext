@@ -891,7 +891,9 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
         ...(discountId ? { discountId } : {}),
       });
 
-      const prices: Record<string, { price: string; original: string | null; currency: string; currencySymbol: string }> = {};
+      console.log(`[Paddle] Prices preview: discountId=${discountId}, items=${JSON.stringify((preview as any).details?.lineItems?.map((i: any) => ({ id: i.price?.id, subtotal: i.totals?.subtotal, total: i.totals?.total, discount: i.totals?.discount, formatted: i.formattedTotals })))}`);
+
+      const prices: Record<string, { price: string; original: string | null; currency: string }> = {};
 
       for (const item of (preview as any).details?.lineItems || []) {
         const priceId = item.price?.id;
@@ -904,15 +906,16 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
           const formatted = item.formattedTotals;
           const totals = item.totals;
           const currencyCode = (preview as any).currencyCode || "USD";
-          const symbol = currencyCode === "EUR" ? "€" : currencyCode === "GBP" ? "£" : "$";
 
-          const hasDiscount = item.discounts && item.discounts.length > 0;
+          // Detect discount: subtotal > total means discount was applied
+          const subtotalNum = Number(totals?.subtotal || 0);
+          const totalNum = Number(totals?.total || 0);
+          const hasDiscount = subtotalNum > totalNum;
 
           prices[planKey] = {
-            price: formatted?.total || (Number(totals?.total || 0) / 100).toFixed(2),
-            original: hasDiscount ? (formatted?.subtotal || (Number(totals?.subtotal || 0) / 100).toFixed(2)) : null,
+            price: formatted?.total || (totalNum / 100).toFixed(2),
+            original: hasDiscount ? (formatted?.subtotal || (subtotalNum / 100).toFixed(2)) : null,
             currency: currencyCode,
-            currencySymbol: symbol,
           };
         }
       }
