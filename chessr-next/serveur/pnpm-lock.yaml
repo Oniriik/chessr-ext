@@ -11,6 +11,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.39
         version: 3.0.39(zod@4.3.6)
+      '@polar-sh/sdk':
+        specifier: ^0.46.6
+        version: 0.46.6
       '@supabase/supabase-js':
         specifier: ^2.95.3
         version: 2.98.0
@@ -221,6 +224,12 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
+  '@polar-sh/sdk@0.46.6':
+    resolution: {integrity: sha512-+ULxRCkGo74IbuVcVbnWEOY1Hu0EHRSJO9QNLKylllaQmhpGf/GeBnbb7l95lrKcjH1pJNdYVU/oA02+pGTluw==}
+
+  '@stablelib/base64@1.0.1':
+    resolution: {integrity: sha512-1bnPQqSxSuc3Ii6MhBysoWCg58j97aUjuCSZrGSmDxNqtytIi0k8utUenAwTZN4V5mXXYGsVUI9zeBqy+jBOSQ==}
+
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -280,6 +289,9 @@ packages:
     resolution: {integrity: sha512-Vo1ab+QXPzZ4tCa8SwIHJFaSzy4R6SHf7BY79rFBDf0idraZWAkYrDjDj8uWaSm3S2TK+hJ7/t1CEmZ7jXw+pg==}
     engines: {node: '>=18.0.0'}
 
+  fast-sha256@1.3.0:
+    resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
+
   fsevents@2.3.3:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
@@ -297,6 +309,9 @@ packages:
 
   resolve-pkg-maps@1.0.0:
     resolution: {integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==}
+
+  standardwebhooks@1.0.0:
+    resolution: {integrity: sha512-BbHGOQK9olHPMvQNHWul6MYlrRTAOKn03rOe4A8O3CLWhNf4YHBqq2HJKKC+sfqpxiBY52pNeesD6jIiLDz8jg==}
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
@@ -435,6 +450,13 @@ snapshots:
 
   '@opentelemetry/api@1.9.0': {}
 
+  '@polar-sh/sdk@0.46.6':
+    dependencies:
+      standardwebhooks: 1.0.0
+      zod: 4.3.6
+
+  '@stablelib/base64@1.0.1': {}
+
   '@standard-schema/spec@1.1.0': {}
 
   '@supabase/auth-js@2.98.0':
@@ -528,6 +550,8 @@ snapshots:
 
   eventsource-parser@3.0.6: {}
 
+  fast-sha256@1.3.0: {}
+
   fsevents@2.3.3:
     optional: true
 
@@ -540,6 +564,11 @@ snapshots:
   json-schema@0.4.0: {}
 
   resolve-pkg-maps@1.0.0: {}
+
+  standardwebhooks@1.0.0:
+    dependencies:
+      '@stablelib/base64': 1.0.1
+      fast-sha256: 1.3.0
 
   tslib@2.8.1: {}
 

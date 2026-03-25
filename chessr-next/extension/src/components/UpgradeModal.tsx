@@ -1,6 +1,6 @@
 /**
  * UpgradeModal — now simply opens the billing page in a new tab.
- * The billing page handles plan selection and Paddle checkout.
+ * The billing page handles plan selection and Polar checkout.
  */
 
 import { create } from 'zustand';

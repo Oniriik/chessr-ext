@@ -1,6 +1,6 @@
 /**
- * Paddle checkout client
- * Opens the extension's billing page where Paddle.js handles the checkout
+ * Checkout client
+ * Opens the extension's billing page where Polar handles the checkout
  */
 
 export type CheckoutPlan = 'monthly' | 'yearly' | 'lifetime';

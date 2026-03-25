@@ -6,24 +6,11 @@ import type { Plan } from '../components/ui/plan-badge';
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
-const PADDLE_CLIENT_TOKEN = 'live_855d0bf0ad3b2b004e87a3eb0af';
-// 'sandbox' or 'production'
-const PADDLE_ENV: 'sandbox' | 'production' = 'production';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type BillingCycle = 'monthly' | 'yearly';
 type CheckoutPlan = 'monthly' | 'yearly' | 'lifetime';
-
-declare global {
-  interface Window {
-    Paddle?: {
-      Environment: { set: (env: string) => void };
-      Initialize: (config: any) => void;
-      Checkout: { open: (config: any) => void };
-    };
-  }
-}
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -115,10 +102,8 @@ export function BillingApp() {
   const [billing, setBilling] = useState<BillingCycle>('yearly');
   const [loading, setLoading] = useState<CheckoutPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [paddleReady, setPaddleReady] = useState(false);
   const [success, setSuccess] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const paymentCompleted = useRef(false);
   const userRef = useRef(user);
   const userPlanRef = useRef(userPlan);
   userRef.current = user;
@@ -153,11 +138,11 @@ export function BillingApp() {
     // Snapshot current state before checkout
     const { data: beforeSub } = await supabase
       .from('subscriptions')
-      .select('paddle_subscription_id, status, canceled_at')
+      .select('polar_subscription_id, status, canceled_at')
       .eq('user_id', currentUser.id)
       .limit(1)
       .single();
-    const beforeSubId = beforeSub?.paddle_subscription_id;
+    const beforeSubId = beforeSub?.polar_subscription_id;
     const beforeStatus = beforeSub?.status;
     const originalPlan = userPlanRef.current;
 
@@ -169,15 +154,14 @@ export function BillingApp() {
 
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('paddle_subscription_id, status, canceled_at')
+        .select('polar_subscription_id, status, canceled_at')
         .eq('user_id', currentUser.id)
         .limit(1)
         .single();
 
-
       const changed =
         (newPlan !== originalPlan && newPlan !== 'free') ||
-        (sub?.paddle_subscription_id && sub.paddle_subscription_id !== beforeSubId) ||
+        (sub?.polar_subscription_id && sub.polar_subscription_id !== beforeSubId) ||
         (beforeStatus === 'canceled' && sub?.status === 'active') ||
         (!beforeSubId && sub?.status === 'active');
 
@@ -208,7 +192,7 @@ export function BillingApp() {
     }
     setLoadingPreview(true);
     setSwitchPreview(null);
-    fetch(`${SERVER_URL}/api/paddle/preview-switch`, {
+    fetch(`${SERVER_URL}/api/polar/preview-switch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ plan: 'yearly' }),
@@ -225,7 +209,7 @@ export function BillingApp() {
     setSwitching(true);
     setError(null);
     try {
-      const res = await fetch(`${SERVER_URL}/api/paddle/switch`, {
+      const res = await fetch(`${SERVER_URL}/api/polar/switch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ plan: 'yearly' }),
@@ -262,7 +246,7 @@ export function BillingApp() {
     if (!token) return;
     setCanceling(true);
     try {
-      const res = await fetch(`${SERVER_URL}/api/paddle/cancel`, {
+      const res = await fetch(`${SERVER_URL}/api/polar/cancel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -362,42 +346,15 @@ export function BillingApp() {
   const trialDataLoaded = freetrialUsed !== null && discordLinked !== null;
   const canClaimTrial = trialDataLoaded && !freetrialUsed && !discordLinked && userPlan === 'free';
 
-  // Initialize Paddle
-  useEffect(() => {
-    if (window.Paddle) {
-      window.Paddle.Environment.set(PADDLE_ENV);
-      window.Paddle.Initialize({
-        token: PADDLE_CLIENT_TOKEN,
-        checkout: {
-          settings: {
-            theme: 'dark',
-          },
-        },
-        eventCallback: (event: any) => {
-          if (event.name === 'checkout.completed') {
-            paymentCompleted.current = true;
-            setConfirming(true);
-            pollForPlanUpdate();
-          }
-          if (event.name === 'checkout.closed') {
-            // Only stop if payment was NOT completed
-            if (!paymentCompleted.current) setConfirming(false);
-          }
-        },
-      });
-      setPaddleReady(true);
-    }
-  }, []);
-
   const handleSelect = async (plan: CheckoutPlan) => {
     const token = session?.access_token;
-    if (!token || !paddleReady) return;
+    if (!token) return;
 
     setLoading(plan);
     setError(null);
 
     try {
-      const res = await fetch(`${SERVER_URL}/api/paddle/checkout`, {
+      const res = await fetch(`${SERVER_URL}/api/polar/checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -411,17 +368,14 @@ export function BillingApp() {
         throw new Error(data.error || `Checkout failed (${res.status})`);
       }
 
-      const { transactionId } = await res.json();
+      const { url } = await res.json();
 
-      window.Paddle!.Checkout.open({
-        transactionId,
-        settings: {
-          theme: 'dark',
-          successUrl: undefined, // stay on page
-        },
-      });
+      // Open Polar hosted checkout in new tab
+      window.open(url, '_blank');
 
-
+      // Start polling for plan update (webhook will update DB)
+      setConfirming(true);
+      pollForPlanUpdate();
     } catch (err: any) {
       console.error('[Billing] Checkout error:', err);
       setError(err.message || 'Something went wrong');
