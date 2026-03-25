@@ -1,23 +1,28 @@
 import { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
-import { Paddle, Environment, EventName } from "@paddle/paddle-node-sdk";
+import { Paddle, Environment } from "@paddle/paddle-node-sdk";
+import crypto from "crypto";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const PADDLE_API_KEY = process.env.PADDLE_API_KEY!;
 const PADDLE_WEBHOOK_SECRET = process.env.PADDLE_WEBHOOK_SECRET!;
-const PADDLE_ENVIRONMENT = process.env.PADDLE_ENVIRONMENT === "sandbox" ? Environment.sandbox : Environment.production;
+const PADDLE_ENVIRONMENT = (process.env.PADDLE_ENVIRONMENT || "sandbox") as
+  | "sandbox"
+  | "production";
 
-const paddle = new Paddle(PADDLE_API_KEY, { environment: PADDLE_ENVIRONMENT });
+const paddle = new Paddle(PADDLE_API_KEY, {
+  environment: PADDLE_ENVIRONMENT === "sandbox" ? Environment.sandbox : Environment.production,
+});
 
-// Price IDs for each plan
+// Price IDs for each plan (set in env)
 const PADDLE_PRICES: Record<string, string> = {
   monthly: process.env.PADDLE_PRICE_MONTHLY!,
   yearly: process.env.PADDLE_PRICE_YEARLY!,
   lifetime: process.env.PADDLE_PRICE_LIFETIME!,
 };
 
-// Reverse: price ID → plan mapping
+// Price ID → plan mapping (single product with 3 prices)
 const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
   [process.env.PADDLE_PRICE_MONTHLY!]: { plan: "premium", interval: "monthly" },
   [process.env.PADDLE_PRICE_YEARLY!]: { plan: "premium", interval: "yearly" },
@@ -29,69 +34,94 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!,
 );
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Webhook signature verification ──────────────────────────────────────────
 
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
-    req.on("end", () => resolve(body));
-  });
-}
+function verifyWebhookSignature(
+  rawBody: string,
+  signature: string | undefined,
+): boolean {
+  if (!signature || !PADDLE_WEBHOOK_SECRET) return false;
 
-function json(res: ServerResponse, status: number, data: any) {
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify(data));
-}
+  // Paddle Billing webhook signature format: ts=xxx;h1=xxx
+  const parts = signature.split(";").reduce(
+    (acc, part) => {
+      const [key, val] = part.split("=");
+      acc[key] = val;
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
 
-async function getAuthUser(req: IncomingMessage) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return null;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data.user) return null;
-  return data.user;
+  const ts = parts["ts"];
+  const h1 = parts["h1"];
+  if (!ts || !h1) return false;
+
+  const payload = `${ts}:${rawBody}`;
+  const expectedSig = crypto
+    .createHmac("sha256", PADDLE_WEBHOOK_SECRET)
+    .update(payload)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(Buffer.from(h1), Buffer.from(expectedSig));
 }
 
 // ─── Plan update logic ───────────────────────────────────────────────────────
 
 async function updateUserPlan(
-  userId: string,
-  paddleSubscriptionId: string,
-  paddleCustomerId: string | null,
-  priceId: string,
+  customerId: string,
+  subscriptionId: string,
+  productId: string,
   status: string,
-  currentPeriodEnd: string | null,
+  nextBilledAt: string | null,
   canceledAt: string | null,
 ) {
-  const mapping = PRICE_PLAN_MAP[priceId];
+  const mapping = PRICE_PLAN_MAP[productId];
   if (!mapping) {
-    console.error(`[Paddle] Unknown price ID: ${priceId}`);
+    console.error(`[Paddle] Unknown product ID: ${productId}`);
     return;
   }
 
-  // Update subscription record
+  // Find user by paddle_customer_id in subscriptions table
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("user_id")
+    .eq("paddle_customer_id", customerId)
+    .limit(1)
+    .single();
+
+  if (!sub) {
+    console.error(`[Paddle] No user found for customer: ${customerId}`);
+    return;
+  }
+
+  const userId = sub.user_id;
+
+  // Update subscription record (upsert by user_id — one subscription per user)
   await supabase
     .from("subscriptions")
     .upsert(
       {
         user_id: userId,
-        paddle_subscription_id: paddleSubscriptionId,
-        paddle_customer_id: paddleCustomerId,
-        paddle_price_id: priceId,
+        paddle_customer_id: customerId,
+        paddle_subscription_id: subscriptionId,
+        paddle_product_id: productId,
         status,
         plan: mapping.plan,
         interval: mapping.interval || null,
-        current_period_end: currentPeriodEnd,
+        current_period_end: nextBilledAt,
         canceled_at: canceledAt,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },
     );
 
-  // Update user_settings based on status
-  if (status === "active") {
-    const planExpiry = mapping.plan === "lifetime" ? null : currentPeriodEnd;
+  // Update user_settings based on subscription status
+  if (status === "active" || status === "trialing") {
+    const planExpiry =
+      mapping.plan === "lifetime"
+        ? null // lifetime never expires
+        : nextBilledAt;
+
     await supabase
       .from("user_settings")
       .update({
@@ -100,30 +130,34 @@ async function updateUserPlan(
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", userId);
+
     console.log(`[Paddle] ${userId} → plan=${mapping.plan}, expiry=${planExpiry}`);
-  } else if (status === "canceled") {
-    const expiresAt = currentPeriodEnd || canceledAt;
+  } else if (status === "canceled" || status === "past_due") {
+    const expiresAt = nextBilledAt || canceledAt;
     const isExpired = expiresAt && new Date(expiresAt).getTime() <= Date.now();
 
     if (isExpired) {
+      // Immediate cancel — downgrade to free now
       await supabase
         .from("user_settings")
-        .update({ plan: "free", plan_expiry: null, updated_at: new Date().toISOString() })
+        .update({
+          plan: "free",
+          plan_expiry: null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("user_id", userId);
-      console.log(`[Paddle] ${userId} → canceled & expired, set to free`);
+      console.log(`[Paddle] ${userId} → canceled immediately, set to free`);
     } else if (expiresAt) {
+      // End-of-period cancel — keep plan active until expiry
       await supabase
         .from("user_settings")
-        .update({ plan_expiry: expiresAt, updated_at: new Date().toISOString() })
+        .update({
+          plan_expiry: expiresAt,
+          updated_at: new Date().toISOString(),
+        })
         .eq("user_id", userId);
       console.log(`[Paddle] ${userId} → canceled, active until ${expiresAt}`);
     }
-  } else if (status === "revoked") {
-    await supabase
-      .from("user_settings")
-      .update({ plan: "free", plan_expiry: null, updated_at: new Date().toISOString() })
-      .eq("user_id", userId);
-    console.log(`[Paddle] ${userId} → revoked, set to free`);
   }
 
   // Log the plan change
@@ -132,405 +166,542 @@ async function updateUserPlan(
     user_id: userId,
     user_email: userData?.user?.email || "",
     action_type: `paddle_${status}`,
-    new_plan: status === "canceled" || status === "revoked" ? "free" : mapping.plan,
-    old_plan: null,
-    reason: `Paddle ${status} (${paddleSubscriptionId})`,
+    new_plan: status === "canceled" ? "free" : mapping.plan,
+    old_plan: null, // we don't track old plan here
+    reason: `Paddle ${status} (${subscriptionId})`,
   });
-
-  // Trigger immediate Discord role sync
-  triggerDiscordRoleSync(userId);
 }
 
-function triggerDiscordRoleSync(userId: string) {
-  const botUrl = process.env.DISCORD_BOT_URL || "http://chessr-discord:3100";
-  fetch(`${botUrl}/sync-roles`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId }),
-  }).catch((err) => {
-    console.error(`[Paddle] Failed to trigger role sync for ${userId}:`, err.message);
+// ─── Handle one-time purchase (lifetime) ─────────────────────────────────────
+
+async function handleTransactionCompleted(event: any) {
+  const transaction = event.data;
+  const customerId = transaction.customer_id;
+  const items = transaction.items || [];
+
+  for (const item of items) {
+    const productId = item.price?.id;
+    const mapping = PRICE_PLAN_MAP[productId];
+
+    if (mapping?.plan === "lifetime") {
+      // Find user by paddle_customer_id
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("user_id")
+        .eq("paddle_customer_id", customerId)
+        .limit(1)
+        .single();
+
+      if (!sub) {
+        console.error(`[Paddle] No user for customer ${customerId} on transaction`);
+        return;
+      }
+
+      // Update subscription record
+      await supabase.from("subscriptions").upsert(
+        {
+          user_id: sub.user_id,
+          paddle_customer_id: customerId,
+          paddle_subscription_id: transaction.id,
+          paddle_product_id: productId,
+          status: "active",
+          plan: "lifetime",
+          interval: null,
+          current_period_end: null,
+          canceled_at: null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "paddle_subscription_id" },
+      );
+
+      // Set lifetime plan (no expiry)
+      await supabase
+        .from("user_settings")
+        .update({
+          plan: "lifetime",
+          plan_expiry: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", sub.user_id);
+
+      console.log(`[Paddle] ${sub.user_id} → lifetime (transaction ${transaction.id})`);
+
+      // Log
+      const { data: userData } = await supabase.auth.admin.getUserById(sub.user_id);
+      await supabase.from("plan_activity_logs").insert({
+        user_id: sub.user_id,
+        user_email: userData?.user?.email || "",
+        action_type: "paddle_lifetime_purchase",
+        new_plan: "lifetime",
+        reason: `Paddle transaction ${transaction.id}`,
+      });
+    }
+  }
+}
+
+// ─── Store payment event ─────────────────────────────────────────────────────
+
+async function storePaymentEvent(eventType: string, event: any) {
+  await supabase.from("payment_events").insert({
+    paddle_event_id: event.event_id,
+    event_type: eventType,
+    data: event.data,
   });
 }
 
 // ─── Webhook HTTP handler ────────────────────────────────────────────────────
 
-export async function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
-  const body = await readBody(req);
-  try {
-    const signature = req.headers["paddle-signature"] as string;
-    if (!signature) {
-      json(res, 401, { error: "Missing Paddle-Signature header" });
-      return;
-    }
+export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      // Verify signature
+      const signature = req.headers["paddle-signature"] as string | undefined;
+      if (!verifyWebhookSignature(body, signature)) {
+        console.error("[Paddle] Invalid webhook signature");
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid signature" }));
+        return;
+      }
 
-    const event = paddle.webhooks.unmarshal(body, PADDLE_WEBHOOK_SECRET, signature);
-    if (!event) {
-      json(res, 401, { error: "Invalid signature" });
-      return;
-    }
+      const event = JSON.parse(body);
+      const eventType = event.event_type;
 
-    console.log(`[Paddle] Webhook: ${event.eventType}`);
+      console.log(`[Paddle] Webhook: ${eventType}`);
 
-    // Store raw event
-    await supabase.from("payment_events").insert({
-      event_id: event.eventId,
-      event_type: event.eventType,
-      data: event.data,
-    });
+      // Store raw event
+      await storePaymentEvent(eventType, event);
 
-    switch (event.eventType) {
-      case EventName.SubscriptionActivated:
-      case EventName.SubscriptionUpdated: {
-        const data = event.data as any;
-        const priceId = data.items?.[0]?.price?.id;
-        const userId = data.customData?.user_id;
-        const customerId = data.customerId;
-        if (!userId || !priceId) {
-          console.error(`[Paddle] Missing userId or priceId in ${event.eventType}`, { priceId, userId });
+      // Process event
+      switch (eventType) {
+        case "subscription.created":
+        case "subscription.updated": {
+          const sub = event.data;
+          const productId = sub.items?.[0]?.price?.id;
+          // Paddle sends scheduled_change.action = "cancel" when user cancels
+          // but status is still "active" until effective_at
+          const scheduledCancel = sub.scheduled_change?.action === "cancel";
+          const effectiveStatus = scheduledCancel ? "canceled" : sub.status;
+          const effectiveExpiry = scheduledCancel
+            ? sub.scheduled_change.effective_at
+            : sub.next_billed_at;
+          await updateUserPlan(
+            sub.customer_id,
+            sub.id,
+            productId,
+            effectiveStatus,
+            effectiveExpiry || null,
+            sub.canceled_at || (scheduledCancel ? new Date().toISOString() : null),
+          );
           break;
         }
-        const periodEnd = data.currentBillingPeriod?.endsAt || null;
-        await updateUserPlan(
-          userId,
-          data.id,
-          customerId,
-          priceId,
-          "active",
-          periodEnd,
-          null,
-        );
-        break;
-      }
 
-      case EventName.SubscriptionCanceled: {
-        const data = event.data as any;
-        const priceId = data.items?.[0]?.price?.id;
-        const userId = data.customData?.user_id;
-        const customerId = data.customerId;
-        if (!userId || !priceId) break;
-
-        // Check if this is an immediate cancellation or end-of-period
-        const scheduledChange = data.scheduledChange;
-        const isImmediate = !scheduledChange && data.status === "canceled";
-        const periodEnd = data.currentBillingPeriod?.endsAt || null;
-
-        if (isImmediate) {
+        case "subscription.canceled": {
+          const sub = event.data;
+          const productId = sub.items?.[0]?.price?.id;
           await updateUserPlan(
-            userId,
-            data.id,
-            customerId,
-            priceId,
-            "revoked",
-            null,
-            data.canceledAt || new Date().toISOString(),
-          );
-        } else {
-          await updateUserPlan(
-            userId,
-            data.id,
-            customerId,
-            priceId,
+            sub.customer_id,
+            sub.id,
+            productId,
             "canceled",
-            periodEnd,
-            data.canceledAt || new Date().toISOString(),
+            sub.next_billed_at || null,
+            sub.canceled_at || new Date().toISOString(),
           );
+          break;
         }
-        break;
+
+        case "transaction.completed": {
+          await handleTransactionCompleted(event);
+          break;
+        }
+
+        default:
+          console.log(`[Paddle] Unhandled event: ${eventType}`);
       }
 
-      case EventName.TransactionCompleted: {
-        // Handle lifetime one-time purchase (no subscription)
-        const data = event.data as any;
-        if (data.subscriptionId) break; // Skip subscription renewals
-
-        const items = data.items || [];
-        for (const item of items) {
-          const priceId = item.price?.id;
-          const mapping = PRICE_PLAN_MAP[priceId];
-          if (mapping?.plan !== "lifetime") continue;
-
-          const userId = data.customData?.user_id;
-          if (!userId) {
-            console.error("[Paddle] No userId on lifetime transaction");
-            break;
-          }
-
-          await supabase.from("subscriptions").upsert(
-            {
-              user_id: userId,
-              paddle_subscription_id: data.id,
-              paddle_customer_id: data.customerId,
-              paddle_price_id: priceId,
-              status: "active",
-              plan: "lifetime",
-              interval: null,
-              current_period_end: null,
-              canceled_at: null,
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id" },
-          );
-
-          await supabase
-            .from("user_settings")
-            .update({ plan: "lifetime", plan_expiry: null, updated_at: new Date().toISOString() })
-            .eq("user_id", userId);
-
-          console.log(`[Paddle] ${userId} → lifetime (transaction ${data.id})`);
-
-          const { data: userData } = await supabase.auth.admin.getUserById(userId);
-          await supabase.from("plan_activity_logs").insert({
-            user_id: userId,
-            user_email: userData?.user?.email || "",
-            action_type: "paddle_lifetime_purchase",
-            new_plan: "lifetime",
-            reason: `Paddle transaction ${data.id}`,
-          });
-
-          triggerDiscordRoleSync(userId);
-        }
-        break;
-      }
-
-      default:
-        console.log(`[Paddle] Unhandled event: ${event.eventType}`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error("[Paddle] Webhook error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal error" }));
     }
-
-    json(res, 200, { ok: true });
-  } catch (err: any) {
-    console.error("[Paddle] Webhook error:", err);
-    json(res, 500, { error: "Internal error" });
-  }
+  });
 }
 
 // ─── Checkout session endpoint ───────────────────────────────────────────────
+// POST /api/paddle/checkout — creates a Paddle transaction and returns checkout URL
+// Body: { plan: "monthly" | "yearly" | "lifetime" }
 
-export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) {
-  const body = await readBody(req);
-  try {
-    const authUser = await getAuthUser(req);
-    if (!authUser) return json(res, 401, { error: "Authentication required" });
+export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      // Auth check
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    const { plan, successUrl } = JSON.parse(body) as { plan: string; successUrl?: string };
-    const priceId = PADDLE_PRICES[plan];
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
 
-    if (!priceId) {
-      return json(res, 400, { error: "Invalid plan. Use: monthly, yearly, or lifetime" });
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { plan } = JSON.parse(body) as { plan: string };
+      const priceId = PADDLE_PRICES[plan];
+
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan. Use: monthly, yearly, or lifetime" }));
+        return;
+      }
+
+      const userId = authData.user.id;
+      const userEmail = authData.user.email || "";
+
+      console.log(`[Paddle] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}, priceId=${priceId}`);
+
+      // Get or create Paddle customer
+      let customerId: string | undefined;
+
+      const { data: existingSub } = await supabase
+        .from("subscriptions")
+        .select("paddle_customer_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (existingSub?.paddle_customer_id) {
+        // Verify customer still exists in Paddle
+        try {
+          await paddle.customers.get(existingSub.paddle_customer_id);
+          customerId = existingSub.paddle_customer_id;
+          console.log(`[Paddle] Reusing customer: ${customerId}`);
+        } catch {
+          console.log(`[Paddle] Customer ${existingSub.paddle_customer_id} not found, creating new one`);
+          // Clear stale reference
+          await supabase.from("subscriptions").delete().eq("user_id", userId);
+        }
+      }
+
+      if (!customerId) {
+        try {
+          const customer = await paddle.customers.create({
+            email: userEmail,
+          });
+          customerId = customer.id;
+          console.log(`[Paddle] Created customer: ${customerId}`);
+        } catch (createErr: any) {
+          // Customer already exists in Paddle — find by email
+          if (createErr?.code === 'conflict' || createErr?.type === 'request_error') {
+            const customers = await paddle.customers.list({ email: [userEmail] });
+            for await (const c of customers) {
+              customerId = c.id;
+              console.log(`[Paddle] Found existing customer: ${customerId}`);
+              break;
+            }
+          }
+          if (!customerId) throw createErr;
+        }
+
+        await supabase.from("subscriptions").upsert(
+          {
+            user_id: userId,
+            paddle_customer_id: customerId,
+            status: "pending",
+            plan: "free",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+      }
+
+      // Create transaction to get checkout URL
+      const transaction = await paddle.transactions.create({
+        items: [{ priceId, quantity: 1 }],
+        customerId,
+        customData: { userId },
+      });
+
+      const txnId = transaction.id;
+
+      console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (txn=${txnId})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ transactionId: txnId }));
+    } catch (err) {
+      console.error("[Paddle] Checkout error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal error" }));
     }
-
-    const userId = authUser.id;
-    const userEmail = authUser.email || "";
-
-    console.log(`[Paddle] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}`);
-
-    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
-
-    // Create transaction via Paddle API with user data
-    const transaction = await paddle.transactions.create({
-      items: [{ priceId, quantity: 1 }],
-      customData: { user_id: userId, email: userEmail },
-      ...(discountId ? { discountId } : {}),
-    });
-
-    if (!transaction.id) {
-      console.error("[Paddle] No transaction ID returned");
-      return json(res, 500, { error: "Failed to create checkout" });
-    }
-
-    // Build URL to our pay page which loads Paddle.js overlay
-    const returnUrl = successUrl || "";
-    const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
-    const checkoutUrl = `https://engine.chessr.io/api/paddle/pay?txn=${transaction.id}&email=${encodeURIComponent(userEmail)}&success=${encodeURIComponent(serverSuccessUrl)}`;
-
-    console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (${transaction.id})`);
-
-    json(res, 200, { url: checkoutUrl });
-  } catch (err) {
-    console.error("[Paddle] Checkout error:", err);
-    json(res, 500, { error: "Internal error" });
-  }
+  });
 }
 
-// ─── Checkout pay page (Paddle.js overlay) ──────────────────────────────────
-// GET /api/paddle/pay?txn=xxx&success=xxx — page that loads Paddle.js and opens overlay
+// ─── Switch plan endpoint ────────────────────────────────────────────────────
+// POST /api/paddle/switch — switch between monthly ↔ yearly with proration
 
-export async function handlePaddlePay(req: IncomingMessage, res: ServerResponse) {
-  try {
-    const urlObj = new URL(req.url!, `http://${req.headers.host}`);
-    const txnId = urlObj.searchParams.get("txn") || "";
-    const email = urlObj.searchParams.get("email") || "";
-    const successUrl = urlObj.searchParams.get("success") || "";
+export function handlePaddleSwitch(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    if (!txnId) {
-      res.writeHead(400, { "Content-Type": "text/plain" });
-      res.end("Missing transaction ID");
-      return;
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { plan } = JSON.parse(body) as { plan: "monthly" | "yearly" };
+      const priceId = PADDLE_PRICES[plan];
+
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan. Use: monthly or yearly" }));
+        return;
+      }
+
+      const userId = authData.user.id;
+
+      // Get current subscription
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription found" }));
+        return;
+      }
+
+      // Update subscription with proration
+      const updated = await paddle.subscriptions.update(sub.paddle_subscription_id, {
+        items: [{ priceId, quantity: 1 }],
+        prorationBillingMode: "prorated_immediately",
+      });
+
+      console.log(`[Paddle] Switch to ${plan} for ${authData.user.email} (${sub.paddle_subscription_id})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, nextBilledAt: updated.nextBilledAt }));
+    } catch (err) {
+      console.error("[Paddle] Switch error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to switch plan" }));
     }
-
-    const paddleEnv = PADDLE_ENVIRONMENT === Environment.sandbox ? "sandbox" : "production";
-    const clientToken = process.env.PADDLE_CLIENT_TOKEN || "";
-
-    res.writeHead(200, { "Content-Type": "text/html" });
-    res.end(`<!DOCTYPE html><html><head><title>Chessr — Checkout</title>
-<style>body{margin:0;background:#08080f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}p{color:rgba(255,255,255,0.6);font-size:14px;}.spinner{width:24px;height:24px;border:2px solid rgba(255,255,255,0.2);border-top-color:#22d3ee;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px;}@keyframes spin{to{transform:rotate(360deg)}}</style>
-</head><body>
-<div><div class="spinner"></div><p>Loading checkout...</p></div>
-<script src="https://cdn.paddle.com/paddle/v2/paddle.js"><\/script>
-<script>
-Paddle.Environment.set("${paddleEnv}");
-Paddle.Setup({
-  token: "${clientToken}",
-  eventCallback: function(ev) {
-    if (ev.name === "checkout.completed") {
-      document.body.innerHTML = '<div style="text-align:center;padding:40px"><p>Payment successful! This window will close...</p></div>';
-      setTimeout(function() { window.close(); }, 2000);
-    } else if (ev.name === "checkout.closed") {
-      window.close();
-    }
-  }
-});
-Paddle.Checkout.open({
-  transactionId: "${txnId}",
-  customer: { email: "${email.replace(/"/g, "")}" }
-});
-<\/script>
-</body></html>`);
-  } catch (err) {
-    console.error("[Paddle] Pay page error:", err);
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    res.end("Something went wrong");
-  }
+  });
 }
 
-// ─── Checkout success redirect ───────────────────────────────────────────────
-// GET /api/paddle/success?return=xxx — redirect back to extension after checkout
+// ─── Preview switch endpoint ─────────────────────────────────────────────────
+// POST /api/paddle/preview-switch — preview proration for plan switch
 
-export async function handlePaddleSuccess(req: IncomingMessage, res: ServerResponse) {
-  try {
-    const urlObj = new URL(req.url!, `http://${req.headers.host}`);
-    const returnUrl = urlObj.searchParams.get("return") || "";
+export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    // Redirect to extension billing page or fallback
-    if (returnUrl) {
-      res.writeHead(302, { Location: returnUrl });
-      res.end();
-    } else {
-      res.writeHead(200, { "Content-Type": "text/html" });
-      res.end(`<!DOCTYPE html><html><head><title>Chessr — Payment Successful</title>
-<style>body{margin:0;background:#08080f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}h1{font-size:24px;margin-bottom:8px;}p{color:rgba(255,255,255,0.6);}</style>
-</head><body><div><h1>Payment successful!</h1><p>You can close this tab and return to Chessr.</p></div></body></html>`);
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { plan } = JSON.parse(body) as { plan: "monthly" | "yearly" };
+      const priceId = PADDLE_PRICES[plan];
+
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan" }));
+        return;
+      }
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id")
+        .eq("user_id", authData.user.id)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription" }));
+        return;
+      }
+
+      const preview = await paddle.subscriptions.previewUpdate(sub.paddle_subscription_id, {
+        items: [{ priceId, quantity: 1 }],
+        prorationBillingMode: "prorated_immediately",
+      });
+
+      const summary = preview.updateSummary;
+      const immediate = preview.immediateTransaction;
+
+      // Extract line items for detailed breakdown (amounts include tax)
+      const lineItems = (immediate?.details as any)?.lineItems || [];
+      const creditLine = lineItems.find((li: any) => li.proration);
+      const chargeLine = lineItems.find((li: any) => !li.proration);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        // TTC amounts from line items
+        credit: creditLine ? { amount: creditLine.totals.total, currency: creditLine.totals.currencyCode || 'EUR' } : null,
+        charge: chargeLine ? { amount: chargeLine.totals.total, currency: chargeLine.totals.currencyCode || 'EUR' } : null,
+        // Total TTC from immediate transaction
+        result: immediate?.details?.totals ? {
+          action: 'charge',
+          amount: immediate.details.totals.total,
+          currency: immediate.details.totals.currencyCode || 'EUR',
+        } : (summary?.result ? { action: summary.result.action, amount: summary.result.amount, currency: summary.result.currencyCode } : null),
+        tax: immediate?.details?.totals?.tax || null,
+        nextBilledAt: preview.nextBilledAt,
+      }));
+    } catch (err) {
+      console.error("[Paddle] Preview switch error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to preview switch" }));
     }
-  } catch (err) {
-    console.error("[Paddle] Success redirect error:", err);
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    res.end("Something went wrong");
-  }
+  });
 }
 
 // ─── Cancel subscription endpoint ────────────────────────────────────────────
+// POST /api/paddle/cancel — cancels subscription at end of billing period
 
-export async function handlePaddleCancel(req: IncomingMessage, res: ServerResponse) {
-  const body = await readBody(req);
-  try {
-    const authUser = await getAuthUser(req);
-    if (!authUser) return json(res, 401, { error: "Authentication required" });
+export function handlePaddleCancel(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    const userId = authUser.id;
-    const userEmail = authUser.email || "";
-    const { reason, details } = JSON.parse(body || "{}");
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
 
-    // Get subscription
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("paddle_subscription_id, plan, interval")
-      .eq("user_id", userId)
-      .limit(1)
-      .single();
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
 
-    if (!sub?.paddle_subscription_id) {
-      return json(res, 400, { error: "No active subscription found" });
-    }
+      const userId = authData.user.id;
+      const userEmail = authData.user.email || "";
 
-    // Cancel at end of billing period via Paddle API
-    await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
-      effectiveFrom: "next_billing_period",
-    });
+      // Parse reason
+      const { reason, details } = JSON.parse(body || "{}");
 
-    console.log(`[Paddle] Cancel requested by ${userEmail} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
+      // Get subscription
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, plan, interval")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
 
-    // Store cancel reason
-    if (reason) {
-      await supabase.from("cancel_reasons").insert({
-        user_id: userId,
-        user_email: userEmail,
-        reason,
-        details: details || null,
-        plan: sub.plan,
-        interval: sub.interval,
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription found" }));
+        return;
+      }
+
+      // Cancel via Paddle API at end of billing period
+      await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+        effectiveFrom: "next_billing_period",
       });
+
+      console.log(`[Paddle] Cancel requested by ${userEmail} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
+
+      // Store cancel reason
+      if (reason) {
+        await supabase.from("cancel_reasons").insert({
+          user_id: userId,
+          user_email: userEmail,
+          reason,
+          details: details || null,
+          plan: sub.plan,
+          interval: sub.interval,
+        });
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error("[Paddle] Cancel error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to cancel subscription" }));
     }
-
-    json(res, 200, { ok: true });
-  } catch (err) {
-    console.error("[Paddle] Cancel error:", err);
-    json(res, 500, { error: "Failed to cancel subscription" });
-  }
-}
-
-// ─── Customer portal endpoint ────────────────────────────────────────────────
-// POST /api/paddle/portal — returns Paddle customer portal URL
-
-export async function handlePaddlePortal(req: IncomingMessage, res: ServerResponse) {
-  try {
-    const authUser = await getAuthUser(req);
-    if (!authUser) return json(res, 401, { error: "Authentication required" });
-
-    // Get subscription ID from our DB
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("paddle_subscription_id, paddle_customer_id")
-      .eq("user_id", authUser.id)
-      .limit(1)
-      .single();
-
-    if (!sub?.paddle_subscription_id) {
-      return json(res, 400, { error: "No subscription found" });
-    }
-
-    // Get subscription from Paddle to retrieve management URLs
-    const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
-    const portalUrl = subscription.managementUrls?.cancel || subscription.managementUrls?.updatePaymentMethod;
-
-    if (!portalUrl) {
-      return json(res, 500, { error: "Failed to get management URL" });
-    }
-
-    console.log(`[Paddle] Portal for ${authUser.email}`);
-
-    json(res, 200, { url: portalUrl });
-  } catch (err) {
-    console.error("[Paddle] Portal error:", err);
-    json(res, 500, { error: "Failed to create portal session" });
-  }
+  });
 }
 
 // ─── Subscription status endpoint ────────────────────────────────────────────
+// GET /api/paddle/subscription — returns current subscription for authenticated user
 
-export async function handlePaddleSubscriptionStatus(req: IncomingMessage, res: ServerResponse) {
-  try {
-    const authUser = await getAuthUser(req);
-    if (!authUser) return json(res, 401, { error: "Authentication required" });
+export function handlePaddleSubscriptionStatus(req: IncomingMessage, res: ServerResponse) {
+  (async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
-    const { data: sub } = await supabase
-      .from("subscriptions")
-      .select("*")
-      .eq("user_id", authUser.id)
-      .limit(1)
-      .single();
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
 
-    json(res, 200, { subscription: sub || null });
-  } catch (err) {
-    console.error("[Paddle] Status error:", err);
-    json(res, 500, { error: "Internal error" });
-  }
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", authData.user.id)
+        .limit(1)
+        .single();
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ subscription: sub || null }));
+    } catch (err) {
+      console.error("[Paddle] Status error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal error" }));
+    }
+  })();
 }

@@ -45,10 +45,9 @@ import { handleExplainMove } from "./handlers/explanationHandler.js";
 import {
   handlePaddleWebhook,
   handlePaddleCheckout,
-  handlePaddlePay,
-  handlePaddleSuccess,
   handlePaddleCancel,
-  handlePaddlePortal,
+  handlePaddleSwitch,
+  handlePaddlePreviewSwitch,
   handlePaddleSubscriptionStatus,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
@@ -61,7 +60,7 @@ const MAX_STOCKFISH_INSTANCES = parseInt(
 
 // Version info for extension update checks
 const VERSION_INFO = {
-  minVersion: "2.3.0",
+  minVersion: "2.2.0",
   downloadUrl: "https://download.chessr.io",
 };
 
@@ -570,39 +569,91 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Paddle checkout page (loads Paddle.js and opens checkout overlay)
+  if (req.url?.startsWith("/checkout") && req.method === "GET") {
+    const urlObj = new URL(req.url, `http://${req.headers.host}`);
+    const txnId = urlObj.searchParams.get("txn");
+
+    if (!txnId) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Missing txn parameter");
+      return;
+    }
+
+    const paddleEnv = process.env.PADDLE_ENVIRONMENT || "sandbox";
+    const paddleJs = paddleEnv === "sandbox"
+      ? "https://sandbox-cdn.paddle.com/paddle/v2/paddle.js"
+      : "https://cdn.paddle.com/paddle/v2/paddle.js";
+    const clientToken = process.env.PADDLE_CLIENT_TOKEN || "";
+
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chessr — Checkout</title>
+  <script src="${paddleJs}"><\/script>
+  <style>
+    body { margin: 0; background: #08080f; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .loading { text-align: center; }
+    .loading p { color: rgba(255,255,255,0.5); font-size: 14px; margin-top: 16px; }
+    .spinner { width: 32px; height: 32px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div class="spinner"></div>
+    <p>Opening checkout...</p>
+  </div>
+  <script>
+    Paddle.Initialize({
+      token: "${clientToken}",
+      ${paddleEnv === "sandbox" ? 'environment: "sandbox",' : ""}
+      checkout: {
+        settings: {
+          successUrl: "https://chessr.io/checkout/success",
+          theme: "dark"
+        }
+      }
+    });
+    Paddle.Checkout.open({
+      transactionId: "${txnId}"
+    });
+  <\/script>
+</body>
+</html>`);
+    return;
+  }
+
   // Paddle webhook
   if (req.url === "/api/paddle/webhook" && req.method === "POST") {
     handlePaddleWebhook(req, res);
     return;
   }
 
-  // Paddle checkout (create session, return URL)
+  // Paddle checkout (link user ↔ customer)
   if (req.url === "/api/paddle/checkout" && req.method === "POST") {
     handlePaddleCheckout(req, res);
     return;
   }
 
-  // Paddle checkout pay page (Paddle.js overlay)
-  if (req.url?.startsWith("/api/paddle/pay") && req.method === "GET") {
-    handlePaddlePay(req, res);
+  // Paddle preview switch (proration breakdown)
+  if (req.url === "/api/paddle/preview-switch" && req.method === "POST") {
+    handlePaddlePreviewSwitch(req, res);
     return;
   }
 
-  // Paddle checkout success redirect
-  if (req.url?.startsWith("/api/paddle/success") && req.method === "GET") {
-    handlePaddleSuccess(req, res);
+  // Paddle switch plan (monthly ↔ yearly)
+  if (req.url === "/api/paddle/switch" && req.method === "POST") {
+    handlePaddleSwitch(req, res);
     return;
   }
 
   // Paddle cancel subscription
   if (req.url === "/api/paddle/cancel" && req.method === "POST") {
     handlePaddleCancel(req, res);
-    return;
-  }
-
-  // Paddle customer portal
-  if (req.url === "/api/paddle/portal" && req.method === "POST") {
-    handlePaddlePortal(req, res);
     return;
   }
 

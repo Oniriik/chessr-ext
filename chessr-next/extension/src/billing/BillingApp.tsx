@@ -6,11 +6,24 @@ import type { Plan } from '../components/ui/plan-badge';
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
+const PADDLE_CLIENT_TOKEN = 'live_855d0bf0ad3b2b004e87a3eb0af';
+// 'sandbox' or 'production'
+const PADDLE_ENV: 'sandbox' | 'production' = 'production';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type BillingCycle = 'monthly' | 'yearly';
 type CheckoutPlan = 'monthly' | 'yearly' | 'lifetime';
+
+declare global {
+  interface Window {
+    Paddle?: {
+      Environment: { set: (env: string) => void };
+      Initialize: (config: any) => void;
+      Checkout: { open: (config: any) => void };
+    };
+  }
+}
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -102,8 +115,10 @@ export function BillingApp() {
   const [billing, setBilling] = useState<BillingCycle>('yearly');
   const [loading, setLoading] = useState<CheckoutPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [paddleReady, setPaddleReady] = useState(false);
   const [success, setSuccess] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const paymentCompleted = useRef(false);
   const userRef = useRef(user);
   const userPlanRef = useRef(userPlan);
   userRef.current = user;
@@ -114,6 +129,20 @@ export function BillingApp() {
   const [subRenewalDate, setSubRenewalDate] = useState<Date | null>(null);
   const [subCanceled, setSubCanceled] = useState(false);
 
+  // Cancel flow state
+  const [cancelStep, setCancelStep] = useState<'hidden' | 'reason' | 'confirm'>('hidden');
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelDetails, setCancelDetails] = useState('');
+  const [canceling, setCanceling] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [switchPreview, setSwitchPreview] = useState<{
+    credit: { amount: string; currency: string } | null;
+    charge: { amount: string; currency: string } | null;
+    result: { action: string; amount: string; currency: string } | null;
+    tax: string | null;
+    nextBilledAt: string | null;
+  } | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
@@ -145,6 +174,7 @@ export function BillingApp() {
         .limit(1)
         .single();
 
+
       const changed =
         (newPlan !== originalPlan && newPlan !== 'free') ||
         (sub?.paddle_subscription_id && sub.paddle_subscription_id !== beforeSubId) ||
@@ -167,13 +197,118 @@ export function BillingApp() {
     setSuccess(true);
   };
 
+  const canSwitchToYearly = isCurrentPlan('premium', userPlan) && !subCanceled && subInterval === 'monthly';
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
 
+  // Fetch preview when toggle is yearly and user can switch
+  useEffect(() => {
+    if (!canSwitchToYearly || billing !== 'yearly' || !session?.access_token) {
+      setSwitchPreview(null);
+      return;
+    }
+    setLoadingPreview(true);
+    setSwitchPreview(null);
+    fetch(`${SERVER_URL}/api/paddle/preview-switch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ plan: 'yearly' }),
+    })
+      .then((r) => r.json())
+      .then((data) => setSwitchPreview(data.error ? null : data))
+      .catch(() => setSwitchPreview(null))
+      .finally(() => setLoadingPreview(false));
+  }, [canSwitchToYearly, billing]);
+
+  const handleSwitch = async () => {
+    const token = session?.access_token;
+    if (!token) return;
+    setSwitching(true);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/paddle/switch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ plan: 'yearly' }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.error);
+      }
+      setShowSwitchModal(false);
+      // Wait for webhooks to update DB
+      if (userRef.current) {
+        await new Promise((r) => setTimeout(r, 3000));
+        await fetchPlan(userRef.current.id);
+        await fetchTrialData();
+        chrome.runtime.sendMessage({ type: 'plan_updated', plan: useAuthStore.getState().plan });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to switch plan');
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const cancelReasons = [
+    'Too expensive',
+    'Not using it enough',
+    'Missing features I need',
+    'Switching to another tool',
+    'Just testing / temporary',
+  ];
+
+  const handleCancel = async () => {
+    const token = session?.access_token;
+    if (!token) return;
+    setCanceling(true);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/paddle/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          reason: cancelReason,
+          details: cancelReason === 'Other' ? cancelDetails : null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.error);
+      }
+      setCancelStep('hidden');
+      // Poll for the webhook to update the subscription status
+      if (user) {
+        for (let i = 0; i < 10; i++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          await fetchTrialData();
+          if (subCanceled) break;
+          // Check directly
+          const { data: sub } = await supabase
+            .from('subscriptions')
+            .select('status, canceled_at')
+            .eq('user_id', user.id)
+            .limit(1)
+            .single();
+          if (sub?.status === 'canceled' || sub?.canceled_at) {
+            setSubCanceled(true);
+            break;
+          }
+        }
+        await fetchPlan(user.id);
+        await fetchTrialData();
+        // Notify extension content scripts
+        chrome.runtime.sendMessage({ type: 'plan_updated', plan: useAuthStore.getState().plan });
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to cancel');
+    } finally {
+      setCanceling(false);
+    }
+  };
 
   // Initialize auth
   useEffect(() => {
     initialize();
   }, [initialize]);
-
 
   // Fetch freetrial eligibility and subscription info from Supabase
   const fetchTrialData = async () => {
@@ -227,22 +362,36 @@ export function BillingApp() {
   const trialDataLoaded = freetrialUsed !== null && discordLinked !== null;
   const canClaimTrial = trialDataLoaded && !freetrialUsed && !discordLinked && userPlan === 'free';
 
-  const openPortal = async () => {
-    const token = session?.access_token;
-    if (!token) return;
-    try {
-      const res = await fetch(`${SERVER_URL}/api/paddle/portal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+  // Initialize Paddle
+  useEffect(() => {
+    if (window.Paddle) {
+      window.Paddle.Environment.set(PADDLE_ENV);
+      window.Paddle.Initialize({
+        token: PADDLE_CLIENT_TOKEN,
+        checkout: {
+          settings: {
+            theme: 'dark',
+          },
+        },
+        eventCallback: (event: any) => {
+          if (event.name === 'checkout.completed') {
+            paymentCompleted.current = true;
+            setConfirming(true);
+            pollForPlanUpdate();
+          }
+          if (event.name === 'checkout.closed') {
+            // Only stop if payment was NOT completed
+            if (!paymentCompleted.current) setConfirming(false);
+          }
+        },
       });
-      const { url } = await res.json();
-      if (url) window.open(url, '_blank');
-    } catch {}
-  };
+      setPaddleReady(true);
+    }
+  }, []);
 
   const handleSelect = async (plan: CheckoutPlan) => {
     const token = session?.access_token;
-    if (!token) return;
+    if (!token || !paddleReady) return;
 
     setLoading(plan);
     setError(null);
@@ -254,7 +403,7 @@ export function BillingApp() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ plan, successUrl: window.location.href }),
+        body: JSON.stringify({ plan }),
       });
 
       if (!res.ok) {
@@ -262,17 +411,17 @@ export function BillingApp() {
         throw new Error(data.error || `Checkout failed (${res.status})`);
       }
 
-      const { url } = await res.json();
+      const { transactionId } = await res.json();
 
-      // Open Paddle checkout in a popup window (overlay on server page)
-      const w = 500, h = 700;
-      const left = window.screenX + (window.innerWidth - w) / 2;
-      const top = window.screenY + (window.innerHeight - h) / 2;
-      window.open(url, 'paddle-checkout', `width=${w},height=${h},left=${left},top=${top}`);
+      window.Paddle!.Checkout.open({
+        transactionId,
+        settings: {
+          theme: 'dark',
+          successUrl: undefined, // stay on page
+        },
+      });
 
-      // Start polling for plan update (webhook will update DB)
-      setConfirming(true);
-      pollForPlanUpdate();
+
     } catch (err: any) {
       console.error('[Billing] Checkout error:', err);
       setError(err.message || 'Something went wrong');
@@ -282,8 +431,8 @@ export function BillingApp() {
   };
 
   const premium = billing === 'yearly'
-    ? { price: '25.49', original: '29.99', period: '/year' }
-    : { price: '2.54', original: '2.99', period: '/month' };
+    ? { price: '24.99', original: '29.99', period: '/year' }
+    : { price: '2.99', original: null, period: '/month' };
 
   const isFree = isCurrentPlan('free', userPlan);
   const isPremium = isCurrentPlan('premium', userPlan);
@@ -300,10 +449,7 @@ export function BillingApp() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }
-@media (max-width: 640px) {
-  .billing-grid { grid-template-columns: 1fr !important; max-width: 400px; margin: 0 auto; }
-}`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
 
       <div style={{ width: '100%', maxWidth: 900 }}>
         {/* Header */}
@@ -391,7 +537,7 @@ export function BillingApp() {
         )}
 
         {/* Cards */}
-        <div className="billing-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
 
           {/* Free */}
           <div style={{
@@ -506,7 +652,6 @@ export function BillingApp() {
             </div>
             {isPremium ? (() => {
               const expiryDate = subRenewalDate || planExpiry;
-              const isCurrentInterval = subInterval === billing;
               return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {subCanceled && expiryDate ? (
@@ -531,32 +676,56 @@ export function BillingApp() {
                     fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>Canceled</button>
-                ) : isCurrentInterval ? (
+                ) : (
                   <>
-                    <button
-                      onClick={openPortal}
-                      style={{
+                    {/* Switch monthly → yearly button */}
+                    {canSwitchToYearly && billing === 'yearly' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {/* Inline preview on card */}
+                        {switchPreview?.result && !loadingPreview && (
+                          <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>You pay now</span>
+                              <span style={{ fontWeight: 600, color: '#fff' }}>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
+                            </div>
+                            {switchPreview.credit && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
+                                <span>Includes -€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)} credit</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {loadingPreview && (
+                          <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Spinner /></div>
+                        )}
+                        <button
+                          onClick={() => setShowSwitchModal(true)}
+                          style={{
+                            width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
+                            fontWeight: 700, fontSize: 13, color: '#fff',
+                            background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          }}
+                        >
+                          Switch to Yearly (save 30%) <ArrowRightIcon />
+                        </button>
+                      </div>
+                    ) : (
+                      <button disabled style={{
                         width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                        fontWeight: 700, fontSize: 13, color: '#fff',
-                        background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      }}
+                        fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>Current Plan{subInterval ? ` (${subInterval})` : ''}</button>
+                    )}
+
+                    {/* Cancel link */}
+                    <button
+                      onClick={() => { setCancelStep('reason'); setCancelReason(''); setCancelDetails(''); }}
+                      style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: 10, cursor: 'pointer', padding: '4px 0', textDecoration: 'underline' }}
                     >
-                      Manage Subscription <ArrowRightIcon />
+                      Cancel subscription
                     </button>
                   </>
-                ) : (
-                  <button
-                    onClick={openPortal}
-                    style={{
-                      width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                      fontWeight: 700, fontSize: 13, color: '#fff',
-                      background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    }}
-                  >
-                    Switch to {billing === 'yearly' ? 'Yearly' : 'Monthly'} <ArrowRightIcon />
-                  </button>
                 )}
               </div>
               );
@@ -607,7 +776,7 @@ export function BillingApp() {
                 <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>-15%</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>€51</span>
+                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>€50</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>/one-time</span>
               </div>
               <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '4px 0 0' }}>Pay once, own forever</p>
@@ -629,17 +798,6 @@ export function BillingApp() {
                 fontWeight: 600, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#111119', cursor: 'default',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>Current Plan</button>
-            ) : isPremium ? (
-              <button
-                onClick={openPortal}
-                style={{
-                  width: '100%', padding: '10px 0', borderRadius: 9999, border: '1px solid #2a2a3e',
-                  fontWeight: 600, fontSize: 13, color: '#fff', background: '#16161e',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}
-              >
-                Switch to Lifetime <ArrowRightIcon />
-              </button>
             ) : (
               <button
                 onClick={() => handleSelect('lifetime')}
@@ -671,6 +829,216 @@ export function BillingApp() {
         </div>
       </div>
 
+      {/* Switch to Yearly Modal */}
+      {showSwitchModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.7)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget && !switching) setShowSwitchModal(false); }}
+        >
+          <div style={{ width: 400, borderRadius: 12, background: '#111119', border: '1px solid #2a2a3e', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e1e2e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Switch to Yearly</span>
+              <button
+                onClick={() => !switching && setShowSwitchModal(false)}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              >×</button>
+            </div>
+
+            <div style={{ padding: 20 }}>
+              {/* Loading */}
+              {loadingPreview && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '20px 0', color: '#93c5fd', fontSize: 12 }}>
+                  <Spinner /> Loading proration details...
+                </div>
+              )}
+
+              {/* Preview breakdown */}
+              {switchPreview && !loadingPreview && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 12px' }}>
+                    Save 30% by switching to yearly billing.
+                  </p>
+                  <div style={{ padding: 12, borderRadius: 8, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 12 }}>
+                    {switchPreview.credit && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: '#4ade80' }}>
+                        <span>Credit (remaining monthly)</span>
+                        <span>-€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.charge && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'rgba(255,255,255,0.6)' }}>
+                        <span>Yearly plan</span>
+                        <span>€{(Number(switchPreview.charge.amount) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.tax && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'rgba(255,255,255,0.4)' }}>
+                        <span>VAT</span>
+                        <span>€{(Number(switchPreview.tax) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.result && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #1e3a5f', fontWeight: 600, color: '#fff' }}>
+                        <span>Amount paid</span>
+                        <span>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {switchPreview.nextBilledAt && (
+                      <div style={{ marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                        Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Error fallback */}
+              {!switchPreview && !loadingPreview && (
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px' }}>
+                  Switch to yearly and save 30%. You'll be charged a prorated amount for the remaining period.
+                </p>
+              )}
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setShowSwitchModal(false)}
+                  disabled={switching}
+                  style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSwitch()}
+                  disabled={switching || loadingPreview}
+                  style={{
+                    flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
+                    fontWeight: 600, fontSize: 13, color: '#fff',
+                    background: switching || loadingPreview ? '#1a2a4a' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                    cursor: switching || loadingPreview ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                    opacity: switching || loadingPreview ? 0.5 : 1,
+                  }}
+                >
+                  {switching ? <><Spinner /> Switching...</> : 'Confirm Switch'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Modal */}
+      {cancelStep !== 'hidden' && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'rgba(0,0,0,0.7)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setCancelStep('hidden'); }}
+        >
+          <div style={{ width: 380, borderRadius: 12, background: '#111119', border: '1px solid #2a2a3e', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e1e2e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>
+                {cancelStep === 'reason' ? 'Cancel Subscription' : 'Confirm Cancellation'}
+              </span>
+              <button
+                onClick={() => setCancelStep('hidden')}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
+              >×</button>
+            </div>
+
+            {/* Step 1: Reason */}
+            {cancelStep === 'reason' && (
+              <div style={{ padding: 20 }}>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 14px' }}>We're sorry to see you go. Help us improve by sharing your reason.</p>
+                {cancelReasons.map((r) => (
+                  <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer', fontSize: 13, color: cancelReason === r ? '#fff' : 'rgba(255,255,255,0.6)' }}>
+                    <input
+                      type="radio"
+                      name="cancel-reason"
+                      checked={cancelReason === r}
+                      onChange={() => setCancelReason(r)}
+                      style={{ accentColor: '#3b82f6', width: 16, height: 16 }}
+                    />
+                    {r}
+                  </label>
+                ))}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, cursor: 'pointer', fontSize: 13, color: cancelReason === 'Other' ? '#fff' : 'rgba(255,255,255,0.6)' }}>
+                  <input
+                    type="radio"
+                    name="cancel-reason"
+                    checked={cancelReason === 'Other'}
+                    onChange={() => setCancelReason('Other')}
+                    style={{ accentColor: '#3b82f6', width: 16, height: 16 }}
+                  />
+                  Other
+                </label>
+                {cancelReason === 'Other' && (
+                  <input
+                    type="text"
+                    value={cancelDetails}
+                    onChange={(e) => setCancelDetails(e.target.value)}
+                    placeholder="Tell us more..."
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #2a2a3e', background: '#0a0a12', color: '#fff', fontSize: 12, outline: 'none', marginBottom: 4, boxSizing: 'border-box' }}
+                  />
+                )}
+                <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                  <button
+                    onClick={() => setCancelStep('hidden')}
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    Nevermind
+                  </button>
+                  <button
+                    onClick={() => cancelReason && setCancelStep('confirm')}
+                    disabled={!cancelReason}
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: cancelReason ? '#dc2626' : '#3a1515', color: '#fff', fontSize: 13, cursor: cancelReason ? 'pointer' : 'default', opacity: cancelReason ? 1 : 0.5 }}
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Confirm */}
+            {cancelStep === 'confirm' && (
+              <div style={{ padding: 20 }}>
+                <div style={{ padding: 12, borderRadius: 8, background: '#1a1215', border: '1px solid #3a2020', marginBottom: 16 }}>
+                  <p style={{ fontSize: 12, color: '#f0a0a0', margin: 0 }}>
+                    {(subRenewalDate || planExpiry)
+                      ? <>You'll keep premium access until <strong>{(subRenewalDate || planExpiry)!.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</strong>. After that, your plan will revert to Free.</>
+                      : 'Your subscription will be canceled at the end of the current billing period.'}
+                  </p>
+                </div>
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '0 0 16px' }}>
+                  Reason: {cancelReason}{cancelReason === 'Other' && cancelDetails ? ` — ${cancelDetails}` : ''}
+                </p>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => setCancelStep('reason')}
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    Go back
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    disabled={canceling}
+                    style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: canceling ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+                  >
+                    {canceling ? <Spinner /> : 'Cancel Subscription'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
