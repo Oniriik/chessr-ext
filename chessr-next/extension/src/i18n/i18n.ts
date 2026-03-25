@@ -56,6 +56,15 @@ import arEngine from './locales/ar/engine.json';
 import arPuzzles from './locales/ar/puzzles.json';
 import arBanners from './locales/ar/banners.json';
 
+// TR
+import trCommon from './locales/tr/common.json';
+import trAuth from './locales/tr/auth.json';
+import trSettings from './locales/tr/settings.json';
+import trGame from './locales/tr/game.json';
+import trEngine from './locales/tr/engine.json';
+import trPuzzles from './locales/tr/puzzles.json';
+import trBanners from './locales/tr/banners.json';
+
 export const SUPPORTED_LANGUAGES = [
   { code: 'en', label: 'English' },
   { code: 'fr', label: 'Français' },
@@ -63,6 +72,7 @@ export const SUPPORTED_LANGUAGES = [
   { code: 'pt-BR', label: 'Português (BR)' },
   { code: 'de', label: 'Deutsch' },
   { code: 'ar', label: 'العربية', rtl: true },
+  { code: 'tr', label: 'Türkçe' },
 ] as const;
 
 export const RTL_LANGUAGES = ['ar'];
@@ -77,6 +87,7 @@ i18n.use(initReactI18next).init({
     'pt-BR': { common: ptBRCommon, auth: ptBRAuth, settings: ptBRSettings, game: ptBRGame, engine: ptBREngine, puzzles: ptBRPuzzles, banners: ptBRBanners },
     de: { common: deCommon, auth: deAuth, settings: deSettings, game: deGame, engine: deEngine, puzzles: dePuzzles, banners: deBanners },
     ar: { common: arCommon, auth: arAuth, settings: arSettings, game: arGame, engine: arEngine, puzzles: arPuzzles, banners: arBanners },
+    tr: { common: trCommon, auth: trAuth, settings: trSettings, game: trGame, engine: trEngine, puzzles: trPuzzles, banners: trBanners },
   },
   lng: 'en',
   fallbackLng: 'en',

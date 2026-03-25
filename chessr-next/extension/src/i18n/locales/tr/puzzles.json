@@ -1,0 +1,18 @@
+{
+  "puzzleSolved": "Bulmaca Çözüldü!",
+  "greatJob": "Harika! Bir sonrakini dene",
+  "startPuzzle": "Öneri almak için bir bulmaca başlat",
+  "clickHintBelow": "Aşağıdaki ipucuna tıkla",
+  "waiting": "Bekleniyor...",
+  "autoHint": "Otomatik İpucu",
+  "autoPlay": "Otomatik Oyna",
+  "showHint": "İpucu Göster",
+  "connectingToServer": "Sunucuya bağlanıyor...",
+  "maiaConnectedFull": "Maia bağlı — tam güç",
+  "connectingToMaia": "Maia'ya bağlanıyor...",
+  "maiaDisconnected": "Maia bağlantısı kesildi — uygulamayı başlat",
+  "puzzleHints": "Bulmaca İpuçları",
+  "upgradePuzzleSuggestions": "Bulmaca önerilerini açmak için yükselt",
+  "getBestMove": "Herhangi bir bulmaca için en iyi hamleyi al",
+  "komodoDragon": "Komodo Dragon"
+}
