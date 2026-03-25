@@ -298,6 +298,7 @@ export async function handlePolarCheckout(req: IncomingMessage, res: ServerRespo
       customerEmail: userEmail,
       externalCustomerId: userId,
       successUrl: serverSuccessUrl,
+      discountId: "dc25a21f-075a-4541-8459-de209a60b677",
     });
 
     console.log(`[Polar] Checkout created for ${userEmail} → ${plan}`);

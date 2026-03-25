@@ -370,8 +370,8 @@ export function BillingApp() {
 
       const { url } = await res.json();
 
-      // Open Polar hosted checkout in new tab
-      window.open(url, '_blank');
+      // Open Polar hosted checkout in same tab
+      window.location.href = url;
 
       // Start polling for plan update (webhook will update DB)
       setConfirming(true);
