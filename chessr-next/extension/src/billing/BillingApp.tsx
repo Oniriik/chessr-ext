@@ -6,9 +6,9 @@ import type { Plan } from '../components/ui/plan-badge';
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
-const PADDLE_CLIENT_TOKEN = 'test_15a202d45e46070cf61d95f9727';
+const PADDLE_CLIENT_TOKEN = 'live_855d0bf0ad3b2b004e87a3eb0af';
 // 'sandbox' or 'production'
-const PADDLE_ENV: 'sandbox' | 'production' = 'sandbox';
+const PADDLE_ENV: 'sandbox' | 'production' = 'production';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
