@@ -426,10 +426,12 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
       }
 
       // Create transaction to get checkout URL
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
       const transaction = await paddle.transactions.create({
         items: [{ priceId, quantity: 1 }],
         customerId,
         customData: { userId },
+        ...(discountId ? { discountId } : {}),
       });
 
       const txnId = transaction.id;

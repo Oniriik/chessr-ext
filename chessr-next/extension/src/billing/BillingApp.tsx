@@ -610,7 +610,7 @@ export function BillingApp() {
               </div>
             )}
             <div style={{ marginBottom: 16, paddingTop: isFree ? 12 : 0 }}>
-              <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Free</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>&nbsp;</h3>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
                 <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>Free</span>
               </div>
@@ -838,7 +838,7 @@ export function BillingApp() {
               {dynamicPrices?.lifetime?.original && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                   <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{dynamicPrices.lifetime.original}</span>
-                  <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>Discount</span>
+                  <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>-15%</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
