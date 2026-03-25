@@ -104,7 +104,7 @@ async function updateUserPlan(
         user_id: userId,
         paddle_customer_id: customerId,
         paddle_subscription_id: subscriptionId,
-        paddle_product_id: productId,
+        paddle_price_id: productId,
         status,
         plan: mapping.plan,
         interval: mapping.interval || null,
@@ -203,7 +203,7 @@ async function handleTransactionCompleted(event: any) {
           user_id: sub.user_id,
           paddle_customer_id: customerId,
           paddle_subscription_id: transaction.id,
-          paddle_product_id: productId,
+          paddle_price_id: productId,
           status: "active",
           plan: "lifetime",
           interval: null,
@@ -243,7 +243,7 @@ async function handleTransactionCompleted(event: any) {
 
 async function storePaymentEvent(eventType: string, event: any) {
   await supabase.from("payment_events").insert({
-    paddle_event_id: event.event_id,
+    event_id: event.event_id,
     event_type: eventType,
     data: event.data,
   });
