@@ -19,8 +19,8 @@ const PADDLE_PRICES: Record<string, string> = {
 
 // Paddle hosted checkout domain
 const PADDLE_CHECKOUT_DOMAIN = PADDLE_ENVIRONMENT === Environment.sandbox
-  ? "https://sandbox-checkout.paddle.com"
-  : "https://checkout.paddle.com";
+  ? "https://sandbox-pay.paddle.io"
+  : "https://pay.paddle.com";
 
 // Reverse: price ID → plan mapping
 const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
@@ -342,10 +342,17 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
       return json(res, 500, { error: "Failed to create checkout" });
     }
 
+    // Log the checkout URL Paddle returns (for debugging)
+    console.log(`[Paddle] SDK checkout.url: ${transaction.checkout?.url}`);
+
     // Build hosted checkout URL with success redirect
     const returnUrl = successUrl || "";
     const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
-    const checkoutUrl = `${PADDLE_CHECKOUT_DOMAIN}/?transactionId=${transaction.id}&settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
+
+    // Use Paddle's returned checkout URL if available, otherwise build from transaction ID
+    const baseCheckoutUrl = transaction.checkout?.url || `${PADDLE_CHECKOUT_DOMAIN}/?transactionId=${transaction.id}`;
+    const sep = baseCheckoutUrl.includes("?") ? "&" : "?";
+    const checkoutUrl = `${baseCheckoutUrl}${sep}settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
 
     console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (${transaction.id})`);
 
