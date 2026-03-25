@@ -225,6 +225,7 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
         const items = data.items || data.lineItems || [];
         for (const item of items) {
           const productId = item.productId || item.product?.id;
+          const mapping = PRODUCT_PLAN_MAP[productId];
           if (mapping?.plan !== "lifetime") continue;
 
           const userId = data.customer?.externalId || data.metadata?.user_id;
@@ -263,6 +264,8 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
             new_plan: "lifetime",
             reason: `Polar order ${data.id}`,
           });
+
+          triggerDiscordRoleSync(userId);
         }
         break;
       }
