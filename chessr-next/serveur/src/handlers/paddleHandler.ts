@@ -333,16 +333,18 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
       items: [{ priceId, quantity: 1 }],
       customData: { user_id: userId, email: userEmail },
       ...(discountId ? { discountId } : {}),
-      checkout: {
-        url: serverSuccessUrl,
-      },
     });
 
-    const checkoutUrl = transaction.checkout?.url;
+    // Paddle returns the hosted checkout URL
+    let checkoutUrl = transaction.checkout?.url;
     if (!checkoutUrl) {
       console.error("[Paddle] No checkout URL returned");
       return json(res, 500, { error: "Failed to create checkout" });
     }
+
+    // Append success redirect URL
+    const sep = checkoutUrl.includes("?") ? "&" : "?";
+    checkoutUrl = `${checkoutUrl}${sep}settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
 
     console.log(`[Paddle] Checkout created for ${userEmail} → ${plan}`);
 
