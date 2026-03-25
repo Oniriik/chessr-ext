@@ -170,11 +170,12 @@ async function canLinkAccount(
     }
   }
 
-  // 4. Check linking limit (free/freetrial = 1, premium = unlimited)
+  // 4. Check linking limit (free/freetrial = 1 per platform, premium = unlimited)
   const { data: currentLinks } = await supabase
     .from('linked_accounts')
     .select('id')
     .eq('user_id', userId)
+    .eq('platform', platform)
     .is('unlinked_at', null);
 
   const maxLinks = isPremium ? Infinity : 1;
