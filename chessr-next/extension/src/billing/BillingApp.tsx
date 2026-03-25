@@ -174,6 +174,7 @@ export function BillingApp() {
     initialize();
   }, [initialize]);
 
+
   // Fetch freetrial eligibility and subscription info from Supabase
   const fetchTrialData = async () => {
     if (!user) return;
@@ -263,7 +264,7 @@ export function BillingApp() {
 
       const { url } = await res.json();
 
-      // Open Paddle hosted checkout in same tab
+      // Open Paddle checkout overlay page (on engine.chessr.io)
       window.location.href = url;
 
       // Start polling for plan update (webhook will update DB)

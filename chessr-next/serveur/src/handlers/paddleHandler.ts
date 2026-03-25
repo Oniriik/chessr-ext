@@ -17,11 +17,6 @@ const PADDLE_PRICES: Record<string, string> = {
   lifetime: process.env.PADDLE_PRICE_LIFETIME!,
 };
 
-// Paddle hosted checkout domain
-const PADDLE_CHECKOUT_DOMAIN = PADDLE_ENVIRONMENT === Environment.sandbox
-  ? "https://sandbox-pay.paddle.io"
-  : "https://pay.paddle.com";
-
 // Reverse: price ID → plan mapping
 const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
   [process.env.PADDLE_PRICE_MONTHLY!]: { plan: "premium", interval: "monthly" },
@@ -342,15 +337,10 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
       return json(res, 500, { error: "Failed to create checkout" });
     }
 
-    // Log the checkout URL Paddle returns (for debugging)
-    console.log(`[Paddle] SDK checkout.url: ${transaction.checkout?.url}`);
-
-    // Build hosted checkout URL with success redirect
+    // Build URL to our pay page which loads Paddle.js overlay
     const returnUrl = successUrl || "";
     const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
-
-    // Build hosted checkout URL on Paddle's domain with the transaction token
-    const checkoutUrl = `${PADDLE_CHECKOUT_DOMAIN}/?_ptxn=${transaction.id}&settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
+    const checkoutUrl = `https://engine.chessr.io/api/paddle/pay?txn=${transaction.id}&success=${encodeURIComponent(serverSuccessUrl)}`;
 
     console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (${transaction.id})`);
 
@@ -358,6 +348,50 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
   } catch (err) {
     console.error("[Paddle] Checkout error:", err);
     json(res, 500, { error: "Internal error" });
+  }
+}
+
+// ─── Checkout pay page (Paddle.js overlay) ──────────────────────────────────
+// GET /api/paddle/pay?txn=xxx&success=xxx — page that loads Paddle.js and opens overlay
+
+export async function handlePaddlePay(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const urlObj = new URL(req.url!, `http://${req.headers.host}`);
+    const txnId = urlObj.searchParams.get("txn") || "";
+    const successUrl = urlObj.searchParams.get("success") || "";
+
+    if (!txnId) {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("Missing transaction ID");
+      return;
+    }
+
+    const paddleEnv = PADDLE_ENVIRONMENT === Environment.sandbox ? "sandbox" : "production";
+    const clientToken = process.env.PADDLE_CLIENT_TOKEN || "";
+
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(`<!DOCTYPE html><html><head><title>Chessr — Checkout</title>
+<style>body{margin:0;background:#08080f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}p{color:rgba(255,255,255,0.6);font-size:14px;}.spinner{width:24px;height:24px;border:2px solid rgba(255,255,255,0.2);border-top-color:#22d3ee;border-radius:50%;animation:spin .6s linear infinite;margin:0 auto 12px;}@keyframes spin{to{transform:rotate(360deg)}}</style>
+</head><body>
+<div><div class="spinner"></div><p>Loading checkout...</p></div>
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"><\/script>
+<script>
+Paddle.Environment.set("${paddleEnv}");
+Paddle.Setup({
+  token: "${clientToken}",
+  eventCallback: function(ev) {
+    if (ev.name === "checkout.completed") {
+      window.location.href = decodeURIComponent("${encodeURIComponent(successUrl)}");
+    }
+  }
+});
+Paddle.Checkout.open({ transactionId: "${txnId}" });
+<\/script>
+</body></html>`);
+  } catch (err) {
+    console.error("[Paddle] Pay page error:", err);
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("Something went wrong");
   }
 }
 

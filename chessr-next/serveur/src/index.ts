@@ -45,6 +45,7 @@ import { handleExplainMove } from "./handlers/explanationHandler.js";
 import {
   handlePaddleWebhook,
   handlePaddleCheckout,
+  handlePaddlePay,
   handlePaddleSuccess,
   handlePaddleCancel,
   handlePaddlePortal,
@@ -578,6 +579,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Paddle checkout (create session, return URL)
   if (req.url === "/api/paddle/checkout" && req.method === "POST") {
     handlePaddleCheckout(req, res);
+    return;
+  }
+
+  // Paddle checkout pay page (Paddle.js overlay)
+  if (req.url?.startsWith("/api/paddle/pay") && req.method === "GET") {
+    handlePaddlePay(req, res);
     return;
   }
 
