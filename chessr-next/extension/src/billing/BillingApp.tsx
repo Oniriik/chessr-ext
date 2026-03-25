@@ -428,7 +428,7 @@ export function BillingApp() {
         transactionId,
         settings: {
           theme: 'dark',
-          successUrl: undefined, // stay on page
+          successUrl: undefined,
         },
       });
 
