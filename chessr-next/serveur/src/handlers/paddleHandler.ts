@@ -488,7 +488,7 @@ export async function handlePaddlePortal(req: IncomingMessage, res: ServerRespon
     // Get subscription ID from our DB
     const { data: sub } = await supabase
       .from("subscriptions")
-      .select("paddle_subscription_id")
+      .select("paddle_subscription_id, paddle_customer_id")
       .eq("user_id", authUser.id)
       .limit(1)
       .single();
@@ -497,17 +497,17 @@ export async function handlePaddlePortal(req: IncomingMessage, res: ServerRespon
       return json(res, 400, { error: "No subscription found" });
     }
 
-    // Get subscription from Paddle to retrieve the update payment method transaction
-    const updateTxn = await paddle.subscriptions.getPaymentMethodChangeTransaction(sub.paddle_subscription_id);
+    // Get subscription from Paddle to retrieve management URLs
+    const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
+    const portalUrl = subscription.managementUrls?.cancel || subscription.managementUrls?.updatePaymentMethod;
 
-    const checkoutUrl = updateTxn.checkout?.url;
-    if (!checkoutUrl) {
+    if (!portalUrl) {
       return json(res, 500, { error: "Failed to get management URL" });
     }
 
-    console.log(`[Paddle] Portal (payment update) for ${authUser.email}`);
+    console.log(`[Paddle] Portal for ${authUser.email}`);
 
-    json(res, 200, { url: checkoutUrl });
+    json(res, 200, { url: portalUrl });
   } catch (err) {
     console.error("[Paddle] Portal error:", err);
     json(res, 500, { error: "Failed to create portal session" });

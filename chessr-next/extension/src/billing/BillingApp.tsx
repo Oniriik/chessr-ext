@@ -236,7 +236,7 @@ export function BillingApp() {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       });
       const { url } = await res.json();
-      if (url) window.location.href = url;
+      if (url) window.open(url, '_blank');
     } catch {}
   };
 
