@@ -1,27 +1,27 @@
 import { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
-import { Polar } from "@polar-sh/sdk";
-import { validateEvent, WebhookVerificationError } from "@polar-sh/sdk/webhooks";
+import { Paddle, Environment, EventName } from "@paddle/paddle-node-sdk";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const POLAR_ACCESS_TOKEN = process.env.POLAR_ACCESS_TOKEN!;
-const POLAR_WEBHOOK_SECRET = process.env.POLAR_WEBHOOK_SECRET!;
+const PADDLE_API_KEY = process.env.PADDLE_API_KEY!;
+const PADDLE_WEBHOOK_SECRET = process.env.PADDLE_WEBHOOK_SECRET!;
+const PADDLE_ENVIRONMENT = process.env.PADDLE_ENVIRONMENT === "sandbox" ? Environment.sandbox : Environment.production;
 
-const polar = new Polar({ accessToken: POLAR_ACCESS_TOKEN });
+const paddle = new Paddle(PADDLE_API_KEY, { environment: PADDLE_ENVIRONMENT });
 
-// Product IDs for each plan
-const POLAR_PRODUCTS: Record<string, string> = {
-  monthly: process.env.POLAR_PRODUCT_MONTHLY!,
-  yearly: process.env.POLAR_PRODUCT_YEARLY!,
-  lifetime: process.env.POLAR_PRODUCT_LIFETIME!,
+// Price IDs for each plan
+const PADDLE_PRICES: Record<string, string> = {
+  monthly: process.env.PADDLE_PRICE_MONTHLY!,
+  yearly: process.env.PADDLE_PRICE_YEARLY!,
+  lifetime: process.env.PADDLE_PRICE_LIFETIME!,
 };
 
-// Reverse: product ID → plan mapping
-const PRODUCT_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
-  [process.env.POLAR_PRODUCT_MONTHLY!]: { plan: "premium", interval: "monthly" },
-  [process.env.POLAR_PRODUCT_YEARLY!]: { plan: "premium", interval: "yearly" },
-  [process.env.POLAR_PRODUCT_LIFETIME!]: { plan: "lifetime" },
+// Reverse: price ID → plan mapping
+const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
+  [process.env.PADDLE_PRICE_MONTHLY!]: { plan: "premium", interval: "monthly" },
+  [process.env.PADDLE_PRICE_YEARLY!]: { plan: "premium", interval: "yearly" },
+  [process.env.PADDLE_PRICE_LIFETIME!]: { plan: "lifetime" },
 };
 
 const supabase = createClient(
@@ -57,15 +57,16 @@ async function getAuthUser(req: IncomingMessage) {
 
 async function updateUserPlan(
   userId: string,
-  polarSubscriptionId: string,
-  productId: string,
+  paddleSubscriptionId: string,
+  paddleCustomerId: string | null,
+  priceId: string,
   status: string,
   currentPeriodEnd: string | null,
   canceledAt: string | null,
 ) {
-  const mapping = PRODUCT_PLAN_MAP[productId];
+  const mapping = PRICE_PLAN_MAP[priceId];
   if (!mapping) {
-    console.error(`[Polar] Unknown product ID: ${productId}`);
+    console.error(`[Paddle] Unknown price ID: ${priceId}`);
     return;
   }
 
@@ -75,8 +76,9 @@ async function updateUserPlan(
     .upsert(
       {
         user_id: userId,
-        polar_subscription_id: polarSubscriptionId,
-        polar_product_id: productId,
+        paddle_subscription_id: paddleSubscriptionId,
+        paddle_customer_id: paddleCustomerId,
+        paddle_price_id: priceId,
         status,
         plan: mapping.plan,
         interval: mapping.interval || null,
@@ -98,7 +100,7 @@ async function updateUserPlan(
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", userId);
-    console.log(`[Polar] ${userId} → plan=${mapping.plan}, expiry=${planExpiry}`);
+    console.log(`[Paddle] ${userId} → plan=${mapping.plan}, expiry=${planExpiry}`);
   } else if (status === "canceled") {
     const expiresAt = currentPeriodEnd || canceledAt;
     const isExpired = expiresAt && new Date(expiresAt).getTime() <= Date.now();
@@ -108,20 +110,20 @@ async function updateUserPlan(
         .from("user_settings")
         .update({ plan: "free", plan_expiry: null, updated_at: new Date().toISOString() })
         .eq("user_id", userId);
-      console.log(`[Polar] ${userId} → canceled & expired, set to free`);
+      console.log(`[Paddle] ${userId} → canceled & expired, set to free`);
     } else if (expiresAt) {
       await supabase
         .from("user_settings")
         .update({ plan_expiry: expiresAt, updated_at: new Date().toISOString() })
         .eq("user_id", userId);
-      console.log(`[Polar] ${userId} → canceled, active until ${expiresAt}`);
+      console.log(`[Paddle] ${userId} → canceled, active until ${expiresAt}`);
     }
   } else if (status === "revoked") {
     await supabase
       .from("user_settings")
       .update({ plan: "free", plan_expiry: null, updated_at: new Date().toISOString() })
       .eq("user_id", userId);
-    console.log(`[Polar] ${userId} → revoked, set to free`);
+    console.log(`[Paddle] ${userId} → revoked, set to free`);
   }
 
   // Log the plan change
@@ -129,10 +131,10 @@ async function updateUserPlan(
   await supabase.from("plan_activity_logs").insert({
     user_id: userId,
     user_email: userData?.user?.email || "",
-    action_type: `polar_${status}`,
+    action_type: `paddle_${status}`,
     new_plan: status === "canceled" || status === "revoked" ? "free" : mapping.plan,
     old_plan: null,
-    reason: `Polar ${status} (${polarSubscriptionId})`,
+    reason: `Paddle ${status} (${paddleSubscriptionId})`,
   });
 
   // Trigger immediate Discord role sync
@@ -146,99 +148,119 @@ function triggerDiscordRoleSync(userId: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId }),
   }).catch((err) => {
-    console.error(`[Polar] Failed to trigger role sync for ${userId}:`, err.message);
+    console.error(`[Paddle] Failed to trigger role sync for ${userId}:`, err.message);
   });
 }
 
 // ─── Webhook HTTP handler ────────────────────────────────────────────────────
 
-export async function handlePolarWebhook(req: IncomingMessage, res: ServerResponse) {
+export async function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
   const body = await readBody(req);
   try {
-    const event = validateEvent(body, Object.fromEntries(
-      Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v || ""])
-    ), POLAR_WEBHOOK_SECRET);
+    const signature = req.headers["paddle-signature"] as string;
+    if (!signature) {
+      json(res, 401, { error: "Missing Paddle-Signature header" });
+      return;
+    }
 
-    console.log(`[Polar] Webhook: ${event.type}`);
+    const event = paddle.webhooks.unmarshal(body, PADDLE_WEBHOOK_SECRET, signature);
+    if (!event) {
+      json(res, 401, { error: "Invalid signature" });
+      return;
+    }
+
+    console.log(`[Paddle] Webhook: ${event.eventType}`);
 
     // Store raw event
     await supabase.from("payment_events").insert({
-      event_id: event.type + "_" + Date.now(),
-      event_type: event.type,
+      event_id: event.eventId,
+      event_type: event.eventType,
       data: event.data,
     });
 
-    const data = event.data as any;
-
-    switch (event.type) {
-      case "subscription.active":
-      case "subscription.updated": {
-        const productId = data.product?.id || data.productId;
-        const userId = data.customer?.externalId || data.metadata?.user_id;
-        if (!userId || !productId) {
-          console.error(`[Polar] Missing userId or productId in ${event.type}`, { productId, userId });
+    switch (event.eventType) {
+      case EventName.SubscriptionActivated:
+      case EventName.SubscriptionUpdated: {
+        const data = event.data as any;
+        const priceId = data.items?.[0]?.price?.id;
+        const userId = data.customData?.user_id;
+        const customerId = data.customerId;
+        if (!userId || !priceId) {
+          console.error(`[Paddle] Missing userId or priceId in ${event.eventType}`, { priceId, userId });
           break;
         }
+        const periodEnd = data.currentBillingPeriod?.endsAt || null;
         await updateUserPlan(
           userId,
           data.id,
-          productId,
+          customerId,
+          priceId,
           "active",
-          data.currentPeriodEnd || null,
+          periodEnd,
           null,
         );
         break;
       }
 
-      case "subscription.canceled": {
-        const productId = data.product?.id || data.productId;
-        const userId = data.customer?.externalId || data.metadata?.user_id;
-        if (!userId || !productId) break;
-        await updateUserPlan(
-          userId,
-          data.id,
-          productId,
-          "canceled",
-          data.currentPeriodEnd || null,
-          data.canceledAt || new Date().toISOString(),
-        );
+      case EventName.SubscriptionCanceled: {
+        const data = event.data as any;
+        const priceId = data.items?.[0]?.price?.id;
+        const userId = data.customData?.user_id;
+        const customerId = data.customerId;
+        if (!userId || !priceId) break;
+
+        // Check if this is an immediate cancellation or end-of-period
+        const scheduledChange = data.scheduledChange;
+        const isImmediate = !scheduledChange && data.status === "canceled";
+        const periodEnd = data.currentBillingPeriod?.endsAt || null;
+
+        if (isImmediate) {
+          await updateUserPlan(
+            userId,
+            data.id,
+            customerId,
+            priceId,
+            "revoked",
+            null,
+            data.canceledAt || new Date().toISOString(),
+          );
+        } else {
+          await updateUserPlan(
+            userId,
+            data.id,
+            customerId,
+            priceId,
+            "canceled",
+            periodEnd,
+            data.canceledAt || new Date().toISOString(),
+          );
+        }
         break;
       }
 
-      case "subscription.revoked": {
-        const productId = data.product?.id || data.productId;
-        const userId = data.customer?.externalId || data.metadata?.user_id;
-        if (!userId || !productId) break;
-        await updateUserPlan(
-          userId,
-          data.id,
-          productId,
-          "revoked",
-          null,
-          new Date().toISOString(),
-        );
-        break;
-      }
+      case EventName.TransactionCompleted: {
+        // Handle lifetime one-time purchase (no subscription)
+        const data = event.data as any;
+        if (data.subscriptionId) break; // Skip subscription renewals
 
-      case "order.paid": {
-        // Handle lifetime one-time purchase
-        const items = data.items || data.lineItems || [];
+        const items = data.items || [];
         for (const item of items) {
-          const productId = item.productId || item.product?.id;
-          const mapping = PRODUCT_PLAN_MAP[productId];
+          const priceId = item.price?.id;
+          const mapping = PRICE_PLAN_MAP[priceId];
           if (mapping?.plan !== "lifetime") continue;
 
-          const userId = data.customer?.externalId || data.metadata?.user_id;
+          const userId = data.customData?.user_id;
           if (!userId) {
-            console.error("[Polar] No userId on lifetime order");
+            console.error("[Paddle] No userId on lifetime transaction");
             break;
           }
 
           await supabase.from("subscriptions").upsert(
             {
               user_id: userId,
-              polar_subscription_id: data.id,
-              polar_product_id: productId,
+              paddle_subscription_id: data.id,
+              paddle_customer_id: data.customerId,
+              paddle_price_id: priceId,
               status: "active",
               plan: "lifetime",
               interval: null,
@@ -254,15 +276,15 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
             .update({ plan: "lifetime", plan_expiry: null, updated_at: new Date().toISOString() })
             .eq("user_id", userId);
 
-          console.log(`[Polar] ${userId} → lifetime (order ${data.id})`);
+          console.log(`[Paddle] ${userId} → lifetime (transaction ${data.id})`);
 
           const { data: userData } = await supabase.auth.admin.getUserById(userId);
           await supabase.from("plan_activity_logs").insert({
             user_id: userId,
             user_email: userData?.user?.email || "",
-            action_type: "polar_lifetime_purchase",
+            action_type: "paddle_lifetime_purchase",
             new_plan: "lifetime",
-            reason: `Polar order ${data.id}`,
+            reason: `Paddle transaction ${data.id}`,
           });
 
           triggerDiscordRoleSync(userId);
@@ -271,33 +293,28 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
       }
 
       default:
-        console.log(`[Polar] Unhandled event: ${event.type}`);
+        console.log(`[Paddle] Unhandled event: ${event.eventType}`);
     }
 
     json(res, 200, { ok: true });
-  } catch (err) {
-    if (err instanceof WebhookVerificationError) {
-      console.error("[Polar] Invalid webhook signature");
-      json(res, 401, { error: "Invalid signature" });
-      return;
-    }
-    console.error("[Polar] Webhook error:", err);
+  } catch (err: any) {
+    console.error("[Paddle] Webhook error:", err);
     json(res, 500, { error: "Internal error" });
   }
 }
 
 // ─── Checkout session endpoint ───────────────────────────────────────────────
 
-export async function handlePolarCheckout(req: IncomingMessage, res: ServerResponse) {
+export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) {
   const body = await readBody(req);
   try {
     const authUser = await getAuthUser(req);
     if (!authUser) return json(res, 401, { error: "Authentication required" });
 
     const { plan, successUrl } = JSON.parse(body) as { plan: string; successUrl?: string };
-    const productId = POLAR_PRODUCTS[plan];
+    const priceId = PADDLE_PRICES[plan];
 
-    if (!productId) {
+    if (!priceId) {
       return json(res, 400, { error: "Invalid plan. Use: monthly, yearly, or lifetime" });
     }
 
@@ -306,44 +323,43 @@ export async function handlePolarCheckout(req: IncomingMessage, res: ServerRespo
 
     // Build server-side success URL that will verify and redirect to extension
     const returnUrl = successUrl || "";
-    const serverSuccessUrl = `https://engine.chessr.io/api/polar/success?checkout_id={CHECKOUT_ID}&return=${encodeURIComponent(returnUrl)}`;
+    const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
 
-    console.log(`[Polar] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}`);
+    console.log(`[Paddle] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}`);
 
-    const checkout = await polar.checkouts.create({
-      products: [productId],
-      customerEmail: userEmail,
-      externalCustomerId: userId,
-      successUrl: serverSuccessUrl,
-      discountId: "dc25a21f-075a-4541-8459-de209a60b677",
+    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+
+    const transaction = await paddle.transactions.create({
+      items: [{ priceId, quantity: 1 }],
+      customData: { user_id: userId, email: userEmail },
+      ...(discountId ? { discountId } : {}),
+      checkout: {
+        url: serverSuccessUrl,
+      },
     });
 
-    console.log(`[Polar] Checkout created for ${userEmail} → ${plan}`);
+    const checkoutUrl = transaction.checkout?.url;
+    if (!checkoutUrl) {
+      console.error("[Paddle] No checkout URL returned");
+      return json(res, 500, { error: "Failed to create checkout" });
+    }
 
-    json(res, 200, { url: checkout.url });
+    console.log(`[Paddle] Checkout created for ${userEmail} → ${plan}`);
+
+    json(res, 200, { url: checkoutUrl });
   } catch (err) {
-    console.error("[Polar] Checkout error:", err);
+    console.error("[Paddle] Checkout error:", err);
     json(res, 500, { error: "Internal error" });
   }
 }
 
 // ─── Checkout success redirect ───────────────────────────────────────────────
-// GET /api/polar/success?checkout_id=xxx&return=xxx — verify checkout, redirect to extension
+// GET /api/paddle/success?return=xxx — redirect back to extension after checkout
 
-export async function handlePolarSuccess(req: IncomingMessage, res: ServerResponse) {
+export async function handlePaddleSuccess(req: IncomingMessage, res: ServerResponse) {
   try {
     const urlObj = new URL(req.url!, `http://${req.headers.host}`);
-    const checkoutId = urlObj.searchParams.get("checkout_id");
     const returnUrl = urlObj.searchParams.get("return") || "";
-
-    if (checkoutId) {
-      try {
-        const checkout = await polar.checkouts.get({ id: checkoutId });
-        console.log(`[Polar] Success verified: checkout=${checkoutId}, status=${checkout.status}`);
-      } catch (err) {
-        console.error(`[Polar] Failed to verify checkout ${checkoutId}:`, err);
-      }
-    }
 
     // Redirect to extension billing page or fallback
     if (returnUrl) {
@@ -356,7 +372,7 @@ export async function handlePolarSuccess(req: IncomingMessage, res: ServerRespon
 </head><body><div><h1>Payment successful!</h1><p>You can close this tab and return to Chessr.</p></div></body></html>`);
     }
   } catch (err) {
-    console.error("[Polar] Success redirect error:", err);
+    console.error("[Paddle] Success redirect error:", err);
     res.writeHead(500, { "Content-Type": "text/plain" });
     res.end("Something went wrong");
   }
@@ -364,7 +380,7 @@ export async function handlePolarSuccess(req: IncomingMessage, res: ServerRespon
 
 // ─── Cancel subscription endpoint ────────────────────────────────────────────
 
-export async function handlePolarCancel(req: IncomingMessage, res: ServerResponse) {
+export async function handlePaddleCancel(req: IncomingMessage, res: ServerResponse) {
   const body = await readBody(req);
   try {
     const authUser = await getAuthUser(req);
@@ -377,22 +393,21 @@ export async function handlePolarCancel(req: IncomingMessage, res: ServerRespons
     // Get subscription
     const { data: sub } = await supabase
       .from("subscriptions")
-      .select("polar_subscription_id, plan, interval")
+      .select("paddle_subscription_id, plan, interval")
       .eq("user_id", userId)
       .limit(1)
       .single();
 
-    if (!sub?.polar_subscription_id) {
+    if (!sub?.paddle_subscription_id) {
       return json(res, 400, { error: "No active subscription found" });
     }
 
-    // Cancel at end of billing period via Polar API
-    await polar.subscriptions.update({
-      id: sub.polar_subscription_id,
-      subscriptionUpdate: { cancelAtPeriodEnd: true },
+    // Cancel at end of billing period via Paddle API
+    await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+      effectiveFrom: "next_billing_period",
     });
 
-    console.log(`[Polar] Cancel requested by ${userEmail} (${sub.polar_subscription_id}), reason: ${reason || "none"}`);
+    console.log(`[Paddle] Cancel requested by ${userEmail} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
 
     // Store cancel reason
     if (reason) {
@@ -408,35 +423,51 @@ export async function handlePolarCancel(req: IncomingMessage, res: ServerRespons
 
     json(res, 200, { ok: true });
   } catch (err) {
-    console.error("[Polar] Cancel error:", err);
+    console.error("[Paddle] Cancel error:", err);
     json(res, 500, { error: "Failed to cancel subscription" });
   }
 }
 
 // ─── Customer portal endpoint ────────────────────────────────────────────────
-// POST /api/polar/portal — creates a Polar customer portal session, returns URL
+// POST /api/paddle/portal — returns Paddle customer portal URL
 
-export async function handlePolarPortal(req: IncomingMessage, res: ServerResponse) {
+export async function handlePaddlePortal(req: IncomingMessage, res: ServerResponse) {
   try {
     const authUser = await getAuthUser(req);
     if (!authUser) return json(res, 401, { error: "Authentication required" });
 
-    const session = await polar.customerSessions.create({
-      externalCustomerId: authUser.id,
-    });
+    // Get subscription ID from our DB
+    const { data: sub } = await supabase
+      .from("subscriptions")
+      .select("paddle_subscription_id")
+      .eq("user_id", authUser.id)
+      .limit(1)
+      .single();
 
-    console.log(`[Polar] Portal session created for ${authUser.email}`);
+    if (!sub?.paddle_subscription_id) {
+      return json(res, 400, { error: "No subscription found" });
+    }
 
-    json(res, 200, { url: session.customerPortalUrl });
+    // Get subscription from Paddle to retrieve the update payment method transaction
+    const updateTxn = await paddle.subscriptions.getPaymentMethodChangeTransaction(sub.paddle_subscription_id);
+
+    const checkoutUrl = updateTxn.checkout?.url;
+    if (!checkoutUrl) {
+      return json(res, 500, { error: "Failed to get management URL" });
+    }
+
+    console.log(`[Paddle] Portal (payment update) for ${authUser.email}`);
+
+    json(res, 200, { url: checkoutUrl });
   } catch (err) {
-    console.error("[Polar] Portal error:", err);
+    console.error("[Paddle] Portal error:", err);
     json(res, 500, { error: "Failed to create portal session" });
   }
 }
 
 // ─── Subscription status endpoint ────────────────────────────────────────────
 
-export async function handlePolarSubscriptionStatus(req: IncomingMessage, res: ServerResponse) {
+export async function handlePaddleSubscriptionStatus(req: IncomingMessage, res: ServerResponse) {
   try {
     const authUser = await getAuthUser(req);
     if (!authUser) return json(res, 401, { error: "Authentication required" });
@@ -450,7 +481,7 @@ export async function handlePolarSubscriptionStatus(req: IncomingMessage, res: S
 
     json(res, 200, { subscription: sub || null });
   } catch (err) {
-    console.error("[Polar] Status error:", err);
+    console.error("[Paddle] Status error:", err);
     json(res, 500, { error: "Internal error" });
   }
 }

@@ -43,13 +43,13 @@ import {
 } from "./handlers/discordHandler.js";
 import { handleExplainMove } from "./handlers/explanationHandler.js";
 import {
-  handlePolarWebhook,
-  handlePolarCheckout,
-  handlePolarSuccess,
-  handlePolarCancel,
-  handlePolarPortal,
-  handlePolarSubscriptionStatus,
-} from "./handlers/polarHandler.js";
+  handlePaddleWebhook,
+  handlePaddleCheckout,
+  handlePaddleSuccess,
+  handlePaddleCancel,
+  handlePaddlePortal,
+  handlePaddleSubscriptionStatus,
+} from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
@@ -569,39 +569,39 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
-  // Polar webhook
-  if (req.url === "/api/polar/webhook" && req.method === "POST") {
-    handlePolarWebhook(req, res);
+  // Paddle webhook
+  if (req.url === "/api/paddle/webhook" && req.method === "POST") {
+    handlePaddleWebhook(req, res);
     return;
   }
 
-  // Polar checkout (create session, return URL)
-  if (req.url === "/api/polar/checkout" && req.method === "POST") {
-    handlePolarCheckout(req, res);
+  // Paddle checkout (create session, return URL)
+  if (req.url === "/api/paddle/checkout" && req.method === "POST") {
+    handlePaddleCheckout(req, res);
     return;
   }
 
-  // Polar checkout success redirect
-  if (req.url?.startsWith("/api/polar/success") && req.method === "GET") {
-    handlePolarSuccess(req, res);
+  // Paddle checkout success redirect
+  if (req.url?.startsWith("/api/paddle/success") && req.method === "GET") {
+    handlePaddleSuccess(req, res);
     return;
   }
 
-  // Polar cancel subscription
-  if (req.url === "/api/polar/cancel" && req.method === "POST") {
-    handlePolarCancel(req, res);
+  // Paddle cancel subscription
+  if (req.url === "/api/paddle/cancel" && req.method === "POST") {
+    handlePaddleCancel(req, res);
     return;
   }
 
-  // Polar customer portal
-  if (req.url === "/api/polar/portal" && req.method === "POST") {
-    handlePolarPortal(req, res);
+  // Paddle customer portal
+  if (req.url === "/api/paddle/portal" && req.method === "POST") {
+    handlePaddlePortal(req, res);
     return;
   }
 
-  // Polar subscription status
-  if (req.url === "/api/polar/subscription" && req.method === "GET") {
-    handlePolarSubscriptionStatus(req, res);
+  // Paddle subscription status
+  if (req.url === "/api/paddle/subscription" && req.method === "GET") {
+    handlePaddleSubscriptionStatus(req, res);
     return;
   }
 

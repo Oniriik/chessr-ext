@@ -124,11 +124,11 @@ export function BillingApp() {
     // Snapshot current state before checkout
     const { data: beforeSub } = await supabase
       .from('subscriptions')
-      .select('polar_subscription_id, status, canceled_at')
+      .select('paddle_subscription_id, status, canceled_at')
       .eq('user_id', currentUser.id)
       .limit(1)
       .single();
-    const beforeSubId = beforeSub?.polar_subscription_id;
+    const beforeSubId = beforeSub?.paddle_subscription_id;
     const beforeStatus = beforeSub?.status;
     const originalPlan = userPlanRef.current;
 
@@ -140,14 +140,14 @@ export function BillingApp() {
 
       const { data: sub } = await supabase
         .from('subscriptions')
-        .select('polar_subscription_id, status, canceled_at')
+        .select('paddle_subscription_id, status, canceled_at')
         .eq('user_id', currentUser.id)
         .limit(1)
         .single();
 
       const changed =
         (newPlan !== originalPlan && newPlan !== 'free') ||
-        (sub?.polar_subscription_id && sub.polar_subscription_id !== beforeSubId) ||
+        (sub?.paddle_subscription_id && sub.paddle_subscription_id !== beforeSubId) ||
         (beforeStatus === 'canceled' && sub?.status === 'active') ||
         (!beforeSubId && sub?.status === 'active');
 
@@ -230,7 +230,7 @@ export function BillingApp() {
     const token = session?.access_token;
     if (!token) return;
     try {
-      const res = await fetch(`${SERVER_URL}/api/polar/portal`, {
+      const res = await fetch(`${SERVER_URL}/api/paddle/portal`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       });
@@ -247,7 +247,7 @@ export function BillingApp() {
     setError(null);
 
     try {
-      const res = await fetch(`${SERVER_URL}/api/polar/checkout`, {
+      const res = await fetch(`${SERVER_URL}/api/paddle/checkout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -263,7 +263,7 @@ export function BillingApp() {
 
       const { url } = await res.json();
 
-      // Open Polar hosted checkout in same tab
+      // Open Paddle hosted checkout in same tab
       window.location.href = url;
 
       // Start polling for plan update (webhook will update DB)
