@@ -278,7 +278,7 @@ export async function handlePolarCheckout(req: IncomingMessage, res: ServerRespo
     const authUser = await getAuthUser(req);
     if (!authUser) return json(res, 401, { error: "Authentication required" });
 
-    const { plan } = JSON.parse(body) as { plan: string };
+    const { plan, successUrl } = JSON.parse(body) as { plan: string; successUrl?: string };
     const productId = POLAR_PRODUCTS[plan];
 
     if (!productId) {
@@ -294,7 +294,7 @@ export async function handlePolarCheckout(req: IncomingMessage, res: ServerRespo
       products: [productId],
       customerEmail: userEmail,
       externalCustomerId: userId,
-      successUrl: "https://chessr.io/checkout/success",
+      successUrl: successUrl || "https://chessr.io/checkout/success",
     });
 
     console.log(`[Polar] Checkout created for ${userEmail} → ${plan}`);

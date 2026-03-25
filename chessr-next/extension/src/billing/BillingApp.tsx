@@ -360,7 +360,7 @@ export function BillingApp() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, successUrl: window.location.href }),
       });
 
       if (!res.ok) {
