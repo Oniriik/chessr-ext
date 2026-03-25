@@ -284,26 +284,19 @@ async function fetchPremiumStats() {
   }
 }
 
-// Fetch total suggestions count from Supabase
+// Fetch total suggestions count from Supabase (komodo + maia)
 async function fetchTotalSuggestions() {
   try {
     const { data, error } = await supabase
       .from('global_stats')
-      .select('value')
-      .eq('key', 'total_suggestions')
-      .single();
+      .select('key, value')
+      .in('key', ['total_suggestions', 'total_maia_suggestions']);
 
-    if (error) {
-      // Fallback: count from user_activity
-      const { count } = await supabase
-        .from('user_activity')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_type', 'suggestion');
-
-      return count || 0;
+    if (error || !data?.length) {
+      return 0;
     }
 
-    return data?.value || 0;
+    return data.reduce((sum, row) => sum + (Number(row.value) || 0), 0);
   } catch (error) {
     console.error('[Stats] Failed to fetch suggestions count:', error.message);
     return 0;
