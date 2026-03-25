@@ -911,6 +911,68 @@ process.on('unhandledRejection', (error) => {
   console.error('[Process] Unhandled rejection:', error);
 });
 
+// ─── Internal HTTP API for role sync triggers ───────────────────────────────
+import http from 'http';
+
+const httpServer = http.createServer(async (req, res) => {
+  // POST /sync-roles { userId } — trigger immediate role sync for a specific user
+  if (req.url === '/sync-roles' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => (body += chunk));
+    req.on('end', async () => {
+      try {
+        const { userId } = JSON.parse(body);
+        if (!userId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing userId' }));
+          return;
+        }
+
+        const guild = client.guilds.cache.get(config.guildId);
+        if (!guild) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Guild not found' }));
+          return;
+        }
+
+        // Fetch user settings
+        const { data: userSettings } = await supabase
+          .from('user_settings')
+          .select('user_id, plan, discord_id')
+          .eq('user_id', userId)
+          .single();
+
+        if (!userSettings?.discord_id) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, skipped: 'no discord linked' }));
+          return;
+        }
+
+        const member = await guild.members.fetch(userSettings.discord_id).catch(() => null);
+        if (member) {
+          await assignRoles(member, userSettings);
+          console.log(`[Roles] Instant sync for ${member.user.tag} → ${userSettings.plan}`);
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        console.error('[Roles] Sync endpoint error:', err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal error' }));
+      }
+    });
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+httpServer.listen(3100, () => {
+  console.log('[Bot] Internal API listening on port 3100');
+});
+
 // Start bot
 console.log('[Bot] Starting Chessr Stats Bot...');
 client.login(config.discordToken);

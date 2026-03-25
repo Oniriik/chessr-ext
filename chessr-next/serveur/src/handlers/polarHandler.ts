@@ -134,6 +134,20 @@ async function updateUserPlan(
     old_plan: null,
     reason: `Polar ${status} (${polarSubscriptionId})`,
   });
+
+  // Trigger immediate Discord role sync
+  triggerDiscordRoleSync(userId);
+}
+
+function triggerDiscordRoleSync(userId: string) {
+  const botUrl = process.env.DISCORD_BOT_URL || "http://chessr-discord:3100";
+  fetch(`${botUrl}/sync-roles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  }).catch((err) => {
+    console.error(`[Polar] Failed to trigger role sync for ${userId}:`, err.message);
+  });
 }
 
 // ─── Webhook HTTP handler ────────────────────────────────────────────────────
