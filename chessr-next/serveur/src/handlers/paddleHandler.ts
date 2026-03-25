@@ -911,25 +911,23 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
           const discountAmt = Number(totals?.discount || 0);
           const hasDiscount = discountAmt > 0;
 
-          // If discount: original = subtotal + tax (price without discount), price = total (with discount)
-          // Paddle formatted: subtotal is HT, total is TTC after discount
-          const undiscountedTotal = Number(totals?.subtotal || 0) + Number(totals?.tax || 0) + discountAmt;
+          // Original price = total + discount amount (what they'd pay without discount)
+          const totalNum = Number(totals?.total || 0);
+          const originalNum = totalNum + discountAmt;
+
+          // Format original with currency symbol
+          let originalFormatted: string | null = null;
+          if (hasDiscount) {
+            // Use same formatting style as Paddle's formatted total
+            const sym = currencyCode === "EUR" ? "€" : currencyCode === "INR" ? "₹" : currencyCode === "GBP" ? "£" : currencyCode === "USD" ? "$" : currencyCode + " ";
+            originalFormatted = `${sym}${(originalNum / 100).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          }
 
           prices[planKey] = {
-            price: formatted?.total || (Number(totals?.total || 0) / 100).toFixed(2),
-            original: hasDiscount ? (formatted?.subtotal ? null : (undiscountedTotal / 100).toFixed(2)) : null,
+            price: formatted?.total || (totalNum / 100).toFixed(2),
+            original: originalFormatted,
             currency: currencyCode,
           };
-
-          // Build original formatted price if discount exists
-          if (hasDiscount) {
-            // Reconstruct: unit price * quantity without discount
-            const unitPrice = item.price?.unitPrice?.amount;
-            if (unitPrice) {
-              const sym = currencyCode === "EUR" ? "€" : currencyCode === "INR" ? "₹" : currencyCode === "GBP" ? "£" : "$";
-              prices[planKey].original = `${sym}${(Number(unitPrice) / 100).toFixed(2)}`;
-            }
-          }
         }
       }
 

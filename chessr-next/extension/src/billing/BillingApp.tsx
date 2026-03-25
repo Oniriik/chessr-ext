@@ -612,8 +612,7 @@ export function BillingApp() {
             <div style={{ marginBottom: 16, paddingTop: isFree ? 12 : 0 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Free</h3>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>€0</span>
-                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>/forever</span>
+                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>Free</span>
               </div>
               <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '4px 0 0' }}>Start learning for free</p>
             </div>
