@@ -21,6 +21,7 @@ import { useEngineStore } from '../../stores/engineStore';
 import { UpdateRequiredCard } from './UpdateRequiredCard';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
+import { UpgradeModal } from '../UpgradeModal';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
 
@@ -213,6 +214,7 @@ export function SidebarContent() {
   return (
     <AuthGuard>
       <AuthenticatedContent />
+      <UpgradeModal />
     </AuthGuard>
   );
 }

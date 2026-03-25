@@ -12,8 +12,7 @@ import { useLinkedAccountsStore, usePendingProfile, useLinkError, useIsLinkingLo
 import { useAuthStore } from '../stores/authStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { webSocketManager } from '../lib/webSocket';
-
-const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
+import { useUpgradeModal } from './UpgradeModal';
 
 interface RatingBadgeProps {
   label: string;
@@ -59,7 +58,7 @@ function ErrorDisplay({ error }: ErrorDisplayProps) {
               size="sm"
               variant="outline"
               className="tw-h-7 tw-text-xs tw-border-warning/50 tw-text-warning hover:tw-bg-warning/10"
-              onClick={() => window.open(UPGRADE_URL, '_blank')}
+              onClick={() => useUpgradeModal.getState().open()}
             >
               <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
               {t('banners:upgradeSkipCooldown')}
@@ -210,7 +209,7 @@ export function LinkAccountModal() {
             {hasCooldown ? (
               <Button
                 className="tw-w-full tw-bg-gradient-to-r tw-from-warning tw-to-orange-500 hover:tw-opacity-90 tw-transition-opacity"
-                onClick={() => window.open(UPGRADE_URL, '_blank')}
+                onClick={() => useUpgradeModal.getState().open()}
               >
                 <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
                 {t('banners:upgradeToSkipCooldown')}

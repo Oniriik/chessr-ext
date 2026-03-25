@@ -7,6 +7,7 @@ import { Switch } from '../ui/switch';
 import { Slider } from '../ui/slider';
 import { AuthForm } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
+import { useUpgradeModal } from '../UpgradeModal';
 import { usePuzzleStore, type PuzzleSearchMode, type PuzzleEngine } from '../../stores/puzzleStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 import { useMaiaWebSocketStore } from '../../stores/maiaWebSocketStore';
@@ -237,7 +238,6 @@ function PuzzleStatusCard({ isStarted, isSolved, playerColor }: { isStarted: boo
   );
 }
 
-const UPGRADE_URL = 'https://discord.gg/72j4dUadTu';
 
 function formatSearchValue(mode: PuzzleSearchMode, nodes: number, depth: number, movetime: number) {
   switch (mode) {
@@ -283,7 +283,7 @@ function PuzzleControls({ triggerHint }: { triggerHint: () => void }) {
             </div>
           </div>
           <Button
-            onClick={() => window.open(UPGRADE_URL, '_blank')}
+            onClick={() => useUpgradeModal.getState().open()}
             className="tw-w-full tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-font-medium"
             size="sm"
           >
@@ -520,7 +520,7 @@ function AuthenticatedPuzzleContent({ hidden }: { hidden?: boolean }) {
                 </div>
               </div>
               <Button
-                onClick={() => window.open(UPGRADE_URL, '_blank')}
+                onClick={() => useUpgradeModal.getState().open()}
                 className="tw-w-full tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-font-medium"
               >
                 <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />

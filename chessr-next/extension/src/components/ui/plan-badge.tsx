@@ -3,8 +3,7 @@ import { Crown, Hammer, Clock, Lock, LockOpen } from 'lucide-react';
 import { Badge } from './badge';
 import { Tooltip } from './tooltip';
 import { cn } from '@/lib/utils';
-import { openCheckout } from '@/lib/checkoutClient';
-import { useAuthStore } from '@/stores/authStore';
+import { useUpgradeModal } from '@/components/UpgradeModal';
 
 export type Plan = 'lifetime' | 'beta' | 'premium' | 'freetrial' | 'free';
 
@@ -68,7 +67,7 @@ function getExpiryText(expiry: Date): string {
 export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) {
   const config = planConfig[plan];
   const Icon = config.icon;
-  const session = useAuthStore((s) => s.session);
+  const openUpgrade = useUpgradeModal((s) => s.open);
 
   // Show expiry tooltip for time-limited plans
   const hasExpiry = expiry && (plan === 'premium' || plan === 'freetrial');
@@ -79,8 +78,8 @@ export function PlanBadge({ plan, expiry, className, compact }: PlanBadgeProps) 
       : config.label;
 
   const handleClick = () => {
-    if (plan === 'free' && session?.access_token) {
-      openCheckout('monthly', session.access_token);
+    if (plan === 'free') {
+      openUpgrade();
     }
   };
 
@@ -140,12 +139,10 @@ interface UpgradeButtonProps {
 
 export function UpgradeButton({ tooltip, variant = 'light' }: UpgradeButtonProps) {
   const [hovered, setHovered] = useState(false);
-  const session = useAuthStore((s) => s.session);
+  const openUpgrade = useUpgradeModal((s) => s.open);
 
   const handleClick = () => {
-    if (session?.access_token) {
-      openCheckout('monthly', session.access_token);
-    }
+    openUpgrade();
   };
 
   if (variant === 'light') {

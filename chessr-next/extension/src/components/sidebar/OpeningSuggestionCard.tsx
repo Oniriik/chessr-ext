@@ -9,7 +9,7 @@ import type { SavedOpening } from '../../stores/openingStore';
 import type { OpeningWithStats } from '../../lib/openingsDatabase';
 import { BookOpen, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react';
 import { usePlanLimits } from '../../lib/planUtils';
-import { UPGRADE_URL } from '../ui/plan-badge';
+import { useUpgradeModal } from '../UpgradeModal';
 
 /**
  * Convert hex color to rgba
@@ -317,7 +317,7 @@ export function OpeningSuggestionCard({
                 </div>
               </div>
               <button
-                onClick={() => window.open(UPGRADE_URL, '_blank')}
+                onClick={() => useUpgradeModal.getState().open()}
                 className="tw-w-full tw-mt-4 tw-py-2 tw-px-3 tw-rounded-md tw-bg-gradient-to-r tw-from-yellow-500 tw-to-orange-500 hover:tw-from-yellow-600 hover:tw-to-orange-600 tw-text-black tw-text-sm tw-font-medium tw-transition-colors tw-flex tw-items-center tw-justify-center tw-gap-2"
               >
                 <Sparkles className="tw-w-4 tw-h-4" />
