@@ -340,7 +340,7 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
     // Build URL to our pay page which loads Paddle.js overlay
     const returnUrl = successUrl || "";
     const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
-    const checkoutUrl = `https://engine.chessr.io/api/paddle/pay?txn=${transaction.id}&success=${encodeURIComponent(serverSuccessUrl)}`;
+    const checkoutUrl = `https://engine.chessr.io/api/paddle/pay?txn=${transaction.id}&email=${encodeURIComponent(userEmail)}&success=${encodeURIComponent(serverSuccessUrl)}`;
 
     console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (${transaction.id})`);
 
@@ -358,6 +358,7 @@ export async function handlePaddlePay(req: IncomingMessage, res: ServerResponse)
   try {
     const urlObj = new URL(req.url!, `http://${req.headers.host}`);
     const txnId = urlObj.searchParams.get("txn") || "";
+    const email = urlObj.searchParams.get("email") || "";
     const successUrl = urlObj.searchParams.get("success") || "";
 
     if (!txnId) {
@@ -381,11 +382,17 @@ Paddle.Setup({
   token: "${clientToken}",
   eventCallback: function(ev) {
     if (ev.name === "checkout.completed") {
-      window.location.href = decodeURIComponent("${encodeURIComponent(successUrl)}");
+      document.body.innerHTML = '<div style="text-align:center;padding:40px"><p>Payment successful! This window will close...</p></div>';
+      setTimeout(function() { window.close(); }, 2000);
+    } else if (ev.name === "checkout.closed") {
+      window.close();
     }
   }
 });
-Paddle.Checkout.open({ transactionId: "${txnId}" });
+Paddle.Checkout.open({
+  transactionId: "${txnId}",
+  customer: { email: "${email.replace(/"/g, "")}" }
+});
 <\/script>
 </body></html>`);
   } catch (err) {

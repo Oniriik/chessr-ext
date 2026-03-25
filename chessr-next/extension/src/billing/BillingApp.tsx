@@ -264,8 +264,11 @@ export function BillingApp() {
 
       const { url } = await res.json();
 
-      // Open Paddle checkout overlay page (on engine.chessr.io)
-      window.location.href = url;
+      // Open Paddle checkout in a popup window (overlay on server page)
+      const w = 500, h = 700;
+      const left = window.screenX + (window.innerWidth - w) / 2;
+      const top = window.screenY + (window.innerHeight - h) / 2;
+      window.open(url, 'paddle-checkout', `width=${w},height=${h},left=${left},top=${top}`);
 
       // Start polling for plan update (webhook will update DB)
       setConfirming(true);
