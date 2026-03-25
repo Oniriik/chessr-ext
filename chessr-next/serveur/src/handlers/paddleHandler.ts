@@ -17,6 +17,13 @@ const PADDLE_PRICES: Record<string, string> = {
   lifetime: process.env.PADDLE_PRICE_LIFETIME!,
 };
 
+// Hosted checkout links (created in Paddle dashboard)
+const PADDLE_CHECKOUT_LINKS: Record<string, string> = {
+  monthly: process.env.PADDLE_CHECKOUT_MONTHLY!,
+  yearly: process.env.PADDLE_CHECKOUT_YEARLY!,
+  lifetime: process.env.PADDLE_CHECKOUT_LIFETIME!,
+};
+
 // Reverse: price ID → plan mapping
 const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
   [process.env.PADDLE_PRICE_MONTHLY!]: { plan: "premium", interval: "monthly" },
@@ -312,41 +319,28 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
     if (!authUser) return json(res, 401, { error: "Authentication required" });
 
     const { plan, successUrl } = JSON.parse(body) as { plan: string; successUrl?: string };
-    const priceId = PADDLE_PRICES[plan];
+    const checkoutLink = PADDLE_CHECKOUT_LINKS[plan];
 
-    if (!priceId) {
+    if (!checkoutLink) {
       return json(res, 400, { error: "Invalid plan. Use: monthly, yearly, or lifetime" });
     }
 
     const userId = authUser.id;
     const userEmail = authUser.email || "";
 
-    // Build server-side success URL that will verify and redirect to extension
+    // Build success URL that redirects back to extension
     const returnUrl = successUrl || "";
     const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
 
-    console.log(`[Paddle] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}`);
-
-    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
-
-    const transaction = await paddle.transactions.create({
-      items: [{ priceId, quantity: 1 }],
-      customData: { user_id: userId, email: userEmail },
-      ...(discountId ? { discountId } : {}),
+    // Build hosted checkout URL with user params
+    const params = new URLSearchParams({
+      "customer_email": userEmail,
+      "custom_data[user_id]": userId,
+      "settings[success_url]": serverSuccessUrl,
     });
+    const checkoutUrl = `${checkoutLink}?${params.toString()}`;
 
-    // Paddle returns the hosted checkout URL
-    let checkoutUrl = transaction.checkout?.url;
-    if (!checkoutUrl) {
-      console.error("[Paddle] No checkout URL returned");
-      return json(res, 500, { error: "Failed to create checkout" });
-    }
-
-    // Append success redirect URL
-    const sep = checkoutUrl.includes("?") ? "&" : "?";
-    checkoutUrl = `${checkoutUrl}${sep}settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
-
-    console.log(`[Paddle] Checkout created for ${userEmail} → ${plan}`);
+    console.log(`[Paddle] Checkout for ${userEmail} → ${plan}`);
 
     json(res, 200, { url: checkoutUrl });
   } catch (err) {
