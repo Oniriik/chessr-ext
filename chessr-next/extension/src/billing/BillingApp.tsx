@@ -751,12 +751,12 @@ export function BillingApp() {
                         {switchPreview?.total && !loadingPreview && (
                           <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span>You pay now</span>
+                              <span>You pay</span>
                               <span style={{ fontWeight: 600, color: '#fff' }}>{switchPreview.total}</span>
                             </div>
                             {switchPreview.credit && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
-                                <span>Includes -{switchPreview.credit} credit</span>
+                                <span>Includes -{switchPreview.credit} prorate</span>
                               </div>
                             )}
                           </div>
@@ -877,7 +877,7 @@ export function BillingApp() {
                     </div>
                     {lifetimePreview.credit && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
-                        <span>Includes -{lifetimePreview.credit} credit</span>
+                        <span>Includes -{lifetimePreview.credit} prorate</span>
                       </div>
                     )}
                   </div>
@@ -946,7 +946,7 @@ export function BillingApp() {
                   )}
                   {switchPreview.credit && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
-                      <span>Credit (remaining monthly)</span>
+                      <span>Remaining subscription prorate</span>
                       <span>-{switchPreview.credit}</span>
                     </div>
                   )}
@@ -962,21 +962,14 @@ export function BillingApp() {
                       <span>{switchPreview.total}</span>
                     </div>
                   )}
-                  {switchPreview.nextBilledAt && (
-                    <div style={{ marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>
-                      Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                    </div>
-                  )}
                 </div>
+                {switchPreview.nextBilledAt && (
+                  <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', margin: 0, textAlign: 'center' }}>
+                    Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                  </p>
+                )}
               </div>
             )}
-
-              {/* Error fallback */}
-              {!switchPreview && !loadingPreview && (
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 16px' }}>
-                  Switch to yearly and save 30%. You'll be charged a prorated amount for the remaining period.
-                </p>
-              )}
 
             {!switchPreview && !loadingPreview && (
               <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '10px 0' }}>
@@ -1035,7 +1028,7 @@ export function BillingApp() {
                   )}
                   {lifetimePreview.credit && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
-                      <span>Credit ({lifetimePreview.currentInterval} remaining)</span>
+                      <span>Remaining subscription prorate</span>
                       <span>-{lifetimePreview.credit}</span>
                     </div>
                   )}

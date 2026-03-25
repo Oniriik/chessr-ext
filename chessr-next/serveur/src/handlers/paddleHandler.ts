@@ -673,18 +673,28 @@ export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerRes
       // Get subscription from Paddle to calculate remaining credit
       const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
       const currentItem = subscription.items?.[0];
-      const priceAmount = Number(currentItem?.price?.unitPrice?.amount || 0);
       const billingStart = subscription.currentBillingPeriod?.startsAt;
       const billingEnd = subscription.currentBillingPeriod?.endsAt;
 
+      // Get localized price for current subscription plan
+      let localizedSubPrice = 0;
+      if (currentItem?.price?.id) {
+        const subPreview = await paddle.pricingPreview.preview({
+          items: [{ priceId: currentItem.price.id, quantity: 1 }],
+          ...(clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {}),
+        });
+        const subLine = (subPreview as any).details?.lineItems?.[0];
+        localizedSubPrice = Number(subLine?.totals?.total || 0);
+      }
+
       let credit = 0;
-      if (billingStart && billingEnd && priceAmount > 0) {
+      if (billingStart && billingEnd && localizedSubPrice > 0) {
         const start = new Date(billingStart).getTime();
         const end = new Date(billingEnd).getTime();
         const now = Date.now();
         const totalDays = (end - start) / (1000 * 60 * 60 * 24);
         const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
-        credit = Math.round((remainingDays / totalDays) * priceAmount);
+        credit = Math.round((remainingDays / totalDays) * localizedSubPrice);
       }
 
       const finalTotal = Math.max(0, lifetimeTotal - credit);
