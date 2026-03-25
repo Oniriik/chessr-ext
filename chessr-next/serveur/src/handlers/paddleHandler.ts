@@ -349,10 +349,8 @@ export async function handlePaddleCheckout(req: IncomingMessage, res: ServerResp
     const returnUrl = successUrl || "";
     const serverSuccessUrl = `https://engine.chessr.io/api/paddle/success?return=${encodeURIComponent(returnUrl)}`;
 
-    // Use Paddle's returned checkout URL if available, otherwise build from transaction ID
-    const baseCheckoutUrl = transaction.checkout?.url || `${PADDLE_CHECKOUT_DOMAIN}/?transactionId=${transaction.id}`;
-    const sep = baseCheckoutUrl.includes("?") ? "&" : "?";
-    const checkoutUrl = `${baseCheckoutUrl}${sep}settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
+    // Build hosted checkout URL on Paddle's domain with the transaction token
+    const checkoutUrl = `${PADDLE_CHECKOUT_DOMAIN}/?_ptxn=${transaction.id}&settings[success_url]=${encodeURIComponent(serverSuccessUrl)}`;
 
     console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (${transaction.id})`);
 
