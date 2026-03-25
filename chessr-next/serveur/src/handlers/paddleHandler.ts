@@ -495,10 +495,12 @@ export function handlePaddleSwitch(req: IncomingMessage, res: ServerResponse) {
         return;
       }
 
-      // Update subscription with proration
+      // Update subscription with proration and discount
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
       const updated = await paddle.subscriptions.update(sub.paddle_subscription_id, {
         items: [{ priceId, quantity: 1 }],
         prorationBillingMode: "prorated_immediately",
+        ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
       });
 
       console.log(`[Paddle] Switch to ${plan} for ${authData.user.email} (${sub.paddle_subscription_id})`);
@@ -559,9 +561,11 @@ export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerRespo
         return;
       }
 
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
       const preview = await paddle.subscriptions.previewUpdate(sub.paddle_subscription_id, {
         items: [{ priceId, quantity: 1 }],
         prorationBillingMode: "prorated_immediately",
+        ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
       });
 
       const summary = preview.updateSummary;
@@ -590,6 +594,165 @@ export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerRespo
       console.error("[Paddle] Preview switch error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to preview switch" }));
+    }
+  });
+}
+
+// ─── Preview lifetime upgrade endpoint ────────────────────────────────────────
+// POST /api/paddle/preview-lifetime — preview credit from canceling current sub + lifetime price
+
+export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerResponse) {
+  (async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, current_period_end, interval")
+        .eq("user_id", authData.user.id)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription" }));
+        return;
+      }
+
+      // Get subscription from Paddle to calculate remaining credit
+      const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
+      const currentItem = subscription.items?.[0];
+      const priceAmount = Number(currentItem?.price?.unitPrice?.amount || 0);
+      const billingStart = subscription.currentBillingPeriod?.startsAt;
+      const billingEnd = subscription.currentBillingPeriod?.endsAt;
+
+      let credit = 0;
+      if (billingStart && billingEnd && priceAmount > 0) {
+        const start = new Date(billingStart).getTime();
+        const end = new Date(billingEnd).getTime();
+        const now = Date.now();
+        const totalDays = (end - start) / (1000 * 60 * 60 * 24);
+        const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
+        credit = Math.round((remainingDays / totalDays) * priceAmount);
+      }
+
+      // Get lifetime price
+      const lifetimePriceId = PADDLE_PRICES["lifetime"];
+      const lifetimePrice = await paddle.prices.get(lifetimePriceId);
+      const lifetimeAmount = Number(lifetimePrice.unitPrice?.amount || 0);
+
+      // Apply discount if any
+      const discountId = process.env.PADDLE_DISCOUNT_ID;
+      let discountAmount = 0;
+      if (discountId) {
+        try {
+          const discount = await paddle.discounts.get(discountId);
+          if (discount.type === "percentage") {
+            discountAmount = Math.round(lifetimeAmount * Number(discount.amount) / 100);
+          } else if (discount.type === "flat") {
+            discountAmount = Number(discount.amount);
+          }
+        } catch {}
+      }
+
+      const discountedLifetime = lifetimeAmount - discountAmount;
+      const total = Math.max(0, discountedLifetime - credit);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        lifetimePrice: lifetimeAmount,
+        discount: discountAmount,
+        credit,
+        total,
+        currentInterval: sub.interval,
+        currency: lifetimePrice.unitPrice?.currencyCode || "USD",
+      }));
+    } catch (err) {
+      console.error("[Paddle] Preview lifetime error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to preview lifetime upgrade" }));
+    }
+  })();
+}
+
+// ─── Upgrade to lifetime endpoint ────────────────────────────────────────────
+// POST /api/paddle/upgrade-lifetime — cancel current sub immediately + create lifetime checkout
+
+export function handlePaddleUpgradeLifetime(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const userId = authData.user.id;
+      const userEmail = authData.user.email || "";
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, paddle_customer_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription" }));
+        return;
+      }
+
+      // Cancel current subscription immediately (Paddle issues prorated credit)
+      await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+        effectiveFrom: "immediately",
+      });
+
+      console.log(`[Paddle] Canceled sub ${sub.paddle_subscription_id} immediately for lifetime upgrade (${userEmail})`);
+
+      // Create lifetime checkout transaction
+      const priceId = PADDLE_PRICES["lifetime"];
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+
+      const transaction = await paddle.transactions.create({
+        items: [{ priceId, quantity: 1 }],
+        customerId: sub.paddle_customer_id!,
+        customData: { userId },
+        ...(discountId ? { discountId } : {}),
+      });
+
+      console.log(`[Paddle] Lifetime checkout for ${userEmail} (txn=${transaction.id})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ transactionId: transaction.id }));
+    } catch (err) {
+      console.error("[Paddle] Upgrade lifetime error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to upgrade to lifetime" }));
     }
   });
 }
@@ -702,6 +865,64 @@ export function handlePaddleSubscriptionStatus(req: IncomingMessage, res: Server
       console.error("[Paddle] Status error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
+    }
+  })();
+}
+
+// ─── Localized prices endpoint ───────────────────────────────────────────────
+// GET /api/paddle/prices — returns localized prices based on client IP
+
+export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
+  (async () => {
+    try {
+      // Get client IP for geolocation
+      const forwarded = req.headers["x-forwarded-for"];
+      const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
+
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+
+      const preview = await paddle.pricingPreview.preview({
+        items: [
+          { priceId: PADDLE_PRICES["monthly"], quantity: 1 },
+          { priceId: PADDLE_PRICES["yearly"], quantity: 1 },
+          { priceId: PADDLE_PRICES["lifetime"], quantity: 1 },
+        ],
+        ...(clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {}),
+        ...(discountId ? { discountId } : {}),
+      });
+
+      const prices: Record<string, { price: string; original: string | null; currency: string; currencySymbol: string }> = {};
+
+      for (const item of (preview as any).details?.lineItems || []) {
+        const priceId = item.price?.id;
+        let planKey: string | null = null;
+        if (priceId === PADDLE_PRICES["monthly"]) planKey = "monthly";
+        else if (priceId === PADDLE_PRICES["yearly"]) planKey = "yearly";
+        else if (priceId === PADDLE_PRICES["lifetime"]) planKey = "lifetime";
+
+        if (planKey) {
+          const formatted = item.formattedTotals;
+          const totals = item.totals;
+          const currencyCode = (preview as any).currencyCode || "USD";
+          const symbol = currencyCode === "EUR" ? "€" : currencyCode === "GBP" ? "£" : "$";
+
+          const hasDiscount = item.discounts && item.discounts.length > 0;
+
+          prices[planKey] = {
+            price: formatted?.total || (Number(totals?.total || 0) / 100).toFixed(2),
+            original: hasDiscount ? (formatted?.subtotal || (Number(totals?.subtotal || 0) / 100).toFixed(2)) : null,
+            currency: currencyCode,
+            currencySymbol: symbol,
+          };
+        }
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(prices));
+    } catch (err) {
+      console.error("[Paddle] Prices error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to fetch prices" }));
     }
   })();
 }

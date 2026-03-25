@@ -48,7 +48,10 @@ import {
   handlePaddleCancel,
   handlePaddleSwitch,
   handlePaddlePreviewSwitch,
+  handlePaddlePreviewLifetime,
+  handlePaddleUpgradeLifetime,
   handlePaddleSubscriptionStatus,
+  handlePaddlePrices,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
 
@@ -651,6 +654,18 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Paddle preview lifetime upgrade
+  if (req.url === "/api/paddle/preview-lifetime" && req.method === "POST") {
+    handlePaddlePreviewLifetime(req, res);
+    return;
+  }
+
+  // Paddle upgrade to lifetime
+  if (req.url === "/api/paddle/upgrade-lifetime" && req.method === "POST") {
+    handlePaddleUpgradeLifetime(req, res);
+    return;
+  }
+
   // Paddle cancel subscription
   if (req.url === "/api/paddle/cancel" && req.method === "POST") {
     handlePaddleCancel(req, res);
@@ -660,6 +675,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Paddle subscription status
   if (req.url === "/api/paddle/subscription" && req.method === "GET") {
     handlePaddleSubscriptionStatus(req, res);
+    return;
+  }
+
+  // Paddle localized prices
+  if (req.url === "/api/paddle/prices" && req.method === "GET") {
+    handlePaddlePrices(req, res);
     return;
   }
 

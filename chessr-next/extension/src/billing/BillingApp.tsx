@@ -143,6 +143,13 @@ export function BillingApp() {
     nextBilledAt: string | null;
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [dynamicPrices, setDynamicPrices] = useState<Record<string, { price: string; original: string | null; currency: string; currencySymbol: string }> | null>(null);
+  const [showLifetimeModal, setShowLifetimeModal] = useState(false);
+  const [lifetimePreview, setLifetimePreview] = useState<{
+    lifetimePrice: number; discount: number; credit: number; total: number; currency: string; currentInterval: string;
+  } | null>(null);
+  const [loadingLifetimePreview, setLoadingLifetimePreview] = useState(false);
+  const [upgradingLifetime, setUpgradingLifetime] = useState(false);
 
   // Poll for plan update after checkout (webhook may take a few seconds)
   const pollForPlanUpdate = async () => {
@@ -362,6 +369,14 @@ export function BillingApp() {
   const trialDataLoaded = freetrialUsed !== null && discordLinked !== null;
   const canClaimTrial = trialDataLoaded && !freetrialUsed && !discordLinked && userPlan === 'free';
 
+  // Fetch localized prices
+  useEffect(() => {
+    fetch(`${SERVER_URL}/api/paddle/prices`)
+      .then((r) => r.json())
+      .then((data) => { if (!data.error) setDynamicPrices(data); })
+      .catch(() => {});
+  }, []);
+
   // Initialize Paddle
   useEffect(() => {
     if (window.Paddle) {
@@ -430,9 +445,55 @@ export function BillingApp() {
     }
   };
 
+  // Fetch lifetime upgrade preview when modal opens
+  const fetchLifetimePreview = async () => {
+    const token = session?.access_token;
+    if (!token) return;
+    setLoadingLifetimePreview(true);
+    setLifetimePreview(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/paddle/preview-lifetime`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!data.error) setLifetimePreview(data);
+    } catch {}
+    setLoadingLifetimePreview(false);
+  };
+
+  const handleLifetimeUpgrade = async () => {
+    const token = session?.access_token;
+    if (!token || !paddleReady) return;
+    setUpgradingLifetime(true);
+    setError(null);
+    try {
+      const res = await fetch(`${SERVER_URL}/api/paddle/upgrade-lifetime`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(data.error);
+      }
+      const { transactionId } = await res.json();
+      setShowLifetimeModal(false);
+      window.Paddle!.Checkout.open({
+        transactionId,
+        settings: { theme: 'dark', successUrl: undefined },
+      });
+    } catch (err: any) {
+      console.error('[Billing] Lifetime upgrade error:', err);
+      setError(err.message || 'Something went wrong');
+    } finally {
+      setUpgradingLifetime(false);
+    }
+  };
+
+  const sym = dynamicPrices?.monthly?.currencySymbol || '€';
   const premium = billing === 'yearly'
-    ? { price: '24.99', original: '29.99', period: '/year' }
-    : { price: '2.99', original: null, period: '/month' };
+    ? { price: dynamicPrices?.yearly?.price || '24.99', original: dynamicPrices?.yearly?.original || null, period: '/year' }
+    : { price: dynamicPrices?.monthly?.price || '2.99', original: dynamicPrices?.monthly?.original || null, period: '/month' };
 
   const isFree = isCurrentPlan('free', userPlan);
   const isPremium = isCurrentPlan('premium', userPlan);
@@ -599,12 +660,12 @@ export function BillingApp() {
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Premium</h3>
               {premium.original && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>€{premium.original}</span>
+                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{sym}{premium.original}</span>
                   <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>-15%</span>
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>€{premium.price}</span>
+                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>{sym}{premium.price}</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>{premium.period}</span>
               </div>
               {canClaimTrial ? (
@@ -693,6 +754,11 @@ export function BillingApp() {
                                 <span>Includes -€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)} credit</span>
                               </div>
                             )}
+                            {switchPreview.tax && Number(switchPreview.tax) > 0 && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>
+                                <span>Incl. tax €{(Number(switchPreview.tax) / 100).toFixed(2)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
                         {loadingPreview && (
@@ -707,7 +773,7 @@ export function BillingApp() {
                             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           }}
                         >
-                          Switch to Yearly (save 30%) <ArrowRightIcon />
+                          Switch to Yearly <ArrowRightIcon />
                         </button>
                       </div>
                     ) : (
@@ -771,12 +837,14 @@ export function BillingApp() {
             </div>
             <div style={{ marginBottom: 16, paddingTop: 12 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Lifetime</h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>€60</span>
-                <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>-15%</span>
-              </div>
+              {dynamicPrices?.lifetime?.original && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <span style={{ fontSize: 14, textDecoration: 'line-through', color: 'rgba(255,255,255,0.3)' }}>{sym}{dynamicPrices.lifetime.original}</span>
+                  <span style={{ padding: '2px 6px', borderRadius: 9999, fontSize: 9, fontWeight: 700, background: '#0e3a4a', color: '#22d3ee' }}>Discount</span>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>€50</span>
+                <span style={{ fontSize: 30, fontWeight: 700, color: '#fff' }}>{sym}{dynamicPrices?.lifetime?.price || '50'}</span>
                 <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>/one-time</span>
               </div>
               <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', margin: '4px 0 0' }}>Pay once, own forever</p>
@@ -800,7 +868,14 @@ export function BillingApp() {
               }}>Current Plan</button>
             ) : (
               <button
-                onClick={() => handleSelect('lifetime')}
+                onClick={() => {
+                  if (isPremium) {
+                    setShowLifetimeModal(true);
+                    fetchLifetimePreview();
+                  } else {
+                    handleSelect('lifetime');
+                  }
+                }}
                 disabled={loading !== null}
                 style={{
                   width: '100%', padding: '10px 0', borderRadius: 9999, border: '1px solid #2a2a3e',
@@ -829,7 +904,7 @@ export function BillingApp() {
         </div>
       </div>
 
-      {/* Switch to Yearly Modal */}
+      {/* Switch Plan Modal */}
       {showSwitchModal && (
         <div
           style={{
@@ -927,6 +1002,77 @@ export function BillingApp() {
                   {switching ? <><Spinner /> Switching...</> : 'Confirm Switch'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lifetime Upgrade Modal */}
+      {showLifetimeModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#111119', borderRadius: 12, border: '1px solid #1e1e2e', padding: 20, maxWidth: 360, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Upgrade to Lifetime</span>
+              <button onClick={() => setShowLifetimeModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+
+            {loadingLifetimePreview && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><Spinner /></div>
+            )}
+
+            {lifetimePreview && !loadingLifetimePreview && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#0a0a12', border: '1px solid #1e1e2e', fontSize: 11 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.6)' }}>
+                    <span>Lifetime price</span>
+                    <span style={{ color: '#fff' }}>{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.lifetimePrice / 100).toFixed(2)}</span>
+                  </div>
+                  {lifetimePreview.discount > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
+                      <span>Discount</span>
+                      <span>-{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.discount / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {lifetimePreview.credit > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
+                      <span>Credit ({lifetimePreview.currentInterval} remaining)</span>
+                      <span>-{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.credit / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ borderTop: '1px solid #1e1e2e', paddingTop: 6, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#fff' }}>
+                    <span>You pay</span>
+                    <span>{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.total / 100).toFixed(2)}</span>
+                  </div>
+                </div>
+                <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', margin: 0, textAlign: 'center' }}>
+                  Your current subscription will be canceled and credited immediately.
+                </p>
+              </div>
+            )}
+
+            {!lifetimePreview && !loadingLifetimePreview && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '10px 0' }}>
+                Failed to load preview. Try again.
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowLifetimeModal(false)}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 9999, border: '1px solid #1e1e2e', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >Cancel</button>
+              <button
+                onClick={handleLifetimeUpgrade}
+                disabled={upgradingLifetime || loadingLifetimePreview || !lifetimePreview}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 9999, border: 'none', fontWeight: 700, fontSize: 12, color: '#fff',
+                  background: upgradingLifetime || loadingLifetimePreview ? '#1a2a4a' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                  cursor: upgradingLifetime || loadingLifetimePreview ? 'default' : 'pointer',
+                  opacity: upgradingLifetime || loadingLifetimePreview ? 0.5 : 1,
+                }}
+              >
+                {upgradingLifetime ? <Spinner /> : 'Confirm Upgrade'}
+              </button>
             </div>
           </div>
         </div>
