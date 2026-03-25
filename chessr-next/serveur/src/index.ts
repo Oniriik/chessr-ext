@@ -45,6 +45,7 @@ import { handleExplainMove } from "./handlers/explanationHandler.js";
 import {
   handlePolarWebhook,
   handlePolarCheckout,
+  handlePolarSuccess,
   handlePolarCancel,
   handlePolarSubscriptionStatus,
 } from "./handlers/polarHandler.js";
@@ -576,6 +577,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Polar checkout (create session, return URL)
   if (req.url === "/api/polar/checkout" && req.method === "POST") {
     handlePolarCheckout(req, res);
+    return;
+  }
+
+  // Polar checkout success redirect
+  if (req.url?.startsWith("/api/polar/success") && req.method === "GET") {
+    handlePolarSuccess(req, res);
     return;
   }
 

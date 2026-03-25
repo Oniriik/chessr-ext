@@ -159,10 +159,10 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
     switch (event.type) {
       case "subscription.active":
       case "subscription.updated": {
-        const productId = data.product?.id || data.product_id;
-        const userId = data.customer?.external_id || data.metadata?.user_id;
+        const productId = data.product?.id || data.productId;
+        const userId = data.customer?.externalId || data.metadata?.user_id;
         if (!userId || !productId) {
-          console.error(`[Polar] Missing userId or productId in ${event.type}`);
+          console.error(`[Polar] Missing userId or productId in ${event.type}`, { productId, userId });
           break;
         }
         await updateUserPlan(
@@ -170,30 +170,30 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
           data.id,
           productId,
           "active",
-          data.current_period_end || null,
+          data.currentPeriodEnd || null,
           null,
         );
         break;
       }
 
       case "subscription.canceled": {
-        const productId = data.product?.id || data.product_id;
-        const userId = data.customer?.external_id || data.metadata?.user_id;
+        const productId = data.product?.id || data.productId;
+        const userId = data.customer?.externalId || data.metadata?.user_id;
         if (!userId || !productId) break;
         await updateUserPlan(
           userId,
           data.id,
           productId,
           "canceled",
-          data.current_period_end || null,
-          data.canceled_at || new Date().toISOString(),
+          data.currentPeriodEnd || null,
+          data.canceledAt || new Date().toISOString(),
         );
         break;
       }
 
       case "subscription.revoked": {
-        const productId = data.product?.id || data.product_id;
-        const userId = data.customer?.external_id || data.metadata?.user_id;
+        const productId = data.product?.id || data.productId;
+        const userId = data.customer?.externalId || data.metadata?.user_id;
         if (!userId || !productId) break;
         await updateUserPlan(
           userId,
@@ -208,13 +208,12 @@ export async function handlePolarWebhook(req: IncomingMessage, res: ServerRespon
 
       case "order.paid": {
         // Handle lifetime one-time purchase
-        const items = data.items || data.line_items || [];
+        const items = data.items || data.lineItems || [];
         for (const item of items) {
-          const productId = item.product_id || item.product?.id;
-          const mapping = PRODUCT_PLAN_MAP[productId];
+          const productId = item.productId || item.product?.id;
           if (mapping?.plan !== "lifetime") continue;
 
-          const userId = data.customer?.external_id || data.metadata?.user_id;
+          const userId = data.customer?.externalId || data.metadata?.user_id;
           if (!userId) {
             console.error("[Polar] No userId on lifetime order");
             break;
@@ -288,13 +287,17 @@ export async function handlePolarCheckout(req: IncomingMessage, res: ServerRespo
     const userId = authUser.id;
     const userEmail = authUser.email || "";
 
+    // Build server-side success URL that will verify and redirect to extension
+    const returnUrl = successUrl || "";
+    const serverSuccessUrl = `https://engine.chessr.io/api/polar/success?checkout_id={CHECKOUT_ID}&return=${encodeURIComponent(returnUrl)}`;
+
     console.log(`[Polar] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}`);
 
     const checkout = await polar.checkouts.create({
       products: [productId],
       customerEmail: userEmail,
       externalCustomerId: userId,
-      successUrl: successUrl || "https://chessr.io/checkout/success",
+      successUrl: serverSuccessUrl,
     });
 
     console.log(`[Polar] Checkout created for ${userEmail} → ${plan}`);
@@ -303,6 +306,41 @@ export async function handlePolarCheckout(req: IncomingMessage, res: ServerRespo
   } catch (err) {
     console.error("[Polar] Checkout error:", err);
     json(res, 500, { error: "Internal error" });
+  }
+}
+
+// ─── Checkout success redirect ───────────────────────────────────────────────
+// GET /api/polar/success?checkout_id=xxx&return=xxx — verify checkout, redirect to extension
+
+export async function handlePolarSuccess(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const urlObj = new URL(req.url!, `http://${req.headers.host}`);
+    const checkoutId = urlObj.searchParams.get("checkout_id");
+    const returnUrl = urlObj.searchParams.get("return") || "";
+
+    if (checkoutId) {
+      try {
+        const checkout = await polar.checkouts.get({ id: checkoutId });
+        console.log(`[Polar] Success verified: checkout=${checkoutId}, status=${checkout.status}`);
+      } catch (err) {
+        console.error(`[Polar] Failed to verify checkout ${checkoutId}:`, err);
+      }
+    }
+
+    // Redirect to extension billing page or fallback
+    if (returnUrl) {
+      res.writeHead(302, { Location: returnUrl });
+      res.end();
+    } else {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.end(`<!DOCTYPE html><html><head><title>Chessr — Payment Successful</title>
+<style>body{margin:0;background:#08080f;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;}h1{font-size:24px;margin-bottom:8px;}p{color:rgba(255,255,255,0.6);}</style>
+</head><body><div><h1>Payment successful!</h1><p>You can close this tab and return to Chessr.</p></div></body></html>`);
+    }
+  } catch (err) {
+    console.error("[Polar] Success redirect error:", err);
+    res.writeHead(500, { "Content-Type": "text/plain" });
+    res.end("Something went wrong");
   }
 }
 
