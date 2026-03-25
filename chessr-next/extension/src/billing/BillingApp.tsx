@@ -214,7 +214,7 @@ export function BillingApp() {
     fetch(`${SERVER_URL}/api/paddle/preview-upgrade`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ plan: 'yearly' }),
+      body: JSON.stringify({ plan: 'yearly', currency: dynamicPrices?.monthly?.currency }),
     })
       .then((r) => r.json())
       .then((data) => setSwitchPreview(data.error ? null : data))
@@ -451,7 +451,7 @@ export function BillingApp() {
       const res = await fetch(`${SERVER_URL}/api/paddle/preview-upgrade`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ plan: 'lifetime' }),
+        body: JSON.stringify({ plan: 'lifetime', currency: dynamicPrices?.monthly?.currency }),
       });
       const data = await res.json();
       if (!data.error) setLifetimePreview(data);

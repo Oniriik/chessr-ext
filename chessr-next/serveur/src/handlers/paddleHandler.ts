@@ -560,7 +560,7 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
         return;
       }
 
-      const { plan } = JSON.parse(body) as { plan: string };
+      const { plan, currency: requestedCurrency } = JSON.parse(body) as { plan: string; currency?: string };
       const targetPriceId = PADDLE_PRICES[plan];
 
       if (!targetPriceId || (plan !== "yearly" && plan !== "lifetime")) {
@@ -590,9 +590,11 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
       const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
       // Get localized target price via pricing preview
+      const currencyParam = requestedCurrency ? { currencyCode: requestedCurrency } : {};
       const targetPreview = await paddle.pricingPreview.preview({
         items: [{ priceId: targetPriceId, quantity: 1 }],
         ...ipParam,
+        ...currencyParam,
         ...(discountId ? { discountId } : {}),
       });
 
@@ -617,7 +619,7 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
         const subPreview = await paddle.pricingPreview.preview({
           items: [{ priceId: currentItem.price.id, quantity: 1 }],
           ...ipParam,
-          currencyCode,
+          ...currencyParam,
         });
         const subLine = (subPreview as any).details?.lineItems?.[0];
         localizedSubPrice = Number(subLine?.totals?.total || 0);
