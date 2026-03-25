@@ -47,6 +47,7 @@ import {
   handlePolarCheckout,
   handlePolarSuccess,
   handlePolarCancel,
+  handlePolarPortal,
   handlePolarSubscriptionStatus,
 } from "./handlers/polarHandler.js";
 import { logConnection } from "./utils/logger.js";
@@ -589,6 +590,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Polar cancel subscription
   if (req.url === "/api/polar/cancel" && req.method === "POST") {
     handlePolarCancel(req, res);
+    return;
+  }
+
+  // Polar customer portal
+  if (req.url === "/api/polar/portal" && req.method === "POST") {
+    handlePolarPortal(req, res);
     return;
   }
 

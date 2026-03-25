@@ -396,6 +396,27 @@ export async function handlePolarCancel(req: IncomingMessage, res: ServerRespons
   }
 }
 
+// ─── Customer portal endpoint ────────────────────────────────────────────────
+// POST /api/polar/portal — creates a Polar customer portal session, returns URL
+
+export async function handlePolarPortal(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const authUser = await getAuthUser(req);
+    if (!authUser) return json(res, 401, { error: "Authentication required" });
+
+    const session = await polar.customerSessions.create({
+      externalCustomerId: authUser.id,
+    });
+
+    console.log(`[Polar] Portal session created for ${authUser.email}`);
+
+    json(res, 200, { url: session.customerPortalUrl });
+  } catch (err) {
+    console.error("[Polar] Portal error:", err);
+    json(res, 500, { error: "Failed to create portal session" });
+  }
+}
+
 // ─── Subscription status endpoint ────────────────────────────────────────────
 
 export async function handlePolarSubscriptionStatus(req: IncomingMessage, res: ServerResponse) {

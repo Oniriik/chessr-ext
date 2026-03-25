@@ -403,7 +403,10 @@ export function BillingApp() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }
+@media (max-width: 640px) {
+  .billing-grid { grid-template-columns: 1fr !important; max-width: 400px; margin: 0 auto; }
+}`}</style>
 
       <div style={{ width: '100%', maxWidth: 900 }}>
         {/* Header */}
@@ -491,7 +494,7 @@ export function BillingApp() {
         )}
 
         {/* Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+        <div className="billing-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
 
           {/* Free */}
           <div style={{
@@ -632,45 +635,28 @@ export function BillingApp() {
                   }}>Canceled</button>
                 ) : (
                   <>
-                    {/* Switch monthly → yearly button */}
-                    {canSwitchToYearly && billing === 'yearly' ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {/* Inline preview on card */}
-                        {switchPreview?.result && !loadingPreview && (
-                          <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span>You pay now</span>
-                              <span style={{ fontWeight: 600, color: '#fff' }}>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
-                            </div>
-                            {switchPreview.credit && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
-                                <span>Includes -€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)} credit</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {loadingPreview && (
-                          <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Spinner /></div>
-                        )}
-                        <button
-                          onClick={() => setShowSwitchModal(true)}
-                          style={{
-                            width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                            fontWeight: 700, fontSize: 13, color: '#fff',
-                            background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          }}
-                        >
-                          Switch to Yearly (save 30%) <ArrowRightIcon />
-                        </button>
-                      </div>
-                    ) : (
-                      <button disabled style={{
+                    <button
+                      onClick={async () => {
+                        const token = session?.access_token;
+                        if (!token) return;
+                        try {
+                          const res = await fetch(`${SERVER_URL}/api/polar/portal`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                          });
+                          const { url } = await res.json();
+                          if (url) window.location.href = url;
+                        } catch {}
+                      }}
+                      style={{
                         width: '100%', padding: '10px 0', borderRadius: 9999, border: 'none',
-                        fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.5)', background: '#1a2a4a', cursor: 'default',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>Current Plan{subInterval ? ` (${subInterval})` : ''}</button>
-                    )}
+                        fontWeight: 700, fontSize: 13, color: '#fff',
+                        background: 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      }}
+                    >
+                      Manage Subscription <ArrowRightIcon />
+                    </button>
 
                     {/* Cancel link */}
                     <button
