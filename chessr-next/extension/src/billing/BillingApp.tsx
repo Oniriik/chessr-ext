@@ -136,17 +136,17 @@ export function BillingApp() {
   const [canceling, setCanceling] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [switchPreview, setSwitchPreview] = useState<{
-    credit: { amount: string; currency: string } | null;
-    charge: { amount: string; currency: string } | null;
-    result: { action: string; amount: string; currency: string } | null;
+    credit: string | null;
+    charge: string | null;
     tax: string | null;
+    total: string | null;
     nextBilledAt: string | null;
   } | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [dynamicPrices, setDynamicPrices] = useState<Record<string, { price: string; original: string | null; currency: string }> | null>(null);
   const [showLifetimeModal, setShowLifetimeModal] = useState(false);
   const [lifetimePreview, setLifetimePreview] = useState<{
-    lifetimePrice: number; discount: number; credit: number; total: number; currency: string; currentInterval: string;
+    lifetimePrice: string; discount: string | null; credit: string | null; total: string; currency: string; currentInterval: string;
   } | null>(null);
   const [loadingLifetimePreview, setLoadingLifetimePreview] = useState(false);
   const [upgradingLifetime, setUpgradingLifetime] = useState(false);
@@ -445,7 +445,7 @@ export function BillingApp() {
     }
   };
 
-  // Fetch lifetime upgrade preview when modal opens
+  // Fetch lifetime upgrade preview
   const fetchLifetimePreview = async () => {
     const token = session?.access_token;
     if (!token) return;
@@ -497,6 +497,13 @@ export function BillingApp() {
   const isFree = isCurrentPlan('free', userPlan);
   const isPremium = isCurrentPlan('premium', userPlan);
   const isLifetime = isCurrentPlan('lifetime', userPlan);
+
+  // Auto-fetch lifetime preview when user is premium
+  useEffect(() => {
+    if (isPremium && !subCanceled && session?.access_token) {
+      fetchLifetimePreview();
+    }
+  }, [isPremium, subCanceled]);
 
   // Loading state
   if (!session || !dynamicPrices) {
@@ -741,20 +748,15 @@ export function BillingApp() {
                     {canSwitchToYearly && billing === 'yearly' ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {/* Inline preview on card */}
-                        {switchPreview?.result && !loadingPreview && (
+                        {switchPreview?.total && !loadingPreview && (
                           <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                               <span>You pay now</span>
-                              <span style={{ fontWeight: 600, color: '#fff' }}>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
+                              <span style={{ fontWeight: 600, color: '#fff' }}>{switchPreview.total}</span>
                             </div>
                             {switchPreview.credit && (
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
-                                <span>Includes -€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)} credit</span>
-                              </div>
-                            )}
-                            {switchPreview.tax && Number(switchPreview.tax) > 0 && (
-                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: 'rgba(255,255,255,0.4)', fontSize: 9 }}>
-                                <span>Incl. tax €{(Number(switchPreview.tax) / 100).toFixed(2)}</span>
+                                <span>Includes -{switchPreview.credit} credit</span>
                               </div>
                             )}
                           </div>
@@ -865,11 +867,28 @@ export function BillingApp() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>Current Plan</button>
             ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Inline preview for premium users upgrading to lifetime */}
+                {isPremium && !subCanceled && lifetimePreview && !loadingLifetimePreview && (
+                  <div style={{ padding: '6px 8px', borderRadius: 6, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 10, color: '#93c5fd' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>You pay</span>
+                      <span style={{ fontWeight: 600, color: '#fff' }}>{lifetimePreview.total}</span>
+                    </div>
+                    {lifetimePreview.credit && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 2, color: '#4ade80', fontSize: 9 }}>
+                        <span>Includes -{lifetimePreview.credit} credit</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {isPremium && !subCanceled && loadingLifetimePreview && (
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: 4 }}><Spinner /></div>
+                )}
               <button
                 onClick={() => {
                   if (isPremium) {
                     setShowLifetimeModal(true);
-                    fetchLifetimePreview();
                   } else {
                     handleSelect('lifetime');
                   }
@@ -882,8 +901,9 @@ export function BillingApp() {
                   opacity: loading !== null ? 0.5 : 1,
                 }}
               >
-                {loading === 'lifetime' ? <Spinner /> : <>Get Lifetime <ArrowRightIcon /></>}
+                {loading === 'lifetime' ? <Spinner /> : <>{isPremium ? 'Upgrade to Lifetime' : 'Get Lifetime'} <ArrowRightIcon /></>}
               </button>
+              </div>
             )}
           </div>
         </div>
@@ -904,70 +924,52 @@ export function BillingApp() {
 
       {/* Switch Plan Modal */}
       {showSwitchModal && (
-        <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'rgba(0,0,0,0.7)', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          }}
-          onClick={(e) => { if (e.target === e.currentTarget && !switching) setShowSwitchModal(false); }}
-        >
-          <div style={{ width: 400, borderRadius: 12, background: '#111119', border: '1px solid #2a2a3e', overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e1e2e', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+          <div style={{ background: '#111119', borderRadius: 12, border: '1px solid #1e1e2e', padding: 20, maxWidth: 360, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>Switch to Yearly</span>
-              <button
-                onClick={() => !switching && setShowSwitchModal(false)}
-                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}
-              >×</button>
+              <button onClick={() => !switching && setShowSwitchModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 16 }}>✕</button>
             </div>
 
-            <div style={{ padding: 20 }}>
-              {/* Loading */}
-              {loadingPreview && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '20px 0', color: '#93c5fd', fontSize: 12 }}>
-                  <Spinner /> Loading proration details...
-                </div>
-              )}
+            {loadingPreview && (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}><Spinner /></div>
+            )}
 
-              {/* Preview breakdown */}
-              {switchPreview && !loadingPreview && (
-                <div style={{ marginBottom: 16 }}>
-                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: '0 0 12px' }}>
-                    Save 30% by switching to yearly billing.
-                  </p>
-                  <div style={{ padding: 12, borderRadius: 8, background: '#0f1a2e', border: '1px solid #1e3a5f', fontSize: 12 }}>
-                    {switchPreview.credit && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: '#4ade80' }}>
-                        <span>Credit (remaining monthly)</span>
-                        <span>-€{Math.abs(Number(switchPreview.credit.amount) / 100).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {switchPreview.charge && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'rgba(255,255,255,0.6)' }}>
-                        <span>Yearly plan</span>
-                        <span>€{(Number(switchPreview.charge.amount) / 100).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {switchPreview.tax && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, color: 'rgba(255,255,255,0.4)' }}>
-                        <span>VAT</span>
-                        <span>€{(Number(switchPreview.tax) / 100).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {switchPreview.result && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid #1e3a5f', fontWeight: 600, color: '#fff' }}>
-                        <span>Amount paid</span>
-                        <span>€{(Number(switchPreview.result.amount) / 100).toFixed(2)}</span>
-                      </div>
-                    )}
-                    {switchPreview.nextBilledAt && (
-                      <div style={{ marginTop: 8, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                        Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                      </div>
-                    )}
-                  </div>
+            {switchPreview && !loadingPreview && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#0a0a12', border: '1px solid #1e1e2e', fontSize: 11 }}>
+                  {switchPreview.charge && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.6)' }}>
+                      <span>Yearly plan</span>
+                      <span style={{ color: '#fff' }}>{switchPreview.charge}</span>
+                    </div>
+                  )}
+                  {switchPreview.credit && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
+                      <span>Credit (remaining monthly)</span>
+                      <span>-{switchPreview.credit}</span>
+                    </div>
+                  )}
+                  {switchPreview.tax && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.4)' }}>
+                      <span>Tax</span>
+                      <span>{switchPreview.tax}</span>
+                    </div>
+                  )}
+                  {switchPreview.total && (
+                    <div style={{ borderTop: '1px solid #1e1e2e', paddingTop: 6, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#fff' }}>
+                      <span>You pay</span>
+                      <span>{switchPreview.total}</span>
+                    </div>
+                  )}
+                  {switchPreview.nextBilledAt && (
+                    <div style={{ marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.3)' }}>
+                      Next renewal: {new Date(switchPreview.nextBilledAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
 
               {/* Error fallback */}
               {!switchPreview && !loadingPreview && (
@@ -976,30 +978,30 @@ export function BillingApp() {
                 </p>
               )}
 
-              {/* Buttons */}
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => setShowSwitchModal(false)}
-                  disabled={switching}
-                  style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: '1px solid #2a2a3e', background: 'transparent', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleSwitch()}
-                  disabled={switching || loadingPreview}
-                  style={{
-                    flex: 1, padding: '10px 0', borderRadius: 8, border: 'none',
-                    fontWeight: 600, fontSize: 13, color: '#fff',
-                    background: switching || loadingPreview ? '#1a2a4a' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
-                    cursor: switching || loadingPreview ? 'default' : 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    opacity: switching || loadingPreview ? 0.5 : 1,
-                  }}
-                >
-                  {switching ? <><Spinner /> Switching...</> : 'Confirm Switch'}
-                </button>
-              </div>
+            {!switchPreview && !loadingPreview && (
+              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '10px 0' }}>
+                Failed to load preview. Try again.
+              </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowSwitchModal(false)}
+                disabled={switching}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 9999, border: '1px solid #1e1e2e', background: 'transparent', color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >Cancel</button>
+              <button
+                onClick={() => handleSwitch()}
+                disabled={switching || loadingPreview || !switchPreview}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 9999, border: 'none', fontWeight: 700, fontSize: 12, color: '#fff',
+                  background: switching || loadingPreview ? '#1a2a4a' : 'linear-gradient(135deg, #3b82f6, #22d3ee)',
+                  cursor: switching || loadingPreview ? 'default' : 'pointer',
+                  opacity: switching || loadingPreview ? 0.5 : 1,
+                }}
+              >
+                {switching ? <Spinner /> : 'Confirm Switch'}
+              </button>
             </div>
           </div>
         </div>
@@ -1023,23 +1025,23 @@ export function BillingApp() {
                 <div style={{ padding: '10px 12px', borderRadius: 8, background: '#0a0a12', border: '1px solid #1e1e2e', fontSize: 11 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: 'rgba(255,255,255,0.6)' }}>
                     <span>Lifetime price</span>
-                    <span style={{ color: '#fff' }}>{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.lifetimePrice / 100).toFixed(2)}</span>
+                    <span style={{ color: '#fff' }}>{lifetimePreview.lifetimePrice}</span>
                   </div>
-                  {lifetimePreview.discount > 0 && (
+                  {lifetimePreview.discount && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
                       <span>Discount</span>
-                      <span>-{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.discount / 100).toFixed(2)}</span>
+                      <span>-{lifetimePreview.discount}</span>
                     </div>
                   )}
-                  {lifetimePreview.credit > 0 && (
+                  {lifetimePreview.credit && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, color: '#4ade80' }}>
                       <span>Credit ({lifetimePreview.currentInterval} remaining)</span>
-                      <span>-{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.credit / 100).toFixed(2)}</span>
+                      <span>-{lifetimePreview.credit}</span>
                     </div>
                   )}
                   <div style={{ borderTop: '1px solid #1e1e2e', paddingTop: 6, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontWeight: 600, color: '#fff' }}>
                     <span>You pay</span>
-                    <span>{lifetimePreview.currency === 'USD' ? '$' : '€'}{(lifetimePreview.total / 100).toFixed(2)}</span>
+                    <span>{lifetimePreview.total}</span>
                   </div>
                 </div>
                 <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', margin: 0, textAlign: 'center' }}>

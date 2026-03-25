@@ -29,6 +29,24 @@ const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: 
   [process.env.PADDLE_PRICE_LIFETIME!]: { plan: "lifetime" },
 };
 
+// Currency symbol helper
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: "€", USD: "$", GBP: "£", INR: "₹", JPY: "¥", CNY: "¥",
+  KRW: "₩", BRL: "R$", MXN: "$", AUD: "A$", CAD: "C$", CHF: "CHF ",
+  SEK: "kr ", NOK: "kr ", DKK: "kr ", PLN: "zł", CZK: "Kč ",
+  HUF: "Ft ", TRY: "₺", ZAR: "R ", SGD: "S$", HKD: "HK$", NZD: "NZ$",
+  THB: "฿", TWD: "NT$", ARS: "ARS ", COP: "COP ", IDR: "Rp ",
+  MYR: "RM ", PHP: "₱", VND: "₫", UAH: "₴", ILS: "₪", EGP: "E£",
+  NGN: "₦", KES: "KSh ", GHS: "GH₵", PKR: "Rs ", BDT: "৳",
+};
+function currencySymbol(code: string): string {
+  return CURRENCY_SYMBOLS[code] || code + " ";
+}
+function formatAmount(amount: number, currencyCode: string): string {
+  const sym = currencySymbol(currencyCode);
+  return `${sym}${(Math.abs(amount) / 100).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!,
@@ -570,26 +588,22 @@ export function handlePaddlePreviewSwitch(req: IncomingMessage, res: ServerRespo
         ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
       });
 
-      const summary = preview.updateSummary;
       const immediate = preview.immediateTransaction;
+      const currencyCode = (immediate?.details?.totals as any)?.currencyCode || (preview as any).currencyCode || "USD";
+      const fmt = (amount: number) => formatAmount(amount, currencyCode);
 
-      // Extract line items for detailed breakdown (amounts include tax)
+      // Extract line items for detailed breakdown
       const lineItems = (immediate?.details as any)?.lineItems || [];
       const creditLine = lineItems.find((li: any) => li.proration);
       const chargeLine = lineItems.find((li: any) => !li.proration);
+      const totals = immediate?.details?.totals;
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        // TTC amounts from line items
-        credit: creditLine ? { amount: creditLine.totals.total, currency: creditLine.totals.currencyCode || 'EUR' } : null,
-        charge: chargeLine ? { amount: chargeLine.totals.total, currency: chargeLine.totals.currencyCode || 'EUR' } : null,
-        // Total TTC from immediate transaction
-        result: immediate?.details?.totals ? {
-          action: 'charge',
-          amount: immediate.details.totals.total,
-          currency: immediate.details.totals.currencyCode || 'EUR',
-        } : (summary?.result ? { action: summary.result.action, amount: summary.result.amount, currency: summary.result.currencyCode } : null),
-        tax: immediate?.details?.totals?.tax || null,
+        credit: creditLine ? fmt(Number(creditLine.totals.total)) : null,
+        charge: chargeLine ? fmt(Number(chargeLine.totals.total)) : null,
+        tax: totals?.tax && Number(totals.tax) > 0 ? fmt(Number(totals.tax)) : null,
+        total: totals ? fmt(Number(totals.total)) : null,
         nextBilledAt: preview.nextBilledAt,
       }));
     } catch (err) {
@@ -634,6 +648,28 @@ export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerRes
         return;
       }
 
+      // Get client IP for localized pricing
+      const forwarded = req.headers["x-forwarded-for"];
+      const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
+
+      // Get localized lifetime price via pricing preview
+      const discountId = process.env.PADDLE_DISCOUNT_ID;
+      const lifetimePriceId = PADDLE_PRICES["lifetime"];
+      const preview = await paddle.pricingPreview.preview({
+        items: [{ priceId: lifetimePriceId, quantity: 1 }],
+        ...(clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {}),
+        ...(discountId ? { discountId } : {}),
+      });
+
+      const lineItem = (preview as any).details?.lineItems?.[0];
+      const totals = lineItem?.totals;
+      const formatted = lineItem?.formattedTotals;
+      const currencyCode = (preview as any).currencyCode || "USD";
+
+      const lifetimeTotal = Number(totals?.total || 0);
+      const lifetimeDiscount = Number(totals?.discount || 0);
+      const lifetimeOriginal = lifetimeTotal + lifetimeDiscount;
+
       // Get subscription from Paddle to calculate remaining credit
       const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
       const currentItem = subscription.items?.[0];
@@ -651,36 +687,18 @@ export function handlePaddlePreviewLifetime(req: IncomingMessage, res: ServerRes
         credit = Math.round((remainingDays / totalDays) * priceAmount);
       }
 
-      // Get lifetime price
-      const lifetimePriceId = PADDLE_PRICES["lifetime"];
-      const lifetimePrice = await paddle.prices.get(lifetimePriceId);
-      const lifetimeAmount = Number(lifetimePrice.unitPrice?.amount || 0);
+      const finalTotal = Math.max(0, lifetimeTotal - credit);
 
-      // Apply discount if any
-      const discountId = process.env.PADDLE_DISCOUNT_ID;
-      let discountAmount = 0;
-      if (discountId) {
-        try {
-          const discount = await paddle.discounts.get(discountId);
-          if (discount.type === "percentage") {
-            discountAmount = Math.round(lifetimeAmount * Number(discount.amount) / 100);
-          } else if (discount.type === "flat") {
-            discountAmount = Number(discount.amount);
-          }
-        } catch {}
-      }
-
-      const discountedLifetime = lifetimeAmount - discountAmount;
-      const total = Math.max(0, discountedLifetime - credit);
+      const fmt = (amount: number) => formatAmount(amount, currencyCode);
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({
-        lifetimePrice: lifetimeAmount,
-        discount: discountAmount,
-        credit,
-        total,
+        lifetimePrice: fmt(lifetimeOriginal),
+        discount: lifetimeDiscount > 0 ? fmt(lifetimeDiscount) : null,
+        credit: credit > 0 ? fmt(credit) : null,
+        total: fmt(finalTotal),
         currentInterval: sub.interval,
-        currency: lifetimePrice.unitPrice?.currencyCode || "USD",
+        currency: currencyCode,
       }));
     } catch (err) {
       console.error("[Paddle] Preview lifetime error:", err);
@@ -920,9 +938,7 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
           // Format original with currency symbol
           let originalFormatted: string | null = null;
           if (hasDiscount) {
-            // Use same formatting style as Paddle's formatted total
-            const sym = currencyCode === "EUR" ? "€" : currencyCode === "INR" ? "₹" : currencyCode === "GBP" ? "£" : currencyCode === "USD" ? "$" : currencyCode + " ";
-            originalFormatted = `${sym}${(originalNum / 100).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            originalFormatted = formatAmount(originalNum, currencyCode);
           }
 
           prices[planKey] = {
