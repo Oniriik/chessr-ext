@@ -907,16 +907,29 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
           const totals = item.totals;
           const currencyCode = (preview as any).currencyCode || "USD";
 
-          // Detect discount: subtotal > total means discount was applied
-          const subtotalNum = Number(totals?.subtotal || 0);
-          const totalNum = Number(totals?.total || 0);
-          const hasDiscount = subtotalNum > totalNum;
+          // Detect discount via the discount field
+          const discountAmt = Number(totals?.discount || 0);
+          const hasDiscount = discountAmt > 0;
+
+          // If discount: original = subtotal + tax (price without discount), price = total (with discount)
+          // Paddle formatted: subtotal is HT, total is TTC after discount
+          const undiscountedTotal = Number(totals?.subtotal || 0) + Number(totals?.tax || 0) + discountAmt;
 
           prices[planKey] = {
-            price: formatted?.total || (totalNum / 100).toFixed(2),
-            original: hasDiscount ? (formatted?.subtotal || (subtotalNum / 100).toFixed(2)) : null,
+            price: formatted?.total || (Number(totals?.total || 0) / 100).toFixed(2),
+            original: hasDiscount ? (formatted?.subtotal ? null : (undiscountedTotal / 100).toFixed(2)) : null,
             currency: currencyCode,
           };
+
+          // Build original formatted price if discount exists
+          if (hasDiscount) {
+            // Reconstruct: unit price * quantity without discount
+            const unitPrice = item.price?.unitPrice?.amount;
+            if (unitPrice) {
+              const sym = currencyCode === "EUR" ? "€" : currencyCode === "INR" ? "₹" : currencyCode === "GBP" ? "£" : "$";
+              prices[planKey].original = `${sym}${(Number(unitPrice) / 100).toFixed(2)}`;
+            }
+          }
         }
       }
 
