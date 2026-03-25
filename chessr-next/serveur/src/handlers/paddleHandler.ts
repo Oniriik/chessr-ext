@@ -444,12 +444,10 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
       }
 
       // Create transaction to get checkout URL
-      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
       const transaction = await paddle.transactions.create({
         items: [{ priceId, quantity: 1 }],
         customerId,
         customData: { userId },
-        ...(discountId ? { discountId } : {}),
       });
 
       const txnId = transaction.id;
@@ -711,13 +709,11 @@ export function handlePaddleUpgradeLifetime(req: IncomingMessage, res: ServerRes
 
       // Create lifetime checkout transaction
       const priceId = PADDLE_PRICES["lifetime"];
-      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
       const transaction = await paddle.transactions.create({
         items: [{ priceId, quantity: 1 }],
         customerId: sub.paddle_customer_id!,
         customData: { userId },
-        ...(discountId ? { discountId } : {}),
       });
 
       console.log(`[Paddle] Lifetime checkout for ${userEmail} (txn=${transaction.id})`);

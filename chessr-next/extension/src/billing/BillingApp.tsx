@@ -424,14 +424,13 @@ export function BillingApp() {
 
       const { transactionId } = await res.json();
 
-      window.Paddle!.Checkout.open({
-        transactionId,
-        settings: {
-          theme: 'dark',
-          successUrl: undefined,
-        },
-      });
+      // Open checkout on chessr.io (Paddle requires approved domain)
+      const returnUrl = chrome.runtime.getURL('billing.html');
+      window.location.href = `https://chessr.io/checkout?_ptxn=${transactionId}&discount=earlyaccess&return=${encodeURIComponent(returnUrl)}`;
 
+      // Start polling for plan update
+      setConfirming(true);
+      pollForPlanUpdate();
 
     } catch (err: any) {
       console.error('[Billing] Checkout error:', err);
@@ -475,10 +474,10 @@ export function BillingApp() {
       }
       const { transactionId } = await res.json();
       setShowLifetimeModal(false);
-      window.Paddle!.Checkout.open({
-        transactionId,
-        settings: { theme: 'dark', successUrl: undefined },
-      });
+      const returnUrl = chrome.runtime.getURL('billing.html');
+      window.location.href = `https://chessr.io/checkout?_ptxn=${transactionId}&discount=earlyaccess&return=${encodeURIComponent(returnUrl)}`;
+      setConfirming(true);
+      pollForPlanUpdate();
     } catch (err: any) {
       console.error('[Billing] Lifetime upgrade error:', err);
       setError(err.message || 'Something went wrong');
