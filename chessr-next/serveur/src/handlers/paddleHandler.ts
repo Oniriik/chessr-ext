@@ -348,6 +348,168 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
   });
 }
 
+// ─── Billing link endpoint ──────────────────────────────────────────────────
+// POST /api/paddle/billing-link — ensures Paddle customer exists and returns a signed token
+// Used by the extension to open chessr.io/checkout without needing the extension billing page
+
+const BILLING_TOKEN_SECRET = PADDLE_WEBHOOK_SECRET; // reuse existing secret for HMAC
+const BILLING_TOKEN_TTL = 10 * 60 * 1000; // 10 minutes
+
+function signBillingToken(userId: string, customerId: string): string {
+  const ts = Date.now().toString();
+  const payload = `${userId}:${customerId}:${ts}`;
+  const sig = crypto.createHmac("sha256", BILLING_TOKEN_SECRET).update(payload).digest("hex");
+  // base64url encode: payload.sig
+  return Buffer.from(`${payload}:${sig}`).toString("base64url");
+}
+
+function verifyBillingToken(token: string): { userId: string; customerId: string } | null {
+  try {
+    const decoded = Buffer.from(token, "base64url").toString();
+    const parts = decoded.split(":");
+    if (parts.length !== 4) return null;
+    const [userId, customerId, ts, sig] = parts;
+    // Check expiry
+    if (Date.now() - Number(ts) > BILLING_TOKEN_TTL) return null;
+    // Verify signature
+    const payload = `${userId}:${customerId}:${ts}`;
+    const expected = crypto.createHmac("sha256", BILLING_TOKEN_SECRET).update(payload).digest("hex");
+    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+    return { userId, customerId };
+  } catch {
+    return null;
+  }
+}
+
+export function handlePaddleBillingLink(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const authHeader = req.headers["authorization"];
+      const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+      if (!token) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Authentication required" }));
+        return;
+      }
+
+      const { data: authData, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !authData.user) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid token" }));
+        return;
+      }
+
+      const userId = authData.user.id;
+      const userEmail = authData.user.email || "";
+
+      // Get or create Paddle customer (same logic as checkout)
+      let customerId: string | undefined;
+
+      const { data: existingSub } = await supabase
+        .from("subscriptions")
+        .select("paddle_customer_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (existingSub?.paddle_customer_id) {
+        try {
+          await paddle.customers.get(existingSub.paddle_customer_id);
+          customerId = existingSub.paddle_customer_id;
+        } catch {
+          await supabase.from("subscriptions").delete().eq("user_id", userId);
+        }
+      }
+
+      if (!customerId) {
+        try {
+          const customer = await paddle.customers.create({ email: userEmail });
+          customerId = customer.id;
+        } catch (createErr: any) {
+          if (createErr?.code === "conflict" || createErr?.type === "request_error") {
+            const customers = await paddle.customers.list({ email: [userEmail] });
+            for await (const c of customers) {
+              customerId = c.id;
+              break;
+            }
+          }
+          if (!customerId) throw createErr;
+        }
+
+        await supabase.from("subscriptions").upsert(
+          {
+            user_id: userId,
+            paddle_customer_id: customerId,
+            status: "pending",
+            plan: "free",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+      }
+
+      const billingToken = signBillingToken(userId, customerId);
+
+      console.log(`[Paddle] Billing link for ${userEmail} (customer=${customerId})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ token: billingToken }));
+    } catch (err) {
+      console.error("[Paddle] Billing link error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal error" }));
+    }
+  });
+}
+
+// ─── Checkout by token endpoint ─────────────────────────────────────────────
+// POST /api/paddle/checkout-by-token — creates a Paddle transaction using a billing token
+// Body: { token: string, plan: "monthly" | "yearly" | "lifetime" }
+
+export function handlePaddleCheckoutByToken(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const { token: billingToken, plan } = JSON.parse(body) as { token: string; plan: string };
+
+      const verified = verifyBillingToken(billingToken);
+      if (!verified) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid or expired billing token" }));
+        return;
+      }
+
+      const priceId = PADDLE_PRICES[plan];
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan. Use: monthly, yearly, or lifetime" }));
+        return;
+      }
+
+      const { userId, customerId } = verified;
+
+      const transaction = await paddle.transactions.create({
+        items: [{ priceId, quantity: 1 }],
+        customerId,
+        customData: { userId },
+      });
+
+      console.log(`[Paddle] Checkout by token: user=${userId}, plan=${plan} (txn=${transaction.id})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ transactionId: transaction.id }));
+    } catch (err) {
+      console.error("[Paddle] Checkout by token error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal error" }));
+    }
+  });
+}
+
 // ─── Checkout session endpoint ───────────────────────────────────────────────
 // POST /api/paddle/checkout — creates a Paddle transaction and returns checkout URL
 // Body: { plan: "monthly" | "yearly" | "lifetime" }

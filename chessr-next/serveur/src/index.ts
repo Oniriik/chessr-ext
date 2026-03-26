@@ -51,6 +51,8 @@ import {
   handlePaddleUpgradeLifetime,
   handlePaddleSubscriptionStatus,
   handlePaddlePrices,
+  handlePaddleBillingLink,
+  handlePaddleCheckoutByToken,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
 
@@ -632,6 +634,18 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Paddle webhook
   if (req.url === "/api/paddle/webhook" && req.method === "POST") {
     handlePaddleWebhook(req, res);
+    return;
+  }
+
+  // Paddle billing link (get signed token for chessr.io/checkout)
+  if (req.url === "/api/paddle/billing-link" && req.method === "POST") {
+    handlePaddleBillingLink(req, res);
+    return;
+  }
+
+  // Paddle checkout by token (from chessr.io/checkout plan selection)
+  if (req.url === "/api/paddle/checkout-by-token" && req.method === "POST") {
+    handlePaddleCheckoutByToken(req, res);
     return;
   }
 
