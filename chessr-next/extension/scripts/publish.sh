@@ -77,16 +77,50 @@ main() {
   log_info "Uploading to server..."
   scp "$zip_file" "$SERVER:$REMOTE_DIR/$remote_filename"
 
-  # Update version.json
+  # Update version.json (preserve maia section if it exists)
   log_info "Updating version.json..."
-  ssh "$SERVER" "cat > $REMOTE_DIR/version.json << EOF
+  ssh "$SERVER" "
+    MAIA_JSON=\$(cat $REMOTE_DIR/version.json 2>/dev/null | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    if \"maia\" in d:
+        print(json.dumps(d[\"maia\"]))
+    else:
+        print(\"\")
+except:
+    print(\"\")
+' 2>/dev/null)
+
+    if [ -n \"\$MAIA_JSON\" ]; then
+      cat > $REMOTE_DIR/version.json << VEOF
 {
   \"version\": \"$version\",
   \"minVersion\": \"$version\",
   \"downloadUrl\": \"https://download.chessr.io/$remote_filename\",
-  \"file\": \"$remote_filename\"
+  \"file\": \"$remote_filename\",
+  \"extension\": {
+    \"version\": \"$version\",
+    \"file\": \"$remote_filename\"
+  },
+  \"maia\": \$MAIA_JSON
 }
-EOF"
+VEOF
+    else
+      cat > $REMOTE_DIR/version.json << VEOF
+{
+  \"version\": \"$version\",
+  \"minVersion\": \"$version\",
+  \"downloadUrl\": \"https://download.chessr.io/$remote_filename\",
+  \"file\": \"$remote_filename\",
+  \"extension\": {
+    \"version\": \"$version\",
+    \"file\": \"$remote_filename\"
+  }
+}
+VEOF
+    fi
+  "
 
   # Verify
   log_info "Verifying..."
