@@ -92,6 +92,7 @@ async function updateUserPlan(
   status: string,
   nextBilledAt: string | null,
   canceledAt: string | null,
+  customDataUserId?: string,
 ) {
   const mapping = PRICE_PLAN_MAP[productId];
   if (!mapping) {
@@ -100,6 +101,8 @@ async function updateUserPlan(
   }
 
   // Find user by paddle_customer_id in subscriptions table
+  let userId: string | undefined;
+
   const { data: sub } = await supabase
     .from("subscriptions")
     .select("user_id")
@@ -107,12 +110,29 @@ async function updateUserPlan(
     .limit(1)
     .single();
 
-  if (!sub) {
+  if (sub) {
+    userId = sub.user_id;
+  } else if (customDataUserId) {
+    // Fallback: user paid with a different email, Paddle created a new customer
+    // Use the userId from custom_data and update the customer mapping
+    userId = customDataUserId;
+    console.log(`[Paddle] Customer ${customerId} not in DB, using custom_data.userId=${userId}`);
+    await supabase.from("subscriptions").upsert(
+      {
+        user_id: userId,
+        paddle_customer_id: customerId,
+        status: "pending",
+        plan: "free",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+  }
+
+  if (!userId) {
     console.error(`[Paddle] No user found for customer: ${customerId}`);
     return;
   }
-
-  const userId = sub.user_id;
 
   // Update subscription record (upsert by user_id — one subscription per user)
   await supabase
@@ -195,6 +215,7 @@ async function updateUserPlan(
 async function handleTransactionCompleted(event: any) {
   const transaction = event.data;
   const customerId = transaction.customer_id;
+  const customDataUserId = transaction.custom_data?.userId;
   const items = transaction.items || [];
 
   for (const item of items) {
@@ -203,6 +224,8 @@ async function handleTransactionCompleted(event: any) {
 
     if (mapping?.plan === "lifetime") {
       // Find user by paddle_customer_id
+      let userId: string | undefined;
+
       const { data: sub } = await supabase
         .from("subscriptions")
         .select("user_id")
@@ -210,7 +233,24 @@ async function handleTransactionCompleted(event: any) {
         .limit(1)
         .single();
 
-      if (!sub) {
+      if (sub) {
+        userId = sub.user_id;
+      } else if (customDataUserId) {
+        userId = customDataUserId;
+        console.log(`[Paddle] Transaction: customer ${customerId} not in DB, using custom_data.userId=${userId}`);
+        await supabase.from("subscriptions").upsert(
+          {
+            user_id: userId,
+            paddle_customer_id: customerId,
+            status: "pending",
+            plan: "free",
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+      }
+
+      if (!userId) {
         console.error(`[Paddle] No user for customer ${customerId} on transaction`);
         return;
       }
@@ -218,7 +258,7 @@ async function handleTransactionCompleted(event: any) {
       // Update subscription record
       await supabase.from("subscriptions").upsert(
         {
-          user_id: sub.user_id,
+          user_id: userId,
           paddle_customer_id: customerId,
           paddle_subscription_id: transaction.id,
           paddle_price_id: productId,
@@ -229,7 +269,7 @@ async function handleTransactionCompleted(event: any) {
           canceled_at: null,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: "paddle_subscription_id" },
+        { onConflict: "user_id" },
       );
 
       // Set lifetime plan (no expiry)
@@ -240,14 +280,14 @@ async function handleTransactionCompleted(event: any) {
           plan_expiry: null,
           updated_at: new Date().toISOString(),
         })
-        .eq("user_id", sub.user_id);
+        .eq("user_id", userId);
 
-      console.log(`[Paddle] ${sub.user_id} → lifetime (transaction ${transaction.id})`);
+      console.log(`[Paddle] ${userId} → lifetime (transaction ${transaction.id})`);
 
       // Log
-      const { data: userData } = await supabase.auth.admin.getUserById(sub.user_id);
+      const { data: userData } = await supabase.auth.admin.getUserById(userId);
       await supabase.from("plan_activity_logs").insert({
-        user_id: sub.user_id,
+        user_id: userId,
         user_email: userData?.user?.email || "",
         action_type: "paddle_lifetime_purchase",
         new_plan: "lifetime",
@@ -297,6 +337,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
         case "subscription.updated": {
           const sub = event.data;
           const productId = sub.items?.[0]?.price?.id;
+          const customDataUserId = sub.custom_data?.userId;
           // Paddle sends scheduled_change.action = "cancel" when user cancels
           // but status is still "active" until effective_at
           const scheduledCancel = sub.scheduled_change?.action === "cancel";
@@ -311,6 +352,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
             effectiveStatus,
             effectiveExpiry || null,
             sub.canceled_at || (scheduledCancel ? new Date().toISOString() : null),
+            customDataUserId,
           );
           break;
         }
@@ -318,6 +360,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
         case "subscription.canceled": {
           const sub = event.data;
           const productId = sub.items?.[0]?.price?.id;
+          const customDataUserId = sub.custom_data?.userId;
           await updateUserPlan(
             sub.customer_id,
             sub.id,
@@ -325,6 +368,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
             "canceled",
             sub.next_billed_at || null,
             sub.canceled_at || new Date().toISOString(),
+            customDataUserId,
           );
           break;
         }
