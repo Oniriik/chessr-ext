@@ -353,7 +353,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
 // Used by the extension to open chessr.io/checkout without needing the extension billing page
 
 const BILLING_TOKEN_SECRET = PADDLE_WEBHOOK_SECRET; // reuse existing secret for HMAC
-const BILLING_TOKEN_TTL = 10 * 60 * 1000; // 10 minutes
+const BILLING_TOKEN_TTL = 30 * 60 * 1000; // 30 minutes
 
 function signBillingToken(userId: string, customerId: string): string {
   const ts = Date.now().toString();
@@ -506,6 +506,358 @@ export function handlePaddleCheckoutByToken(req: IncomingMessage, res: ServerRes
       console.error("[Paddle] Checkout by token error:", err);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
+    }
+  });
+}
+
+// ─── Status by token endpoint ───────────────────────────────────────────────
+// POST /api/paddle/status-by-token — returns user plan + subscription info
+// Body: { token: string }
+
+export function handleStatusByToken(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const { token: billingToken } = JSON.parse(body) as { token: string };
+      const verified = verifyBillingToken(billingToken);
+      if (!verified) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid or expired billing token" }));
+        return;
+      }
+
+      const { userId } = verified;
+
+      // Get user plan from user_settings
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("plan, plan_expiry, freetrial_used, discord_id")
+        .eq("user_id", userId)
+        .single();
+
+      // Get subscription details
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("interval, current_period_end, status, canceled_at, paddle_subscription_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        plan: settings?.plan || "free",
+        planExpiry: settings?.plan_expiry || null,
+        freetrialUsed: settings?.freetrial_used ?? true,
+        discordLinked: !!settings?.discord_id,
+        subscription: sub ? {
+          interval: sub.interval || null,
+          currentPeriodEnd: sub.current_period_end || null,
+          status: sub.status || null,
+          canceledAt: sub.canceled_at || null,
+          hasSubscription: !!sub.paddle_subscription_id,
+        } : null,
+      }));
+    } catch (err) {
+      console.error("[Paddle] Status by token error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal error" }));
+    }
+  });
+}
+
+// ─── Switch by token endpoint ───────────────────────────────────────────────
+// POST /api/paddle/switch-by-token — switch between monthly ↔ yearly
+// Body: { token: string, plan: "monthly" | "yearly" }
+
+export function handleSwitchByToken(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const { token: billingToken, plan } = JSON.parse(body) as { token: string; plan: string };
+      const verified = verifyBillingToken(billingToken);
+      if (!verified) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid or expired billing token" }));
+        return;
+      }
+
+      const priceId = PADDLE_PRICES[plan];
+      if (!priceId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan. Use: monthly or yearly" }));
+        return;
+      }
+
+      const { userId } = verified;
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription found" }));
+        return;
+      }
+
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+      const updated = await paddle.subscriptions.update(sub.paddle_subscription_id, {
+        items: [{ priceId, quantity: 1 }],
+        prorationBillingMode: "prorated_immediately",
+        ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
+      });
+
+      console.log(`[Paddle] Switch by token to ${plan} for user ${userId} (${sub.paddle_subscription_id})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, nextBilledAt: updated.nextBilledAt }));
+    } catch (err) {
+      console.error("[Paddle] Switch by token error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to switch plan" }));
+    }
+  });
+}
+
+// ─── Cancel by token endpoint ───────────────────────────────────────────────
+// POST /api/paddle/cancel-by-token — cancel subscription at end of billing period
+// Body: { token: string, reason?: string, details?: string }
+
+export function handleCancelByToken(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const { token: billingToken, reason, details } = JSON.parse(body) as {
+        token: string; reason?: string; details?: string;
+      };
+      const verified = verifyBillingToken(billingToken);
+      if (!verified) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid or expired billing token" }));
+        return;
+      }
+
+      const { userId } = verified;
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, plan, interval")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription found" }));
+        return;
+      }
+
+      await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+        effectiveFrom: "next_billing_period",
+      });
+
+      console.log(`[Paddle] Cancel by token for user ${userId} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
+
+      // Store cancel reason
+      if (reason) {
+        const { data: userData } = await supabase.auth.admin.getUserById(userId);
+        await supabase.from("cancel_reasons").insert({
+          user_id: userId,
+          user_email: userData?.user?.email || "",
+          reason,
+          details: details || null,
+          plan: sub.plan,
+          interval: sub.interval,
+        });
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (err) {
+      console.error("[Paddle] Cancel by token error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to cancel subscription" }));
+    }
+  });
+}
+
+// ─── Preview upgrade by token endpoint ──────────────────────────────────────
+// POST /api/paddle/preview-upgrade-by-token — preview proration for upgrade
+// Body: { token: string, plan: "yearly" | "lifetime", currency?: string }
+
+export function handlePreviewUpgradeByToken(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const { token: billingToken, plan, currency: requestedCurrency } = JSON.parse(body) as {
+        token: string; plan: string; currency?: string;
+      };
+      const verified = verifyBillingToken(billingToken);
+      if (!verified) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid or expired billing token" }));
+        return;
+      }
+
+      const targetPriceId = PADDLE_PRICES[plan];
+      if (!targetPriceId || (plan !== "yearly" && plan !== "lifetime")) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid plan. Use: yearly or lifetime" }));
+        return;
+      }
+
+      const { userId } = verified;
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, interval")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription" }));
+        return;
+      }
+
+      const forwarded = req.headers["x-forwarded-for"];
+      const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
+      const ipParam = clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {};
+
+      const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+      const currencyParam = requestedCurrency ? { currencyCode: requestedCurrency } : {};
+
+      const targetPreview = await paddle.pricingPreview.preview({
+        items: [{ priceId: targetPriceId, quantity: 1 }],
+        ...ipParam,
+        ...currencyParam,
+        ...(discountId ? { discountId } : {}),
+      });
+
+      const targetLine = (targetPreview as any).details?.lineItems?.[0];
+      const targetTotals = targetLine?.totals;
+      const currencyCode = (targetPreview as any).currencyCode || "USD";
+      const fmt = (amount: number) => formatAmount(amount, currencyCode);
+
+      const targetTotal = Number(targetTotals?.total || 0);
+      const targetDiscount = Number(targetTotals?.discount || 0);
+      const targetOriginal = targetTotal + targetDiscount;
+
+      const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
+      const currentItem = subscription.items?.[0];
+      const billingStart = subscription.currentBillingPeriod?.startsAt;
+      const billingEnd = subscription.currentBillingPeriod?.endsAt;
+
+      let localizedSubPrice = 0;
+      if (currentItem?.price?.id) {
+        const subPreview = await paddle.pricingPreview.preview({
+          items: [{ priceId: currentItem.price.id, quantity: 1 }],
+          ...ipParam,
+          ...currencyParam,
+        });
+        const subLine = (subPreview as any).details?.lineItems?.[0];
+        localizedSubPrice = Number(subLine?.totals?.total || 0);
+      }
+
+      let prorate = 0;
+      if (billingStart && billingEnd && localizedSubPrice > 0) {
+        const start = new Date(billingStart).getTime();
+        const end = new Date(billingEnd).getTime();
+        const now = Date.now();
+        const totalDays = (end - start) / (1000 * 60 * 60 * 24);
+        const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
+        prorate = Math.round((remainingDays / totalDays) * localizedSubPrice);
+      }
+
+      const finalTotal = Math.max(0, targetTotal - prorate);
+
+      let nextBilledAt: string | null = null;
+      if (plan === "yearly") {
+        nextBilledAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+      }
+
+      const planLabel = plan === "yearly" ? "Yearly plan" : "Lifetime";
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        planLabel,
+        planPrice: fmt(targetOriginal),
+        discount: targetDiscount > 0 ? fmt(targetDiscount) : null,
+        prorate: prorate > 0 ? fmt(prorate) : null,
+        total: fmt(finalTotal),
+        nextBilledAt,
+      }));
+    } catch (err) {
+      console.error("[Paddle] Preview upgrade by token error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to preview upgrade" }));
+    }
+  });
+}
+
+// ─── Upgrade lifetime by token endpoint ─────────────────────────────────────
+// POST /api/paddle/upgrade-lifetime-by-token — cancel current sub + create lifetime checkout
+// Body: { token: string }
+
+export function handleUpgradeLifetimeByToken(req: IncomingMessage, res: ServerResponse) {
+  let body = "";
+  req.on("data", (chunk) => (body += chunk));
+  req.on("end", async () => {
+    try {
+      const { token: billingToken } = JSON.parse(body) as { token: string };
+      const verified = verifyBillingToken(billingToken);
+      if (!verified) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid or expired billing token" }));
+        return;
+      }
+
+      const { userId, customerId } = verified;
+
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("paddle_subscription_id, paddle_customer_id")
+        .eq("user_id", userId)
+        .limit(1)
+        .single();
+
+      if (!sub?.paddle_subscription_id) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "No active subscription" }));
+        return;
+      }
+
+      // Cancel current subscription immediately
+      await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+        effectiveFrom: "immediately",
+      });
+
+      console.log(`[Paddle] Canceled sub ${sub.paddle_subscription_id} immediately for lifetime upgrade (token)`);
+
+      // Create lifetime checkout transaction
+      const priceId = PADDLE_PRICES["lifetime"];
+      const transaction = await paddle.transactions.create({
+        items: [{ priceId, quantity: 1 }],
+        customerId: sub.paddle_customer_id || customerId,
+        customData: { userId },
+      });
+
+      console.log(`[Paddle] Lifetime checkout by token for user ${userId} (txn=${transaction.id})`);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ transactionId: transaction.id }));
+    } catch (err) {
+      console.error("[Paddle] Upgrade lifetime by token error:", err);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Failed to upgrade to lifetime" }));
     }
   });
 }

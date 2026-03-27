@@ -53,6 +53,11 @@ import {
   handlePaddlePrices,
   handlePaddleBillingLink,
   handlePaddleCheckoutByToken,
+  handleStatusByToken,
+  handleSwitchByToken,
+  handleCancelByToken,
+  handlePreviewUpgradeByToken,
+  handleUpgradeLifetimeByToken,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
 
@@ -646,6 +651,36 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   // Paddle checkout by token (from chessr.io/checkout plan selection)
   if (req.url === "/api/paddle/checkout-by-token" && req.method === "POST") {
     handlePaddleCheckoutByToken(req, res);
+    return;
+  }
+
+  // Paddle status by token (subscription info for chessr.io billing page)
+  if (req.url === "/api/paddle/status-by-token" && req.method === "POST") {
+    handleStatusByToken(req, res);
+    return;
+  }
+
+  // Paddle switch by token
+  if (req.url === "/api/paddle/switch-by-token" && req.method === "POST") {
+    handleSwitchByToken(req, res);
+    return;
+  }
+
+  // Paddle cancel by token
+  if (req.url === "/api/paddle/cancel-by-token" && req.method === "POST") {
+    handleCancelByToken(req, res);
+    return;
+  }
+
+  // Paddle preview upgrade by token
+  if (req.url === "/api/paddle/preview-upgrade-by-token" && req.method === "POST") {
+    handlePreviewUpgradeByToken(req, res);
+    return;
+  }
+
+  // Paddle upgrade lifetime by token
+  if (req.url === "/api/paddle/upgrade-lifetime-by-token" && req.method === "POST") {
+    handleUpgradeLifetimeByToken(req, res);
     return;
   }
 
