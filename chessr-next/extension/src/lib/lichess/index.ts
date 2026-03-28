@@ -11,12 +11,14 @@ const MOVE_SELECTOR = 'kwdb';
 const BOARD_SELECTOR = 'cg-board';
 
 /**
- * Detects if a game has started by checking for moves
+ * Detects if a game has started by checking for the move list and board.
+ * The move list can be empty when playing white (0 moves played yet).
  */
 export function detectGameStarted(): boolean {
   const moveList = document.querySelector(MOVE_LIST_SELECTOR);
   if (!moveList) return false;
-  return moveList.querySelectorAll(MOVE_SELECTOR).length > 0;
+  const board = document.querySelector(BOARD_SELECTOR);
+  return !!board;
 }
 
 /**
