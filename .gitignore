@@ -28,6 +28,9 @@ chessr-next/extension/build/*.zip
 *.env
 !.env.example
 
+# MCP config (contains tokens)
+.mcp.json
+
 # Chess engine binaries (proprietary - Komodo Dragon)
 server/engine/
 

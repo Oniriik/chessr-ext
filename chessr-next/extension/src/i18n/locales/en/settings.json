@@ -11,6 +11,8 @@
   "anonNamesDesc": "Blur usernames and avatars",
   "anonUrl": "Anon URL",
   "anonUrlDesc": "Hide page URL in address bar",
+  "showTitle": "Show Title",
+  "showTitleDesc": "Display a chess title badge next to your name",
   "showEvalBar": "Show Eval bar",
   "showEvalBarDesc": "Chess board eval bar",
   "eval": "Eval",

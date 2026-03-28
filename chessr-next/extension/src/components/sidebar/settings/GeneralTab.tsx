@@ -15,12 +15,16 @@ export function GeneralTab() {
     showDetailedMoveSuggestion,
     showEvalBar,
     evalBarMode,
+    showTitle,
+    titleType,
     anonNames,
     anonUrl,
     setLanguage,
     setShowDetailedMoveSuggestion,
     setShowEvalBar,
     setEvalBarMode,
+    setShowTitle,
+    setTitleType,
     setAnonNames,
     setAnonUrl,
   } = useSettingsStore();
@@ -115,6 +119,40 @@ export function GeneralTab() {
               onCheckedChange={setShowEvalBar}
             />
           </div>
+        </div>
+
+        {/* Show Title */}
+        <div className="tw-space-y-2">
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+            <div className="tw-space-y-0.5">
+              <Label className="tw-text-sm tw-font-medium">{t('showTitle')}</Label>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                {t('showTitleDesc')}
+              </p>
+            </div>
+            <Switch
+              checked={showTitle}
+              onCheckedChange={setShowTitle}
+            />
+          </div>
+          {showTitle && (
+            <select
+              value={titleType}
+              onChange={(e) => setTitleType(e.target.value)}
+              className="tw-w-full tw-h-9 tw-px-3 tw-py-1 tw-text-sm tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-shadow-sm focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring tw-cursor-pointer tw-appearance-none tw-bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20fill%3D%22none%22%20stroke%3D%22%23888%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m2%204%204%204%204-4%22%2F%3E%3C%2Fsvg%3E')] tw-bg-[length:12px] tw-bg-[right_8px_center] tw-bg-no-repeat tw-pr-8"
+            >
+              <option value="GM">Grandmaster (GM)</option>
+              <option value="IM">International Master (IM)</option>
+              <option value="FM">FIDE Master (FM)</option>
+              <option value="NM">National Master (NM)</option>
+              <option value="CM">FIDE Candidate Master (CM)</option>
+              <option value="WGM">Woman Grandmaster (WGM)</option>
+              <option value="WIM">Woman International Master (WIM)</option>
+              <option value="WFM">Woman FIDE Master (WFM)</option>
+              <option value="WCM">FIDE Woman Candidate Master (WCM)</option>
+              <option value="WNM">Woman National Master (WNM)</option>
+            </select>
+          )}
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import { createRoot, Root } from 'react-dom/client';
 import { getPlatformContext, MountPoint, RouteId } from '../platforms';
 import { PlatformProvider } from '../contexts/PlatformContext';
 import { initAnonymousBlur, rescanAnonymousBlur, getRealHref } from './anonymousBlur';
+import { initTitleSimulator, rescanTitleSimulator } from './titleSimulator';
 import { initStreamerBridge } from '../lib/streamerBridge';
 import { useDiscordStore } from '../stores/discordStore';
 import '../styles/content.css';
@@ -152,6 +153,9 @@ updateMounts();
 // Initialize anonymous blur for platform page elements
 initAnonymousBlur();
 
+// Initialize title simulator for chess.com
+initTitleSimulator();
+
 // Watch for URL changes and DOM updates (SPA navigation + async rendering)
 let lastUrl = getRealHref();
 const observer = new MutationObserver(() => {
@@ -160,6 +164,7 @@ const observer = new MutationObserver(() => {
     lastUrl = currentReal;
     updateMounts();
     rescanAnonymousBlur();
+    rescanTitleSimulator();
   } else {
     // Retry mounting components whose selectors weren't found initially
     updateMounts();
@@ -172,6 +177,7 @@ observer.observe(document.body, { childList: true, subtree: true });
 window.addEventListener('popstate', () => {
   updateMounts();
   rescanAnonymousBlur();
+  rescanTitleSimulator();
 });
 
 // Initialize streamer mode bridge (connects to background service worker)

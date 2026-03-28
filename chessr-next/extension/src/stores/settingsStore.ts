@@ -18,6 +18,10 @@ interface SettingsState {
   showEvalBar: boolean;
   evalBarMode: EvalBarMode;
 
+  // Title simulator
+  showTitle: boolean;
+  titleType: string;
+
   // Privacy
   anonNames: boolean;
   anonUrl: boolean;
@@ -36,6 +40,8 @@ interface SettingsState {
   setShowDetailedMoveSuggestion: (show: boolean) => void;
   setShowEvalBar: (show: boolean) => void;
   setEvalBarMode: (mode: EvalBarMode) => void;
+  setShowTitle: (show: boolean) => void;
+  setTitleType: (type: string) => void;
   setAnonNames: (value: boolean) => void;
   setAnonUrl: (value: boolean) => void;
   setNumberOfSuggestions: (num: 1 | 2 | 3) => void;
@@ -56,6 +62,10 @@ export const useSettingsStore = create<SettingsState>()(
       showEvalBar: true,
       evalBarMode: 'eval',
 
+      // Title simulator
+      showTitle: false,
+      titleType: 'GM',
+
       // Privacy
       anonNames: false,
       anonUrl: false,
@@ -74,6 +84,8 @@ export const useSettingsStore = create<SettingsState>()(
       setShowDetailedMoveSuggestion: (show) => set({ showDetailedMoveSuggestion: show }),
       setShowEvalBar: (show) => set({ showEvalBar: show }),
       setEvalBarMode: (mode) => set({ evalBarMode: mode }),
+      setShowTitle: (show) => set({ showTitle: show }),
+      setTitleType: (type) => set({ titleType: type }),
       setAnonNames: (value) => set({ anonNames: value }),
       setAnonUrl: (value) => set({ anonUrl: value }),
       setNumberOfSuggestions: (num) => set({ numberOfSuggestions: num }),
