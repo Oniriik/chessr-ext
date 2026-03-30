@@ -2,7 +2,7 @@
  * Platform API utilities for fetching Chess.com and Lichess profiles
  */
 
-export type Platform = 'chesscom' | 'lichess';
+export type Platform = 'chesscom' | 'lichess' | 'worldchess';
 
 export interface PlatformProfile {
   username: string;
@@ -105,7 +105,16 @@ export async function fetchPlatformProfile(
 ): Promise<PlatformProfile | null> {
   if (platform === 'chesscom') {
     return fetchChessComProfile(username);
-  } else {
+  } else if (platform === 'lichess') {
     return fetchLichessProfile(username);
+  } else if (platform === 'worldchess') {
+    // WorldChess doesn't have a public API for profiles yet
+    // Return a basic profile with the display name
+    return {
+      username,
+      platform: 'worldchess',
+      ratings: {},
+    };
   }
+  return null;
 }

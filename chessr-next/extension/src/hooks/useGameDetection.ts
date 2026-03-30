@@ -6,6 +6,8 @@ import { getRealHref } from '../content/anonymousBlur';
 import { logger } from '../lib/logger';
 import * as chesscom from '../platforms/chesscom';
 import * as lichess from '../platforms/lichess';
+import * as worldchess from '../platforms/worldchess';
+
 // Platform-specific selectors
 const PLATFORM_CONFIG = {
   chesscom: {
@@ -15,6 +17,10 @@ const PLATFORM_CONFIG = {
   lichess: {
     moveListSelector: 'rm6, l4x, .moves',
     moveSelector: 'kwdb',
+  },
+  worldchess: {
+    moveListSelector: '[data-component="GameNotationTable"]',
+    moveSelector: 'button[id^="move_"][id$="_table"]',
   },
 } as const;
 
@@ -74,7 +80,7 @@ export function useGameDetection() {
   // Get platform-specific functions and selectors
   const platformId = platform.id;
   const config = PLATFORM_CONFIG[platformId];
-  const platformModule = platformId === 'lichess' ? lichess : chesscom;
+  const platformModule = platformId === 'lichess' ? lichess : platformId === 'worldchess' ? worldchess : chesscom;
 
   useEffect(() => {
     logger.log(`[useGameDetection] URL changed or init (${platformId}):`, currentUrl);

@@ -10,6 +10,7 @@ export interface LinkedAccount {
   id: string;
   platform: Platform;
   platformUsername: string;
+  displayName?: string;
   avatarUrl?: string;
   ratingBullet?: number;
   ratingBlitz?: number;

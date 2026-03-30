@@ -32,8 +32,9 @@ export interface GetLinkedAccountsMessage {
 
 export interface LinkAccountMessage {
   type: 'link_account';
-  platform: 'chesscom' | 'lichess';
+  platform: 'chesscom' | 'lichess' | 'worldchess';
   username: string;
+  displayName?: string;
   avatarUrl?: string;
   ratingBullet?: number;
   ratingBlitz?: number;
@@ -47,7 +48,7 @@ export interface UnlinkAccountMessage {
 
 export interface CheckCooldownMessage {
   type: 'check_cooldown';
-  platform: 'chesscom' | 'lichess';
+  platform: 'chesscom' | 'lichess' | 'worldchess';
   username: string;
 }
 
@@ -57,8 +58,9 @@ export interface CheckCooldownMessage {
 
 interface LinkedAccount {
   id: string;
-  platform: 'chesscom' | 'lichess';
+  platform: 'chesscom' | 'lichess' | 'worldchess';
   platformUsername: string;
+  displayName?: string;
   avatarUrl?: string;
   ratingBullet?: number;
   ratingBlitz?: number;
@@ -206,7 +208,7 @@ async function notifyAccountChange(
   if (!DISCORD_BOT_TOKEN || !DISCORD_CHANNEL_ACCOUNTS) return;
 
   try {
-    const platformName = platform === 'chesscom' ? 'Chess.com' : 'Lichess';
+    const platformName = platform === 'chesscom' ? 'Chess.com' : platform === 'lichess' ? 'Lichess' : 'World Chess';
     const isLinked = action === 'linked';
 
     const fields: { name: string; value: string; inline: boolean }[] = [
@@ -261,7 +263,7 @@ export async function handleGetLinkedAccounts(client: Client): Promise<void> {
   try {
     const { data, error } = await supabase
       .from('linked_accounts')
-      .select('id, platform, platform_username, avatar_url, rating_bullet, rating_blitz, rating_rapid, linked_at')
+      .select('id, platform, platform_username, display_name, avatar_url, rating_bullet, rating_blitz, rating_rapid, linked_at')
       .eq('user_id', client.user.id)
       .is('unlinked_at', null)
       .order('linked_at', { ascending: false });
@@ -281,6 +283,7 @@ export async function handleGetLinkedAccounts(client: Client): Promise<void> {
       id: row.id,
       platform: row.platform,
       platformUsername: row.platform_username,
+      displayName: row.display_name || undefined,
       avatarUrl: row.avatar_url,
       ratingBullet: row.rating_bullet,
       ratingBlitz: row.rating_blitz,
@@ -317,7 +320,7 @@ export async function handleLinkAccount(
   message: LinkAccountMessage,
   client: Client
 ): Promise<void> {
-  const { platform, username, avatarUrl, ratingBullet, ratingBlitz, ratingRapid } = message;
+  const { platform, username, displayName, avatarUrl, ratingBullet, ratingBlitz, ratingRapid } = message;
 
   // Validate required fields
   if (!platform || !username) {
@@ -332,11 +335,11 @@ export async function handleLinkAccount(
   }
 
   // Validate platform
-  if (platform !== 'chesscom' && platform !== 'lichess') {
+  if (platform !== 'chesscom' && platform !== 'lichess' && platform !== 'worldchess') {
     client.ws.send(
       JSON.stringify({
         type: 'link_account_error',
-        error: 'Invalid platform. Must be chesscom or lichess',
+        error: 'Invalid platform. Must be chesscom, lichess, or worldchess',
         code: 'UNKNOWN',
       })
     );
@@ -366,12 +369,13 @@ export async function handleLinkAccount(
         user_id: client.user.id,
         platform,
         platform_username: username.toLowerCase(),
+        display_name: displayName || null,
         avatar_url: avatarUrl,
         rating_bullet: ratingBullet,
         rating_blitz: ratingBlitz,
         rating_rapid: ratingRapid,
       })
-      .select('id, platform, platform_username, avatar_url, rating_bullet, rating_blitz, rating_rapid, linked_at')
+      .select('id, platform, platform_username, display_name, avatar_url, rating_bullet, rating_blitz, rating_rapid, linked_at')
       .single();
 
     if (error) {
@@ -403,6 +407,7 @@ export async function handleLinkAccount(
       id: data.id,
       platform: data.platform,
       platformUsername: data.platform_username,
+      displayName: data.display_name || undefined,
       avatarUrl: data.avatar_url,
       ratingBullet: data.rating_bullet,
       ratingBlitz: data.rating_blitz,

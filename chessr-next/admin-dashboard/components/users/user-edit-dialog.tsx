@@ -212,9 +212,9 @@ export function UserEditDialog({
                         <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                           <div className="flex items-center gap-2">
                             <Link2 className="w-4 h-4 text-emerald-400" />
-                            <span className="text-sm font-medium">{account.platform_username}</span>
+                            <span className="text-sm font-medium">{account.display_name || account.platform_username}</span>
                             <Badge variant="outline" className="text-xs">
-                              {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
+                              {account.platform === 'chesscom' ? 'Chess.com' : account.platform === 'lichess' ? 'Lichess' : 'World Chess'}
                             </Badge>
                           </div>
                           <div className="flex items-center gap-2">
@@ -263,9 +263,9 @@ export function UserEditDialog({
                       >
                         <div className="flex items-center gap-2">
                           <Unlink className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm">{account.platform_username}</span>
+                          <span className="text-sm">{account.display_name || account.platform_username}</span>
                           <Badge variant="outline" className="text-xs">
-                            {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
+                            {account.platform === 'chesscom' ? 'Chess.com' : account.platform === 'lichess' ? 'Lichess' : 'World Chess'}
                           </Badge>
                           <span className="text-xs text-amber-400 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
@@ -310,9 +310,9 @@ export function UserEditDialog({
                       >
                         <div className="flex items-center gap-2">
                           <Unlink className="w-4 h-4 text-muted-foreground" />
-                          <span className="text-sm">{account.platform_username}</span>
+                          <span className="text-sm">{account.display_name || account.platform_username}</span>
                           <Badge variant="outline" className="text-xs">
-                            {account.platform === 'chesscom' ? 'Chess.com' : 'Lichess'}
+                            {account.platform === 'chesscom' ? 'Chess.com' : account.platform === 'lichess' ? 'Lichess' : 'World Chess'}
                           </Badge>
                         </div>
                       </div>

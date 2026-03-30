@@ -8,13 +8,16 @@ const CHESSCOM_MOVE_LIST_SELECTOR = '.play-controller-moves, .move-list, [class*
 const CHESSCOM_MOVE_SELECTOR = '.main-line-ply';
 const LICHESS_MOVE_LIST_SELECTOR = 'rm6, l4x, .moves';
 const LICHESS_MOVE_SELECTOR = 'kwdb';
+const WORLDCHESS_MOVE_LIST_SELECTOR = '[data-component="GameNotationTable"]';
+const WORLDCHESS_MOVE_SELECTOR = 'button[id^="move_"][id$="_table"]';
 
 /**
  * Detect current platform from hostname
  */
-function detectPlatform(): 'chesscom' | 'lichess' {
+function detectPlatform(): 'chesscom' | 'lichess' | 'worldchess' {
   const hostname = window.location.hostname;
   if (hostname.includes('lichess.org')) return 'lichess';
+  if (hostname.includes('worldchess.com')) return 'worldchess';
   return 'chesscom';
 }
 
@@ -27,6 +30,12 @@ function getSelectors() {
     return {
       moveListSelector: LICHESS_MOVE_LIST_SELECTOR,
       moveSelector: LICHESS_MOVE_SELECTOR,
+    };
+  }
+  if (platform === 'worldchess') {
+    return {
+      moveListSelector: WORLDCHESS_MOVE_LIST_SELECTOR,
+      moveSelector: WORLDCHESS_MOVE_SELECTOR,
     };
   }
   return {
@@ -111,6 +120,19 @@ export function extractMovesFromDOM(): string[] {
     if (platform === 'lichess') {
       // Lichess: moves are plain text in kwdb elements
       san = ply.textContent?.trim() || null;
+    } else if (platform === 'worldchess') {
+      // WorldChess: SAN text is in a div child (not the piece SVG div or time div)
+      // Structure: button > [div(piece icon), div(SAN text), div(time)]
+      san = null;
+      const divs = ply.querySelectorAll(':scope > div > div');
+      for (const div of divs) {
+        if (div.querySelector('svg')) continue; // piece icon
+        const text = div.textContent?.trim() || '';
+        if (text && !text.includes(':') && /^[KQRBNP]?[a-h]?[1-8]?x?[a-h]?[1-8]?[=+#]*[QRBN]?[+#]*$|^O-O(-O)?[+#]*$/.test(text.replace(/[+#]/g, ''))) {
+          san = text;
+          break;
+        }
+      }
     } else {
       // Chess.com: may have figurine notation
       san = extractSanFromPly(ply);

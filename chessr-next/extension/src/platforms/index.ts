@@ -1,8 +1,9 @@
 import { Platform, PlatformContext } from './types';
 import { chesscom } from './chesscom';
 import { lichess } from './lichess';
+import { worldchess } from './worldchess';
 
-const platforms: Platform[] = [chesscom, lichess];
+const platforms: Platform[] = [chesscom, lichess, worldchess];
 
 export function detectPlatform(url: URL): Platform | null {
   return platforms.find(p => p.hostname.test(url.hostname)) ?? null;
@@ -19,5 +20,5 @@ export function getPlatformContext(url: URL): PlatformContext | null {
   };
 }
 
-export { chesscom, lichess };
+export { chesscom, lichess, worldchess };
 export * from './types';

@@ -1,6 +1,6 @@
 import { ComponentType } from 'react';
 
-export type PlatformId = 'chesscom' | 'lichess';
+export type PlatformId = 'chesscom' | 'lichess' | 'worldchess';
 
 export type RouteId =
   | 'game'

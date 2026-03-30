@@ -11,6 +11,7 @@ import { detectPlatform } from '../platforms';
 import { getRealHref } from '../content/anonymousBlur';
 import { getChessComUsername } from '../lib/chesscom/username';
 import { getLichessUsername } from '../lib/lichess/username';
+import { getWorldChessUsername } from '../lib/worldchess/username';
 import { fetchPlatformProfile, type Platform } from '../lib/platformApi';
 import { logger } from '../lib/logger';
 
@@ -33,6 +34,8 @@ function detectCurrentPlatformUser(): { platform: Platform; username: string } |
     username = getChessComUsername();
   } else if (platformId === 'lichess') {
     username = getLichessUsername();
+  } else if (platformId === 'worldchess') {
+    username = getWorldChessUsername();
   }
 
   if (!username) {

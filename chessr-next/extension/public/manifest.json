@@ -7,11 +7,13 @@
   "host_permissions": [
     "*://chess.com/*",
     "*://*.chess.com/*",
-    "*://lichess.org/*"
+    "*://lichess.org/*",
+    "*://worldchess.com/*",
+    "*://*.worldchess.com/*"
   ],
   "content_scripts": [
     {
-      "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*"],
+      "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*", "*://worldchess.com/*", "*://*.worldchess.com/*"],
       "js": ["content.js"],
       "run_at": "document_idle",
       "world": "ISOLATED"
@@ -36,7 +38,7 @@
   "web_accessible_resources": [
     {
       "resources": ["icons/*", "assets/*"],
-      "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*"]
+      "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*", "*://worldchess.com/*", "*://*.worldchess.com/*"]
     },
     {
       "resources": ["streamer.html", "billing.html"],

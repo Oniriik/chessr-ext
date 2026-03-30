@@ -4,6 +4,7 @@ export interface LinkedAccount {
   id: string
   platform: string
   platform_username: string
+  display_name?: string
   avatar_url?: string
   rating_bullet?: number
   rating_blitz?: number
