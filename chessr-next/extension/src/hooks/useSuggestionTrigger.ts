@@ -12,7 +12,6 @@ import { useMaiaWebSocketStore } from '../stores/maiaWebSocketStore';
 import { maiaWebSocketManager } from '../lib/maiaWebSocket';
 import { useAuthStore } from '../stores/authStore';
 import { useNeedsLinking } from '../stores/linkedAccountsStore';
-import { logger } from '../lib/logger';
 import { validateEngineSettings, showUpgradeAlert, FREE_LIMITS, isPremium } from '../lib/planUtils';
 
 const DEBOUNCE_MS = 300;
@@ -82,7 +81,6 @@ export function useSuggestionTrigger() {
         // --- Maia-2: send to local WebSocket ---
         const eloSelf = getMaiaEloSelf();
         const eloOppo = getMaiaEloOppo();
-        logger.log(`[Maia] Requesting suggestion for position (elo: ${eloSelf} vs ${eloOppo})`);
         lastFen.current = fen;
 
         const requestId = requestSuggestions(fen, eloSelf, 'Maia-2', numberOfSuggestions);
@@ -108,7 +106,6 @@ export function useSuggestionTrigger() {
         const effectiveVariety = premium ? variety : 0;
         const effectiveElo = premium ? targetElo : Math.min(targetElo, FREE_LIMITS.maxElo);
 
-        logger.log(`Requesting suggestions for position (contempt: ${effectiveAmbition ?? 'auto'}, moves: ${moves.length})`);
         lastFen.current = fen;
 
         const requestId = requestSuggestions(fen, effectiveElo, personality, numberOfSuggestions);

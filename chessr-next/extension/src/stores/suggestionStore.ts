@@ -113,7 +113,6 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
   requestSuggestions: (_fen, _targetElo, _personality, _multiPv) => {
     const requestId = generateRequestId();
 
-    logger.log(`Requesting suggestions, id=${requestId}`);
 
     set({
       currentRequestId: requestId,
@@ -139,7 +138,7 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
       return;
     }
 
-    logger.log(`[SuggestionStore] Received ${suggestions.length} suggestions for ${requestId}, eval: ${positionEval}, mate: ${mateIn}, winRate: ${winRate}, hidden: ${document.hidden}, ts: ${Date.now()}`);
+    logger.log(`${suggestions.length} suggestions, eval: ${positionEval}, winRate: ${winRate}`);
 
     set({
       suggestions,
@@ -162,7 +161,6 @@ export const useSuggestionStore = create<SuggestionState>()((set, get) => ({
     const { currentRequestId } = get();
 
     if (requestId !== currentRequestId) {
-      logger.log(`Ignoring stale error: ${requestId}`);
       return;
     }
 

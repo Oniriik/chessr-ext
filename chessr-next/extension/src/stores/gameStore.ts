@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Chess } from 'chess.js';
 import { extractMovesFromDOM, replayMoves, getChessState, type ChessState } from '../lib/chess';
+import { logger } from '../lib/logger';
 /**
  * Get platform-specific detection functions (lazy to avoid circular deps)
  */
@@ -71,8 +72,8 @@ export const useGameStore = create<GameState>()((set, get) => ({
     if (chessInstance) {
       const turn = chessInstance.turn() === 'w' ? 'white' : 'black';
 
-      console.log('[chess] Moves:', moves);
-      console.log('[chess] FEN:', chessInstance.fen());
+      logger.log('[chess] Moves:', moves);
+      logger.log('[chess] FEN:', chessInstance.fen());
 
       set({
         chessInstance,

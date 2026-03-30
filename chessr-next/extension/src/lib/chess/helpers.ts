@@ -1,5 +1,6 @@
 import { Chess, PieceSymbol } from 'chess.js';
 import type { CapturedPieces, ChessState } from './types';
+import { logger } from '../logger';
 
 const PIECE_VALUES: Record<PieceSymbol, number> = {
   p: 1,
@@ -73,11 +74,11 @@ export function replayMoves(moves: string[]): Chess | null {
     try {
       const result = chess.move(san);
       if (!result) {
-        console.warn('[chess] Invalid move:', san);
+        logger.warn('[chess] Invalid move:', san);
         return null;
       }
     } catch (error) {
-      console.warn('[chess] Failed to apply move:', san, error);
+      logger.warn('[chess] Failed to apply move:', san, error);
       return null;
     }
   }

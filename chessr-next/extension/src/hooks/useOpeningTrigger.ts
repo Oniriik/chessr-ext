@@ -50,7 +50,6 @@ export function useOpeningTrigger() {
     if (moveHistory.length > MAX_OPENING_MOVES) {
       if (isInBook) {
         markOutOfBook(moveHistory.length);
-        logger.log('[opening] Past opening phase, marking out of book');
       }
       return;
     }
@@ -71,12 +70,10 @@ export function useOpeningTrigger() {
 
         // Log opening transitions
         if (data.opening?.name && previousOpeningName && data.opening.name !== previousOpeningName) {
-          logger.log(`[opening] Transition: ${previousOpeningName} → ${data.opening.name}`);
         }
 
         // Log when we leave the book
         if (!data.isInBook && isInBook) {
-          logger.log(`[opening] Out of book at move ${moveHistory.length}`);
           markOutOfBook(moveHistory.length);
         }
       })
@@ -109,7 +106,6 @@ export function useOpeningTrigger() {
   // Log opening name when it changes
   useEffect(() => {
     if (openingName) {
-      logger.log(`[opening] Current: ${openingName}`);
     }
   }, [openingName]);
 }

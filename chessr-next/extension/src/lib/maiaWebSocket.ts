@@ -42,11 +42,9 @@ class MaiaWebSocketManager {
     this._isConnecting = true;
     this._shouldReconnect = true;
 
-    logger.log(`[Maia] Connecting to ${url}`);
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
-      logger.log('[Maia] Connected');
       this._isConnected = true;
       this._isConnecting = false;
       this.connectHandlers.forEach((h) => h());
@@ -63,7 +61,6 @@ class MaiaWebSocketManager {
     };
 
     this.ws.onclose = () => {
-      logger.log('[Maia] Disconnected');
       this._isConnected = false;
       this._isConnecting = false;
       this.stopPing();

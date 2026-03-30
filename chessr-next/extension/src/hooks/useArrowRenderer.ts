@@ -3,52 +3,68 @@
  * Listens to suggestionStore and draws arrows when suggestions are available
  */
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { Chess } from 'chess.js';
-import { useTranslation } from 'react-i18next';
-import { useGameStore } from '../stores/gameStore';
-import { useSettingsStore } from '../stores/settingsStore';
-import { useSuggestionStore, type Suggestion, type ConfidenceLabel } from '../stores/suggestionStore';
-import { useOpeningStore } from '../stores/openingStore';
-import { useStreamerModeStore } from '../stores/streamerModeStore';
-import { useOpeningTracker } from './useOpeningTracker';
-import { useAlternativeOpenings } from './useAlternativeOpenings';
-import { OverlayManager } from '../content/overlay/OverlayManager';
-import { ArrowRenderer, type Badge } from '../content/overlay/ArrowRenderer';
-import { logger } from '../lib/logger';
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Chess } from "chess.js";
+import { useTranslation } from "react-i18next";
+import { useGameStore } from "../stores/gameStore";
+import { useSettingsStore } from "../stores/settingsStore";
+import {
+  useSuggestionStore,
+  type Suggestion,
+  type ConfidenceLabel,
+} from "../stores/suggestionStore";
+import { useOpeningStore } from "../stores/openingStore";
+import { useStreamerModeStore } from "../stores/streamerModeStore";
+import { useOpeningTracker } from "./useOpeningTracker";
+import { useAlternativeOpenings } from "./useAlternativeOpenings";
+import { OverlayManager } from "../content/overlay/OverlayManager";
+import { ArrowRenderer, type Badge } from "../content/overlay/ArrowRenderer";
+import { logger } from "../lib/logger";
 
 // Confidence label to badge type key (for color mapping)
 const CONFIDENCE_TYPES: Record<ConfidenceLabel, string> = {
-  very_reliable: 'best',
-  reliable: 'safe',
-  playable: 'ok',
-  risky: 'risky',
-  speculative: 'risky',
+  very_reliable: "best",
+  reliable: "safe",
+  playable: "ok",
+  risky: "risky",
+  speculative: "risky",
 };
 
 // Confidence label to i18n key
 const CONFIDENCE_I18N: Record<ConfidenceLabel, string> = {
-  very_reliable: 'boardBadgeBest',
-  reliable: 'boardBadgeSafe',
-  playable: 'boardBadgeOk',
-  risky: 'boardBadgeRisky',
-  speculative: 'boardBadgeRisky',
+  very_reliable: "boardBadgeBest",
+  reliable: "boardBadgeSafe",
+  playable: "boardBadgeOk",
+  risky: "boardBadgeRisky",
+  speculative: "boardBadgeRisky",
 };
 
 // Piece symbols for capture badges
 const PIECE_SYMBOLS: Record<string, string> = {
-  p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚',
+  p: "♟",
+  n: "♞",
+  b: "♝",
+  r: "♜",
+  q: "♛",
+  k: "♚",
 };
 
 // Piece name i18n keys for promotion
 const PIECE_I18N: Record<string, string> = {
-  q: 'boardPieceQueen', r: 'boardPieceRook', b: 'boardPieceBishop', n: 'boardPieceKnight',
+  q: "boardPieceQueen",
+  r: "boardPieceRook",
+  b: "boardPieceBishop",
+  n: "boardPieceKnight",
 };
 
 /**
  * Build badges for a suggestion
  */
-function buildBadges(suggestion: Suggestion, fen: string, t: (key: string, opts?: Record<string, unknown>) => string): Badge[] {
+function buildBadges(
+  suggestion: Suggestion,
+  fen: string,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): Badge[] {
   const badges: Badge[] = [];
 
   // Quality badge
@@ -62,28 +78,40 @@ function buildBadges(suggestion: Suggestion, fen: string, t: (key: string, opts?
     const chess = new Chess(fen);
     const from = suggestion.move.slice(0, 2);
     const to = suggestion.move.slice(2, 4);
-    const promotion = suggestion.move.length === 5 ? suggestion.move[4] : undefined;
+    const promotion =
+      suggestion.move.length === 5 ? suggestion.move[4] : undefined;
 
     const move = chess.move({ from, to, promotion });
     if (move) {
       // Mate badge
       if (suggestion.mateScore !== undefined && suggestion.mateScore !== null) {
-        badges.push({ type: 'mate', label: t('boardBadgeMateIn', { count: Math.abs(suggestion.mateScore) }) });
+        badges.push({
+          type: "mate",
+          label: t("boardBadgeMateIn", {
+            count: Math.abs(suggestion.mateScore),
+          }),
+        });
       } else if (chess.isCheckmate()) {
-        badges.push({ type: 'mate', label: t('boardBadgeMate') });
+        badges.push({ type: "mate", label: t("boardBadgeMate") });
       } else if (chess.isCheck()) {
-        badges.push({ type: 'check', label: t('boardBadgeCheck') });
+        badges.push({ type: "check", label: t("boardBadgeCheck") });
       }
 
       // Capture badge
       if (move.captured) {
-        badges.push({ type: 'capture', label: `x ${PIECE_SYMBOLS[move.captured] || ''}` });
+        badges.push({
+          type: "capture",
+          label: `x ${PIECE_SYMBOLS[move.captured] || ""}`,
+        });
       }
 
       // Promotion badge
       if (move.promotion) {
-        const pieceName = t(PIECE_I18N[move.promotion] || 'boardPieceQueen');
-        badges.push({ type: 'promotion', label: `${PIECE_SYMBOLS[move.promotion] || '♛'} ${pieceName}` });
+        const pieceName = t(PIECE_I18N[move.promotion] || "boardPieceQueen");
+        badges.push({
+          type: "promotion",
+          label: `${PIECE_SYMBOLS[move.promotion] || "♛"} ${pieceName}`,
+        });
       }
     }
   } catch {
@@ -116,10 +144,10 @@ function getArrowLength(from: string, to: string): number {
 /**
  * Detect current platform from hostname
  */
-function detectPlatform(): 'chesscom' | 'lichess' {
+function detectPlatform(): "chesscom" | "lichess" {
   const hostname = window.location.hostname;
-  if (hostname.includes('lichess.org')) return 'lichess';
-  return 'chesscom';
+  if (hostname.includes("lichess.org")) return "lichess";
+  return "chesscom";
 }
 
 /**
@@ -128,13 +156,15 @@ function detectPlatform(): 'chesscom' | 'lichess' {
 function findBoardElement(): HTMLElement | null {
   const platform = detectPlatform();
 
-  if (platform === 'lichess') {
+  if (platform === "lichess") {
     // Lichess: cg-board is the actual board element
-    return document.querySelector('cg-board') as HTMLElement | null;
+    return document.querySelector("cg-board") as HTMLElement | null;
   }
 
   // Chess.com
-  return document.querySelector('wc-chess-board, chess-board, .chessboard') as HTMLElement | null;
+  return document.querySelector(
+    "wc-chess-board, chess-board, .chessboard",
+  ) as HTMLElement | null;
 }
 
 /**
@@ -143,10 +173,10 @@ function findBoardElement(): HTMLElement | null {
 function isBoardFlipped(): boolean {
   const platform = detectPlatform();
 
-  if (platform === 'lichess') {
+  if (platform === "lichess") {
     // Lichess: check cg-wrap orientation class
-    const cgWrap = document.querySelector('.cg-wrap');
-    return cgWrap?.classList.contains('orientation-black') ?? false;
+    const cgWrap = document.querySelector(".cg-wrap");
+    return cgWrap?.classList.contains("orientation-black") ?? false;
   }
 
   // Chess.com
@@ -154,17 +184,25 @@ function isBoardFlipped(): boolean {
   if (!board) return false;
 
   return (
-    board.classList.contains('flipped') ||
-    board.closest('.flipped') !== null ||
-    board.getAttribute('flipped') === 'true'
+    board.classList.contains("flipped") ||
+    board.closest(".flipped") !== null ||
+    board.getAttribute("flipped") === "true"
   );
 }
 
 export function useArrowRenderer() {
-  const { t } = useTranslation('game');
+  const { t } = useTranslation("game");
   const { isGameStarted, playerColor, currentTurn, chessInstance } =
     useGameStore();
-  const { suggestions, suggestedFen, selectedIndex, hoveredIndex, showingPvIndex, showingOpeningMoves, showingAlternativeIndex } = useSuggestionStore();
+  const {
+    suggestions,
+    suggestedFen,
+    selectedIndex,
+    hoveredIndex,
+    showingPvIndex,
+    showingOpeningMoves,
+    showingAlternativeIndex,
+  } = useSuggestionStore();
   const {
     numberOfSuggestions,
     useSameColorForAllArrows,
@@ -188,7 +226,7 @@ export function useArrowRenderer() {
 
   // Callback for resize events
   const handleResize = useCallback(() => {
-    setResizeCounter(c => c + 1);
+    setResizeCounter((c) => c + 1);
   }, []);
 
   // Initialize overlay when game starts
@@ -225,7 +263,7 @@ export function useArrowRenderer() {
 
     // Update flipped state
     if (overlayRef.current) {
-      overlayRef.current.setFlipped(playerColor === 'black');
+      overlayRef.current.setFlipped(playerColor === "black");
     }
 
     return () => {
@@ -243,7 +281,7 @@ export function useArrowRenderer() {
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) {
-      logger.log('[ArrowRenderer] No renderer, skipping draw');
+      // No renderer yet, skip silently
       return;
     }
 
@@ -254,8 +292,6 @@ export function useArrowRenderer() {
       return;
     }
 
-    logger.log(`[ArrowRenderer] useEffect fired — suggestions: ${suggestions?.length ?? 0}, hidden: ${document.hidden}, suggestedFen: ${suggestedFen?.slice(0, 20)}`);
-
     // Clear previous arrows
     renderer.clear();
     renderer.clearOpeningArrows();
@@ -264,20 +300,32 @@ export function useArrowRenderer() {
     const currentFen = chessInstance?.fen();
 
     // Helper function to draw PV-style arrows (used for both engine PV and opening sequence)
-    const drawPvSequence = (moves: { from: string; to: string }[], startingFen: string) => {
-      let isWhiteToMove = startingFen.includes(' w ');
+    const drawPvSequence = (
+      moves: { from: string; to: string }[],
+      startingFen: string,
+    ) => {
+      let isWhiteToMove = startingFen.includes(" w ");
       for (let i = 0; i < moves.length; i++) {
         const { from, to } = moves[i];
-        const arrowColor = isWhiteToMove ? 'rgba(255, 255, 255, 0.95)' : 'rgba(40, 40, 40, 0.95)';
-        const textColor = isWhiteToMove ? 'black' : 'white';
-        renderer.drawPvArrow({ from, to, color: arrowColor, textColor, moveNumber: i + 1 });
+        const arrowColor = isWhiteToMove
+          ? "rgba(255, 255, 255, 0.95)"
+          : "rgba(40, 40, 40, 0.95)";
+        const textColor = isWhiteToMove ? "black" : "white";
+        renderer.drawPvArrow({
+          from,
+          to,
+          color: arrowColor,
+          textColor,
+          moveNumber: i + 1,
+        });
         isWhiteToMove = !isWhiteToMove;
       }
       renderer.flushPvCircles();
     };
 
     // Check if we're showing an alternative opening preview (independent of turn/suggestions)
-    const isShowingAlternative = showingAlternativeIndex !== null && alternatives[showingAlternativeIndex];
+    const isShowingAlternative =
+      showingAlternativeIndex !== null && alternatives[showingAlternativeIndex];
 
     // Draw alternative opening preview arrows (works regardless of turn or suggestions)
     if (isShowingAlternative && currentFen) {
@@ -287,7 +335,7 @@ export function useArrowRenderer() {
 
         const altOpening = alternatives[showingAlternativeIndex!];
         const altMoves = altOpening.moves
-          .replace(/\d+\.\s*/g, '')
+          .replace(/\d+\.\s*/g, "")
           .split(/\s+/)
           .filter((m: string) => m.length > 0);
         // Start from current move index (skip already played moves)
@@ -311,13 +359,23 @@ export function useArrowRenderer() {
     // Uses opening arrow style - simple stacking without hover conflict handling
     // Only show when it's the player's turn
     const isPlayerTurn = playerColor === currentTurn;
-    if (openingTracker.hasDeviated && alternatives.length > 0 && currentFen && isPlayerTurn) {
-      const altArrowData: { from: string; to: string; rank: number; length: number }[] = [];
+    if (
+      openingTracker.hasDeviated &&
+      alternatives.length > 0 &&
+      currentFen &&
+      isPlayerTurn
+    ) {
+      const altArrowData: {
+        from: string;
+        to: string;
+        rank: number;
+        length: number;
+      }[] = [];
 
       for (let i = 0; i < alternatives.length; i++) {
         const alt = alternatives[i];
         const altMoves = alt.moves
-          .replace(/\d+\.\s*/g, '')
+          .replace(/\d+\.\s*/g, "")
           .split(/\s+/)
           .filter((m: string) => m.length > 0);
 
@@ -352,34 +410,40 @@ export function useArrowRenderer() {
           to: arrow.to,
           color: openingArrowColor,
           winRate: 0,
-          label: showDetailedMoveSuggestion ? t('boardBadgeAlt', { rank: arrow.rank }) : undefined,
+          label: showDetailedMoveSuggestion
+            ? t("boardBadgeAlt", { rank: arrow.rank })
+            : undefined,
         });
       }
     }
 
     // Only show engine arrows on player's turn
     if (!isPlayerTurn) {
-      logger.log('[ArrowRenderer] Not player turn, skipping');
+      // Not player turn, skip
       return;
     }
 
     // No suggestions to draw
     if (!suggestions || suggestions.length === 0) {
-      logger.log('[ArrowRenderer] No suggestions to draw');
+      // No suggestions, skip
       return;
     }
 
     // Check if suggestions are for current position
     if (!currentFen || suggestedFen !== currentFen) {
-      logger.log(`[ArrowRenderer] FEN mismatch — suggested: ${suggestedFen?.slice(0, 20)}, current: ${currentFen?.slice(0, 20)}`);
+      // FEN mismatch, waiting for new suggestions
       return;
     }
 
-    logger.log(`[ArrowRenderer] Drawing ${suggestions.length} arrows`);
-
     // Check if we're showing a PV sequence (engine or opening) - these are mutually exclusive with regular arrows
-    const isShowingEnginePv = showingPvIndex !== null && suggestions[showingPvIndex]?.pv;
-    const isShowingOpeningSequence = showingOpeningMoves && showOpeningArrows && openingTracker.isFollowingOpening && !openingTracker.hasDeviated && openingTracker.openingMoves;
+    const isShowingEnginePv =
+      showingPvIndex !== null && suggestions[showingPvIndex]?.pv;
+    const isShowingOpeningSequence =
+      showingOpeningMoves &&
+      showOpeningArrows &&
+      openingTracker.isFollowingOpening &&
+      !openingTracker.hasDeviated &&
+      openingTracker.openingMoves;
 
     // If showing any PV sequence, draw it and skip everything else
     if (isShowingEnginePv || isShowingOpeningSequence) {
@@ -400,7 +464,9 @@ export function useArrowRenderer() {
           }
         } else {
           // Opening sequence - parse SAN moves
-          const remainingMoves = openingTracker.openingMoves!.slice(openingTracker.currentMoveIndex);
+          const remainingMoves = openingTracker.openingMoves!.slice(
+            openingTracker.currentMoveIndex,
+          );
           for (const sanMove of remainingMoves) {
             const move = chess.move(sanMove);
             if (!move) break;
@@ -418,16 +484,22 @@ export function useArrowRenderer() {
     }
 
     // Draw opening arrow (single arrow for next move)
-    if (showOpeningArrows && openingTracker.isFollowingOpening && !openingTracker.hasDeviated && openingTracker.nextOpeningMoveUci) {
+    if (
+      showOpeningArrows &&
+      openingTracker.isFollowingOpening &&
+      !openingTracker.hasDeviated &&
+      openingTracker.nextOpeningMoveUci
+    ) {
       const openingParsed = parseUciMove(openingTracker.nextOpeningMoveUci);
       if (openingParsed) {
-        logger.log(`[opening-arrow] Drawing arrow for ${openingTracker.nextOpeningMove} (${openingParsed.from} → ${openingParsed.to})`);
         renderer.drawOpeningArrow({
           from: openingParsed.from,
           to: openingParsed.to,
           color: openingArrowColor,
           winRate: 0,
-          label: showDetailedMoveSuggestion ? t('boardBadgeOpening') : undefined,
+          label: showDetailedMoveSuggestion
+            ? t("boardBadgeOpening")
+            : undefined,
         });
       }
     }
@@ -452,21 +524,27 @@ export function useArrowRenderer() {
 
     // Draw arrows for each suggestion (up to numberOfSuggestions)
     const suggestionsToShow = suggestions.slice(0, numberOfSuggestions);
-    logger.log(
-      `Drawing ${suggestionsToShow.length} arrows (numberOfSuggestions: ${numberOfSuggestions}, total suggestions: ${suggestions.length})`
-    );
 
     // Build arrow data with length for sorting
-    const arrowData: { from: string; to: string; color: string; opacity: number; length: number; badges: Badge[]; rank: number }[] = [];
+    const arrowData: {
+      from: string;
+      to: string;
+      color: string;
+      opacity: number;
+      length: number;
+      badges: Badge[];
+      rank: number;
+    }[] = [];
 
     suggestionsToShow.forEach((suggestion, index) => {
       const parsed = parseUciMove(suggestion.move);
       if (!parsed) return;
 
       // Build badges if setting is enabled
-      const badges = showDetailedMoveSuggestion && currentFen
-        ? buildBadges(suggestion, currentFen, t)
-        : [];
+      const badges =
+        showDetailedMoveSuggestion && currentFen
+          ? buildBadges(suggestion, currentFen, t)
+          : [];
 
       arrowData.push({
         from: parsed.from,
@@ -502,7 +580,6 @@ export function useArrowRenderer() {
     const svg = overlayRef.current?.getSVG();
     if (svg) {
       void svg.getBoundingClientRect();
-      logger.log(`[ArrowRenderer] Repaint forced — SVG children: ${svg.querySelector('#arrows')?.childElementCount ?? 0}`);
     }
   }, [
     suggestions,
@@ -539,7 +616,7 @@ export function useArrowRenderer() {
   // Update overlay when player color changes (board flip)
   useEffect(() => {
     if (overlayRef.current && isGameStarted) {
-      overlayRef.current.setFlipped(playerColor === 'black');
+      overlayRef.current.setFlipped(playerColor === "black");
     }
   }, [playerColor, isGameStarted]);
 }

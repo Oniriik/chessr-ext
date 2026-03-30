@@ -5,10 +5,11 @@ import { initAnonymousBlur, rescanAnonymousBlur, getRealHref } from './anonymous
 import { initTitleSimulator, rescanTitleSimulator } from './titleSimulator';
 import { initStreamerBridge } from '../lib/streamerBridge';
 import { useDiscordStore } from '../stores/discordStore';
+import { logger } from '../lib/logger';
 import '../styles/content.css';
 import '../i18n/i18n';
 
-console.log('[Chessr] Content script loaded');
+logger.log('Content script loaded');
 
 const mountedRoots: Map<string, { root: Root; container: HTMLElement }> = new Map();
 
@@ -30,7 +31,6 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
   if (existing) {
     if (existing.container.isConnected) return;
     // Container was detached — try to re-attach instead of full unmount/remount
-    console.log(`%c[Mount] ${mountPoint.id} container detached! Trying to re-attach...`, 'color: red; font-weight: bold');
     const newTarget = document.querySelector(mountPoint.selector);
     if (newTarget) {
       switch (mountPoint.position) {
@@ -48,12 +48,10 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
           break;
       }
       if (existing.container.isConnected) {
-        console.log(`%c[Mount] Re-attached ${mountPoint.id} without remount ✓`, 'color: green; font-weight: bold');
         return;
       }
     }
     // Re-attach failed, full cleanup
-    console.log(`%c[Mount] Re-attach failed for ${mountPoint.id}, full remount`, 'color: red; font-weight: bold');
     existing.root.unmount();
     mountedRoots.delete(mountPoint.id);
   }
@@ -160,7 +158,7 @@ function updateMounts() {
         save_failed: 'Failed to save Discord link. Please try again.',
         unknown: 'An unknown error occurred. Please try again.',
       };
-      console.warn(`[Chessr] Discord link error: ${discordError}`);
+      logger.warn(`Discord link error: ${discordError}`);
       // Brief toast-like notification
       const toast = document.createElement('div');
       toast.textContent = errorMessages[discordError] || errorMessages.unknown;

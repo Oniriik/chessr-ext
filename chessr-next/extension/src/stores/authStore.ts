@@ -12,6 +12,7 @@ import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import type { Plan } from '../components/ui/plan-badge';
 import { useEngineStore } from './engineStore';
 import { useDiscordStore } from './discordStore';
+import { logger } from '../lib/logger';
 
 const SERVER_URL = (import.meta.env.VITE_WS_URL || 'ws://localhost:8080').replace(/^ws/, 'http');
 
@@ -141,10 +142,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) {
         // JWT expired/invalid — try refreshing the session
         if (error.code === 'PGRST301') {
-          console.warn('[Auth] JWT expired, attempting refresh...');
+          logger.warn('[Auth] JWT expired, attempting refresh...');
           const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
           if (refreshError || !refreshData.session) {
-            console.error('[Auth] Session refresh failed, signing out');
+            logger.error('[Auth] Session refresh failed, signing out');
             await get().signOut();
             return;
           }
@@ -156,7 +157,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             .eq('user_id', userId)
             .single();
           if (retryError) {
-            console.error('[Auth] fetchPlan retry failed, signing out');
+            logger.error('[Auth] fetchPlan retry failed, signing out');
             await get().signOut();
             return;
           }
@@ -164,7 +165,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return;
         }
 
-        console.error('[Auth] fetchPlan error:', error);
+        logger.error('[Auth] fetchPlan error:', error);
         set({ plan: 'free', planExpiry: null });
         useEngineStore.getState().enforcePlanLimits('free');
         return;
@@ -172,7 +173,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       processPlanData(data);
     } catch (e) {
-      console.error('[Auth] fetchPlan error:', e);
+      logger.error('[Auth] fetchPlan error:', e);
       set({ plan: 'free', planExpiry: null });
       useEngineStore.getState().enforcePlanLimits('free');
     }

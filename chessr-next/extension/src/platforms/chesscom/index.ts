@@ -91,8 +91,6 @@ export function detectRatings(): RatingInfo {
     ?.trim()
     .replace(/[()]/g, "");
 
-  console.log("playerRating", playerRating);
-  console.log("opponentRating", opponentRating);
   return {
     playerRating: playerRating ? parseInt(playerRating, 10) : null,
     opponentRating: opponentRating ? parseInt(opponentRating, 10) : null,

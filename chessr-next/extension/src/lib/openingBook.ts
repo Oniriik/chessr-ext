@@ -146,14 +146,12 @@ export async function fetchOpeningData(fen: string): Promise<OpeningData> {
   // Check local cache first
   const cached = localCache.get(fen);
   if (cached && isValidCacheEntry(cached)) {
-    logger.log('[opening] Local cache hit:', cached.data.opening?.name ?? 'Unknown');
     return cached.data;
   }
 
   // Check if request is already pending
   const pending = pendingRequests.get(fen);
   if (pending) {
-    logger.log('[opening] Reusing pending request');
     return pending;
   }
 
@@ -177,9 +175,7 @@ export async function fetchOpeningData(fen: string): Promise<OpeningData> {
       cleanLocalCache();
 
       logger.log(
-        '[opening] Received:',
-        data.opening?.name ?? 'Unknown position',
-        `(${data.moves.length} moves)`
+        `Opening: ${data.opening?.name ?? 'Unknown'}`
       );
 
       return data;

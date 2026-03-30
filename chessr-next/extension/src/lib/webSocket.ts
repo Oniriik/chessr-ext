@@ -57,7 +57,6 @@ class WebSocketManager {
   init(): void {
     // Listen for tab visibility changes
     this.visibilityHandler = () => {
-      logger.log(`[WebSocket] visibilitychange — hidden: ${document.hidden}`);
       this.checkActivity();
     };
     document.addEventListener('visibilitychange', this.visibilityHandler);
@@ -119,9 +118,6 @@ class WebSocketManager {
     const isGameActive = useGameStore.getState().isGameStarted;
     const isPuzzleActive = usePuzzleStore.getState().isStarted;
     const hasUser = !!useAuthStore.getState().user;
-    const { suggestions, isLoading } = useSuggestionStore.getState();
-    logger.log(`[WebSocket] checkActivity — visible: ${isTabVisible}, game: ${isGameActive}, connected: ${this._isConnected}, suggestions: ${suggestions?.length ?? 0}, loading: ${isLoading}`);
-
     if (!hasUser) {
       // Not authenticated, don't connect
       this.disconnect();
@@ -245,7 +241,6 @@ class WebSocketManager {
               .receiveError(data.requestId, data.error);
           } else if (data.type === 'linked_accounts') {
             // Handle linked accounts list
-            logger.log(`Received ${data.accounts?.length || 0} linked accounts`);
             const store = useLinkedAccountsStore.getState();
             store.setAccounts(data.accounts || []);
             // Don't set needsLinking here - let useLinkingCheck handle it
