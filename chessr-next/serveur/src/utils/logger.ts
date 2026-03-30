@@ -165,3 +165,29 @@ export function logConnection(email: string, event: 'connected' | 'disconnected'
     `${statusColor}[${event}]${c.reset}`
   );
 }
+
+/**
+ * Log Paddle events with consistent format
+ */
+export function logPaddle(
+  email: string | null,
+  action: string,
+  details?: string,
+  status?: 'ok' | 'error' | 'created' | 'processed',
+): void {
+  const c = colors;
+  const timestamp = formatTimestamp();
+  const emailStr = email ? `${c.white}[${truncate(email, 25)}]${c.reset} ` : '';
+  const statusColor = status === 'error' ? c.red : status === 'created' ? c.green : c.cyan;
+  const statusStr = status ? ` ${statusColor}[${status}]${c.reset}` : '';
+  const detailsStr = details ? ` ${c.dim}${details}${c.reset}` : '';
+
+  console.log(
+    `${c.dim}[${timestamp}]${c.reset} ` +
+    `${emailStr}` +
+    `${c.magenta}[paddle]${c.reset} ` +
+    `${c.white}${action}${c.reset}` +
+    `${detailsStr}` +
+    `${statusStr}`
+  );
+}

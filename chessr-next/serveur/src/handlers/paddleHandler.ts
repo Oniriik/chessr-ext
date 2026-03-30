@@ -2,6 +2,7 @@ import { IncomingMessage, ServerResponse } from "http";
 import { createClient } from "@supabase/supabase-js";
 import { Paddle, Environment } from "@paddle/paddle-node-sdk";
 import crypto from "crypto";
+import { logPaddle } from "../utils/logger.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ async function updateUserPlan(
 ) {
   const mapping = PRICE_PLAN_MAP[productId];
   if (!mapping) {
-    console.error(`[Paddle] Unknown product ID: ${productId}`);
+    logPaddle(null, "webhook", `unknown product ID: ${productId}`, "error");
     return;
   }
 
@@ -149,7 +150,7 @@ async function updateUserPlan(
     // Fallback: user paid with a different email, Paddle created a new customer
     // Use the userId from custom_data and update the customer mapping
     userId = customDataUserId;
-    console.log(`[Paddle] Customer ${customerId} not in DB, using custom_data.userId=${userId}`);
+    logPaddle(null, "webhook", `customer ${customerId} not in DB, using custom_data.userId=${userId}`, "ok");
     await supabase.from("subscriptions").upsert(
       {
         user_id: userId,
@@ -163,7 +164,7 @@ async function updateUserPlan(
   }
 
   if (!userId) {
-    console.error(`[Paddle] No user found for customer: ${customerId}`);
+    logPaddle(null, "webhook", `no user found for customer: ${customerId}`, "error");
     return;
   }
 
@@ -202,7 +203,7 @@ async function updateUserPlan(
       })
       .eq("user_id", userId);
 
-    console.log(`[Paddle] ${userId} → plan=${mapping.plan}, expiry=${planExpiry}`);
+    logPaddle(null, "webhook", `${userId} → plan=${mapping.plan}, expiry=${planExpiry}`, "processed");
   } else if (status === "canceled" || status === "past_due") {
     const expiresAt = nextBilledAt || canceledAt;
     const isExpired = expiresAt && new Date(expiresAt).getTime() <= Date.now();
@@ -217,7 +218,7 @@ async function updateUserPlan(
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
-      console.log(`[Paddle] ${userId} → canceled immediately, set to free`);
+      logPaddle(null, "webhook", `${userId} → canceled immediately, set to free`, "processed");
     } else if (expiresAt) {
       // End-of-period cancel — keep plan active until expiry
       await supabase
@@ -227,7 +228,7 @@ async function updateUserPlan(
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", userId);
-      console.log(`[Paddle] ${userId} → canceled, active until ${expiresAt}`);
+      logPaddle(null, "webhook", `${userId} → canceled, active until ${expiresAt}`, "processed");
     }
   }
 
@@ -270,7 +271,7 @@ async function handleTransactionCompleted(event: any) {
         userId = sub.user_id;
       } else if (customDataUserId) {
         userId = customDataUserId;
-        console.log(`[Paddle] Transaction: customer ${customerId} not in DB, using custom_data.userId=${userId}`);
+        logPaddle(null, "webhook", `transaction: customer ${customerId} not in DB, using custom_data.userId=${userId}`, "ok");
         await supabase.from("subscriptions").upsert(
           {
             user_id: userId,
@@ -284,7 +285,7 @@ async function handleTransactionCompleted(event: any) {
       }
 
       if (!userId) {
-        console.error(`[Paddle] No user for customer ${customerId} on transaction`);
+        logPaddle(null, "webhook", `no user for customer ${customerId} on transaction`, "error");
         return;
       }
 
@@ -315,7 +316,7 @@ async function handleTransactionCompleted(event: any) {
         })
         .eq("user_id", userId);
 
-      console.log(`[Paddle] ${userId} → lifetime (transaction ${transaction.id})`);
+      logPaddle(null, "webhook", `${userId} → lifetime (transaction ${transaction.id})`, "processed");
 
       // Log
       const { data: userData } = await supabase.auth.admin.getUserById(userId);
@@ -350,7 +351,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
       // Verify signature
       const signature = req.headers["paddle-signature"] as string | undefined;
       if (!verifyWebhookSignature(body, signature)) {
-        console.error("[Paddle] Invalid webhook signature");
+        logPaddle(null, "webhook", "invalid webhook signature", "error");
         res.writeHead(401, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Invalid signature" }));
         return;
@@ -359,7 +360,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
       const event = JSON.parse(body);
       const eventType = event.event_type;
 
-      console.log(`[Paddle] Webhook: ${eventType}`);
+      logPaddle(null, "webhook", eventType, "processed");
 
       // Store raw event
       await storePaymentEvent(eventType, event);
@@ -412,13 +413,13 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
         }
 
         default:
-          console.log(`[Paddle] Unhandled event: ${eventType}`);
+          logPaddle(null, "webhook", `unhandled event: ${eventType}`, "ok");
       }
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
     } catch (err) {
-      console.error("[Paddle] Webhook error:", err);
+      logPaddle(null, "webhook", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
     }
@@ -530,12 +531,12 @@ export function handlePaddleBillingLink(req: IncomingMessage, res: ServerRespons
 
       const billingToken = signBillingToken(userId, customerId);
 
-      console.log(`[Paddle] Billing link for ${userEmail} (customer=${customerId})`);
+      logPaddle(userEmail, "billing-link", `customer=${customerId}`, "ok");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ token: billingToken }));
     } catch (err) {
-      console.error("[Paddle] Billing link error:", err);
+      logPaddle(null, "billing-link", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
     }
@@ -575,12 +576,12 @@ export function handlePaddleCheckoutByToken(req: IncomingMessage, res: ServerRes
         customData: { userId },
       });
 
-      console.log(`[Paddle] Checkout by token: user=${userId}, plan=${plan} (txn=${transaction.id})`);
+      logPaddle(null, "checkout", `user=${userId}, plan=${plan}, txn=${transaction.id}`, "created");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ transactionId: transaction.id }));
     } catch (err) {
-      console.error("[Paddle] Checkout by token error:", err);
+      logPaddle(null, "checkout", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
     }
@@ -636,7 +637,7 @@ export function handleStatusByToken(req: IncomingMessage, res: ServerResponse) {
         } : null,
       }));
     } catch (err) {
-      console.error("[Paddle] Status by token error:", err);
+      logPaddle(null, "status", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
     }
@@ -689,12 +690,12 @@ export function handleSwitchByToken(req: IncomingMessage, res: ServerResponse) {
         ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
       });
 
-      console.log(`[Paddle] Switch by token to ${plan} for user ${userId} (${sub.paddle_subscription_id})`);
+      logPaddle(null, "switch", `plan=${plan}, user=${userId}, sub=${sub.paddle_subscription_id}`, "ok");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, nextBilledAt: updated.nextBilledAt }));
     } catch (err) {
-      console.error("[Paddle] Switch by token error:", err);
+      logPaddle(null, "switch", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to switch plan" }));
     }
@@ -739,7 +740,7 @@ export function handleCancelByToken(req: IncomingMessage, res: ServerResponse) {
         effectiveFrom: "next_billing_period",
       });
 
-      console.log(`[Paddle] Cancel by token for user ${userId} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
+      logPaddle(null, "cancel", `user=${userId}, sub=${sub.paddle_subscription_id}, reason=${reason || "none"}`, "ok");
 
       // Store cancel reason
       if (reason) {
@@ -757,7 +758,7 @@ export function handleCancelByToken(req: IncomingMessage, res: ServerResponse) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
     } catch (err) {
-      console.error("[Paddle] Cancel by token error:", err);
+      logPaddle(null, "cancel", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to cancel subscription" }));
     }
@@ -874,7 +875,7 @@ export function handlePreviewUpgradeByToken(req: IncomingMessage, res: ServerRes
         nextBilledAt,
       }));
     } catch (err) {
-      console.error("[Paddle] Preview upgrade by token error:", err);
+      logPaddle(null, "preview-upgrade", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to preview upgrade" }));
     }
@@ -918,7 +919,7 @@ export function handleUpgradeLifetimeByToken(req: IncomingMessage, res: ServerRe
         effectiveFrom: "immediately",
       });
 
-      console.log(`[Paddle] Canceled sub ${sub.paddle_subscription_id} immediately for lifetime upgrade (token)`);
+      logPaddle(null, "lifetime-upgrade", `canceled sub ${sub.paddle_subscription_id} immediately (token)`, "ok");
 
       // Create lifetime checkout transaction
       const priceId = PADDLE_PRICES["lifetime"];
@@ -928,12 +929,12 @@ export function handleUpgradeLifetimeByToken(req: IncomingMessage, res: ServerRe
         customData: { userId },
       });
 
-      console.log(`[Paddle] Lifetime checkout by token for user ${userId} (txn=${transaction.id})`);
+      logPaddle(null, "lifetime-upgrade", `user=${userId}, txn=${transaction.id}`, "created");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ transactionId: transaction.id }));
     } catch (err) {
-      console.error("[Paddle] Upgrade lifetime by token error:", err);
+      logPaddle(null, "lifetime-upgrade", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to upgrade to lifetime" }));
     }
@@ -978,7 +979,7 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
       const userId = authData.user.id;
       const userEmail = authData.user.email || "";
 
-      console.log(`[Paddle] Creating checkout: user=${userId}, email=${userEmail}, plan=${plan}, priceId=${priceId}`);
+      logPaddle(userEmail, "checkout", `user=${userId}, plan=${plan}, priceId=${priceId}`, "ok");
 
       // Get or create Paddle customer
       let customerId: string | undefined;
@@ -995,9 +996,9 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
         try {
           await paddle.customers.get(existingSub.paddle_customer_id);
           customerId = existingSub.paddle_customer_id;
-          console.log(`[Paddle] Reusing customer: ${customerId}`);
+          logPaddle(userEmail, "checkout", `reusing customer: ${customerId}`, "ok");
         } catch {
-          console.log(`[Paddle] Customer ${existingSub.paddle_customer_id} not found, creating new one`);
+          logPaddle(userEmail, "checkout", `customer ${existingSub.paddle_customer_id} not found, creating new one`, "ok");
           // Clear stale reference
           await supabase.from("subscriptions").delete().eq("user_id", userId);
         }
@@ -1009,14 +1010,14 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
             email: userEmail,
           });
           customerId = customer.id;
-          console.log(`[Paddle] Created customer: ${customerId}`);
+          logPaddle(userEmail, "customer-created", `customer=${customerId}`, "created");
         } catch (createErr: any) {
           // Customer already exists in Paddle — find by email
           if (createErr?.code === 'conflict' || createErr?.type === 'request_error') {
             const customers = await paddle.customers.list({ email: [userEmail] });
             for await (const c of customers) {
               customerId = c.id;
-              console.log(`[Paddle] Found existing customer: ${customerId}`);
+              logPaddle(userEmail, "checkout", `found existing customer: ${customerId}`, "ok");
               break;
             }
           }
@@ -1044,12 +1045,12 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
 
       const txnId = transaction.id;
 
-      console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (txn=${txnId})`);
+      logPaddle(userEmail, "checkout", `plan=${plan}, txn=${txnId}`, "created");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ transactionId: txnId }));
     } catch (err) {
-      console.error("[Paddle] Checkout error:", err);
+      logPaddle(null, "checkout", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
     }
@@ -1113,12 +1114,12 @@ export function handlePaddleSwitch(req: IncomingMessage, res: ServerResponse) {
         ...(discountId ? { discount: { id: discountId, effectiveFrom: "immediately" } } : {}),
       });
 
-      console.log(`[Paddle] Switch to ${plan} for ${authData.user.email} (${sub.paddle_subscription_id})`);
+      logPaddle(authData.user.email || null, "switch", `plan=${plan}, sub=${sub.paddle_subscription_id}`, "ok");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, nextBilledAt: updated.nextBilledAt }));
     } catch (err) {
-      console.error("[Paddle] Switch error:", err);
+      logPaddle(null, "switch", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to switch plan" }));
     }
@@ -1213,7 +1214,7 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
         });
         const subLine = (subPreview as any).details?.lineItems?.[0];
         localizedSubPrice = Number(subLine?.totals?.total || 0);
-        console.log(`[Paddle] Preview upgrade: targetCurrency=${currencyCode}, subPrice=${localizedSubPrice}, targetTotal=${targetTotal}, ip=${clientIp}`);
+        logPaddle(null, "preview-upgrade", `targetCurrency=${currencyCode}, subPrice=${localizedSubPrice}, targetTotal=${targetTotal}, ip=${clientIp}`, "ok");
       }
 
       let prorate = 0;
@@ -1246,7 +1247,7 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
         nextBilledAt,
       }));
     } catch (err) {
-      console.error("[Paddle] Preview upgrade error:", err);
+      logPaddle(null, "preview-upgrade", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to preview upgrade" }));
     }
@@ -1297,7 +1298,7 @@ export function handlePaddleUpgradeLifetime(req: IncomingMessage, res: ServerRes
         effectiveFrom: "immediately",
       });
 
-      console.log(`[Paddle] Canceled sub ${sub.paddle_subscription_id} immediately for lifetime upgrade (${userEmail})`);
+      logPaddle(userEmail, "lifetime-upgrade", `canceled sub ${sub.paddle_subscription_id} immediately`, "ok");
 
       // Create lifetime checkout transaction
       const priceId = PADDLE_PRICES["lifetime"];
@@ -1308,12 +1309,12 @@ export function handlePaddleUpgradeLifetime(req: IncomingMessage, res: ServerRes
         customData: { userId },
       });
 
-      console.log(`[Paddle] Lifetime checkout for ${userEmail} (txn=${transaction.id})`);
+      logPaddle(userEmail, "lifetime-upgrade", `txn=${transaction.id}`, "created");
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ transactionId: transaction.id }));
     } catch (err) {
-      console.error("[Paddle] Upgrade lifetime error:", err);
+      logPaddle(null, "lifetime-upgrade", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to upgrade to lifetime" }));
     }
@@ -1369,7 +1370,7 @@ export function handlePaddleCancel(req: IncomingMessage, res: ServerResponse) {
         effectiveFrom: "next_billing_period",
       });
 
-      console.log(`[Paddle] Cancel requested by ${userEmail} (${sub.paddle_subscription_id}), reason: ${reason || "none"}`);
+      logPaddle(userEmail, "cancel", `sub=${sub.paddle_subscription_id}, reason=${reason || "none"}`, "ok");
 
       // Store cancel reason
       if (reason) {
@@ -1386,7 +1387,7 @@ export function handlePaddleCancel(req: IncomingMessage, res: ServerResponse) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
     } catch (err) {
-      console.error("[Paddle] Cancel error:", err);
+      logPaddle(null, "cancel", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to cancel subscription" }));
     }
@@ -1425,7 +1426,7 @@ export function handlePaddleSubscriptionStatus(req: IncomingMessage, res: Server
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ subscription: sub || null }));
     } catch (err) {
-      console.error("[Paddle] Status error:", err);
+      logPaddle(null, "status", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal error" }));
     }
@@ -1449,7 +1450,7 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
 
       const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
-      console.log(`[Paddle] Prices request: userId=${userId || 'none'}, signupIp=${signupIp || 'none'}, locationParam=${JSON.stringify(locationParam)}`);
+      logPaddle(null, "prices", `userId=${userId || 'none'}, signupIp=${signupIp || 'none'}, locationParam=${JSON.stringify(locationParam)}`, "ok");
 
       const preview = await paddle.pricingPreview.preview({
         items: [
@@ -1461,7 +1462,7 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
         ...(discountId ? { discountId } : {}),
       });
 
-      console.log(`[Paddle] Prices preview: discountId=${discountId}, items=${JSON.stringify((preview as any).details?.lineItems?.map((i: any) => ({ id: i.price?.id, subtotal: i.totals?.subtotal, total: i.totals?.total, discount: i.totals?.discount, formatted: i.formattedTotals })))}`);
+      logPaddle(null, "prices", `discountId=${discountId}, items=${JSON.stringify((preview as any).details?.lineItems?.map((i: any) => ({ id: i.price?.id, subtotal: i.totals?.subtotal, total: i.totals?.total, discount: i.totals?.discount, formatted: i.formattedTotals })))}`, "ok");
 
       const prices: Record<string, { price: string; original: string | null; currency: string }> = {};
 
@@ -1502,7 +1503,7 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(prices));
     } catch (err) {
-      console.error("[Paddle] Prices error:", err);
+      logPaddle(null, "prices", String(err), "error");
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Failed to fetch prices" }));
     }
