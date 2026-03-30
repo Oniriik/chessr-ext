@@ -365,13 +365,16 @@ export function BillingApp() {
   const trialDataLoaded = freetrialUsed !== null && discordLinked !== null;
   const canClaimTrial = trialDataLoaded && !freetrialUsed && !discordLinked && userPlan === 'free';
 
-  // Fetch localized prices
+  // Fetch localized prices (use signup country if user is logged in)
   useEffect(() => {
-    fetch(`${SERVER_URL}/api/paddle/prices`)
+    const url = user?.id
+      ? `${SERVER_URL}/api/paddle/prices?userId=${user.id}`
+      : `${SERVER_URL}/api/paddle/prices`;
+    fetch(url)
       .then((r) => r.json())
       .then((data) => { if (!data.error) setDynamicPrices(data); })
       .catch(() => {});
-  }, []);
+  }, [user?.id]);
 
   // Initialize Paddle
   useEffect(() => {

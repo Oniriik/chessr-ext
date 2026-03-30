@@ -22,6 +22,40 @@ const PADDLE_PRICES: Record<string, string> = {
   lifetime: process.env.PADDLE_PRICE_LIFETIME!,
 };
 
+/**
+ * Get the signup country code for a user (stored at registration from IP geolocation).
+ * Used to force consistent billing country instead of relying on current IP.
+ */
+async function getSignupCountryCode(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from("user_settings")
+      .select("signup_country_code")
+      .eq("user_id", userId)
+      .single();
+    return data?.signup_country_code || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build Paddle address param from signup country code, with IP fallback.
+ */
+function buildLocationParam(
+  signupCountryCode: string | null,
+  clientIp: string | undefined,
+): Record<string, unknown> {
+  if (signupCountryCode) {
+    return { address: { countryCode: signupCountryCode } };
+  }
+  // Fallback to IP (for landing page / users without signup country)
+  if (clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1")) {
+    return { customerIpAddress: clientIp };
+  }
+  return {};
+}
+
 // Price ID → plan mapping (single product with 3 prices)
 const PRICE_PLAN_MAP: Record<string, { plan: "premium" | "lifetime"; interval?: string }> = {
   [process.env.PADDLE_PRICE_MONTHLY!]: { plan: "premium", interval: "monthly" },
@@ -774,14 +808,15 @@ export function handlePreviewUpgradeByToken(req: IncomingMessage, res: ServerRes
 
       const forwarded = req.headers["x-forwarded-for"];
       const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
-      const ipParam = clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {};
+      const signupCountry = await getSignupCountryCode(userId);
+      const locationParam = buildLocationParam(signupCountry, clientIp);
 
       const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
       const currencyParam = requestedCurrency ? { currencyCode: requestedCurrency } : {};
 
       const targetPreview = await paddle.pricingPreview.preview({
         items: [{ priceId: targetPriceId, quantity: 1 }],
-        ...ipParam,
+        ...locationParam,
         ...currencyParam,
         ...(discountId ? { discountId } : {}),
       });
@@ -1001,16 +1036,21 @@ export function handlePaddleCheckout(req: IncomingMessage, res: ServerResponse) 
         );
       }
 
+      // Use signup country for billing location
+      const signupCountry = await getSignupCountryCode(userId);
+      const addressParam = signupCountry ? { address: { countryCode: signupCountry } } : {};
+
       // Create transaction to get checkout URL
       const transaction = await paddle.transactions.create({
         items: [{ priceId, quantity: 1 }],
         customerId,
         customData: { userId },
+        ...addressParam,
       });
 
       const txnId = transaction.id;
 
-      console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (txn=${txnId})`);
+      console.log(`[Paddle] Checkout created for ${userEmail} → ${plan} (txn=${txnId}, country=${signupCountry || 'auto'})`);
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ transactionId: txnId }));
@@ -1138,18 +1178,18 @@ export function handlePaddlePreviewUpgrade(req: IncomingMessage, res: ServerResp
         return;
       }
 
-      // Get client IP for localized pricing
+      // Use signup country for localized pricing
       const forwarded = req.headers["x-forwarded-for"];
       const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
-      const ipParam = clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {};
+      const signupCountry = await getSignupCountryCode(authData.user.id);
+      const locationParam = buildLocationParam(signupCountry, clientIp);
 
       const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
-      // Get localized target price via pricing preview
       const currencyParam = requestedCurrency ? { currencyCode: requestedCurrency } : {};
       const targetPreview = await paddle.pricingPreview.preview({
         items: [{ priceId: targetPriceId, quantity: 1 }],
-        ...ipParam,
+        ...locationParam,
         ...currencyParam,
         ...(discountId ? { discountId } : {}),
       });
@@ -1404,9 +1444,14 @@ export function handlePaddleSubscriptionStatus(req: IncomingMessage, res: Server
 export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
   (async () => {
     try {
-      // Get client IP for geolocation
       const forwarded = req.headers["x-forwarded-for"];
       const clientIp = typeof forwarded === "string" ? forwarded.split(",")[0].trim() : req.socket.remoteAddress || undefined;
+
+      // If userId is provided (logged-in user), use their signup country for pricing
+      const url = new URL(req.url || "/", "http://localhost");
+      const userId = url.searchParams.get("userId");
+      const signupCountry = userId ? await getSignupCountryCode(userId) : null;
+      const locationParam = buildLocationParam(signupCountry, clientIp);
 
       const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
@@ -1416,7 +1461,7 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
           { priceId: PADDLE_PRICES["yearly"], quantity: 1 },
           { priceId: PADDLE_PRICES["lifetime"], quantity: 1 },
         ],
-        ...(clientIp && !clientIp.startsWith("127.") && !clientIp.startsWith("::1") ? { customerIpAddress: clientIp } : {}),
+        ...locationParam,
         ...(discountId ? { discountId } : {}),
       });
 
