@@ -314,6 +314,51 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Report signup: resolve country from IP and store in user_settings
+  if (req.url === "/report-signup" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { userId } = JSON.parse(body);
+        if (!userId) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "userId required" }));
+          return;
+        }
+
+        const clientIp =
+          (req.headers["x-forwarded-for"] as string)
+            ?.split(",")[0]
+            ?.trim() ||
+          req.socket.remoteAddress ||
+          null;
+
+        const cleanIp = cleanIpAddress(clientIp);
+        if (cleanIp) {
+          const { country, countryCode } = await resolveIpCountry(cleanIp);
+          if (country) {
+            await supabase
+              .from("user_settings")
+              .update({
+                signup_country: country,
+                signup_country_code: countryCode,
+              })
+              .eq("user_id", userId);
+            console.log(`[Signup] Country for ${userId}: ${country} (${cleanIp})`);
+          }
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid JSON" }));
+      }
+    });
+    return;
+  }
+
   // Report blocked signup attempt (disposable email)
   if (req.url === "/report-blocked-signup" && req.method === "POST") {
     let body = "";

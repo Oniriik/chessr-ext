@@ -221,7 +221,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -233,6 +233,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Success - reset attempts
       await resetAttempts(email);
+
+      // Report signup to server so it can resolve country from IP
+      if (signUpData.user?.id) {
+        fetch(`${SERVER_URL}/report-signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: signUpData.user.id }),
+        }).catch(() => {});
+      }
 
       // Don't set user/session - wait for email confirmation
       set({ loading: false });
