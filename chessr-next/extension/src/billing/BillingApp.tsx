@@ -365,12 +365,10 @@ export function BillingApp() {
   const trialDataLoaded = freetrialUsed !== null && discordLinked !== null;
   const canClaimTrial = trialDataLoaded && !freetrialUsed && !discordLinked && userPlan === 'free';
 
-  // Fetch localized prices (use signup country if user is logged in)
+  // Fetch localized prices (wait for user to load, use signup IP for pricing)
   useEffect(() => {
-    const url = user?.id
-      ? `${SERVER_URL}/api/paddle/prices?userId=${user.id}`
-      : `${SERVER_URL}/api/paddle/prices`;
-    fetch(url)
+    if (!user?.id) return; // Wait for auth to initialize
+    fetch(`${SERVER_URL}/api/paddle/prices?userId=${user.id}`)
       .then((r) => r.json())
       .then((data) => { if (!data.error) setDynamicPrices(data); })
       .catch(() => {});

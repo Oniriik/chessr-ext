@@ -36,9 +36,10 @@ export async function openBillingPage(): Promise<void> {
 
     const { token: billingToken } = await res.json();
 
-    // Build the checkout URL
+    // Build the checkout URL (include userId for signup-country-based pricing)
     const returnUrl = window.location.href;
-    const checkoutUrl = `https://chessr.io/checkout?t=${encodeURIComponent(billingToken)}&discount=earlyaccess&return=${encodeURIComponent(returnUrl)}`;
+    const userId = session?.user?.id || '';
+    const checkoutUrl = `https://chessr.io/checkout?t=${encodeURIComponent(billingToken)}&discount=earlyaccess&uid=${encodeURIComponent(userId)}&return=${encodeURIComponent(returnUrl)}`;
 
     console.log('[Billing] Opening:', checkoutUrl);
     window.location.href = checkoutUrl;
