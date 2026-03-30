@@ -160,12 +160,11 @@ class WebSocketManager {
 
       this.ws.onopen = () => {
         logger.log('Connection opened, authenticating...');
-        // Generate fingerprint and send with auth
+        // Send auth immediately, then fingerprint separately (FingerprintJS.load() can be slow)
+        this.send({ type: 'auth', token });
         FingerprintJS.load().then(fp => fp.get()).then(result => {
-          this.send({ type: 'auth', token, fingerprint: result.visitorId });
-        }).catch(() => {
-          this.send({ type: 'auth', token });
-        });
+          this.send({ type: 'fingerprint', fingerprint: result.visitorId });
+        }).catch(() => {});
       };
 
       this.ws.onmessage = (event) => {

@@ -30,7 +30,7 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
   if (existing) {
     if (existing.container.isConnected) return;
     // Container was detached — try to re-attach instead of full unmount/remount
-    // This avoids losing React state (which causes spinner flash)
+    console.log(`%c[Mount] ${mountPoint.id} container detached! Trying to re-attach...`, 'color: red; font-weight: bold');
     const newTarget = document.querySelector(mountPoint.selector);
     if (newTarget) {
       switch (mountPoint.position) {
@@ -48,11 +48,12 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
           break;
       }
       if (existing.container.isConnected) {
-        console.log(`[Chessr] Re-attached ${mountPoint.id} without remount`);
+        console.log(`%c[Mount] Re-attached ${mountPoint.id} without remount ✓`, 'color: green; font-weight: bold');
         return;
       }
     }
     // Re-attach failed, full cleanup
+    console.log(`%c[Mount] Re-attach failed for ${mountPoint.id}, full remount`, 'color: red; font-weight: bold');
     existing.root.unmount();
     mountedRoots.delete(mountPoint.id);
   }

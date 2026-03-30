@@ -113,19 +113,21 @@ export function useGameDetection() {
 
     const startMoveListObserver = () => {
       const moveList = document.querySelector(config.moveListSelector);
+      console.log(`%c[GameDetect] startMoveListObserver: selector="${config.moveListSelector}", found=${!!moveList}, tag=${moveList?.tagName}`, 'color: orange; font-weight: bold');
       if (!moveList) return;
       currentMoveListEl = moveList;
 
       // Get initial move count
       const moves = moveList.querySelectorAll(config.moveSelector);
       lastMoveCount.current = moves.length;
+      console.log(`%c[GameDetect] Initial move count: ${moves.length}, moveSelector="${config.moveSelector}"`, 'color: orange; font-weight: bold');
 
       moveListObserver.current = new MutationObserver(() => {
         const currentMoves = moveList.querySelectorAll(config.moveSelector);
 
         // Detect game reset (move count dropped to 0 or 1)
         if (currentMoves.length <= 1 && lastMoveCount.current > 1) {
-          console.log('[useGameDetection] Game reset detected');
+          console.log('%c[GameDetect] Game reset detected (moves dropped)', 'color: orange; font-weight: bold');
           reset();
           moveListObserver.current?.disconnect();
           lastMoveCount.current = 0;
@@ -140,6 +142,7 @@ export function useGameDetection() {
         }
 
         if (currentMoves.length !== lastMoveCount.current) {
+          console.log(`%c[GameDetect] Move count changed: ${lastMoveCount.current} → ${currentMoves.length}`, 'color: orange');
           lastMoveCount.current = currentMoves.length;
           syncFromDOM();
         }
@@ -153,18 +156,29 @@ export function useGameDetection() {
       // Check every second if the move list element was replaced
       if (moveListValidityCheck) clearInterval(moveListValidityCheck);
       moveListValidityCheck = setInterval(() => {
-        if (!currentMoveListEl?.isConnected) {
-          console.log('[useGameDetection] Move list element was replaced, re-attaching observer');
+        const stillConnected = currentMoveListEl?.isConnected;
+        if (!stillConnected) {
+          console.log(`%c[GameDetect] Move list disconnected! Re-checking DOM...`, 'color: red; font-weight: bold');
           moveListObserver.current?.disconnect();
           const newMoveList = document.querySelector(config.moveListSelector);
+          console.log(`%c[GameDetect] New move list found: ${!!newMoveList}, tag=${newMoveList?.tagName}`, 'color: red; font-weight: bold');
           if (newMoveList) {
             currentMoveListEl = newMoveList;
-            lastMoveCount.current = 0;
-            // Re-sync state from the new DOM
+            const newMoves = newMoveList.querySelectorAll(config.moveSelector);
+            console.log(`%c[GameDetect] Re-attached observer, moves in new element: ${newMoves.length}`, 'color: red; font-weight: bold');
+            lastMoveCount.current = newMoves.length;
             syncFromDOM();
-            moveListObserver.current?.observe(newMoveList, { childList: true, subtree: true });
+            moveListObserver.current = new MutationObserver(() => {
+              const currentMoves = newMoveList.querySelectorAll(config.moveSelector);
+              if (currentMoves.length !== lastMoveCount.current) {
+                console.log(`%c[GameDetect] [reattached] Move count changed: ${lastMoveCount.current} → ${currentMoves.length}`, 'color: orange');
+                lastMoveCount.current = currentMoves.length;
+                syncFromDOM();
+              }
+            });
+            moveListObserver.current.observe(newMoveList, { childList: true, subtree: true });
           } else if (!platformModule.detectGameStarted()) {
-            // Game ended
+            console.log(`%c[GameDetect] Game ended, stopping validity check`, 'color: red; font-weight: bold');
             if (moveListValidityCheck) clearInterval(moveListValidityCheck);
             reset();
             startDocumentObserver();

@@ -82,8 +82,8 @@ const supabase = createClient(
 // Store authenticated connections
 const clients = new Map<string, Client>();
 
-// Heartbeat: ping clients every 30s, disconnect if no pong within 10s
-const HEARTBEAT_INTERVAL = 30_000;
+// Heartbeat: ping clients every 10min, disconnect if no pong
+const HEARTBEAT_INTERVAL = 600_000;
 const clientAlive = new Map<string, boolean>();
 
 setInterval(() => {
@@ -986,10 +986,6 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           .eq("user_id", user.id)
           .single();
 
-        // Store fingerprint (deduped, fire and forget)
-        if (message.fingerprint) {
-          storeFingerprint(user.id, message.fingerprint);
-        }
 
         ws.send(
           JSON.stringify({
@@ -1012,6 +1008,12 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       // All other messages require authentication
       if (!isAuthenticated || !userId) {
         ws.send(JSON.stringify({ type: "error", error: "Not authenticated" }));
+        return;
+      }
+
+      // Handle fingerprint (sent separately after auth to avoid timeout)
+      if (message.type === "fingerprint" && message.fingerprint) {
+        storeFingerprint(userId, message.fingerprint);
         return;
       }
 
