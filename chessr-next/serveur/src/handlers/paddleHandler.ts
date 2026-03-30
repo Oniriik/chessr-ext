@@ -1455,6 +1455,8 @@ export function handlePaddlePrices(req: IncomingMessage, res: ServerResponse) {
 
       const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
+      console.log(`[Paddle] Prices request: userId=${userId || 'none'}, signupCountry=${signupCountry || 'none'}, locationParam=${JSON.stringify(locationParam)}`);
+
       const preview = await paddle.pricingPreview.preview({
         items: [
           { priceId: PADDLE_PRICES["monthly"], quantity: 1 },
