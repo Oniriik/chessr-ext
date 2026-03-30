@@ -36,21 +36,20 @@ export function useSuggestionTrigger() {
   const { numberOfSuggestions } = useSettingsStore();
   const { requestSuggestions } = useSuggestionStore();
   const { isConnected: isServerConnected, send } = useWebSocketStore();
-  const { isConnected: isMaiaConnected, connect: connectMaia, disconnect: disconnectMaia } = useMaiaWebSocketStore();
+  const { isConnected: isMaiaConnected, connect: connectMaia } = useMaiaWebSocketStore();
   const plan = useAuthStore((state) => state.plan);
   const needsLinking = useNeedsLinking();
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFen = useRef<string | null>(null);
 
-  // Auto-connect/disconnect Maia WS based on engine selection
+  // Always connect Maia WS when a game starts (needed for auto-move bridge
+  // even when using server engine). Only disconnect when no game is active.
   useEffect(() => {
-    if (selectedEngine === 'maia2') {
+    if (isGameStarted) {
       connectMaia();
-    } else {
-      disconnectMaia();
     }
-  }, [selectedEngine, connectMaia, disconnectMaia]);
+  }, [isGameStarted, connectMaia]);
 
   // Determine if we're ready to send
   // For Maia: must be connected AND have a premium plan (checked via extension auth)

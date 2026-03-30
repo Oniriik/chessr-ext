@@ -8,6 +8,7 @@ import { useGameDetection } from '../../hooks/useGameDetection';
 import { useSuggestionTrigger } from '../../hooks/useSuggestionTrigger';
 import { useAnalysisTrigger } from '../../hooks/useAnalysisTrigger';
 import { useOpeningTrigger } from '../../hooks/useOpeningTrigger';
+import { useAutoMoveBridge } from '../../hooks/useAutoMoveBridge';
 import { useAuthStore } from '../../stores/authStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 
@@ -35,6 +36,7 @@ export function GameDetector() {
   useSuggestionTrigger();
   useAnalysisTrigger();
   useOpeningTrigger();
+  useAutoMoveBridge();
 
   return null;
 }

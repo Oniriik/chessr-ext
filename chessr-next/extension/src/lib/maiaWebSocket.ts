@@ -110,6 +110,24 @@ class MaiaWebSocketManager {
     });
   }
 
+  /**
+   * Send board state to desktop app for auto-move
+   */
+  sendBoardState(
+    suggestions: Array<{ move: string; confidence: number; winRate: number }>,
+    boardRect: { x: number; y: number; width: number; height: number },
+    isFlipped: boolean,
+    isPlayerTurn: boolean,
+  ): void {
+    this.send({
+      type: 'board_state',
+      suggestions,
+      board: boardRect,
+      isFlipped,
+      isPlayerTurn,
+    });
+  }
+
   send(data: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data));
@@ -179,6 +197,10 @@ class MaiaWebSocketManager {
         // Log Maia suggestion to server for activity tracking
         webSocketManager.send({ type: 'log_maia_suggestion' });
       }
+    } else if (data.type === 'move_executed') {
+      logger.log(`[Maia] Auto-move executed: ${data.move}`);
+    } else if (data.type === 'board_state_ack') {
+      // Acknowledgement, no action needed
     } else if (data.type === 'error') {
       const requestId = data.requestId as string;
       if (requestId) {
