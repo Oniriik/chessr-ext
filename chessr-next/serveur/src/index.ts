@@ -877,7 +877,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   }
 
   // Paddle localized prices
-  if (req.url === "/api/paddle/prices" && req.method === "GET") {
+  if (req.url?.startsWith("/api/paddle/prices") && req.method === "GET") {
     handlePaddlePrices(req, res);
     return;
   }
