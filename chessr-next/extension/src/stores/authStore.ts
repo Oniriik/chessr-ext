@@ -239,7 +239,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         fetch(`${SERVER_URL}/report-signup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: signUpData.user.id }),
+          body: JSON.stringify({ userId: signUpData.user.id, email }),
         }).catch(() => {});
       }
 

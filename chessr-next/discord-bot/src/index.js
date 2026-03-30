@@ -7,9 +7,7 @@ const config = {
   discordToken: process.env.DISCORD_TOKEN,
   guildId: process.env.DISCORD_GUILD_ID,
   channelId: process.env.DISCORD_CHANNEL_ID,
-  signupChannelId: process.env.DISCORD_CHANNEL_SIGNUP || '1476547865039077416',
   discordChannelId: process.env.DISCORD_CHANNEL_DISCORD,
-  digestChannelId: process.env.DISCORD_CHANNEL_DIGEST,
   chessrServerUrl: process.env.CHESSR_SERVER_URL || 'https://engine.chessr.io',
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseKey: process.env.SUPABASE_SERVICE_KEY,
@@ -319,124 +317,7 @@ function getServerStatus(stats) {
 }
 
 // Country detection from email TLD
-const tldCountryMap = {
-  fr: '🇫🇷 France', de: '🇩🇪 Germany', uk: '🇬🇧 UK', es: '🇪🇸 Spain',
-  it: '🇮🇹 Italy', nl: '🇳🇱 Netherlands', be: '🇧🇪 Belgium', ch: '🇨🇭 Switzerland',
-  pt: '🇵🇹 Portugal', pl: '🇵🇱 Poland', ru: '🇷🇺 Russia', br: '🇧🇷 Brazil',
-  jp: '🇯🇵 Japan', kr: '🇰🇷 South Korea', cn: '🇨🇳 China', in: '🇮🇳 India',
-  au: '🇦🇺 Australia', ca: '🇨🇦 Canada', mx: '🇲🇽 Mexico', ar: '🇦🇷 Argentina',
-  se: '🇸🇪 Sweden', no: '🇳🇴 Norway', dk: '🇩🇰 Denmark', fi: '🇫🇮 Finland',
-  at: '🇦🇹 Austria', cz: '🇨🇿 Czech Republic', ro: '🇷🇴 Romania', hu: '🇭🇺 Hungary',
-  gr: '🇬🇷 Greece', tr: '🇹🇷 Turkey', za: '🇿🇦 South Africa', ie: '🇮🇪 Ireland',
-  nz: '🇳🇿 New Zealand', co: '🇨🇴 Colombia', cl: '🇨🇱 Chile', pe: '🇵🇪 Peru',
-};
-
-function getCountryFromEmail(email) {
-  const tld = email.split('@')[1]?.split('.').pop()?.toLowerCase();
-  return tld && tldCountryMap[tld] ? tldCountryMap[tld] : '🌍 Unknown';
-}
-
-// Check for new signups and notify
-const LAST_SIGNUP_KEY = 'last_signup_created_at';
-
-async function checkNewSignups() {
-  try {
-    // Get created_at of the last notified user (dedup by actual user timestamp)
-    const { data: lastSignupData } = await supabase
-      .from('global_stats')
-      .select('value')
-      .eq('key', LAST_SIGNUP_KEY)
-      .single();
-
-    const lastSignupAt = lastSignupData?.value
-      || new Date(Date.now() - 120_000).toISOString(); // 2min ago on first run
-
-    // Find new users created after the last notified user
-    const newUsers = [];
-    let page = 1;
-    while (true) {
-      const { data: batch } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-      if (!batch?.users.length) break;
-      for (const user of batch.users) {
-        if (user.created_at > lastSignupAt && user.email) {
-          newUsers.push({ id: user.id, email: user.email, created_at: user.created_at });
-        }
-      }
-      if (batch.users.length < 1000) break;
-      page++;
-    }
-
-    if (newUsers.length === 0) return;
-
-    // Sort by created_at so we process in order and save the latest
-    newUsers.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-    // Fetch stored countries and IPs from signup_ips
-    const userIds = newUsers.map(u => u.id);
-    const { data: ipData } = await supabase
-      .from('signup_ips')
-      .select('user_id, country, country_code, ip_address')
-      .in('user_id', userIds);
-
-    const countryMap = new Map();
-    const ipMap = new Map();
-    if (ipData) {
-      for (const row of ipData) {
-        if (row.country) {
-          countryMap.set(row.user_id, row.country);
-        }
-        if (row.ip_address) {
-          ipMap.set(row.user_id, row.ip_address);
-        }
-      }
-    }
-
-    // Get signup channel
-    const channel = await client.channels.fetch(config.signupChannelId).catch(() => null);
-    if (!channel) {
-      console.error('[Signup] Channel not found:', config.signupChannelId);
-      return;
-    }
-
-    // Send embeds
-    for (const user of newUsers) {
-      // Use stored country from IP, fallback to email TLD
-      const storedCountry = countryMap.get(user.id);
-      const countryText = storedCountry || getCountryFromEmail(user.email);
-      const storedIp = ipMap.get(user.id);
-
-      const fields = [
-        { name: '📧 Email', value: user.email, inline: true },
-        { name: '🌍 Country', value: countryText, inline: true },
-      ];
-
-      if (storedIp) {
-        fields.push({ name: '🔒 IP', value: storedIp, inline: true });
-      }
-
-      await channel.send({
-        embeds: [{
-          title: '🎉 New User Signup',
-          color: 0x10b981,
-          fields,
-          timestamp: user.created_at,
-          footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
-        }],
-      });
-      console.log(`[Signup] Notified: ${user.email} (${countryText}, IP: ${storedIp || 'unknown'})`);
-    }
-
-    // Save the created_at of the last notified user (dedup cursor)
-    const lastCreatedAt = newUsers[newUsers.length - 1].created_at;
-    await supabase
-      .from('global_stats')
-      .upsert({ key: LAST_SIGNUP_KEY, value: lastCreatedAt, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-
-    console.log(`[Signup] ${newUsers.length} new signup(s) notified`);
-  } catch (error) {
-    console.error('[Signup] Error:', error);
-  }
-}
+// Signup notifications are now sent by the server via /report-signup endpoint
 
 // Stats channel IDs cache (loaded from global_stats on startup)
 const STATS_CHANNELS_KEY = 'stats_channel_ids';
@@ -725,110 +606,6 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // =============================================================================
-// Daily Digest
-// =============================================================================
-
-async function sendDailyDigest() {
-  if (!config.digestChannelId) return;
-
-  try {
-    const channel = await client.channels.fetch(config.digestChannelId).catch(() => null);
-    if (!channel) {
-      console.error('[Digest] Channel not found:', config.digestChannelId);
-      return;
-    }
-
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-
-    // New signups today
-    let newSignups = 0;
-    let page = 1;
-    while (true) {
-      const { data: batch } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
-      if (!batch?.users.length) break;
-      for (const user of batch.users) {
-        if (user.created_at >= todayStart) newSignups++;
-      }
-      if (batch.users.length < 1000) break;
-      page++;
-    }
-
-    // Plan changes today (from plan_activity_logs)
-    const { data: planLogs } = await supabase
-      .from('plan_activity_logs')
-      .select('new_plan, action_type')
-      .gte('created_at', todayStart);
-
-    const newPremium = planLogs?.filter(l => ['premium', 'lifetime'].includes(l.new_plan) && l.action_type === 'admin_change').length || 0;
-    const plansExpired = planLogs?.filter(l => l.action_type === 'cron_downgrade').length || 0;
-
-    // Suggestions today
-    const { count: suggestionsToday } = await supabase
-      .from('user_activity')
-      .select('*', { count: 'exact', head: true })
-      .eq('event_type', 'suggestion')
-      .gte('created_at', todayStart);
-
-    // Discord links today
-    const { count: discordLinks } = await supabase
-      .from('user_settings')
-      .select('*', { count: 'exact', head: true })
-      .gte('discord_linked_at', todayStart);
-
-    // Current connected users
-    let connectedUsers = 0;
-    try {
-      const statsRes = await fetch(`${config.chessrServerUrl}/stats`);
-      if (statsRes.ok) {
-        const stats = await statsRes.json();
-        connectedUsers = stats?.realtime?.connectedUsers || 0;
-      }
-    } catch { /* ignore */ }
-
-    // Total users
-    const premiumStats = await fetchPremiumStats();
-
-    await channel.send({
-      embeds: [{
-        title: '📊 Daily Digest',
-        color: 0x5865f2,
-        fields: [
-          { name: '📈 New Signups', value: `${newSignups}`, inline: true },
-          { name: '💎 New Premium/Lifetime', value: `${newPremium}`, inline: true },
-          { name: '⏰ Plans Expired', value: `${plansExpired}`, inline: true },
-          { name: '🎮 Suggestions Today', value: `${suggestionsToday || 0}`, inline: true },
-          { name: '👥 Users Online Now', value: `${connectedUsers}`, inline: true },
-          { name: '🔗 Discord Links', value: `${discordLinks || 0}`, inline: true },
-          { name: '👥 Total Users', value: `${premiumStats?.total || 0}`, inline: true },
-          { name: '⭐ Total Premium', value: `${premiumStats?.totalPremium || 0}`, inline: true },
-        ],
-        timestamp: new Date().toISOString(),
-        footer: { text: 'Chessr.io • Daily Digest', icon_url: 'https://chessr.io/chessr-logo.png' },
-      }],
-    });
-
-    console.log('[Digest] Daily digest sent');
-  } catch (error) {
-    console.error('[Digest] Error:', error);
-  }
-}
-
-// Schedule daily digest at midnight UTC
-function scheduleDailyDigest() {
-  const now = new Date();
-  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const msUntilMidnight = tomorrow.getTime() - now.getTime();
-
-  setTimeout(() => {
-    sendDailyDigest();
-    // Then repeat every 24h
-    setInterval(sendDailyDigest, 24 * 60 * 60 * 1000);
-  }, msUntilMidnight);
-
-  console.log(`[Digest] Scheduled daily digest in ${Math.round(msUntilMidnight / 60000)}min`);
-}
-
 // =============================================================================
 // Bot Events
 // =============================================================================
@@ -890,16 +667,12 @@ client.once('ready', async () => {
 
   // Initial update
   await updateStatsChannels();
-  await checkNewSignups();
   await syncAllRoles();
 
   // Schedule periodic updates
   setInterval(updateStatsChannels, config.updateInterval);
-  setInterval(checkNewSignups, 120_000); // Check signups every 2 minutes
   setInterval(syncAllRoles, 10 * 60 * 1000); // Sync roles every 10 minutes
 
-  // Schedule daily digest at midnight UTC
-  scheduleDailyDigest();
 });
 
 // Error handling

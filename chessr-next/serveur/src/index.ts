@@ -135,6 +135,7 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
 // Discord Bot API for notifications
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_ADMIN || process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
+const DISCORD_SIGNUP_CHANNEL_ID = process.env.DISCORD_CHANNEL_SIGNUP || "1476547865039077416";
 
 async function checkBanStatus(
   userId: string,
@@ -320,7 +321,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     req.on("data", (chunk) => (body += chunk));
     req.on("end", async () => {
       try {
-        const { userId } = JSON.parse(body);
+        const { userId, email } = JSON.parse(body);
         if (!userId) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "userId required" }));
@@ -335,8 +336,13 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           null;
 
         const cleanIp = cleanIpAddress(clientIp);
+        let country: string | null = null;
+        let countryCode: string | null = null;
+
         if (cleanIp) {
-          const { country, countryCode } = await resolveIpCountry(cleanIp);
+          const geo = await resolveIpCountry(cleanIp);
+          country = geo.country;
+          countryCode = geo.countryCode;
           if (country) {
             await supabase
               .from("user_settings")
@@ -345,9 +351,35 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
                 signup_country_code: countryCode,
               })
               .eq("user_id", userId);
-            console.log(`[Signup] Country for ${userId}: ${country} (${cleanIp})`);
           }
         }
+
+        // Send Discord signup notification
+        if (DISCORD_BOT_TOKEN && DISCORD_SIGNUP_CHANNEL_ID) {
+          const fields = [
+            { name: "📧 Email", value: email || "unknown", inline: true },
+            { name: "🌍 Country", value: country || "Unknown", inline: true },
+            { name: "🔑 IP", value: cleanIp || "Unknown", inline: true },
+          ];
+          fetch(`https://discord.com/api/v10/channels/${DISCORD_SIGNUP_CHANNEL_ID}/messages`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bot ${DISCORD_BOT_TOKEN}`,
+            },
+            body: JSON.stringify({
+              embeds: [{
+                title: "🎉 New User Signup",
+                color: 0x10b981,
+                fields,
+                timestamp: new Date().toISOString(),
+                footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
+              }],
+            }),
+          }).catch((e) => console.error("[Discord] Failed to send signup notification:", e));
+        }
+
+        console.log(`[Signup] ${email || userId} from ${country || "unknown"} (${cleanIp || "no IP"})`);
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
