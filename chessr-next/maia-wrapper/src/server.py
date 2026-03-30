@@ -23,11 +23,16 @@ class MaiaServer:
         self,
         engine: MaiaEngine,
         port: int = DEFAULT_PORT,
+        automove_state=None,
     ):
         self.engine = engine
         self.port = port
         self._server = None
         self._clients: set = set()
+        self._loop = None
+        self._automove_state = automove_state
+        if automove_state:
+            automove_state.set_server(self)
 
     async def _handle_client(self, websocket):
         self._clients.add(websocket)
@@ -64,6 +69,9 @@ class MaiaServer:
 
         if msg_type == "analyze":
             return self._handle_analyze(msg)
+
+        if msg_type == "board_state":
+            return self._handle_board_state(msg)
 
         return {
             "type": "error",
@@ -104,7 +112,22 @@ class MaiaServer:
             **result,
         }
 
+    def _handle_board_state(self, msg: dict) -> dict:
+        if self._automove_state:
+            self._automove_state.update_board_state(msg)
+        return {"type": "board_state_ack"}
+
+    def broadcast_sync(self, msg: dict):
+        """Broadcast a message to all connected clients (callable from any thread)."""
+        data = json.dumps(msg)
+        for client in list(self._clients):
+            try:
+                asyncio.run_coroutine_threadsafe(client.send(data), self._loop)
+            except Exception:
+                pass
+
     async def start(self):
+        self._loop = asyncio.get_event_loop()
         self._server = await websockets.serve(
             self._handle_client,
             "127.0.0.1",

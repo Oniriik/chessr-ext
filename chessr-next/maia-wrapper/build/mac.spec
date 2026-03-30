@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for Chessr.io Maia — macOS .app bundle (onedir)."""
+"""PyInstaller spec for Chessr.io Maia — macOS .app bundle (onefile)."""
 
 import sys
 from pathlib import Path
@@ -25,6 +25,10 @@ a = Analysis(
         'src.tray',
         'src.updater',
         'src.auth',
+        'src.automove',
+        'src.automove_state',
+        'src.keybinds',
+        'src.overlay',
         'websockets',
         'websockets.legacy',
         'websockets.legacy.server',
@@ -43,6 +47,10 @@ a = Analysis(
         'Quartz',
         'Security',
         'UniformTypeIdentifiers',
+        'pyautogui',
+        'pynput',
+        'pynput.keyboard',
+        'pynput.keyboard._darwin',
     ],
     hookspath=[],
     hooksconfig={},
@@ -59,8 +67,9 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=True,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     name='Chessr.io',
     debug=False,
     bootloader_ignore_signals=False,
@@ -70,18 +79,8 @@ exe = EXE(
     icon=str(ROOT / 'assets' / 'icon.icns'),
 )
 
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=False,
-    name='Chessr.io',
-)
-
 app = BUNDLE(
-    coll,
+    exe,
     name='Chessr.io.app',
     icon=str(ROOT / 'assets' / 'icon.icns'),
     bundle_identifier='io.chessr.maia',
