@@ -14,6 +14,7 @@ import { DiscordPanel } from '@/components/discord-panel'
 import { DataPanel } from '@/components/data-panel'
 import { LeaderboardPanel } from '@/components/leaderboard-panel'
 import { ExplanationsPanel } from '@/components/explanations-panel'
+import { MapPanel } from '@/components/map-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
 import {
   LogOut,
@@ -31,9 +32,10 @@ import {
   X,
   PanelLeftClose,
   PanelLeft,
+  Globe,
 } from 'lucide-react'
 
-type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard'
+type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard' | 'map'
 
 interface NavItem {
   id: TabId
@@ -50,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'server', label: 'Server', icon: Server, group: 'Manage' },
   { id: 'logs', label: 'Logs', icon: ScrollText, group: 'Manage' },
   { id: 'users', label: 'Users', icon: Users, group: 'Users' },
+  { id: 'map', label: 'User Map', icon: Globe, group: 'Users' },
   { id: 'plans', label: 'Activity', icon: Gift, group: 'Users' },
   { id: 'discord', label: 'Discord', icon: MessageSquare, group: 'Communicate' },
 ]
@@ -128,6 +131,7 @@ export default function DashboardPage() {
       case 'users': return <UsersPanel userRole={userRole} userId={userId} userEmail={userEmail} />
       case 'plans': return <PlansPanel />
       case 'leaderboard': return <LeaderboardPanel />
+      case 'map': return <MapPanel />
       case 'discord': return <DiscordPanel />
     }
   }
