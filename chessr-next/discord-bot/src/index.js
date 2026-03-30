@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes, PermissionFlagsBits } from 'discord.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration
@@ -439,6 +439,11 @@ const commands = [
           { name: 'Blitz', value: 'blitz' },
           { name: 'Bullet', value: 'bullet' },
         )),
+  new SlashCommandBuilder()
+    .setName('lookup')
+    .setDescription('Look up a user\'s Chessr account details (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addUserOption(opt => opt.setName('member').setDescription('The Discord user to look up').setRequired(true)),
 ];
 
 async function registerCommands() {
@@ -584,6 +589,128 @@ async function handleLeaderboardCommand(interaction) {
   });
 }
 
+async function handleLookupCommand(interaction) {
+  await interaction.deferReply({ ephemeral: true });
+  const targetUser = interaction.options.getUser('member');
+  const LOOKUP_CHANNEL_ID = '1464202530362888258';
+
+  // Find Chessr account by discord_id
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('user_id, plan, plan_expiry, banned, ban_reason, signup_country, signup_country_code, discord_linked_at, freetrial_used')
+    .eq('discord_id', targetUser.id)
+    .single();
+
+  if (!settings) {
+    await interaction.editReply({ content: `${targetUser} has no linked Chessr account.` });
+    return;
+  }
+
+  // Get email from auth
+  const { data: authData } = await supabase.auth.admin.getUserById(settings.user_id);
+  const email = authData?.user?.email || 'unknown';
+  const createdAt = authData?.user?.created_at;
+
+  // Get subscription details from Paddle
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('plan, interval, status, canceled_at, current_period_end')
+    .eq('user_id', settings.user_id)
+    .single();
+
+  // Build plan info
+  let planText = settings.plan;
+  if (sub) {
+    const interval = sub.interval === 'year' ? 'yearly' : sub.interval === 'month' ? 'monthly' : sub.interval || '';
+    const statusEmoji = sub.status === 'active' ? '🟢' : sub.status === 'canceled' ? '🔴' : '🟡';
+    planText = `**${settings.plan}** (${interval})\n${statusEmoji} ${sub.status}`;
+    if (sub.canceled_at) {
+      planText += `\n❌ Cancelled: <t:${Math.floor(new Date(sub.canceled_at).getTime() / 1000)}:R>`;
+    }
+    if (sub.current_period_end) {
+      const label = sub.canceled_at ? 'Expires' : 'Renews';
+      planText += `\n📅 ${label}: <t:${Math.floor(new Date(sub.current_period_end).getTime() / 1000)}:R>`;
+    }
+  } else if (settings.plan === 'lifetime') {
+    planText = '**lifetime** ♾️';
+  } else if (settings.plan === 'free') {
+    planText = `**free**${settings.freetrial_used ? ' (trial used)' : ''}`;
+  }
+  if (settings.plan_expiry && settings.plan !== 'lifetime') {
+    const ts = Math.floor(new Date(settings.plan_expiry).getTime() / 1000);
+    planText += `\n⏰ Expiry: <t:${ts}:R>`;
+  }
+
+  // Get IPs with countries
+  const { data: ips } = await supabase
+    .from('signup_ips')
+    .select('ip_address, country, country_code, created_at')
+    .eq('user_id', settings.user_id)
+    .order('created_at', { ascending: true });
+
+  let ipText = 'None';
+  if (ips?.length) {
+    ipText = ips.map(ip => `\`${ip.ip_address}\` — ${ip.country || 'Unknown'}`).join('\n');
+    if (ipText.length > 1024) {
+      ipText = ips.slice(0, 10).map(ip => `\`${ip.ip_address}\` — ${ip.country || 'Unknown'}`).join('\n') + `\n... +${ips.length - 10} more`;
+    }
+  }
+
+  // Get linked chess accounts
+  const { data: linkedAccounts } = await supabase
+    .from('linked_accounts')
+    .select('platform, platform_username, rating_rapid, rating_blitz, rating_bullet')
+    .eq('user_id', settings.user_id)
+    .is('unlinked_at', null);
+
+  let accountsText = 'None';
+  if (linkedAccounts?.length) {
+    accountsText = linkedAccounts.map(a => {
+      const ratings = [
+        a.rating_rapid > 0 ? `R:${a.rating_rapid}` : null,
+        a.rating_blitz > 0 ? `B:${a.rating_blitz}` : null,
+        a.rating_bullet > 0 ? `⚡:${a.rating_bullet}` : null,
+      ].filter(Boolean).join(' ');
+      return `**${a.platform}** ${a.platform_username}${ratings ? ` (${ratings})` : ''}`;
+    }).join('\n');
+  }
+
+  const fields = [
+    { name: '📧 Email', value: email, inline: true },
+    { name: '💎 Plan', value: planText, inline: true },
+    { name: '🌍 Country', value: settings.signup_country || 'Unknown', inline: true },
+    { name: '♟️ Linked Accounts', value: accountsText, inline: false },
+    { name: '🔑 IPs', value: ipText, inline: false },
+  ];
+
+  if (settings.banned) {
+    fields.unshift({ name: '🚫 BANNED', value: settings.ban_reason || 'No reason', inline: false });
+  }
+
+  if (createdAt) {
+    const ts = Math.floor(new Date(createdAt).getTime() / 1000);
+    fields.push({ name: '📅 Registered', value: `<t:${ts}:f> (<t:${ts}:R>)`, inline: true });
+  }
+
+  const embed = {
+    title: `🔍 Lookup: ${targetUser.username}`,
+    color: settings.banned ? 0xef4444 : 0x3b82f6,
+    fields,
+    thumbnail: { url: targetUser.displayAvatarURL({ size: 128 }) },
+    timestamp: new Date().toISOString(),
+    footer: { text: `User ID: ${settings.user_id} • Requested by ${interaction.user.username}`, icon_url: 'https://chessr.io/chessr-logo.png' },
+  };
+
+  // Send to admin channel so all admins can see
+  const adminChannel = await client.channels.fetch(LOOKUP_CHANNEL_ID).catch(() => null);
+  if (adminChannel) {
+    await adminChannel.send({ embeds: [embed] });
+    await interaction.editReply({ content: `✅ Lookup sent to <#${LOOKUP_CHANNEL_ID}>` });
+  } else {
+    await interaction.editReply({ embeds: [embed] });
+  }
+}
+
 // Handle slash command interactions
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
@@ -593,6 +720,8 @@ client.on('interactionCreate', async (interaction) => {
       await handleRankCommand(interaction);
     } else if (interaction.commandName === 'leaderboard') {
       await handleLeaderboardCommand(interaction);
+    } else if (interaction.commandName === 'lookup') {
+      await handleLookupCommand(interaction);
     }
   } catch (err) {
     console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);

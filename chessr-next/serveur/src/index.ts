@@ -363,6 +363,8 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
               })
               .eq("user_id", userId);
           }
+          // Store IP in signup_ips so unverified accounts are also tracked
+          storeUserIp(userId, clientIp);
         }
 
         // Check for other accounts with the same IP
