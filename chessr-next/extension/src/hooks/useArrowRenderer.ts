@@ -19,7 +19,6 @@ import { useOpeningTracker } from "./useOpeningTracker";
 import { useAlternativeOpenings } from "./useAlternativeOpenings";
 import { OverlayManager } from "../content/overlay/OverlayManager";
 import { ArrowRenderer, type Badge } from "../content/overlay/ArrowRenderer";
-import { logger } from "../lib/logger";
 
 // Confidence label to badge type key (for color mapping)
 const CONFIDENCE_TYPES: Record<ConfidenceLabel, string> = {
