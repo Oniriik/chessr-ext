@@ -205,6 +205,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
+    // Check if IP is banned before signup
+    try {
+      const ipCheck = await fetch(`${SERVER_URL}/check-ip-ban`);
+      if (ipCheck.ok) {
+        const { banned } = await ipCheck.json();
+        if (banned) {
+          const error = 'Your IP address has been banned.';
+          set({ loading: false, error });
+          return { success: false, error };
+        }
+      }
+    } catch {
+      // If check fails, allow signup to proceed
+    }
+
     try {
       const { error } = await supabase.auth.signUp({
         email,
