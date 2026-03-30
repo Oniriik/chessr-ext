@@ -143,9 +143,10 @@ function getArrowLength(from: string, to: string): number {
 /**
  * Detect current platform from hostname
  */
-function detectPlatform(): "chesscom" | "lichess" {
+function detectPlatform(): "chesscom" | "lichess" | "worldchess" {
   const hostname = window.location.hostname;
   if (hostname.includes("lichess.org")) return "lichess";
+  if (hostname.includes("worldchess.com")) return "worldchess";
   return "chesscom";
 }
 
@@ -156,8 +157,13 @@ function findBoardElement(): HTMLElement | null {
   const platform = detectPlatform();
 
   if (platform === "lichess") {
-    // Lichess: cg-board is the actual board element
     return document.querySelector("cg-board") as HTMLElement | null;
+  }
+
+  if (platform === "worldchess") {
+    return document.querySelector(
+      '[data-component="GameBoardCenter"] cg-board[data-cg-type="board"]',
+    ) as HTMLElement | null;
   }
 
   // Chess.com
@@ -173,9 +179,15 @@ function isBoardFlipped(): boolean {
   const platform = detectPlatform();
 
   if (platform === "lichess") {
-    // Lichess: check cg-wrap orientation class
     const cgWrap = document.querySelector(".cg-wrap");
     return cgWrap?.classList.contains("orientation-black") ?? false;
+  }
+
+  if (platform === "worldchess") {
+    // WorldChess: board has transform rotate(180deg) when flipped
+    const board = findBoardElement();
+    if (!board) return false;
+    return (board.style.transform || "").includes("rotate(180deg)");
   }
 
   // Chess.com
@@ -231,7 +243,6 @@ export function useArrowRenderer() {
   // Initialize overlay when game starts
   useEffect(() => {
     if (!isGameStarted) {
-      // Clean up when game ends
       if (overlayRef.current) {
         overlayRef.current.offResize(handleResize);
         overlayRef.current.destroy();
@@ -242,11 +253,30 @@ export function useArrowRenderer() {
       return;
     }
 
-    // Find board element
-    const boardElement = findBoardElement();
-    if (!boardElement) return;
+    // Find board — on WorldChess SPA, the main board may not be rendered yet
+    let boardElement = findBoardElement();
 
-    // Initialize overlay if not already done
+    if (!boardElement) {
+      // Poll for the board every 300ms up to 5s (SPA async rendering)
+      let attempts = 0;
+      const pollTimer = setInterval(() => {
+        attempts++;
+        if (attempts > 16 || !isGameStarted) { clearInterval(pollTimer); return; }
+        const board = findBoardElement();
+        if (board && !isInitializedRef.current) {
+          clearInterval(pollTimer);
+          const overlay = new OverlayManager();
+          overlay.initialize(board, isBoardFlipped());
+          overlay.onResize(handleResize);
+          overlayRef.current = overlay;
+          rendererRef.current = new ArrowRenderer(overlay);
+          isInitializedRef.current = true;
+          overlay.setFlipped(playerColor === "black");
+        }
+      }, 300);
+      return () => clearInterval(pollTimer);
+    }
+
     if (!isInitializedRef.current) {
       const overlay = new OverlayManager();
       const isFlipped = isBoardFlipped();
@@ -280,7 +310,7 @@ export function useArrowRenderer() {
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) {
-      // No renderer yet, skip silently
+      console.log(`%c[chessr.io] [Arrow] No renderer, skipping. isInitialized=${isInitializedRef.current}, overlay=${!!overlayRef.current}`, 'color: #f59e0b');
       return;
     }
 

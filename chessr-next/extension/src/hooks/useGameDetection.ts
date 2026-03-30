@@ -120,7 +120,20 @@ export function useGameDetection() {
 
     const startMoveListObserver = () => {
       const moveList = document.querySelector(config.moveListSelector);
-      if (!moveList) return;
+      if (!moveList) {
+        // Move list not yet rendered (SPA async) — watch for it to appear
+        documentObserver.current?.disconnect();
+        documentObserver.current = new MutationObserver(() => {
+          const ml = document.querySelector(config.moveListSelector);
+          if (ml) {
+            documentObserver.current?.disconnect();
+            startMoveListObserver();
+            syncFromDOM();
+          }
+        });
+        documentObserver.current.observe(document.body, { childList: true, subtree: true });
+        return;
+      }
       currentMoveListEl = moveList;
 
       // Get initial move count

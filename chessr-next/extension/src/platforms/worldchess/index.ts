@@ -2,15 +2,21 @@ import { Platform } from '../types';
 import { detectRoute } from './routes';
 import { getMountPoints } from './mounts';
 
-// Target the main game board, not mini-boards in popups
-const BOARD_SELECTOR = '[data-component="GameLayoutRightbarBoard"] cg-board[data-cg-type="board"]';
+const BOARD_SELECTOR = 'cg-board[data-cg-type="board"]';
+
+/** Find the main game board inside GameBoardCenter */
+function findMainBoard(): HTMLElement | null {
+  return document.querySelector(
+    '[data-component="GameBoardCenter"] ' + BOARD_SELECTOR,
+  ) as HTMLElement | null;
+}
 const MOVE_BUTTON_SELECTOR = 'button[id^="move_"][id$="_table"]';
 
 /**
  * Detects if a game has started by checking for the board element on a game page.
  */
 export function detectGameStarted(): boolean {
-  const board = document.querySelector(BOARD_SELECTOR);
+  const board = findMainBoard();
   if (!board) return false;
   // Verify we're on a game page
   return /\/game\/[0-9a-f-]+/i.test(window.location.pathname);
@@ -42,7 +48,7 @@ export function detectPlayerColor(): 'white' | 'black' | null {
   if (playerName === blackName) return 'black';
 
   // Fallback: check board rotation
-  const board = document.querySelector(BOARD_SELECTOR) as HTMLElement | null;
+  const board = findMainBoard();
   if (board) {
     const transform = board.style.transform || '';
     if (transform.includes('rotate(180deg)')) return 'black';

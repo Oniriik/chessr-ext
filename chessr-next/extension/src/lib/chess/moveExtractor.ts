@@ -121,15 +121,31 @@ export function extractMovesFromDOM(): string[] {
       // Lichess: moves are plain text in kwdb elements
       san = ply.textContent?.trim() || null;
     } else if (platform === 'worldchess') {
-      // WorldChess: SAN text is in a div child (not the piece SVG div or time div)
-      // Structure: button > [div(piece icon), div(SAN text), div(time)]
+      // WorldChess: piece icon is SVG with data-type, SAN text is in a separate div
+      // Structure: button > div > [div(Chesspiece SVG), div(SAN text like "f6"), div(time)]
+      // Need to combine piece letter from SVG + SAN text (e.g. "N" + "f6" = "Nf6")
       san = null;
+
+      // Map Chesspiece data-type to SAN piece letter (pawns have no letter)
+      const pieceEl = ply.querySelector('[data-component="Chesspiece"]');
+      let pieceLetter = '';
+      if (pieceEl) {
+        const pieceType = pieceEl.getAttribute('data-type') || '';
+        if (pieceType.includes('Knight')) pieceLetter = 'N';
+        else if (pieceType.includes('Bishop')) pieceLetter = 'B';
+        else if (pieceType.includes('Rook')) pieceLetter = 'R';
+        else if (pieceType.includes('Queen')) pieceLetter = 'Q';
+        else if (pieceType.includes('King')) pieceLetter = 'K';
+        // Pawn = no letter prefix
+      }
+
+      // Find the SAN text div (not the piece icon div, not the time div)
       const divs = ply.querySelectorAll(':scope > div > div');
       for (const div of divs) {
-        if (div.querySelector('svg')) continue; // piece icon
+        if (div.querySelector('svg') || div.querySelector('[data-component="Chesspiece"]')) continue;
         const text = div.textContent?.trim() || '';
-        if (text && !text.includes(':') && /^[KQRBNP]?[a-h]?[1-8]?x?[a-h]?[1-8]?[=+#]*[QRBN]?[+#]*$|^O-O(-O)?[+#]*$/.test(text.replace(/[+#]/g, ''))) {
-          san = text;
+        if (text && !text.includes(':')) {
+          san = pieceLetter + text;
           break;
         }
       }

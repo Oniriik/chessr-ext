@@ -69,6 +69,7 @@ export class OverlayManager {
     }
 
     this.boardElement.appendChild(this.svg);
+    console.log(`%c[chessr.io] [Overlay] SVG created: ${this.svg.getAttribute('width')}x${this.svg.getAttribute('height')}, squareSize=${this.squareSize}, parent=${this.boardElement.tagName}, parentPos=${window.getComputedStyle(this.boardElement).position}`, 'color: #f59e0b; font-weight: bold');
   }
 
   /**

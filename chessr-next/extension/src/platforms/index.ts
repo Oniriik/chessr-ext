@@ -3,7 +3,8 @@ import { chesscom } from './chesscom';
 import { lichess } from './lichess';
 import { worldchess } from './worldchess';
 
-const platforms: Platform[] = [chesscom, lichess, worldchess];
+// worldchess disabled for now — re-enable when integration is complete
+const platforms: Platform[] = [chesscom, lichess /*, worldchess */];
 
 export function detectPlatform(url: URL): Platform | null {
   return platforms.find(p => p.hostname.test(url.hostname)) ?? null;
