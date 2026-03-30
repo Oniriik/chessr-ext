@@ -106,25 +106,21 @@ export function useGameDetection() {
     };
 
     // Start observing the move list for new moves
+    // Periodic check to detect if the move list element was replaced by the platform
+    // (Lichess replaces DOM elements mid-game, which silently breaks MutationObserver)
+    let moveListValidityCheck: ReturnType<typeof setInterval> | null = null;
+    let currentMoveListEl: Element | null = null;
+
     const startMoveListObserver = () => {
       const moveList = document.querySelector(config.moveListSelector);
       if (!moveList) return;
+      currentMoveListEl = moveList;
 
       // Get initial move count
       const moves = moveList.querySelectorAll(config.moveSelector);
       lastMoveCount.current = moves.length;
 
       moveListObserver.current = new MutationObserver(() => {
-        // If the move list was removed from the DOM, reset and watch for next game
-        if (!moveList.isConnected) {
-          console.log('[useGameDetection] Move list unmounted, resetting');
-          reset();
-          moveListObserver.current?.disconnect();
-          lastMoveCount.current = 0;
-          startDocumentObserver();
-          return;
-        }
-
         const currentMoves = moveList.querySelectorAll(config.moveSelector);
 
         // Detect game reset (move count dropped to 0 or 1)
@@ -133,13 +129,11 @@ export function useGameDetection() {
           reset();
           moveListObserver.current?.disconnect();
           lastMoveCount.current = 0;
-          // Only re-start if a real game is still active (not bot selection screen)
           if (platformModule.detectGameStarted()) {
             setGameStarted(true);
             setPlayerColor(platformModule.detectPlayerColor());
             startMoveListObserver();
           } else {
-            // Re-watch for the next game to appear
             startDocumentObserver();
           }
           return;
@@ -147,8 +141,6 @@ export function useGameDetection() {
 
         if (currentMoves.length !== lastMoveCount.current) {
           lastMoveCount.current = currentMoves.length;
-
-          // Sync chess.js state (this also updates currentTurn)
           syncFromDOM();
         }
       });
@@ -157,6 +149,28 @@ export function useGameDetection() {
         childList: true,
         subtree: true,
       });
+
+      // Check every second if the move list element was replaced
+      if (moveListValidityCheck) clearInterval(moveListValidityCheck);
+      moveListValidityCheck = setInterval(() => {
+        if (!currentMoveListEl?.isConnected) {
+          console.log('[useGameDetection] Move list element was replaced, re-attaching observer');
+          moveListObserver.current?.disconnect();
+          const newMoveList = document.querySelector(config.moveListSelector);
+          if (newMoveList) {
+            currentMoveListEl = newMoveList;
+            lastMoveCount.current = 0;
+            // Re-sync state from the new DOM
+            syncFromDOM();
+            moveListObserver.current?.observe(newMoveList, { childList: true, subtree: true });
+          } else if (!platformModule.detectGameStarted()) {
+            // Game ended
+            if (moveListValidityCheck) clearInterval(moveListValidityCheck);
+            reset();
+            startDocumentObserver();
+          }
+        }
+      }, 1000);
     };
 
     // Watch for the game to appear in the DOM
@@ -182,6 +196,7 @@ export function useGameDetection() {
     return () => {
       moveListObserver.current?.disconnect();
       documentObserver.current?.disconnect();
+      if (moveListValidityCheck) clearInterval(moveListValidityCheck);
     };
   }, [currentUrl, platformId, config, platformModule, setGameStarted, setPlayerColor, setCurrentTurn, syncFromDOM, reset, detectFromDOM]);
 }

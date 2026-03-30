@@ -29,7 +29,30 @@ function mountComponent(mountPoint: MountPoint, context: ReturnType<typeof getPl
   const existing = mountedRoots.get(mountPoint.id);
   if (existing) {
     if (existing.container.isConnected) return;
-    // Container was detached (SPA re-render), clean up and re-mount
+    // Container was detached — try to re-attach instead of full unmount/remount
+    // This avoids losing React state (which causes spinner flash)
+    const newTarget = document.querySelector(mountPoint.selector);
+    if (newTarget) {
+      switch (mountPoint.position) {
+        case 'before':
+          newTarget.parentNode?.insertBefore(existing.container, newTarget);
+          break;
+        case 'after':
+          newTarget.parentNode?.insertBefore(existing.container, newTarget.nextSibling);
+          break;
+        case 'prepend':
+          newTarget.insertBefore(existing.container, newTarget.firstChild);
+          break;
+        case 'append':
+          newTarget.appendChild(existing.container);
+          break;
+      }
+      if (existing.container.isConnected) {
+        console.log(`[Chessr] Re-attached ${mountPoint.id} without remount`);
+        return;
+      }
+    }
+    // Re-attach failed, full cleanup
     existing.root.unmount();
     mountedRoots.delete(mountPoint.id);
   }
@@ -158,6 +181,8 @@ initTitleSimulator();
 
 // Watch for URL changes and DOM updates (SPA navigation + async rendering)
 let lastUrl = getRealHref();
+let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
 const observer = new MutationObserver(() => {
   const currentReal = getRealHref();
   if (currentReal !== lastUrl) {
@@ -165,9 +190,12 @@ const observer = new MutationObserver(() => {
     updateMounts();
     rescanAnonymousBlur();
     rescanTitleSimulator();
-  } else {
-    // Retry mounting components whose selectors weren't found initially
-    updateMounts();
+  } else if (!retryTimeout) {
+    // Debounce retry: only re-check mounts once per 500ms for async selectors
+    retryTimeout = setTimeout(() => {
+      retryTimeout = null;
+      updateMounts();
+    }, 500);
   }
 });
 
