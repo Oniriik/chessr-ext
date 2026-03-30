@@ -8,8 +8,8 @@ export function detectRoute(url: URL): RouteId {
     return 'puzzle';
   }
 
-  // /abcd1234 (8 char game id) or /abcd1234/white
-  if (/^\/[a-zA-Z0-9]{8}(\/.*)?$/.test(path)) {
+  // /abcd1234 (8 char game id), /abcd1234WXYZ (12 char with player id), or /abcd1234/white
+  if (/^\/[a-zA-Z0-9]{8}([a-zA-Z0-9]{4})?(\/.*)?$/.test(path)) {
     return 'game';
   }
 

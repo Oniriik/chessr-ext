@@ -4,8 +4,12 @@ import { getMountPoints } from "./mounts";
 
 /**
  * Detects if a game has started by checking for the move list element
+ * and that the bot selection screen is not showing
  */
 export function detectGameStarted(): boolean {
+  // If the bot selection screen is visible, no game is active
+  if (document.querySelector('.bot-group-list-component')) return false;
+
   const moveList = document.querySelector(
     '.play-controller-moves, .move-list, [class*="vertical-move-list"]',
   );

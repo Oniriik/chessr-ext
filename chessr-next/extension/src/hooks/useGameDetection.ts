@@ -5,7 +5,6 @@ import { usePlatform } from '../contexts/PlatformContext';
 import { getRealHref } from '../content/anonymousBlur';
 import * as chesscom from '../platforms/chesscom';
 import * as lichess from '../platforms/lichess';
-
 // Platform-specific selectors
 const PLATFORM_CONFIG = {
   chesscom: {
@@ -13,7 +12,7 @@ const PLATFORM_CONFIG = {
     moveSelector: '.main-line-ply',
   },
   lichess: {
-    moveListSelector: 'rm6, .moves',
+    moveListSelector: 'rm6, l4x, .moves',
     moveSelector: 'kwdb',
   },
 } as const;
@@ -116,14 +115,34 @@ export function useGameDetection() {
       lastMoveCount.current = moves.length;
 
       moveListObserver.current = new MutationObserver(() => {
+        // If the move list was removed from the DOM, reset and watch for next game
+        if (!moveList.isConnected) {
+          console.log('[useGameDetection] Move list unmounted, resetting');
+          reset();
+          moveListObserver.current?.disconnect();
+          lastMoveCount.current = 0;
+          startDocumentObserver();
+          return;
+        }
+
         const currentMoves = moveList.querySelectorAll(config.moveSelector);
 
         // Detect game reset (move count dropped to 0 or 1)
         if (currentMoves.length <= 1 && lastMoveCount.current > 1) {
           console.log('[useGameDetection] Game reset detected');
           reset();
-          setGameStarted(true);
-          setPlayerColor(platformModule.detectPlayerColor());
+          moveListObserver.current?.disconnect();
+          lastMoveCount.current = 0;
+          // Only re-start if a real game is still active (not bot selection screen)
+          if (platformModule.detectGameStarted()) {
+            setGameStarted(true);
+            setPlayerColor(platformModule.detectPlayerColor());
+            startMoveListObserver();
+          } else {
+            // Re-watch for the next game to appear
+            startDocumentObserver();
+          }
+          return;
         }
 
         if (currentMoves.length !== lastMoveCount.current) {
@@ -140,19 +159,23 @@ export function useGameDetection() {
       });
     };
 
-    // If game not started, watch for the move list to appear
-    if (!initDetection()) {
+    // Watch for the game to appear in the DOM
+    const startDocumentObserver = () => {
+      documentObserver.current?.disconnect();
       documentObserver.current = new MutationObserver(() => {
         if (initDetection()) {
-          // Stop watching once game is detected
           documentObserver.current?.disconnect();
         }
       });
-
       documentObserver.current.observe(document.body, {
         childList: true,
         subtree: true,
       });
+    };
+
+    // If game not started, watch for the move list to appear
+    if (!initDetection()) {
+      startDocumentObserver();
     }
 
     // Cleanup

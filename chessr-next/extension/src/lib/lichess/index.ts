@@ -6,7 +6,7 @@
 import { getRealHref } from '../../content/anonymousBlur';
 
 // Selectors
-const MOVE_LIST_SELECTOR = 'rm6, .moves';
+const MOVE_LIST_SELECTOR = 'rm6, l4x, .moves';
 const MOVE_SELECTOR = 'kwdb';
 const BOARD_SELECTOR = 'cg-board';
 
@@ -171,6 +171,5 @@ export function isGamePage(): boolean {
 
   if (excluded.some(p => path.startsWith(p))) return false;
 
-  // Match game URLs: /{8-char-gameId} with optional player ID or color
   return /^\/[a-zA-Z0-9]{8}([a-zA-Z0-9]{4})?(\/?(black|white)?)?$/.test(path);
 }

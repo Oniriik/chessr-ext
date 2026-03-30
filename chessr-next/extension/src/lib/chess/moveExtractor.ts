@@ -6,7 +6,7 @@
 // Platform-specific selectors
 const CHESSCOM_MOVE_LIST_SELECTOR = '.play-controller-moves, .move-list, [class*="vertical-move-list"]';
 const CHESSCOM_MOVE_SELECTOR = '.main-line-ply';
-const LICHESS_MOVE_LIST_SELECTOR = 'rm6, .moves';
+const LICHESS_MOVE_LIST_SELECTOR = 'rm6, l4x, .moves';
 const LICHESS_MOVE_SELECTOR = 'kwdb';
 
 /**
