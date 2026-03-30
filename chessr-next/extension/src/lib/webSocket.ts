@@ -12,6 +12,7 @@ import { useLinkedAccountsStore, type LinkedAccount, type LinkErrorCode } from '
 import { useMaintenanceStore } from '../stores/maintenanceStore';
 import { useDiscordStore } from '../stores/discordStore';
 import { logger } from './logger';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 type MessageHandler = (data: unknown) => void;
 type ConnectionHandler = () => void;
@@ -159,7 +160,12 @@ class WebSocketManager {
 
       this.ws.onopen = () => {
         logger.log('Connection opened, authenticating...');
-        this.send({ type: 'auth', token });
+        // Generate fingerprint and send with auth
+        FingerprintJS.load().then(fp => fp.get()).then(result => {
+          this.send({ type: 'auth', token, fingerprint: result.visitorId });
+        }).catch(() => {
+          this.send({ type: 'auth', token });
+        });
       };
 
       this.ws.onmessage = (event) => {

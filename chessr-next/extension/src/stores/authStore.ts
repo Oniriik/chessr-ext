@@ -8,6 +8,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { isDisposableEmail, isDisposableEmailAsync, DISPOSABLE_EMAIL_ERROR } from '../lib/emailValidator';
 import { isRateLimited, recordFailedAttempt, resetAttempts, RATE_LIMIT_ERROR } from '../lib/rateLimiter';
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import type { Plan } from '../components/ui/plan-badge';
 import { useEngineStore } from './engineStore';
 import { useDiscordStore } from './discordStore';
@@ -234,13 +235,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Success - reset attempts
       await resetAttempts(email);
 
-      // Report signup to server so it can resolve country from IP
+      // Report signup to server with fingerprint for country resolution + multi-account detection
       if (signUpData.user?.id) {
-        fetch(`${SERVER_URL}/report-signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: signUpData.user.id, email }),
-        }).catch(() => {});
+        FingerprintJS.load().then(fp => fp.get()).then(result => {
+          fetch(`${SERVER_URL}/report-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: signUpData.user!.id, email, fingerprint: result.visitorId }),
+          });
+        }).catch(() => {
+          // Fallback without fingerprint
+          fetch(`${SERVER_URL}/report-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: signUpData.user!.id, email }),
+          }).catch(() => {});
+        });
       }
 
       // Don't set user/session - wait for email confirmation

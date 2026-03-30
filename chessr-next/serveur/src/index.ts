@@ -105,6 +105,27 @@ const storedIpPairs = new Set<string>();
 // Dedup set for signup reports (avoid double Discord notifications)
 const reportedSignups = new Set<string>();
 
+// Cache of user+fingerprint pairs already stored
+const storedFpPairs = new Set<string>();
+
+async function storeFingerprint(userId: string, fingerprint: string | null) {
+  if (!fingerprint) return;
+  const pairKey = `${userId}:${fingerprint}`;
+  if (storedFpPairs.has(pairKey)) return;
+
+  try {
+    await supabase
+      .from("user_fingerprints")
+      .upsert(
+        { user_id: userId, fingerprint },
+        { onConflict: "user_id,fingerprint" },
+      );
+    storedFpPairs.add(pairKey);
+  } catch {
+    // ignore duplicates
+  }
+}
+
 // Ban status cache (TTL 60s to avoid DB call on every message)
 const BAN_CACHE_TTL = 60_000;
 const banCache = new Map<
@@ -324,7 +345,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     req.on("data", (chunk) => (body += chunk));
     req.on("end", async () => {
       try {
-        const { userId, email } = JSON.parse(body);
+        const { userId, email, fingerprint } = JSON.parse(body);
         if (!userId) {
           res.writeHead(400, { "Content-Type": "application/json" });
           res.end(JSON.stringify({ error: "userId required" }));
@@ -354,45 +375,55 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           const geo = await resolveIpCountry(cleanIp);
           country = geo.country;
           countryCode = geo.countryCode;
-          if (country) {
-            await supabase
-              .from("user_settings")
-              .update({
-                signup_country: country,
-                signup_country_code: countryCode,
-              })
-              .eq("user_id", userId);
-          }
           // Store IP in signup_ips so unverified accounts are also tracked
           storeUserIp(userId, clientIp);
         }
 
-        // Check for other accounts with the same IP
-        let otherAccountsText: string | null = null;
+        // Update user_settings with country
+        if (country) {
+          await supabase
+            .from("user_settings")
+            .update({ signup_country: country, signup_country_code: countryCode })
+            .eq("user_id", userId);
+        }
+
+        // Store fingerprint in user_fingerprints table
+        storeFingerprint(userId, fingerprint);
+
+        // Check for other accounts with the same IP or fingerprint
+        const otherUserIds = new Set<string>();
         if (cleanIp) {
           const { data: sameIpUsers } = await supabase
             .from("signup_ips")
             .select("user_id")
             .eq("ip_address", cleanIp)
             .neq("user_id", userId);
+          for (const r of sameIpUsers || []) otherUserIds.add(r.user_id);
+        }
+        if (fingerprint) {
+          const { data: sameFpUsers } = await supabase
+            .from("user_fingerprints")
+            .select("user_id")
+            .eq("fingerprint", fingerprint)
+            .neq("user_id", userId);
+          for (const r of sameFpUsers || []) otherUserIds.add(r.user_id);
+        }
 
-          if (sameIpUsers?.length) {
-            const otherUserIds = [...new Set(sameIpUsers.map((r: { user_id: string }) => r.user_id))];
-            const { data: otherSettings } = await supabase
-              .from("user_settings")
-              .select("user_id, plan")
-              .in("user_id", otherUserIds);
+        let otherAccountsText: string | null = null;
+        if (otherUserIds.size > 0) {
+          const { data: otherSettings } = await supabase
+            .from("user_settings")
+            .select("user_id, plan")
+            .in("user_id", [...otherUserIds]);
 
-            // Get emails from auth
-            const otherAccounts: string[] = [];
-            for (const settings of otherSettings || []) {
-              const { data: authData } = await supabase.auth.admin.getUserById(settings.user_id);
-              const otherEmail = authData?.user?.email || settings.user_id;
-              otherAccounts.push(`${otherEmail} (${settings.plan})`);
-            }
-            if (otherAccounts.length) {
-              otherAccountsText = otherAccounts.join("\n");
-            }
+          const otherAccounts: string[] = [];
+          for (const settings of otherSettings || []) {
+            const { data: authData } = await supabase.auth.admin.getUserById(settings.user_id);
+            const otherEmail = authData?.user?.email || settings.user_id;
+            otherAccounts.push(`${otherEmail} (${settings.plan})`);
+          }
+          if (otherAccounts.length) {
+            otherAccountsText = otherAccounts.join("\n");
           }
         }
 
@@ -403,8 +434,11 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
             { name: "🌍 Country", value: country || "Unknown", inline: true },
             { name: "🔑 IP", value: cleanIp || "Unknown", inline: true },
           ];
+          if (fingerprint) {
+            fields.push({ name: "🖥️ Fingerprint", value: `\`${fingerprint}\``, inline: false });
+          }
           if (otherAccountsText) {
-            fields.push({ name: "⚠️ Other accounts on this IP", value: otherAccountsText, inline: false });
+            fields.push({ name: "⚠️ Other accounts (same IP/fingerprint)", value: otherAccountsText, inline: false });
           }
           fetch(`https://discord.com/api/v10/channels/${DISCORD_SIGNUP_CHANNEL_ID}/messages`, {
             method: "POST",
@@ -951,6 +985,11 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           .select("discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild")
           .eq("user_id", user.id)
           .single();
+
+        // Store fingerprint (deduped, fire and forget)
+        if (message.fingerprint) {
+          storeFingerprint(user.id, message.fingerprint);
+        }
 
         ws.send(
           JSON.stringify({

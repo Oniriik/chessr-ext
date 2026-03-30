@@ -663,6 +663,21 @@ async function handleLookupCommand(interaction) {
     .eq('user_id', settings.user_id)
     .is('unlinked_at', null);
 
+  // Get fingerprints
+  const { data: fingerprints } = await supabase
+    .from('user_fingerprints')
+    .select('fingerprint, created_at')
+    .eq('user_id', settings.user_id)
+    .order('created_at', { ascending: true });
+
+  let fingerprintText = 'None';
+  if (fingerprints?.length) {
+    fingerprintText = fingerprints.map(fp => `\`${fp.fingerprint}\``).join('\n');
+    if (fingerprintText.length > 1024) {
+      fingerprintText = fingerprints.slice(0, 5).map(fp => `\`${fp.fingerprint}\``).join('\n') + `\n... +${fingerprints.length - 5} more`;
+    }
+  }
+
   let accountsText = 'None';
   if (linkedAccounts?.length) {
     accountsText = linkedAccounts.map(a => {
@@ -681,6 +696,7 @@ async function handleLookupCommand(interaction) {
     { name: '🌍 Country', value: settings.signup_country || 'Unknown', inline: true },
     { name: '♟️ Linked Accounts', value: accountsText, inline: false },
     { name: '🔑 IPs', value: ipText, inline: false },
+    { name: '🖥️ Fingerprints', value: fingerprintText, inline: false },
   ];
 
   if (settings.banned) {
