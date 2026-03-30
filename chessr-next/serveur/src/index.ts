@@ -102,6 +102,9 @@ setInterval(() => {
 // Cache of user+ip pairs already stored (avoid repeated DB checks)
 const storedIpPairs = new Set<string>();
 
+// Dedup set for signup reports (avoid double Discord notifications)
+const reportedSignups = new Set<string>();
+
 // Ban status cache (TTL 60s to avoid DB call on every message)
 const BAN_CACHE_TTL = 60_000;
 const banCache = new Map<
@@ -328,6 +331,14 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           return;
         }
 
+        // Dedup: skip if already processed this userId
+        if (reportedSignups.has(userId)) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+        reportedSignups.add(userId);
+
         const clientIp =
           (req.headers["x-forwarded-for"] as string)
             ?.split(",")[0]
@@ -354,6 +365,35 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           }
         }
 
+        // Check for other accounts with the same IP
+        let otherAccountsText: string | null = null;
+        if (cleanIp) {
+          const { data: sameIpUsers } = await supabase
+            .from("signup_ips")
+            .select("user_id")
+            .eq("ip_address", cleanIp)
+            .neq("user_id", userId);
+
+          if (sameIpUsers?.length) {
+            const otherUserIds = [...new Set(sameIpUsers.map((r: { user_id: string }) => r.user_id))];
+            const { data: otherSettings } = await supabase
+              .from("user_settings")
+              .select("user_id, plan")
+              .in("user_id", otherUserIds);
+
+            // Get emails from auth
+            const otherAccounts: string[] = [];
+            for (const settings of otherSettings || []) {
+              const { data: authData } = await supabase.auth.admin.getUserById(settings.user_id);
+              const otherEmail = authData?.user?.email || settings.user_id;
+              otherAccounts.push(`${otherEmail} (${settings.plan})`);
+            }
+            if (otherAccounts.length) {
+              otherAccountsText = otherAccounts.join("\n");
+            }
+          }
+        }
+
         // Send Discord signup notification
         if (DISCORD_BOT_TOKEN && DISCORD_SIGNUP_CHANNEL_ID) {
           const fields = [
@@ -361,6 +401,9 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
             { name: "🌍 Country", value: country || "Unknown", inline: true },
             { name: "🔑 IP", value: cleanIp || "Unknown", inline: true },
           ];
+          if (otherAccountsText) {
+            fields.push({ name: "⚠️ Other accounts on this IP", value: otherAccountsText, inline: false });
+          }
           fetch(`https://discord.com/api/v10/channels/${DISCORD_SIGNUP_CHANNEL_ID}/messages`, {
             method: "POST",
             headers: {
@@ -370,7 +413,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
             body: JSON.stringify({
               embeds: [{
                 title: "🎉 New User Signup",
-                color: 0x10b981,
+                color: otherAccountsText ? 0xffa500 : 0x10b981,
                 fields,
                 timestamp: new Date().toISOString(),
                 footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
