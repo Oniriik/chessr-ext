@@ -161,6 +161,7 @@ export async function GET(request: Request) {
           ban_reason: settings.ban_reason || null,
           banned_at: settings.banned_at || null,
           banned_by: settings.banned_by || null,
+          beta_flags: settings.beta_flags || [],
         }
       })
       .filter((u) => u.email) // Only users with valid email
@@ -300,7 +301,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    const { userId, callerRole, plan, role, planExpiry, adminUserId, adminEmail, userEmail, banned, banReason } = body
+    const { userId, callerRole, plan, role, planExpiry, adminUserId, adminEmail, userEmail, banned, banReason, betaFlags } = body
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
@@ -351,6 +352,7 @@ export async function PATCH(request: Request) {
     if (plan !== undefined) updateData.plan = plan
     if (role !== undefined) updateData.role = role
     if (planExpiry !== undefined) updateData.plan_expiry = planExpiry
+    if (betaFlags !== undefined) updateData.beta_flags = betaFlags
     if (banned !== undefined) {
       updateData.banned = banned
       updateData.ban_reason = banned ? (banReason || null) : null

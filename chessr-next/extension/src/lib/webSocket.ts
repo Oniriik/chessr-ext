@@ -11,6 +11,7 @@ import { useAccuracyStore } from '../stores/accuracyStore';
 import { useLinkedAccountsStore, type LinkedAccount, type LinkErrorCode } from '../stores/linkedAccountsStore';
 import { useMaintenanceStore } from '../stores/maintenanceStore';
 import { useDiscordStore } from '../stores/discordStore';
+import { useBetaStore } from '../stores/betaStore';
 import { logger } from './logger';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
@@ -183,6 +184,9 @@ class WebSocketManager {
             discordStore.setLinked(!!data.discordLinked, data.discordUsername || null, data.discordAvatar || null);
             discordStore.setFreetrialUsed(!!data.freetrialUsed);
             discordStore.setInGuild(!!data.discordInGuild);
+
+            // Update beta flags from server
+            useBetaStore.getState().setFlags(data.betaFlags ?? []);
 
             resolve();
           } else if (data.type === 'auth_error') {

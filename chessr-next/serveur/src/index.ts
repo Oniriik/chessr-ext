@@ -60,6 +60,7 @@ import {
   handleUpgradeLifetimeByToken,
 } from "./handlers/paddleHandler.js";
 import { logConnection } from "./utils/logger.js";
+import { resolveUserBetas } from "./betaFlags.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
 const MAX_KOMODO_INSTANCES = parseInt(process.env.MAX_KOMODO_INSTANCES || "2");
@@ -982,7 +983,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
         const { data: userSettings } = await supabase
           .from("user_settings")
-          .select("discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild")
+          .select("discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild, beta_flags")
           .eq("user_id", user.id)
           .single();
 
@@ -1000,6 +1001,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
             discordAvatar: userSettings?.discord_avatar || null,
             freetrialUsed: userSettings?.freetrial_used || false,
             discordInGuild: userSettings?.discord_in_guild || false,
+            betaFlags: resolveUserBetas(userSettings?.beta_flags ?? []),
           }),
         );
         return;

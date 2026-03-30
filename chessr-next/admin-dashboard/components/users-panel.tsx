@@ -31,7 +31,6 @@ import {
 import {
   type UserRole,
   type UserPlan,
-  canModifyRoles,
   planLabels,
   roleLabels,
   planColors,
@@ -66,9 +65,6 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
 
   // Edit dialog state
   const [editUser, setEditUser] = useState<AdminUser | null>(null)
-  const [editPlan, setEditPlan] = useState<UserPlan>('free')
-  const [editRole, setEditRole] = useState<UserRole>('user')
-  const [editExpiry, setEditExpiry] = useState<string>('')
   const [saving, setSaving] = useState(false)
 
   // Delete dialog state
@@ -181,9 +177,6 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
 
   const openEditDialog = (user: AdminUser) => {
     setEditUser(user)
-    setEditPlan(user.plan)
-    setEditRole(user.role)
-    setEditExpiry(user.plan_expiry ? user.plan_expiry.split('T')[0] : '')
     setLinkedAccounts(null)
     setResyncResult(null)
     fetchLinkedAccounts(user.user_id)
@@ -191,34 +184,29 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
 
   const closeEditDialog = () => {
     setEditUser(null)
-    setEditPlan('free')
-    setEditRole('user')
-    setEditExpiry('')
   }
 
-  const saveUser = async () => {
+  const saveField = async (fields: Record<string, unknown>) => {
     if (!editUser) return
-    if ((editPlan === 'freetrial' || editPlan === 'premium') && !editExpiry) {
-      toast.error('Expiry date is required for Free Trial and Premium plans')
-      return
-    }
     setSaving(true)
     try {
       const body: Record<string, unknown> = {
         userId: editUser.user_id, callerRole: userRole,
         adminUserId: userId, adminEmail: userEmail, userEmail: editUser.email,
-      }
-      if (editPlan !== editUser.plan) body.plan = editPlan
-      if (canModifyRoles(userRole) && editRole !== editUser.role) body.role = editRole
-      if (editExpiry !== (editUser.plan_expiry?.split('T')[0] || '')) {
-        body.planExpiry = editExpiry ? new Date(editExpiry).toISOString() : null
+        ...fields,
       }
       const res = await fetch('/api/users', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Failed to update user') }
+      // Update local editUser to reflect the change immediately
+      const updated = { ...editUser, ...fields } as AdminUser
+      if ('plan' in fields) updated.plan = fields.plan as UserPlan
+      if ('role' in fields) updated.role = fields.role as UserRole
+      if ('planExpiry' in fields) updated.plan_expiry = fields.planExpiry as string | null
+      if ('betaFlags' in fields) updated.beta_flags = fields.betaFlags as string[]
+      setEditUser(updated)
       await fetchUsers()
-      closeEditDialog()
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to save user')
+      toast.error(error instanceof Error ? error.message : 'Failed to save')
     } finally { setSaving(false) }
   }
 
@@ -482,9 +470,6 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
       {/* Dialogs */}
       <UserEditDialog
         editUser={editUser}
-        editPlan={editPlan}
-        editRole={editRole}
-        editExpiry={editExpiry}
         saving={saving}
         userRole={userRole}
         linkedAccounts={linkedAccounts}
@@ -495,10 +480,7 @@ export function UsersPanel({ userRole, userId, userEmail }: UsersPanelProps) {
         resyncResult={resyncResult}
         removingCooldown={removingCooldown}
         onClose={closeEditDialog}
-        onSave={saveUser}
-        onSetEditPlan={setEditPlan}
-        onSetEditRole={setEditRole}
-        onSetEditExpiry={setEditExpiry}
+        onSave={saveField}
         onUnlinkAccount={unlinkAccount}
         onUnlinkDiscord={unlinkDiscord}
         onResyncDiscord={resyncDiscord}

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -13,7 +14,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
@@ -30,6 +30,7 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  FlaskConical,
 } from 'lucide-react'
 import {
   canModifyRoles,
@@ -39,14 +40,12 @@ import {
   planColors,
   roleColors,
 } from '@/lib/types'
+import { BETA_FLAGS } from '@/lib/beta-flags'
 import { formatDate, formatRelativeTime } from '@/lib/format'
 import type { AdminUser, UserRole, UserPlan, LinkedAccountsData, UserIp } from './user-types'
 
 interface UserEditDialogProps {
   editUser: AdminUser | null
-  editPlan: UserPlan
-  editRole: UserRole
-  editExpiry: string
   saving: boolean
   userRole: UserRole
   linkedAccounts: LinkedAccountsData | null
@@ -57,10 +56,7 @@ interface UserEditDialogProps {
   resyncResult: string | null
   removingCooldown: string | null
   onClose: () => void
-  onSave: () => void
-  onSetEditPlan: (plan: UserPlan) => void
-  onSetEditRole: (role: UserRole) => void
-  onSetEditExpiry: (expiry: string) => void
+  onSave: (fields: Record<string, unknown>) => void
   onUnlinkAccount: (accountId: string) => void
   onUnlinkDiscord: (userId: string) => void
   onResyncDiscord: (userId: string) => void
@@ -72,9 +68,6 @@ interface UserEditDialogProps {
 
 export function UserEditDialog({
   editUser,
-  editPlan,
-  editRole,
-  editExpiry,
   saving,
   userRole,
   linkedAccounts,
@@ -86,9 +79,6 @@ export function UserEditDialog({
   removingCooldown,
   onClose,
   onSave,
-  onSetEditPlan,
-  onSetEditRole,
-  onSetEditExpiry,
   onUnlinkAccount,
   onUnlinkDiscord,
   onResyncDiscord,
@@ -106,7 +96,6 @@ export function UserEditDialog({
     if (!linkedAccounts?.unlinked) return { withCooldown: [], withoutCooldown: [] }
     const cd = linkedAccounts.unlinked.filter((a) => a.hasCooldown)
     const noCd = linkedAccounts.unlinked.filter((a) => !a.hasCooldown)
-    // Deduplicate by platform + platform_username (keep most recent)
     const seen = new Set<string>()
     const deduped = noCd.filter((a) => {
       const key = `${a.platform}:${a.platform_username}`
@@ -117,77 +106,156 @@ export function UserEditDialog({
     return { withCooldown: cd, withoutCooldown: deduped }
   }, [linkedAccounts?.unlinked])
 
+  const handleRoleChange = (role: UserRole) => {
+    onSave({ role })
+  }
+
+  const handlePlanChange = (plan: UserPlan) => {
+    const fields: Record<string, unknown> = { plan }
+    // Clear expiry for plans that don't need it
+    if (plan !== 'freetrial' && plan !== 'premium') {
+      fields.planExpiry = null
+    }
+    onSave(fields)
+  }
+
+  const handleExpiryChange = (expiry: string) => {
+    onSave({ planExpiry: expiry ? new Date(expiry).toISOString() : null })
+  }
+
+  const handleBetaToggle = (code: string, checked: boolean) => {
+    if (!editUser) return
+    const current = editUser.beta_flags || []
+    const next = checked
+      ? [...current, code]
+      : current.filter((c) => c !== code)
+    onSave({ betaFlags: next })
+  }
+
+  const currentPlan = editUser?.plan ?? 'free'
+  const currentRole = editUser?.role ?? 'user'
+  const currentExpiry = editUser?.plan_expiry?.split('T')[0] ?? ''
+
   return (
     <Dialog open={!!editUser} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit User</DialogTitle>
           <DialogDescription>{editUser?.email}</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Role selector */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Role</label>
-            {canModifyRoles(userRole) ? (
-              <Select value={editRole} onValueChange={(v) => onSetEditRole(v as UserRole)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <div className="flex items-center h-9">
-                <Badge className={roleColors[editRole]}>{roleLabels[editRole]}</Badge>
-                <span className="ml-2 text-xs text-muted-foreground">
-                  (Only Super Admins can modify roles)
-                </span>
-              </div>
-            )}
-          </div>
+        <div className="space-y-5 py-4">
+          {/* Role & Plan row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Role</label>
+              {canModifyRoles(userRole) ? (
+                <Select value={currentRole} onValueChange={(v) => handleRoleChange(v as UserRole)} disabled={saving}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center h-9">
+                  <Badge className={roleColors[currentRole]}>{roleLabels[currentRole]}</Badge>
+                </div>
+              )}
+            </div>
 
-          {/* Plan selector */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Plan</label>
-            {canModifyPlans(userRole) ? (
-              <Select value={editPlan} onValueChange={(v) => onSetEditPlan(v as UserPlan)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="freetrial">Free Trial</SelectItem>
-                  <SelectItem value="premium">Premium</SelectItem>
-                  <SelectItem value="beta">Beta</SelectItem>
-                  <SelectItem value="lifetime">Lifetime</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <Badge className={planColors[editPlan]}>{planLabels[editPlan]}</Badge>
-            )}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plan</label>
+              {canModifyPlans(userRole) ? (
+                <Select value={currentPlan} onValueChange={(v) => handlePlanChange(v as UserPlan)} disabled={saving}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="free">Free</SelectItem>
+                    <SelectItem value="freetrial">Free Trial</SelectItem>
+                    <SelectItem value="premium">Premium</SelectItem>
+                    <SelectItem value="beta">Beta</SelectItem>
+                    <SelectItem value="lifetime">Lifetime</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center h-9">
+                  <Badge className={planColors[currentPlan]}>{planLabels[currentPlan]}</Badge>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Expiry date */}
-          {(editPlan === 'freetrial' || editPlan === 'premium') && canModifyPlans(userRole) && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Plan Expiry</label>
+          {(currentPlan === 'freetrial' || currentPlan === 'premium') && canModifyPlans(userRole) && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plan Expiry</label>
               <Input
                 type="date"
-                value={editExpiry}
-                onChange={(e) => onSetEditExpiry(e.target.value)}
+                value={currentExpiry}
+                onChange={(e) => handleExpiryChange(e.target.value)}
+                disabled={saving}
+                className="h-9"
               />
+            </div>
+          )}
+
+          {/* Beta Flags Section */}
+          {canModifyPlans(userRole) && (
+            <div className="space-y-3 pt-4 border-t border-border/50">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <FlaskConical className="w-3.5 h-3.5" />
+                Beta Flags
+              </label>
+              {BETA_FLAGS.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-3">
+                  No beta flags configured
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {BETA_FLAGS.map((flag) => {
+                    const isActive = flag.status === 'all' || (editUser?.beta_flags || []).includes(flag.code)
+                    const isAllFlag = flag.status === 'all'
+                    return (
+                      <label
+                        key={flag.code}
+                        className={`flex items-center gap-3 p-2.5 rounded-lg border transition-colors ${
+                          isActive
+                            ? 'bg-purple-500/10 border-purple-500/20'
+                            : 'bg-muted/20 border-border/30 hover:border-border/50'
+                        } ${isAllFlag ? 'opacity-60' : 'cursor-pointer'}`}
+                      >
+                        <Checkbox
+                          checked={isActive}
+                          onCheckedChange={(checked) => handleBetaToggle(flag.code, !!checked)}
+                          disabled={saving || isAllFlag}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <code className="text-xs font-mono text-foreground">{flag.code}</code>
+                            {isAllFlag && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">all users</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{flag.description}</p>
+                        </div>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {/* Linked Accounts Section */}
           <div className="space-y-3 pt-4 border-t border-border/50">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Link2 className="w-4 h-4" />
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                <Link2 className="w-3.5 h-3.5" />
                 Linked Accounts
               </label>
               {linkedAccounts && (
@@ -206,7 +274,6 @@ export function UserEditDialog({
                 {/* Active accounts */}
                 {linkedAccounts.active.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">Active</p>
                     {linkedAccounts.active.map((account) => (
                       <div key={account.id} className="space-y-1">
                         <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
@@ -388,118 +455,105 @@ export function UserEditDialog({
               </p>
             )}
           </div>
+
+          {/* IP Addresses Section */}
+          {linkedAccounts && linkedAccounts.ips && linkedAccounts.ips.length > 0 && (
+            <div className="space-y-2 pt-4 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5" />
+                  IP Addresses
+                </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowIps(!showIps)}
+                  className="h-7 px-2 text-xs gap-1"
+                >
+                  {showIps ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {showIps ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+              {showIps && (
+                <div className="space-y-1.5">
+                  {linkedAccounts.ips.map((ip, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs font-mono text-foreground">{ip.ip_address}</code>
+                        {ip.country && (
+                          <span className="text-xs text-muted-foreground">
+                            {ip.country_code && `${ip.country_code} `}{ip.country}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatRelativeTime(ip.created_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Ban status indicator */}
+          {editUser?.banned && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
+                <Ban className="w-4 h-4" />
+                Banned
+              </div>
+              {editUser.ban_reason && (
+                <p className="text-xs text-muted-foreground mt-1">{editUser.ban_reason}</p>
+              )}
+              {editUser.banned_by && editUser.banned_at && (
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  by {editUser.banned_by} on {formatDate(editUser.banned_at)}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* IP Addresses Section */}
-        {linkedAccounts && linkedAccounts.ips && linkedAccounts.ips.length > 0 && (
-          <div className="space-y-2 pt-4 border-t border-border/50">
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                IP Addresses
-              </label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowIps(!showIps)}
-                className="h-7 px-2 text-xs gap-1"
-              >
-                {showIps ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                {showIps ? 'Hide' : 'Show'}
-              </Button>
-            </div>
-            {showIps && (
-              <div className="space-y-1.5">
-                {linkedAccounts.ips.map((ip, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/30"
-                  >
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono text-foreground">{ip.ip_address}</code>
-                      {ip.country && (
-                        <span className="text-xs text-muted-foreground">
-                          {ip.country_code && `${ip.country_code} `}{ip.country}
-                        </span>
-                      )}
-                    </div>
-                    <span className="text-[10px] text-muted-foreground">
-                      {formatRelativeTime(ip.created_at)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Ban status indicator */}
-        {editUser?.banned && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-            <div className="flex items-center gap-2 text-red-400 text-sm font-medium">
-              <Ban className="w-4 h-4" />
-              Banned
-            </div>
-            {editUser.ban_reason && (
-              <p className="text-xs text-muted-foreground mt-1">{editUser.ban_reason}</p>
-            )}
-            {editUser.banned_by && editUser.banned_at && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                by {editUser.banned_by} on {formatDate(editUser.banned_at)}
-              </p>
-            )}
-          </div>
-        )}
-
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <div className="flex gap-2 sm:mr-auto">
+        {/* Footer actions */}
+        <div className="flex items-center gap-2 pt-4 border-t border-border/50">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => editUser && onOpenDeleteDialog(editUser)}
+            disabled={saving}
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            Delete
+          </Button>
+          {editUser?.banned ? (
             <Button
-              variant="destructive"
+              variant="outline"
               size="sm"
-              onClick={() => editUser && onOpenDeleteDialog(editUser)}
+              onClick={() => editUser && onUnbanUser(editUser)}
               disabled={saving}
+              className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
             >
-              <Trash2 className="w-4 h-4 mr-1" />
-              Delete
+              <ShieldOff className="w-4 h-4 mr-1" />
+              Unban
             </Button>
-            {editUser?.banned ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => editUser && onUnbanUser(editUser)}
-                disabled={saving}
-                className="text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
-              >
-                <ShieldOff className="w-4 h-4 mr-1" />
-                Unban
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => editUser && onOpenBanDialog(editUser)}
-                disabled={saving}
-                className="text-red-400 border-red-500/30 hover:bg-red-500/10"
-              >
-                <Ban className="w-4 h-4 mr-1" />
-                Ban
-              </Button>
-            )}
-          </div>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button variant="gradient" onClick={onSave} disabled={saving}>
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save changes'
-            )}
-          </Button>
-        </DialogFooter>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => editUser && onOpenBanDialog(editUser)}
+              disabled={saving}
+              className="text-red-400 border-red-500/30 hover:bg-red-500/10"
+            >
+              <Ban className="w-4 h-4 mr-1" />
+              Ban
+            </Button>
+          )}
+          {saving && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-auto" />}
+        </div>
       </DialogContent>
     </Dialog>
   )
