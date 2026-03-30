@@ -659,7 +659,7 @@ async function handleLookupCommand(interaction) {
   // Get linked chess accounts
   const { data: linkedAccounts } = await supabase
     .from('linked_accounts')
-    .select('platform, platform_username, rating_rapid, rating_blitz, rating_bullet')
+    .select('platform, platform_username, display_name, rating_rapid, rating_blitz, rating_bullet')
     .eq('user_id', settings.user_id)
     .is('unlinked_at', null);
 
@@ -686,7 +686,9 @@ async function handleLookupCommand(interaction) {
         a.rating_blitz > 0 ? `B:${a.rating_blitz}` : null,
         a.rating_bullet > 0 ? `⚡:${a.rating_bullet}` : null,
       ].filter(Boolean).join(' ');
-      return `**${a.platform}** ${a.platform_username}${ratings ? ` (${ratings})` : ''}`;
+      const platformName = a.platform === 'chesscom' ? 'Chess.com' : a.platform === 'lichess' ? 'Lichess' : a.platform === 'worldchess' ? 'World Chess' : a.platform;
+      const displayName = a.display_name || a.platform_username;
+      return `**${platformName}** ${displayName}${ratings ? ` (${ratings})` : ''}`;
     }).join('\n');
   }
 
