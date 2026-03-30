@@ -14,7 +14,7 @@ import { useWebSocketStore } from '../../stores/webSocketStore';
 
 export function GameDetector() {
   const { user, initialize } = useAuthStore();
-  const { init: initWebSocket, connect: connectWebSocket, destroy: destroyWebSocket } = useWebSocketStore();
+  const { init: initWebSocket, connect: connectWebSocket } = useWebSocketStore();
 
   // Initialize auth
   useEffect(() => {
@@ -27,10 +27,9 @@ export function GameDetector() {
       initWebSocket();
       connectWebSocket();
     }
-    return () => {
-      destroyWebSocket();
-    };
-  }, [user, initWebSocket, connectWebSocket, destroyWebSocket]);
+    // Don't destroy WebSocket on unmount — it's managed globally via Zustand
+    // and should persist across component re-mounts
+  }, [user, initWebSocket, connectWebSocket]);
 
   useGameDetection();
   useSuggestionTrigger();
