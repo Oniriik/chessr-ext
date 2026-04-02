@@ -5,7 +5,6 @@
 
 const contentPorts = new Map<number, chrome.runtime.Port>();
 let streamerPort: chrome.runtime.Port | null = null;
-let reviewPort: chrome.runtime.Port | null = null;
 let lastActiveTabId: number | null = null;
 
 function broadcastToContentPorts(message: unknown) {
@@ -39,18 +38,6 @@ chrome.runtime.onConnect.addListener((port) => {
           streamerPort.postMessage(message);
         } catch {
           // Streamer port disconnected
-        }
-      }
-      // Forward review results to review page
-      if (reviewPort && (
-        message.type === 'chesscom_review_progress' ||
-        message.type === 'chesscom_review_result' ||
-        message.type === 'chesscom_review_error'
-      )) {
-        try {
-          reviewPort.postMessage(message);
-        } catch {
-          // Review port disconnected
         }
       }
     });
@@ -87,32 +74,6 @@ chrome.runtime.onConnect.addListener((port) => {
     });
   }
 
-  if (port.name === 'review') {
-    reviewPort = port;
-
-    port.onMessage.addListener((message) => {
-      // Forward review requests to the active content script tab
-      if (message.type === 'request_review') {
-        if (lastActiveTabId !== null && contentPorts.has(lastActiveTabId)) {
-          try {
-            contentPorts.get(lastActiveTabId)!.postMessage({
-              type: 'request_review',
-              gameId: message.gameId,
-              gameType: message.gameType || 'live',
-            });
-          } catch {
-            reviewPort?.postMessage({ type: 'chesscom_review_error', error: 'No active chess tab found' });
-          }
-        } else {
-          reviewPort?.postMessage({ type: 'chesscom_review_error', error: 'No active chess tab found. Keep a chess.com tab open.' });
-        }
-      }
-    });
-
-    port.onDisconnect.addListener(() => {
-      reviewPort = null;
-    });
-  }
 });
 
 // Open streamer page when extension icon is clicked

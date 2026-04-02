@@ -41,7 +41,7 @@
       "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*", "*://worldchess.com/*", "*://*.worldchess.com/*"]
     },
     {
-      "resources": ["streamer.html", "billing.html", "review.html"],
+      "resources": ["streamer.html", "billing.html"],
       "matches": ["<all_urls>"]
     }
   ]

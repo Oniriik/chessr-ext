@@ -50,21 +50,6 @@ function buildConfig() {
     };
   }
 
-  if (target === 'review') {
-    return {
-      emptyOutDir: false,
-      rollupOptions: {
-        input: resolve(__dirname, 'src/review/index.tsx'),
-        output: {
-          format: 'iife' as const,
-          entryFileNames: 'review.js',
-          assetFileNames: 'assets/[name]-[hash].[ext]',
-        },
-      },
-      publicDir: false as const,
-    };
-  }
-
   // Streamer — IIFE format to avoid TDZ issues from circular deps
   // CSS is injected via JS (same as content script), no separate CSS file needed
   return {
