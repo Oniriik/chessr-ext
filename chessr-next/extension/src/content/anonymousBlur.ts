@@ -9,7 +9,7 @@ import { getLichessUsername } from '../lib/lichess/username';
 import { detectPlatform } from '../platforms';
 
 const BLUR_CLASS = 'chessr-anon-blur';
-const USERNAME_SELECTORS = '.user-username, .user-tagline-username, .cc-user-username-component, .game-overview-player, .battle-player-username, .modal-game-over-user-username';
+const USERNAME_SELECTORS = '.user-username, .user-tagline-username, .cc-user-username-component, .user-username-component, .game-overview-player, .battle-player-username, .modal-game-over-user-username';
 
 // Blur state
 let domObserver: MutationObserver | null = null;

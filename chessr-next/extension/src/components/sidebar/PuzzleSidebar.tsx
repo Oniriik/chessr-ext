@@ -68,7 +68,7 @@ function usePuzzleDetection() {
       if (solvedElement) return;
 
       const toMoveHeading = document.querySelector('[data-cy="to-move-section-heading"]');
-      const coachFeedback = document.querySelector('.cc-coach-feedback-detail-colorToMove');
+      const coachFeedback = document.querySelector('.coach-feedback-detail-colorToMove, .cc-coach-feedback-detail-colorToMove');
       const dailyColorIndicator = document.querySelector('.message-color-to-move-square');
       const rushHeading = document.querySelector('.section-heading-component.section-heading-lightGrey, .section-heading-component.section-heading-black');
       const newIsStarted = !!(toMoveHeading || coachFeedback || dailyColorIndicator || rushHeading);

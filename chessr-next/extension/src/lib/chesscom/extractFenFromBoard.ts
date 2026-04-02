@@ -101,15 +101,15 @@ function detectTurnFromDOM(): 'w' | 'b' {
   }
 
   // Method 2: Rated puzzles - coach feedback element with color class
-  const coachFeedback = document.querySelector('.cc-coach-feedback-detail-colorToMove');
+  const coachFeedback = document.querySelector('.coach-feedback-detail-colorToMove, .cc-coach-feedback-detail-colorToMove');
   if (coachFeedback) {
     logger.log(`[fen-extract] Turn detection (rated): classes="${coachFeedback.className}"`);
 
-    if (coachFeedback.classList.contains('cc-coach-feedback-detail-white-to-move')) {
+    if (coachFeedback.classList.contains('coach-feedback-detail-white-to-move') || coachFeedback.classList.contains('cc-coach-feedback-detail-white-to-move')) {
       logger.log(`[fen-extract] Detected: white's turn`);
       return 'w';
     }
-    if (coachFeedback.classList.contains('cc-coach-feedback-detail-black-to-move')) {
+    if (coachFeedback.classList.contains('coach-feedback-detail-black-to-move') || coachFeedback.classList.contains('cc-coach-feedback-detail-black-to-move')) {
       logger.log(`[fen-extract] Detected: black's turn`);
       return 'b';
     }
@@ -164,9 +164,9 @@ export function getPlayerColorFromDOM(): 'white' | 'black' | null {
 
   // Method 2: Rated puzzles - detect from coach feedback color indicator
   // In rated puzzles, the player always moves first, so the "to move" color IS the player's color
-  const coachFeedback = document.querySelector('.cc-coach-feedback-detail-colorToMove');
+  const coachFeedback = document.querySelector('.coach-feedback-detail-colorToMove, .cc-coach-feedback-detail-colorToMove');
   if (coachFeedback) {
-    const isWhite = coachFeedback.classList.contains('cc-coach-feedback-detail-white-to-move');
+    const isWhite = coachFeedback.classList.contains('coach-feedback-detail-white-to-move') || coachFeedback.classList.contains('cc-coach-feedback-detail-white-to-move');
     const color = isWhite ? 'white' : 'black';
     logger.log(`[fen-extract] Player color from coach feedback: ${color}`);
     return color;

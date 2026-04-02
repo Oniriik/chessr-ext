@@ -33,7 +33,7 @@ function removeMockTitles() {
 
 function injectGameTitle(targetLower: string) {
   const containers = document.querySelectorAll(
-    '.player-tagline, .cc-user-block-component'
+    '.player-tagline, .cc-user-block-component, .user-block-component'
   );
 
   containers.forEach((container) => {
