@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-export type ActivityEventType = "suggestion" | "analysis" | "maia_suggestion";
+export type ActivityEventType = "suggestion" | "analysis" | "maia_suggestion" | "game_review";
 
 /**
  * Log a user activity event to Supabase

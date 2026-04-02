@@ -20,6 +20,7 @@ import {
   getAnalysisStats,
   type AnalysisMessage,
 } from "./handlers/analysisHandler.js";
+import { handleChesscomReview } from "./handlers/chesscomReviewHandler.js";
 import {
   handleGetLinkedAccounts,
   handleLinkAccount,
@@ -883,6 +884,253 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     return;
   }
 
+  // Review page
+  if (req.url?.startsWith("/review")) {
+    const reviewHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chessr - Game Review</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0d0d1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; min-height: 100vh; }
+    #root { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+    .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; gap: 16px; }
+    .progress-bar { width: 256px; height: 8px; background: #1e1e3a; border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #3b82f6; border-radius: 4px; transition: width 0.3s; }
+    .error { color: #f87171; text-align: center; padding: 40px; }
+    h1 { font-size: 24px; font-weight: 700; color: #3b82f6; margin-bottom: 4px; }
+    .subtitle { color: #9ca3af; font-size: 13px; }
+    .card { background: #12122a; border: 1px solid #2a2a4a; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .card-title { color: #9ca3af; font-size: 11px; text-transform: uppercase; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { color: #9ca3af; font-size: 11px; font-weight: 600; text-align: center; padding: 4px 8px; border-bottom: 1px solid #2a2a4a; }
+    th:first-child { text-align: left; }
+    td { padding: 4px 8px; text-align: center; font-size: 13px; }
+    td:first-child { text-align: left; }
+    .accuracy-big { font-size: 20px; font-weight: 700; }
+    .summary { font-style: italic; color: #d1d5db; font-size: 13px; }
+    .btn { display: block; width: 100%; padding: 12px; border-radius: 8px; background: #3b82f6; color: white; font-weight: 700; font-size: 15px; border: none; cursor: pointer; text-align: center; }
+    .btn:hover { opacity: 0.9; }
+    .cls-brilliant, .cls-great { color: #22d3ee; }
+    .cls-best { color: #34d399; }
+    .cls-excellent { color: #6ee7b7; }
+    .cls-good { color: #e2e8f0; }
+    .cls-book { color: #a78bfa; }
+    .cls-inaccuracy { color: #fbbf24; }
+    .cls-mistake { color: #fb923c; }
+    .cls-miss { color: #ef4444; }
+    .cls-blunder { color: #f87171; }
+    /* Board */
+    .board-container { display: flex; gap: 24px; flex-wrap: wrap; }
+    .board-left { flex-shrink: 0; }
+    .board-right { flex: 1; min-width: 280px; }
+    .nav-buttons { display: flex; justify-content: center; gap: 8px; margin-top: 12px; }
+    .nav-btn { width: 40px; height: 32px; border-radius: 4px; background: #1e1e3a; font-weight: 700; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; color: #e0e0e0; }
+    .nav-btn:hover { background: #2a2a4a; }
+    /* Coach card */
+    .coach-card { border-radius: 8px; border: 1px solid #2a2a4a; overflow: hidden; margin-bottom: 12px; }
+    .coach-header { padding: 12px 16px; display: flex; align-items: center; justify-content: between; }
+    .coach-body { padding: 12px 16px; background: #12122a; }
+    .coach-eval { background: #1e1e3a; padding: 2px 8px; border-radius: 4px; font-family: monospace; font-weight: 700; font-size: 12px; margin-left: auto; }
+    /* Move list */
+    .move-list { max-height: 300px; overflow-y: auto; padding: 8px; }
+    .move-row { display: grid; grid-template-columns: 32px 1fr 1fr; gap: 2px; font-size: 12px; }
+    .move-num { color: #9ca3af; text-align: right; padding-right: 4px; line-height: 24px; }
+    .move-cell { padding: 2px 6px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 4px; line-height: 20px; }
+    .move-cell:hover { background: #1e1e3a; }
+    .move-cell.active { background: rgba(59, 130, 246, 0.2); }
+    .move-cls { font-weight: 700; font-size: 10px; width: 14px; }
+    .move-san { font-family: monospace; }
+    .follow-up { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .follow-up span { background: #1e1e3a; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <div id="root"><div class="loading"><div style="font-size:20px;font-weight:700">Loading...</div></div></div>
+  <script>
+    const WS_URL = location.protocol === 'https:' ? 'wss://' + location.host : 'ws://' + location.host;
+    const params = new URLSearchParams(location.search);
+    const gameId = params.get('gameId');
+    const gameType = params.get('gameType') || 'live';
+
+    if (!gameId) {
+      document.getElementById('root').innerHTML = '<div class="error"><h2>Missing game ID</h2><p>Usage: /review?gameId=123456</p></div>';
+    } else {
+      let analysis = null;
+      let currentPly = 0;
+      let view = 'loading';
+      const root = document.getElementById('root');
+
+      // Connect to WS
+      const ws = new WebSocket(WS_URL);
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'chesscom_review', requestId: 'r-' + gameId, gameId, gameType }));
+      };
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'chesscom_review_progress') {
+          root.innerHTML = '<div class="loading"><div style="font-size:20px;font-weight:700">Analyzing game...</div><div class="progress-bar"><div class="progress-fill" style="width:' + msg.progress + '%"></div></div><div style="color:#9ca3af">' + msg.progress + '%</div></div>';
+        }
+        if (msg.type === 'chesscom_review_result') {
+          analysis = msg.analysis;
+          view = 'summary';
+          ws.close();
+          render();
+        }
+        if (msg.type === 'chesscom_review_error') {
+          root.innerHTML = '<div class="error"><h2>Error</h2><p>' + msg.error + '</p></div>';
+          ws.close();
+        }
+      };
+      ws.onerror = () => { root.innerHTML = '<div class="error"><h2>Connection failed</h2></div>'; };
+
+      function getNames() {
+        const opts = (analysis.options || []);
+        const pgnJson = opts.find(o => o[0] === 'PgnHeadersJson');
+        let h = {};
+        try { h = JSON.parse(pgnJson?.[1] || '{}'); } catch {}
+        const pgn = analysis.annotatedPgn || '';
+        return {
+          w: h.White || pgn.match(/\\[White "([^"]+)"\\]/)?.[1] || 'White',
+          b: h.Black || pgn.match(/\\[Black "([^"]+)"\\]/)?.[1] || 'Black',
+          wElo: h.WhiteElo || '', bElo: h.BlackElo || '',
+          result: h.Result || '',
+        };
+      }
+
+      function fmt(v) { return v != null ? v.toFixed(1) : '-'; }
+
+      function render() {
+        if (view === 'summary') renderSummary();
+        else if (view === 'review') renderReview();
+      }
+
+      function renderSummary() {
+        const n = getNames();
+        const C = analysis.CAPS;
+        const pos = analysis.positions || [];
+
+        // Count classifications
+        const wCls = {}, bCls = {};
+        const clsOrder = ['brilliant','great','best','excellent','good','inaccuracy','mistake','miss','blunder'];
+        const clsLabels = {brilliant:'Brilliant',great:'Great',best:'Best',excellent:'Excellent',good:'Good',inaccuracy:'Inaccuracy',mistake:'Mistake',miss:'Miss',blunder:'Blunder'};
+        const clsColors = {brilliant:'cls-brilliant',great:'cls-great',best:'cls-best',excellent:'cls-excellent',good:'cls-good',inaccuracy:'cls-inaccuracy',mistake:'cls-mistake',miss:'cls-miss',blunder:'cls-blunder'};
+        for (const p of pos) {
+          if (!p.classificationName) continue;
+          if (p.color === 'white') wCls[p.classificationName] = (wCls[p.classificationName]||0)+1;
+          if (p.color === 'black') bCls[p.classificationName] = (bCls[p.classificationName]||0)+1;
+        }
+
+        let clsRows = '';
+        for (const c of clsOrder) {
+          const w = wCls[c]||0, b = bCls[c]||0;
+          if (w||b) clsRows += '<tr><td><span class="'+clsColors[c]+'">'+(clsLabels[c])+'</span></td><td class="'+(w?clsColors[c]:'')+'">'+w+'</td><td class="'+(b?clsColors[c]:'')+'">'+b+'</td></tr>';
+        }
+
+        const pieces = ['K','Q','R','B','N','P'];
+        const pieceNames = {K:'King',Q:'Queen',R:'Rook',B:'Bishop',N:'Knight',P:'Pawn'};
+        let pieceRows = '';
+        for (const p of pieces) {
+          const w = C.white[p], b = C.black[p];
+          if ((w&&w>0)||(b&&b>0)) pieceRows += '<tr><td>'+pieceNames[p]+'</td><td>'+fmt(w)+'</td><td>'+fmt(b)+'</td></tr>';
+        }
+
+        root.innerHTML = '<h1>Game Review</h1><div class="subtitle">'+n.w+' ('+n.wElo+') vs '+n.b+' ('+n.bElo+') — '+n.result+'</div>'
+          + (analysis.book ? '<div class="subtitle" style="margin-top:2px">'+analysis.book.name+' ('+analysis.book.code+')</div>' : '')
+          + '<div style="margin-top:20px">'
+          + '<div class="card"><div class="card-title">Accuracy</div><table><tr><th></th><th>'+n.w+'</th><th>'+n.b+'</th></tr>'
+          + '<tr><td>Accuracy</td><td class="accuracy-big">'+fmt(C.white.all)+'</td><td class="accuracy-big">'+fmt(C.black.all)+'</td></tr>'
+          + '<tr><td>Rating</td><td>'+n.wElo+'</td><td>'+n.bElo+'</td></tr></table></div>'
+          + '<div class="card"><div class="card-title">Move Classifications</div><table><tr><th></th><th>'+n.w+'</th><th>'+n.b+'</th></tr>'+clsRows+'</table></div>'
+          + '<div class="card"><div class="card-title">Accuracy by Phase</div><table><tr><th></th><th>'+n.w+'</th><th>'+n.b+'</th></tr>'
+          + '<tr><td>Opening</td><td>'+fmt(C.white.gp0)+'</td><td>'+fmt(C.black.gp0)+'</td></tr>'
+          + '<tr><td>Middlegame</td><td>'+fmt(C.white.gp1)+'</td><td>'+fmt(C.black.gp1)+'</td></tr>'
+          + '<tr><td>Endgame</td><td>'+fmt(C.white.gp2)+'</td><td>'+fmt(C.black.gp2)+'</td></tr></table></div>'
+          + '<div class="card"><div class="card-title">Accuracy by Piece</div><table><tr><th></th><th>'+n.w+'</th><th>'+n.b+'</th></tr>'+pieceRows+'</table></div>'
+          + (analysis.gameSummary ? '<div class="card"><div class="card-title">Game Summary</div><div class="summary">"'+analysis.gameSummary+'"</div></div>' : '')
+          + '<button class="btn" onclick="view=\\'review\\';currentPly=0;render()">Start Review</button>'
+          + '</div>';
+      }
+
+      function renderReview() {
+        const n = getNames();
+        const pos = analysis.positions || [];
+        const p = pos[currentPly] || {};
+        const cls = p.classificationName || '';
+        const played = p.playedMove;
+        const best = p.bestMove;
+        const speech = played?.speech?.[0]?.sentence?.join('') || best?.speech?.[0]?.sentence?.join('') || '';
+        const evalStr = played?.score != null ? (played.score >= 0 ? '+' : '') + played.score.toFixed(2) : '';
+        const clsLabel = {brilliant:'Brilliant',great:'Great',best:'Best',excellent:'Excellent',good:'Good',book:'Book',inaccuracy:'Inaccuracy',mistake:'Mistake',miss:'Miss',blunder:'Blunder'}[cls] || cls;
+        const clsColor = {brilliant:'cls-brilliant',great:'cls-great',best:'cls-best',excellent:'cls-excellent',good:'cls-good',book:'cls-book',inaccuracy:'cls-inaccuracy',mistake:'cls-mistake',miss:'cls-miss',blunder:'cls-blunder'}[cls] || '';
+        const bgColor = {brilliant:'rgba(34,211,238,0.1)',great:'rgba(34,211,238,0.07)',best:'rgba(52,211,153,0.1)',excellent:'rgba(110,231,183,0.07)',good:'rgba(226,232,240,0.05)',book:'rgba(167,139,250,0.07)',inaccuracy:'rgba(251,191,36,0.07)',mistake:'rgba(251,146,60,0.07)',miss:'rgba(239,68,68,0.07)',blunder:'rgba(248,113,113,0.1)'}[cls] || '#1e1e3a';
+
+        // Move list
+        let moveListHtml = '';
+        for (let i = 1; i < pos.length; i++) {
+          const pp = pos[i];
+          if (!pp.color) continue;
+          const num = Math.ceil(i/2);
+          const san = pp.playedMove?.moveLan || '?';
+          const c = pp.classificationName || '';
+          const icon = {brilliant:'!!',great:'!',best:'★',excellent:'●',good:'●',book:'📖',inaccuracy:'?!',mistake:'?',miss:'✕',blunder:'??'}[c] || '';
+          const cc = {brilliant:'cls-brilliant',great:'cls-great',best:'cls-best',excellent:'cls-excellent',good:'cls-good',book:'cls-book',inaccuracy:'cls-inaccuracy',mistake:'cls-mistake',miss:'cls-miss',blunder:'cls-blunder'}[c] || '';
+          if (pp.color === 'white') {
+            moveListHtml += '<div class="move-row"><div class="move-num">'+num+'.</div>';
+            moveListHtml += '<div class="move-cell'+(currentPly===i?' active':'')+'" onclick="currentPly='+i+';render()"><span class="move-cls '+cc+'">'+icon+'</span><span class="move-san">'+san+'</span></div>';
+          } else {
+            if (!moveListHtml.endsWith('</div></div>') || moveListHtml.endsWith('</div></div></div>')) {
+              moveListHtml += '<div class="move-row"><div class="move-num">'+num+'.</div><div></div>';
+            }
+            moveListHtml += '<div class="move-cell'+(currentPly===i?' active':'')+'" onclick="currentPly='+i+';render()"><span class="move-cls '+cc+'">'+icon+'</span><span class="move-san">'+san+'</span></div></div>';
+          }
+        }
+
+        // Coach card
+        let coachHtml = '';
+        if (currentPly > 0) {
+          coachHtml = '<div class="coach-card"><div class="coach-header" style="background:'+bgColor+'"><span class="'+clsColor+'" style="font-weight:700;font-size:16px">'+(played?.moveLan||'?')+' is '+clsLabel.toLowerCase()+'</span>'+(evalStr?'<span class="coach-eval">'+evalStr+'</span>':'')+'</div><div class="coach-body">'
+            + (speech ? '<div>'+speech+'</div>' : '<div style="color:#9ca3af;font-style:italic">No coach comment.</div>');
+          if (best && !['best','book','brilliant','great','excellent'].includes(cls)) {
+            coachHtml += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a2a4a"><div style="color:#9ca3af;font-size:11px;margin-bottom:4px">Better move:</div><div style="color:#34d399;font-weight:700;font-family:monospace">'+best.moveLan+(best.speech?.[0]?.sentence?' <span style="color:#9ca3af;font-weight:400;font-family:sans-serif">— '+best.speech[0].sentence.join('')+'</span>':'')+'</div></div>';
+          }
+          const followUp = best?.variationThemes?.[0]?.moves;
+          if (followUp?.length) {
+            coachHtml += '<div style="margin-top:8px"><div class="follow-up">' + followUp.map(m => '<span>'+m+'</span>').join('') + '</div></div>';
+          }
+          coachHtml += '</div></div>';
+        } else {
+          coachHtml = '<div class="card"><div style="color:#9ca3af">Starting position — use arrows to navigate moves</div></div>';
+        }
+
+        root.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><h1>Game Review</h1><div class="subtitle">'+n.w+' vs '+n.b+'</div></div><button class="nav-btn" style="width:auto;padding:0 12px" onclick="view=\\'summary\\';render()">← Summary</button></div>'
+          + '<div class="board-container"><div class="board-right">'
+          + coachHtml
+          + '<div class="card" style="padding:8px"><div style="color:#9ca3af;font-size:11px;text-transform:uppercase;padding:8px 8px 4px">Moves</div><div class="move-list">'+moveListHtml+'</div></div>'
+          + '<div class="nav-buttons"><button class="nav-btn" onclick="currentPly=0;render()">|&lt;</button><button class="nav-btn" onclick="if(currentPly>0)currentPly--;render()">&lt;</button><button class="nav-btn" onclick="if(currentPly<'+(pos.length-1)+')currentPly++;render()">&gt;</button><button class="nav-btn" onclick="currentPly='+(pos.length-1)+';render()">&gt;|</button></div>'
+          + '</div></div>';
+      }
+
+      // Keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        if (view !== 'review') return;
+        const pos = analysis?.positions || [];
+        if (e.key === 'ArrowRight' && currentPly < pos.length - 1) { currentPly++; render(); }
+        if (e.key === 'ArrowLeft' && currentPly > 0) { currentPly--; render(); }
+        if (e.key === 'Home') { currentPly = 0; render(); }
+        if (e.key === 'End') { currentPly = pos.length - 1; render(); }
+      });
+    }
+  </script>
+</body>
+</html>`;
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(reviewHtml);
+    return;
+  }
+
   // 404 for everything else
   res.writeHead(404, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ error: "Not found" }));
@@ -1109,6 +1357,11 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
         case "log_maia_suggestion":
           logActivity(userId, "maia_suggestion");
+          break;
+
+        case "chesscom_review":
+          console.log(`[WS] chesscom_review request from ${userId}: gameId=${message.gameId}`);
+          handleChesscomReview(message, ws, userId, supabase);
           break;
 
         default:
