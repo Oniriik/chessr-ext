@@ -1,0 +1,398 @@
+'use client'
+
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { Button } from '@/components/ui/button'
+import { LogOut, Loader2, AlertTriangle, ChevronDown, Copy, Check, Target } from 'lucide-react'
+import { PlayerAvatar } from '@/components/player-avatar'
+
+interface LinkedAccount {
+  id: string
+  platform: string
+  platform_username: string
+  avatar_url: string | null
+  rating_blitz: number | null
+  rating_rapid: number | null
+  rating_bullet: number | null
+}
+
+interface ChessComGame {
+  url: string
+  pgn: string
+  time_control: string
+  time_class: string
+  end_time: number
+  rated: boolean
+  accuracies?: { white: number; black: number }
+  white: { username: string; rating: number; result: string }
+  black: { username: string; rating: number; result: string }
+}
+
+export default function HomePage() {
+  const router = useRouter()
+  const [user, setUser] = useState<{ email: string; id: string } | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // Linked accounts
+  const [accounts, setAccounts] = useState<LinkedAccount[]>([])
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
+  const [accountsLoading, setAccountsLoading] = useState(true)
+
+  // Games
+  const [games, setGames] = useState<ChessComGame[]>([])
+  const [gamesLoading, setGamesLoading] = useState(false)
+  const [archives, setArchives] = useState<string[]>([])
+  const [archiveIndex, setArchiveIndex] = useState(0)
+  const [hasMore, setHasMore] = useState(true)
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+
+  // Review limit
+  const [reviewLimit, setReviewLimit] = useState<{ isLimited: boolean; dailyUsage: number; dailyLimit: number | null } | null>(null)
+  useEffect(() => {
+    async function fetchLimit() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        const res = await fetch('/api/review-limit', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        setReviewLimit(await res.json())
+      } catch { /* ignore */ }
+    }
+    fetchLimit()
+  }, [])
+
+  // Auth check
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      setUser({ email: user.email || '', id: user.id })
+      setLoading(false)
+    }
+    checkAuth()
+  }, [router])
+
+  // Fetch linked accounts
+  useEffect(() => {
+    if (!user) return
+    async function fetchAccounts() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await fetch('/api/linked-accounts', {
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        })
+        const data = await res.json()
+        setAccounts(data.accounts || [])
+        if (data.accounts?.length > 0) {
+          setSelectedAccount(data.accounts[0].platform_username)
+        }
+      } catch {
+        // ignore
+      } finally {
+        setAccountsLoading(false)
+      }
+    }
+    fetchAccounts()
+  }, [user])
+
+  // Fetch archives when account changes
+  useEffect(() => {
+    if (!selectedAccount) return
+    setGames([])
+    setArchives([])
+    setArchiveIndex(0)
+    setHasMore(true)
+    setGamesLoading(true)
+
+    async function fetchArchives() {
+      try {
+        const res = await fetch(`https://api.chess.com/pub/player/${selectedAccount}/games/archives`, {
+          headers: { 'User-Agent': 'Chessr/1.0' },
+        })
+        const data = await res.json()
+        const allArchives = (data.archives || []).reverse() // newest first
+        setArchives(allArchives)
+        if (allArchives.length > 0) {
+          await loadGamesFromArchive(allArchives[0], true)
+          setArchiveIndex(1)
+        } else {
+          setHasMore(false)
+        }
+      } catch {
+        setHasMore(false)
+      } finally {
+        setGamesLoading(false)
+      }
+    }
+    fetchArchives()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccount])
+
+  // Load games from a specific archive URL
+  const loadGamesFromArchive = useCallback(async (archiveUrl: string, replace = false) => {
+    try {
+      const res = await fetch(archiveUrl, { headers: { 'User-Agent': 'Chessr/1.0' } })
+      const data = await res.json()
+      const liveGames = (data.games || [])
+        .filter((g: ChessComGame) => g.url?.includes('/live/'))
+        .reverse() // newest first
+      setGames(prev => replace ? liveGames : [...prev, ...liveGames])
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  // Load more games (next archive)
+  const loadMore = useCallback(async () => {
+    if (gamesLoading || !hasMore || archiveIndex >= archives.length) {
+      setHasMore(false)
+      return
+    }
+    setGamesLoading(true)
+    await loadGamesFromArchive(archives[archiveIndex])
+    setArchiveIndex(prev => prev + 1)
+    if (archiveIndex + 1 >= archives.length) setHasMore(false)
+    setGamesLoading(false)
+  }, [gamesLoading, hasMore, archiveIndex, archives, loadGamesFromArchive])
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting && hasMore && !gamesLoading) loadMore() },
+      { threshold: 0.1 }
+    )
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [hasMore, gamesLoading, loadMore])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen">
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
+        <div className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <img src="/icon.png" alt="Chessr" className="w-8 h-8" />
+            <span className="text-xl font-bold">
+              <span className="text-white">chessr</span><span className="gradient-text">.io</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {reviewLimit?.isLimited && reviewLimit.dailyLimit != null && (
+              <span className="text-xs font-medium px-2 py-1 rounded-md bg-muted text-muted-foreground">
+                Reviews: {reviewLimit.dailyUsage}/{reviewLimit.dailyLimit}
+              </span>
+            )}
+            <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main */}
+      <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6">
+        {/* Warning banner */}
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm mb-6">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          <span>We are only supporting Chess.com games for now</span>
+        </div>
+
+        {/* Account selector */}
+        {accountsLoading ? (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm mb-6">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading accounts...
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground mb-2">No Chess.com accounts linked</p>
+            <p className="text-sm text-muted-foreground">Link your Chess.com account in the Chessr extension first.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-muted-foreground">Account:</span>
+              <div className="relative">
+                <select
+                  value={selectedAccount || ''}
+                  onChange={(e) => setSelectedAccount(e.target.value)}
+                  className="appearance-none bg-muted border border-border rounded-lg px-3 py-1.5 pr-8 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.platform_username}>
+                      {acc.platform_username}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Games list */}
+            <div className="space-y-2">
+              {games.map((game) => (
+                <GameRow key={game.url} game={game} username={selectedAccount!} />
+              ))}
+            </div>
+
+            {/* Loading / load more */}
+            <div ref={loadMoreRef} className="py-6 flex justify-center">
+              {gamesLoading && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
+              {!gamesLoading && hasMore && (
+                <button onClick={loadMore} className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1">
+                  <ChevronDown className="w-4 h-4" /> Load more games
+                </button>
+              )}
+              {!hasMore && games.length > 0 && (
+                <span className="text-xs text-muted-foreground">No more games</span>
+              )}
+            </div>
+          </>
+        )}
+      </main>
+    </div>
+  )
+}
+
+function GameRow({ game, username }: { game: ChessComGame; username: string }) {
+  const [copied, setCopied] = useState(false)
+  const isWhite = game.white.username.toLowerCase() === username.toLowerCase()
+  const player = isWhite ? game.white : game.black
+  const opponent = isWhite ? game.black : game.white
+  const playerResult = player.result
+  const lossResults = ['checkmated', 'timeout', 'resigned', 'abandoned', 'lose']
+  const resultLabel = playerResult === 'win' ? 'Win' : lossResults.includes(playerResult) ? 'Loss' : 'Draw'
+  const resultColor = resultLabel === 'Win' ? 'text-emerald-400' : resultLabel === 'Loss' ? 'text-rose-400' : 'text-amber-400'
+  const resultBorderColor = resultLabel === 'Win' ? 'border-l-emerald-500' : resultLabel === 'Loss' ? 'border-l-rose-500' : 'border-l-amber-500'
+
+  const gameId = game.url.split('/').pop()
+  const date = new Date(game.end_time * 1000)
+  const timeAgo = getTimeAgo(date)
+
+  const timeClass = game.time_class
+  const tcIcon = timeClass === 'bullet' ? '⚡' : timeClass === 'blitz' ? '🔥' : timeClass === 'rapid' ? '⏱️' : '📅'
+
+  const playerAccuracy = game.accuracies ? (isWhite ? game.accuracies.white : game.accuracies.black) : null
+  const opponentAccuracy = game.accuracies ? (isWhite ? game.accuracies.black : game.accuracies.white) : null
+
+  const handleCopyPgn = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(game.pgn).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  function AccuracyBar({ value }: { value: number }) {
+    const color = value >= 90 ? 'bg-emerald-400' : value >= 70 ? 'bg-sky-400' : value >= 50 ? 'bg-amber-400' : 'bg-rose-400'
+    return (
+      <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, value)}%` }} />
+      </div>
+    )
+  }
+
+  const playerWon = playerResult === 'win'
+  const opponentWon = opponent.result === 'win'
+  const isDraw = resultLabel === 'Draw'
+  const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+  // Result indicator: green square = win, red = loss, grey = draw
+  const resultSquareColor = playerWon ? 'bg-emerald-500' : isDraw ? 'bg-zinc-500' : 'bg-rose-500'
+
+  return (
+    <div
+      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group"
+      onClick={() => {
+        sessionStorage.setItem(`pgn-${gameId}`, game.pgn)
+        window.open(`/review/${gameId}`, '_blank')
+      }}
+    >
+      {/* Result indicator square */}
+      <div className={`w-1.5 h-10 rounded-full shrink-0 ${resultSquareColor}`} />
+
+      {/* Player avatars */}
+      <div className="flex items-center shrink-0">
+        <PlayerAvatar username={player.username} size={32} />
+        <div className="-ml-2">
+          <PlayerAvatar username={opponent.username} size={32} />
+        </div>
+      </div>
+
+      {/* Names + rating */}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1 text-sm">
+          <span className="font-bold truncate">{player.username}</span>
+          <span className="text-muted-foreground text-xs">({player.rating})</span>
+          <span className="text-muted-foreground text-xs mx-0.5">vs</span>
+          <span className="font-medium truncate">{opponent.username}</span>
+          <span className="text-muted-foreground text-xs">({opponent.rating})</span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+          <span>{tcIcon} {timeClass}</span>
+          <span>•</span>
+          <span>{formattedDate}</span>
+          {playerAccuracy != null && (
+            <>
+              <span>•</span>
+              <span className={playerWon ? 'text-emerald-400 font-medium' : ''}>{playerAccuracy.toFixed(0)}</span>
+              <span>-</span>
+              <span className={opponentWon ? 'text-emerald-400 font-medium' : ''}>{opponentAccuracy!.toFixed(0)}</span>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Result + actions */}
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`text-sm font-bold ${resultColor}`}>{resultLabel}</span>
+        <button
+          onClick={handleCopyPgn}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
+          title="Copy PGN"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+        <a
+          href={game.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
+          title="Open on Chess.com"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function getTimeAgo(date: Date): string {
+  const now = new Date()
+  const diff = now.getTime() - date.getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  return `${months}mo ago`
+}
