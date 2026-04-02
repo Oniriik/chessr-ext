@@ -5,6 +5,7 @@
 
 const contentPorts = new Map<number, chrome.runtime.Port>();
 let streamerPort: chrome.runtime.Port | null = null;
+let reviewPort: chrome.runtime.Port | null = null;
 let lastActiveTabId: number | null = null;
 
 function broadcastToContentPorts(message: unknown) {
@@ -40,6 +41,18 @@ chrome.runtime.onConnect.addListener((port) => {
           // Streamer port disconnected
         }
       }
+      // Forward review results to review page
+      if (reviewPort && (
+        message.type === 'chesscom_review_progress' ||
+        message.type === 'chesscom_review_result' ||
+        message.type === 'chesscom_review_error'
+      )) {
+        try {
+          reviewPort.postMessage(message);
+        } catch {
+          // Review port disconnected
+        }
+      }
     });
 
     port.onDisconnect.addListener(() => {
@@ -73,6 +86,33 @@ chrome.runtime.onConnect.addListener((port) => {
       broadcastToContentPorts({ type: 'streamer_status', isOpen: false });
     });
   }
+
+  if (port.name === 'review') {
+    reviewPort = port;
+
+    port.onMessage.addListener((message) => {
+      // Forward review requests to the active content script tab
+      if (message.type === 'request_review') {
+        if (lastActiveTabId !== null && contentPorts.has(lastActiveTabId)) {
+          try {
+            contentPorts.get(lastActiveTabId)!.postMessage({
+              type: 'request_review',
+              gameId: message.gameId,
+              gameType: message.gameType || 'live',
+            });
+          } catch {
+            reviewPort?.postMessage({ type: 'chesscom_review_error', error: 'No active chess tab found' });
+          }
+        } else {
+          reviewPort?.postMessage({ type: 'chesscom_review_error', error: 'No active chess tab found. Keep a chess.com tab open.' });
+        }
+      }
+    });
+
+    port.onDisconnect.addListener(() => {
+      reviewPort = null;
+    });
+  }
 });
 
 // Open streamer page when extension icon is clicked
@@ -81,12 +121,23 @@ chrome.action.onClicked.addListener(() => {
 });
 
 // Handle messages from content scripts and billing page
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'open_billing') {
     chrome.tabs.create({ url: chrome.runtime.getURL('billing.html') });
   }
   if (message.type === 'plan_updated') {
     // Relay to all content script tabs so they refresh the plan
     broadcastToContentPorts(message);
+  }
+  if (message.type === 'open_review') {
+    const params = new URLSearchParams({ gameId: message.gameId, gameType: message.gameType || 'live' });
+    chrome.tabs.create({ url: chrome.runtime.getURL('review.html') + '?' + params.toString() });
+  }
+  if (message.type === 'get_chesscom_cookies') {
+    chrome.cookies.getAll({ domain: '.chess.com' }, (cookies) => {
+      const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+      sendResponse({ cookies: cookieStr });
+    });
+    return true; // keep channel open for async response
   }
 });

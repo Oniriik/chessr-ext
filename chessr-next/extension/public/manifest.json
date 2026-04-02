@@ -3,7 +3,7 @@
   "name": "Chessr",
   "version": "2.4.3",
   "description": "Chessr - Chess assistance, done right.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "cookies"],
   "host_permissions": [
     "*://chess.com/*",
     "*://*.chess.com/*",
@@ -41,7 +41,7 @@
       "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*", "*://worldchess.com/*", "*://*.worldchess.com/*"]
     },
     {
-      "resources": ["streamer.html", "billing.html"],
+      "resources": ["streamer.html", "billing.html", "review.html"],
       "matches": ["<all_urls>"]
     }
   ]

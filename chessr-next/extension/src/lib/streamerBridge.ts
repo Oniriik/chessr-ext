@@ -5,6 +5,7 @@
  * to the streamer page. Receives streamer_status to toggle UI visibility.
  */
 
+import { webSocketManager } from './webSocket';
 import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
@@ -323,6 +324,27 @@ function connect() {
       if (user) {
         useAuthStore.getState().fetchPlan(user.id);
       }
+    }
+    if (message.type === 'request_review') {
+      // Forward to Chessr WS server and relay results back via port
+      const requestId = `review-${message.gameId}`;
+      const unsubscribe = webSocketManager.onMessage((data: unknown) => {
+        const msg = data as Record<string, unknown>;
+        if (msg.type === 'chesscom_review_progress' || msg.type === 'chesscom_review_result' || msg.type === 'chesscom_review_error') {
+          if (msg.requestId === requestId || !msg.requestId) {
+            sendMessage(msg);
+            if (msg.type === 'chesscom_review_result' || msg.type === 'chesscom_review_error') {
+              unsubscribe();
+            }
+          }
+        }
+      });
+      webSocketManager.send({
+        type: 'chesscom_review',
+        requestId,
+        gameId: message.gameId,
+        gameType: message.gameType || 'live',
+      });
     }
   });
 
