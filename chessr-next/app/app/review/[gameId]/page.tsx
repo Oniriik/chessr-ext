@@ -596,18 +596,48 @@ export default function ReviewPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Background */}
+      <div className="animated-bg">
+        <div className="bg-grid" />
+        <div className="orb orb-1" />
+        <div className="orb orb-2" />
+        <div className="orb orb-3" />
+        <div className="bg-particles">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div
+              key={i}
+              className="particle"
+              style={{
+                left: `${10 + i * 11}%`,
+                top: `${15 + (i % 3) * 25}%`,
+                animationDelay: `${i * 0.8}s`,
+                animationDuration: `${5 + (i % 3) * 2}s`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-between">
-          <a href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm">Games</span>
-          </a>
-          <div className="flex items-center gap-2">
+      <header className="sticky top-0 z-50 bg-background/60 backdrop-blur-xl">
+        <div className="w-full px-4 sm:px-6 h-12 sm:h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3 sm:gap-6">
+            <a href="/" className="flex items-center gap-2 shrink-0">
+              <img src="/icon.png" alt="Chessr" className="w-6 h-6 sm:w-8 sm:h-8" />
+              <span className="text-lg sm:text-xl font-bold hidden sm:inline">
+                <span className="text-white">chessr</span><span className="gradient-text">.io</span>
+              </span>
+            </a>
+            <nav className="flex items-center gap-1">
+              <a href="/" className="px-2.5 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium text-foreground bg-muted whitespace-nowrap">Games</a>
+              <a href="/profile-analysis" className="px-2.5 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 whitespace-nowrap">Analysis</a>
+            </nav>
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2">
             {pgn && (
               <button
                 onClick={() => { navigator.clipboard.writeText(pgn); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 PGN
@@ -619,7 +649,7 @@ export default function ReviewPage() {
 
       {/* Players bar */}
       {headers && (
-        <div className="border-b border-border/30 bg-card/30">
+        <div className="relative z-10">
           <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
             <PlayerInfo name={headers.White} elo={headers.WhiteElo} color="white" />
             <div className="text-xs text-muted-foreground px-3 text-center">
@@ -632,7 +662,7 @@ export default function ReviewPage() {
       )}
 
       {/* Main content */}
-      <main className="max-w-6xl mx-auto p-4">
+      <main className="relative z-10 max-w-6xl mx-auto p-4">
         {/* Analyze button + loading (no card wrapper) */}
         {!review && !reviewLoading && (
           <div className="mb-4 flex flex-col items-center gap-2">
@@ -644,7 +674,7 @@ export default function ReviewPage() {
             ) : (
               <button
                 onClick={analyzeGame}
-                className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
+                className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
               >
                 <Sparkles className="w-4 h-4" /> Analyze Game
                 {reviewLimit.isLimited && reviewLimit.dailyLimit != null && (
@@ -750,7 +780,7 @@ export default function ReviewPage() {
           </div>
 
           {/* Move list with coach banner on top */}
-          <div className="flex-1 min-w-0 lg:max-h-[540px] max-h-[400px] flex flex-col rounded-xl border border-border/40 bg-card/30 overflow-hidden">
+          <div className="flex-1 min-w-0 lg:max-h-[540px] max-h-[400px] flex flex-col rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden">
             {/* Coach banner / Game summary */}
             {review && currentPly === 0 && typeof review.gameSummary === 'string' && (
               <GameSummaryBanner
@@ -895,7 +925,7 @@ export default function ReviewPage() {
 
         {/* Eval Graph (between moves and review panel) */}
         {evalPoints.length > 0 && (
-          <div className="rounded-xl border border-border/40 bg-card/30 mt-4 overflow-hidden">
+          <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm mt-4 overflow-hidden">
             <EvalGraph
               points={evalPoints}
               currentPly={currentPly}
@@ -929,7 +959,7 @@ export default function ReviewPage() {
       {/* Coach change confirmation */}
       {pendingCoach && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setPendingCoach(null)}>
-          <div className="bg-card border border-border rounded-xl p-5 w-full max-w-xs mx-4 text-center" onClick={e => e.stopPropagation()}>
+          <div className="bg-card/80 backdrop-blur-xl border border-border/60 rounded-xl p-5 w-full max-w-xs mx-4 text-center" onClick={e => e.stopPropagation()}>
             <img src={COACHES[pendingCoach]?.img || COACHES.David_coach.img} alt="" className="w-16 h-16 rounded-xl mx-auto mb-3" />
             <p className="text-sm mb-2">Do you want to review again with <span className="font-bold">{COACHES[pendingCoach]?.name || pendingCoach}</span>?</p>
             {reviewLimit.isLimited && reviewLimit.dailyLimit != null && (
@@ -1192,7 +1222,7 @@ function CoachModal({ currentCoach, onSelect, onClose }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-card border border-border rounded-xl p-4 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
+      <div className="bg-card/80 backdrop-blur-xl border border-border/60 rounded-xl p-4 w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
         <h3 className="text-sm font-bold mb-3">Choose your coach</h3>
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
           {Object.entries(COACHES).map(([id, coach]) => (
@@ -1307,7 +1337,7 @@ function ReviewPanel({ review, headers }: { review: Record<string, unknown>; hea
   const blackWon = result === '0-1'
 
   return (
-    <div className="mt-6 rounded-xl border border-border/40 bg-card/30 overflow-hidden">
+    <div className="mt-6 rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm overflow-hidden">
       {/* Players + Accuracy header */}
       <div className="p-4">
         <div className="grid grid-cols-[1fr_140px_1fr] items-center justify-items-center gap-4 mb-4">

@@ -22,6 +22,13 @@ import {
 } from "./handlers/analysisHandler.js";
 import { handleChesscomReview } from "./handlers/chesscomReviewHandler.js";
 import {
+  handleProfileAnalysis,
+  handleProfileAnalysisSubscribe,
+  handleProfileAnalysisDisconnect,
+  type ProfileAnalysisStartMessage,
+  type ProfileAnalysisSubscribeMessage,
+} from "./handlers/profileAnalysisHandler.js";
+import {
   handleGetLinkedAccounts,
   handleLinkAccount,
   handleUnlinkAccount,
@@ -1364,6 +1371,16 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           handleChesscomReview(message, ws, userId, supabase);
           break;
 
+        case "profile_analysis_start":
+          console.log(`[WS] profile_analysis_start from ${userId}: ${message.platformUsername}`);
+          handleProfileAnalysis(message as ProfileAnalysisStartMessage, ws, userId);
+          break;
+
+        case "profile_analysis_subscribe":
+          console.log(`[WS] profile_analysis_subscribe from ${userId}: ${message.analysisId}`);
+          handleProfileAnalysisSubscribe(message as ProfileAnalysisSubscribeMessage, ws, userId);
+          break;
+
         default:
           console.log(`Unknown message type from ${userId}:`, message.type);
           ws.send(
@@ -1389,6 +1406,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       // Cancel any pending requests for this user
       handleUserDisconnect(userId);
       handleAnalysisDisconnect(userId);
+      handleProfileAnalysisDisconnect(ws);
       clients.delete(userId);
       clientAlive.delete(userId);
       logConnection(client?.user.email || userId, 'disconnected');

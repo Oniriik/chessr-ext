@@ -90,6 +90,140 @@ body::before {
   background-clip: text;
 }
 
+/* Animated background — orbs + grid + particles (matches download page) */
+.animated-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black 70%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black 70%, transparent 100%);
+  opacity: 0.6;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+}
+
+.orb-1 {
+  top: -100px; left: 20%; width: 600px; height: 600px;
+  background: rgba(59,130,246,0.15);
+}
+
+.orb-2 {
+  top: 10%; right: 15%; width: 500px; height: 500px;
+  background: rgba(34,211,238,0.1);
+}
+
+.orb-3 {
+  bottom: -200px; left: 0; right: 0; margin: 0 auto; width: 800px; height: 400px;
+  background: rgba(59,130,246,0.1);
+}
+
+.bg-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: rgba(34, 211, 238, 0.4);
+  border-radius: 50%;
+  animation: float-particle 6s ease-in-out infinite;
+}
+
+@keyframes float-particle {
+  0%, 100% { transform: translateY(0); opacity: 0.2; }
+  50% { transform: translateY(-30px); opacity: 0.6; }
+}
+
+/* Material spinner — variable speed stroke animation */
+.material-spinner {
+  animation: spinner-rotate 1.4s linear infinite;
+}
+
+.material-spinner .spinner-path {
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-dasharray: 187;
+  stroke-dashoffset: 0;
+  transform-origin: center;
+  animation: spinner-dash 1.4s ease-in-out infinite, spinner-fade 1.4s ease-in-out infinite;
+}
+
+@keyframes spinner-rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(270deg); }
+}
+
+@keyframes spinner-dash {
+  0% { stroke-dashoffset: 187; }
+  50% { stroke-dashoffset: 46.75; transform: rotate(135deg); }
+  100% { stroke-dashoffset: 187; transform: rotate(450deg); }
+}
+
+@keyframes spinner-fade {
+  0% { stroke: rgba(255, 255, 255, 0.15); }
+  40% { stroke: rgba(255, 255, 255, 0.6); }
+  60% { stroke: rgba(255, 255, 255, 0.6); }
+  100% { stroke: rgba(255, 255, 255, 0.15); }
+}
+
+/* Game card hover glow — two radial ellipses using result color */
+.group::before,
+.group::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  transition: transform 0.3s ease-in;
+}
+
+/* Bottom-left ellipse */
+.group::before {
+  width: 40%;
+  height: 160%;
+  bottom: -60%;
+  left: -10%;
+  background: radial-gradient(ellipse at center, rgba(var(--glow), 0.12), transparent 70%);
+  transform: translate(-100%, 100%);
+}
+
+.group:hover::before {
+  transform: translate(0, 0);
+  transition: transform 0.2s ease-out;
+}
+
+/* Top-right ellipse */
+.group::after {
+  width: 45%;
+  height: 160%;
+  top: -70%;
+  right: -25%;
+  background: radial-gradient(ellipse at center, rgba(var(--glow), 0.12), transparent 70%);
+  transform: translate(100%, -100%);
+}
+
+.group:hover::after {
+  transform: translate(0, 0);
+  transition: transform 0.2s ease-out;
+}
+
 /* Glow effects */
 .glow-blue {
   box-shadow: 0 0 40px hsla(217, 91%, 60%, 0.3);
@@ -116,3 +250,4 @@ cg-board square.last-move {
 .cg-wrap .cg-shapes {
   opacity: 0.85 !important;
 }
+

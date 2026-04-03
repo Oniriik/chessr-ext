@@ -1,10 +1,8 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { LogOut, Loader2, AlertTriangle, ChevronDown, Copy, Check, Target } from 'lucide-react'
+import { Loader2, AlertTriangle, ChevronDown, Copy, Check } from 'lucide-react'
 import { PlayerAvatar } from '@/components/player-avatar'
 
 interface LinkedAccount {
@@ -30,10 +28,6 @@ interface ChessComGame {
 }
 
 export default function HomePage() {
-  const router = useRouter()
-  const [user, setUser] = useState<{ email: string; id: string } | null>(null)
-  const [loading, setLoading] = useState(true)
-
   // Linked accounts
   const [accounts, setAccounts] = useState<LinkedAccount[]>([])
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
@@ -47,36 +41,8 @@ export default function HomePage() {
   const [hasMore, setHasMore] = useState(true)
   const loadMoreRef = useRef<HTMLDivElement>(null)
 
-  // Review limit
-  const [reviewLimit, setReviewLimit] = useState<{ isLimited: boolean; dailyUsage: number; dailyLimit: number | null } | null>(null)
-  useEffect(() => {
-    async function fetchLimit() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-        const res = await fetch('/api/review-limit', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        setReviewLimit(await res.json())
-      } catch { /* ignore */ }
-    }
-    fetchLimit()
-  }, [])
-
-  // Auth check
-  useEffect(() => {
-    async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      setUser({ email: user.email || '', id: user.id })
-      setLoading(false)
-    }
-    checkAuth()
-  }, [router])
-
   // Fetch linked accounts
   useEffect(() => {
-    if (!user) return
     async function fetchAccounts() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -84,9 +50,12 @@ export default function HomePage() {
           headers: { Authorization: `Bearer ${session?.access_token}` },
         })
         const data = await res.json()
-        setAccounts(data.accounts || [])
-        if (data.accounts?.length > 0) {
-          setSelectedAccount(data.accounts[0].platform_username)
+        const accs = data.accounts || []
+        setAccounts(accs)
+        if (accs.length > 0) {
+          const saved = localStorage.getItem('chessr_selected_account')
+          const match = saved && accs.find((a: LinkedAccount) => a.platform_username === saved)
+          setSelectedAccount(match ? saved : accs[0].platform_username)
         }
       } catch {
         // ignore
@@ -95,7 +64,7 @@ export default function HomePage() {
       }
     }
     fetchAccounts()
-  }, [user])
+  }, [])
 
   // Fetch archives when account changes
   useEffect(() => {
@@ -168,45 +137,8 @@ export default function HomePage() {
     return () => observer.disconnect()
   }, [hasMore, gamesLoading, loadMore])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-border/40 bg-background/80 backdrop-blur-xl">
-        <div className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <img src="/icon.png" alt="Chessr" className="w-8 h-8" />
-            <span className="text-xl font-bold">
-              <span className="text-white">chessr</span><span className="gradient-text">.io</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {reviewLimit?.isLimited && reviewLimit.dailyLimit != null && (
-              <span className="text-xs font-medium px-2 py-1 rounded-md bg-muted text-muted-foreground">
-                Reviews: {reviewLimit.dailyUsage}/{reviewLimit.dailyLimit}
-              </span>
-            )}
-            <span className="text-sm text-muted-foreground hidden sm:block">{user?.email}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6">
+    <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6">
         {/* Warning banner */}
         <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm mb-6">
           <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -231,8 +163,8 @@ export default function HomePage() {
               <div className="relative">
                 <select
                   value={selectedAccount || ''}
-                  onChange={(e) => setSelectedAccount(e.target.value)}
-                  className="appearance-none bg-muted border border-border rounded-lg px-3 py-1.5 pr-8 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+                  onChange={(e) => { setSelectedAccount(e.target.value); localStorage.setItem('chessr_selected_account', e.target.value) }}
+                  className="appearance-none bg-card/50 border border-border/40 rounded-xl px-3 py-1.5 pr-8 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring backdrop-blur-sm"
                 >
                   {accounts.map((acc) => (
                     <option key={acc.id} value={acc.platform_username}>
@@ -265,8 +197,7 @@ export default function HomePage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+    </main>
   )
 }
 
@@ -315,20 +246,24 @@ function GameRow({ game, username }: { game: ChessComGame; username: string }) {
 
   // Result indicator: green square = win, red = loss, grey = draw
   const resultSquareColor = playerWon ? 'bg-emerald-500' : isDraw ? 'bg-zinc-500' : 'bg-rose-500'
+  const glowColor = playerWon ? 'emerald' : isDraw ? 'zinc' : 'rose'
 
   return (
     <div
-      className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group"
+      className="relative flex items-center gap-3 px-3 py-2.5 rounded-xl bg-card/30 border border-border/30 hover:border-border/50 cursor-pointer group overflow-hidden"
+      style={{
+        '--glow': playerWon ? '16,185,129' : isDraw ? '161,161,170' : '244,63,94',
+      } as React.CSSProperties}
       onClick={() => {
         sessionStorage.setItem(`pgn-${gameId}`, game.pgn)
         window.open(`/review/${gameId}`, '_blank')
       }}
     >
       {/* Result indicator square */}
-      <div className={`w-1.5 h-10 rounded-full shrink-0 ${resultSquareColor}`} />
+      <div className={`relative z-10 w-1.5 h-10 rounded-full shrink-0 ${resultSquareColor}`} />
 
       {/* Player avatars */}
-      <div className="flex items-center shrink-0">
+      <div className="relative z-10 flex items-center shrink-0">
         <PlayerAvatar username={player.username} size={32} />
         <div className="-ml-2">
           <PlayerAvatar username={opponent.username} size={32} />
@@ -336,7 +271,7 @@ function GameRow({ game, username }: { game: ChessComGame; username: string }) {
       </div>
 
       {/* Names + rating */}
-      <div className="min-w-0 flex-1">
+      <div className="relative z-10 min-w-0 flex-1">
         <div className="flex items-center gap-1 text-sm">
           <span className="font-bold truncate">{player.username}</span>
           <span className="text-muted-foreground text-xs">({player.rating})</span>
@@ -348,20 +283,13 @@ function GameRow({ game, username }: { game: ChessComGame; username: string }) {
           <span>{tcIcon} {timeClass}</span>
           <span>•</span>
           <span>{formattedDate}</span>
-          {playerAccuracy != null && (
-            <>
-              <span>•</span>
-              <span className={playerWon ? 'text-emerald-400 font-medium' : ''}>{playerAccuracy.toFixed(0)}</span>
-              <span>-</span>
-              <span className={opponentWon ? 'text-emerald-400 font-medium' : ''}>{opponentAccuracy!.toFixed(0)}</span>
-            </>
-          )}
         </div>
       </div>
 
       {/* Result + actions */}
-      <div className="flex items-center gap-2 shrink-0">
-        <span className={`text-sm font-bold ${resultColor}`}>{resultLabel}</span>
+      <div className="relative z-10 flex items-center gap-2 shrink-0">
+        <span className={`text-sm font-bold ${resultColor} w-10 text-right`}>{resultLabel}</span>
+        <div className={`w-2.5 h-2.5 rounded-full border ${isWhite ? 'bg-white border-white/30' : 'bg-zinc-700 border-zinc-500'}`} />
         <button
           onClick={handleCopyPgn}
           className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
