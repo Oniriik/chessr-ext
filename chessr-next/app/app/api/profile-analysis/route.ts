@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     let query = adminClient
       .from('profile_analyses')
-      .select('id, platform_username, platform, status, games_count, games_requested, created_at, completed_at, error_message')
+      .select('id, platform_username, platform, status, games_count, games_requested, created_at, completed_at, error_message, games_data')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(20)
@@ -60,9 +60,18 @@ export async function POST(request: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
 
     const body = await request.json()
-    const { platformUsername, gamesCount } = body
+    const { platformUsername, modes, gamesPerMode, gamesCount } = body
     if (!platformUsername) return NextResponse.json({ error: 'Missing platformUsername' }, { status: 400 })
-    const validGamesCount = Math.min(Math.max(gamesCount || 10, 1), 30)
+
+    // Validate modes config (new) or fall back to legacy gamesCount
+    const validModes = ['bullet', 'blitz', 'rapid']
+    const selectedModes: string[] = Array.isArray(modes) && modes.length > 0
+      ? modes.filter((m: string) => validModes.includes(m))
+      : []
+    const perMode = Math.min(Math.max(gamesPerMode || gamesCount || 10, 1), 30)
+    const totalGames = selectedModes.length > 0
+      ? selectedModes.length * perMode
+      : Math.min(Math.max(gamesCount || 10, 1), 30)
 
     // Check no pending/analyzing analysis exists
     const { data: existing } = await adminClient
@@ -83,7 +92,8 @@ export async function POST(request: NextRequest) {
         platform_username: platformUsername,
         platform: 'chesscom',
         status: 'pending',
-        games_requested: validGamesCount,
+        games_requested: totalGames,
+        ...(selectedModes.length > 0 && { modes_config: { modes: selectedModes, gamesPerMode: perMode } }),
       })
       .select('id')
       .single()

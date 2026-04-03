@@ -67,7 +67,7 @@ import {
   handlePreviewUpgradeByToken,
   handleUpgradeLifetimeByToken,
 } from "./handlers/paddleHandler.js";
-import { logConnection } from "./utils/logger.js";
+import { logConnection, logStart } from "./utils/logger.js";
 import { resolveUserBetas } from "./betaFlags.js";
 
 const PORT = parseInt(process.env.PORT || "8080");
@@ -1174,6 +1174,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
   let userId: string | null = null;
   let isAuthenticated = false;
+  let clientSource: string | null = null; // 'app' or 'extension'
 
   // Set a timeout for authentication (10 seconds)
   const authTimeout = setTimeout(() => {
@@ -1231,7 +1232,8 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         // Store IP and resolve country (fire and forget)
         storeUserIp(user.id, clientIp);
 
-        logConnection(user.email || userId, 'connected');
+        clientSource = message.source || null; // 'app' or 'extension'
+        logConnection(user.email || userId, 'connected', clientSource || undefined);
 
         // Get maintenance schedule and Discord status for the client
         const maintenance = await getMaintenanceSchedule();
@@ -1367,17 +1369,22 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           break;
 
         case "chesscom_review":
-          console.log(`[WS] chesscom_review request from ${userId}: gameId=${message.gameId}`);
-          handleChesscomReview(message, ws, userId, supabase);
+          if (!clientSource) clientSource = 'app';
+          logStart({ requestId: message.gameId || userId!, email: client.user.email, type: 'game-review', params: `gameId=${message.gameId}` });
+          handleChesscomReview(message, ws, userId, supabase, client.user.email);
           break;
 
-        case "profile_analysis_start":
-          console.log(`[WS] profile_analysis_start from ${userId}: ${message.platformUsername}`);
+        case "profile_analysis_start": {
+          if (!clientSource) clientSource = 'app';
+          const modesStr = message.modes ? `modes=${message.modes.join(',')} x${message.gamesPerMode}` : `last ${message.gamesCount || 10}`;
+          logStart({ requestId: message.analysisId || userId!, email: client.user.email, type: 'profile-analysis', params: `${message.platformUsername} (${modesStr})` });
           handleProfileAnalysis(message as ProfileAnalysisStartMessage, ws, userId);
           break;
+        }
 
         case "profile_analysis_subscribe":
-          console.log(`[WS] profile_analysis_subscribe from ${userId}: ${message.analysisId}`);
+          if (!clientSource) clientSource = 'app';
+          logStart({ requestId: message.analysisId || userId!, email: client.user.email, type: 'profile-analysis', params: `subscribe ${message.analysisId?.slice(0, 8)}` });
           handleProfileAnalysisSubscribe(message as ProfileAnalysisSubscribeMessage, ws, userId);
           break;
 
@@ -1409,7 +1416,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       handleProfileAnalysisDisconnect(ws);
       clients.delete(userId);
       clientAlive.delete(userId);
-      logConnection(client?.user.email || userId, 'disconnected');
+      logConnection(client?.user.email || userId, 'disconnected', clientSource || undefined);
     }
   });
 

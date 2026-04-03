@@ -10,6 +10,7 @@ import type { WebSocket as WS } from 'ws';
 import { WebSocket } from 'ws';
 import { Chess } from 'chess.js';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { logEnd, logError } from '../utils/logger.js';
 
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY)
@@ -176,6 +177,8 @@ export interface ProfileAnalysisStartMessage {
   platformUsername: string;
   analysisId: string;
   gamesCount?: number;
+  modes?: string[];
+  gamesPerMode?: number;
 }
 
 export interface ProfileAnalysisSubscribeMessage {
@@ -206,8 +209,7 @@ export async function handleProfileAnalysis(
   clientWs: WS,
   userId: string,
 ): Promise<void> {
-  const { platformUsername, analysisId, gamesCount: requestedGames } = message;
-  const maxGames = Math.min(Math.max(requestedGames || MAX_GAMES, 1), 30);
+  const { platformUsername, analysisId, gamesCount: requestedGames, modes: requestedModes, gamesPerMode } = message;
 
   if (!supabase) {
     clientWs.send(JSON.stringify({ type: 'profile_analysis_error', analysisId, error: 'Database not configured' }));
@@ -242,12 +244,19 @@ export async function handleProfileAnalysis(
     return;
   }
 
+  // Determine mode-by-mode vs legacy behavior
+  const validModes = ['bullet', 'blitz', 'rapid'];
+  const useModeBased = Array.isArray(requestedModes) && requestedModes.length > 0;
+  const modes = useModeBased ? requestedModes.filter(m => validModes.includes(m)) : [];
+  const perMode = useModeBased ? Math.min(Math.max(gamesPerMode || 10, 1), 30) : 0;
+  const legacyMax = !useModeBased ? Math.min(Math.max(requestedGames || MAX_GAMES, 1), 30) : 0;
+
   // Mark as analyzing
   await supabase.from('profile_analyses').update({ status: 'analyzing' }).eq('id', analysisId);
   activeAnalyses.add(userId);
   addSubscriber(analysisId, clientWs);
 
-  console.log(`[ProfileAnalysis] Starting analysis ${analysisId} for ${platformUsername}`);
+  // logStart is called from index.ts switch case
 
   try {
     // Step 1: Fetch game archives
@@ -260,32 +269,109 @@ export async function handleProfileAnalysis(
     if (!archRes.ok) throw new Error(`Player ${platformUsername} not found`);
     const archives = ((await archRes.json()).archives || []) as string[];
 
-    // Collect last N live games
-    let allGames: any[] = [];
-    for (let i = archives.length - 1; i >= 0 && allGames.length < maxGames; i--) {
-      const gRes = await fetch(archives[i], { headers: { 'User-Agent': 'Chessr/1.0' } });
-      const gData = await gRes.json();
-      const liveGames = (gData.games || []).filter((g: any) => g.url?.includes('/live/'));
-      allGames = [...liveGames, ...allGames];
+    let orderedGames: any[]; // flat list of games to analyze, in order
+
+    if (useModeBased) {
+      // Mode-by-mode: group games by time_class, fill per-mode buckets
+      const modeGames = new Map<string, any[]>();
+      for (const m of modes) modeGames.set(m, []);
+
+      // Only scan last 12 months of archives
+      const startIdx = Math.max(0, archives.length - 12);
+      for (let i = archives.length - 1; i >= startIdx; i--) {
+        // Check if all mode buckets are full
+        const allFull = modes.every(m => (modeGames.get(m)?.length || 0) >= perMode);
+        if (allFull) break;
+
+        const gRes = await fetch(archives[i], { headers: { 'User-Agent': 'Chessr/1.0' } });
+        const gData = await gRes.json();
+        const liveGames = (gData.games || []).filter((g: any) => g.url?.includes('/live/')).reverse(); // newest first
+
+        for (const g of liveGames) {
+          const tc = g.time_class as string;
+          if (!modes.includes(tc)) continue;
+          const bucket = modeGames.get(tc)!;
+          if (bucket.length >= perMode) continue;
+          bucket.push(g);
+        }
+
+        // Progress: show how many found so far while scanning
+        if (i % 3 === 0) {
+          const counts = modes.map(m => `${modeGames.get(m)?.length || 0} ${m}`).join(', ');
+          broadcast(analysisId, {
+            type: 'profile_analysis_progress', analysisId, step: 'fetching_history',
+            detail: `Scanning archives... ${counts}`,
+          });
+        }
+      }
+
+      // Broadcast per-mode counts
+      const modeCounts = modes.map(m => ({ mode: m, count: modeGames.get(m)?.length || 0 }));
+      const totalGames = modeCounts.reduce((s, mc) => s + mc.count, 0);
+
+      broadcast(analysisId, {
+        type: 'profile_analysis_progress', analysisId, step: 'games_found_by_mode',
+        detail: modeCounts.map(mc => `${mc.count} ${mc.mode}`).join(', '),
+        modes: modeCounts, totalGames,
+      });
+
+      if (totalGames === 0) throw new Error('No live games found for selected modes');
+
+      // Build ordered list: mode by mode
+      orderedGames = [];
+      for (const m of modes) {
+        const bucket = modeGames.get(m) || [];
+        for (const g of bucket) {
+          (g as any)._mode = m;
+          (g as any)._modeGames = bucket.length;
+          (g as any)._modeIndex = orderedGames.filter((og: any) => og._mode === m).length;
+          orderedGames.push(g);
+        }
+      }
+    } else {
+      // Legacy: collect last N live games regardless of mode
+      let allGames: any[] = [];
+      for (let i = archives.length - 1; i >= 0 && allGames.length < legacyMax; i--) {
+        const gRes = await fetch(archives[i], { headers: { 'User-Agent': 'Chessr/1.0' } });
+        const gData = await gRes.json();
+        const liveGames = (gData.games || []).filter((g: any) => g.url?.includes('/live/'));
+        allGames = [...liveGames, ...allGames];
+      }
+      orderedGames = allGames.slice(-legacyMax);
+
+      broadcast(analysisId, {
+        type: 'profile_analysis_progress', analysisId, step: 'games_found',
+        detail: `Found ${orderedGames.length} games`, totalGames: orderedGames.length,
+      });
+
+      if (orderedGames.length === 0) throw new Error('No live games found');
     }
-    const games = allGames.slice(-maxGames);
 
-    broadcast(analysisId, {
-      type: 'profile_analysis_progress', analysisId, step: 'games_found',
-      detail: `Found ${games.length} games`, totalGames: games.length,
-    });
-
-    if (games.length === 0) throw new Error('No live games found');
-
-    // Step 2: Analyze each game
+    // Step 2: Analyze each game (mode by mode if applicable)
     const gamesData: GameRawData[] = [];
+    let currentMode: string | null = null;
+    let modeIdx = 0;
 
-    for (let gi = 0; gi < games.length; gi++) {
-      const g = games[gi];
+    for (let gi = 0; gi < orderedGames.length; gi++) {
+      const g = orderedGames[gi];
+      const gameMode = (g as any)._mode as string | undefined;
+      const gameModeGames = (g as any)._modeGames as number | undefined;
+      const gameModeIndex = (g as any)._modeIndex as number | undefined;
+
+      // Broadcast mode_start when entering a new mode
+      if (useModeBased && gameMode && gameMode !== currentMode) {
+        broadcast(analysisId, {
+          type: 'profile_analysis_progress', analysisId, step: 'mode_start',
+          mode: gameMode, modeIndex: modeIdx, totalModes: modes.length,
+          gamesInMode: gameModeGames,
+        });
+        currentMode = gameMode;
+        modeIdx++;
+      }
+
       const id = g.url?.split('/').pop();
       const isWhite = g.white?.username?.toLowerCase() === platformUsername.toLowerCase();
       const playerColor = isWhite ? 'white' : 'black';
-      const opponentColor = isWhite ? 'black' : 'white';
       const whiteName = g.white?.username || '';
       const blackName = g.black?.username || '';
       const opponentName = isWhite ? blackName : whiteName;
@@ -302,15 +388,15 @@ export async function handleProfileAnalysis(
 
       broadcast(analysisId, {
         type: 'profile_analysis_progress', analysisId, step: 'analyzing_game',
-        detail: `Analyzing ${gi + 1}/${games.length}`,
-        gameIndex: gi, totalGames: games.length,
+        detail: `Analyzing ${gi + 1}/${orderedGames.length}`,
+        gameIndex: gi, totalGames: orderedGames.length,
         gameWhite: whiteName, gameBlack: blackName,
         opponentName, opponentAvatar, opponentRating,
         playerColor, result, timeClass,
+        ...(useModeBased && gameMode ? { mode: gameMode, gameIndexInMode: gameModeIndex, gamesInMode: gameModeGames } : {}),
       });
 
       try {
-        // Fetch + analyze (no game_reviews cache for profile analysis)
         const gameData = await fetchGameData(id);
         const pgn = decodeMoveListToPGN(gameData.moveList, gameData.headers);
         const token = await getAnalysisToken(id, 'live');
@@ -318,14 +404,14 @@ export async function handleProfileAnalysis(
         const analysis = await fetchAnalysisFromChessCom(id, 'live', token, pgn, (progress) => {
           broadcast(analysisId, {
             type: 'profile_analysis_progress', analysisId, step: 'analyzing_game',
-            detail: `Analyzing ${gi + 1}/${games.length}`,
-            gameIndex: gi, totalGames: games.length,
+            detail: `Analyzing ${gi + 1}/${orderedGames.length}`,
+            gameIndex: gi, totalGames: orderedGames.length,
             gameWhite: whiteName, gameBlack: blackName,
             gameProgress: Math.round(progress * 100),
+            ...(useModeBased && gameMode ? { mode: gameMode, gameIndexInMode: gameModeIndex, gamesInMode: gameModeGames } : {}),
           });
         });
 
-        // Extract raw data for client (strip heavy fields like speech, keep what matters)
         const positions = (analysis.positions || []).map((pos: any) => ({
           color: pos.color,
           classificationName: pos.classificationName,
@@ -346,7 +432,7 @@ export async function handleProfileAnalysis(
         });
 
       } catch (err) {
-        console.error(`[ProfileAnalysis] Game ${id} failed:`, err);
+        console.error(`  [profile-analysis] game ${id} failed:`, (err as Error).message || err);
         // Continue with other games
       }
     }
@@ -365,10 +451,10 @@ export async function handleProfileAnalysis(
       type: 'profile_analysis_result', analysisId, gamesData,
     });
 
-    console.log(`[ProfileAnalysis] Completed ${analysisId}: ${gamesData.length} games`);
+    logEnd({ requestId: analysisId, email: platformUsername, type: 'profile-analysis', result: `${gamesData.length} games analyzed` });
 
   } catch (error) {
-    console.error(`[ProfileAnalysis] Error:`, error);
+    logError({ requestId: analysisId, email: platformUsername, type: 'profile-analysis', error: error instanceof Error ? error.message : 'Unknown error' });
 
     if (supabase) {
       await supabase.from('profile_analyses').update({

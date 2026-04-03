@@ -46,6 +46,17 @@ export interface PhaseAccuracy {
   stddev: number | null
 }
 
+export type FlagStatus = 'clean' | 'suspicious' | 'flagged'
+
+export interface ProfileFlag {
+  id: string
+  label: string
+  status: FlagStatus
+  value: string
+  detail: string
+  weight: number // multiplier for scoring (default 1, account age can be higher)
+}
+
 export interface AntiCheatCheck {
   status: 'PASS' | 'WARN' | 'FAIL'
   label: string
@@ -87,6 +98,7 @@ export interface CadenceProfile {
     blunderAvgTime: number | null
     blunderPattern: string
   }
+  flags: ProfileFlag[]
   antiCheat: {
     checks: AntiCheatCheck[]
     humanScore: number
@@ -105,6 +117,9 @@ export interface CadenceProfile {
     opening: number | null
     middlegame: number | null
     endgame: number | null
+    classifications: Record<string, number>
+    totalMoves: number
+    pieces: { piece: string; label: string; accuracy: number | null }[]
   }>
 }
 
@@ -221,7 +236,7 @@ function getThresholds(tcType: string) {
 
 // ─── Main computation ───
 
-export function computePlayDNA(gamesData: GameRawData[], username: string): ProfileAnalysisResult {
+export function computePlayDNA(gamesData: GameRawData[], username: string, opts?: { accountCreatedAt?: number | null }): ProfileAnalysisResult {
   const avgRating = mean(gamesData.map(g => g.playerRating).filter(Boolean)) || 0
   const wins = gamesData.filter(g => g.result === 'W').length
   const losses = gamesData.filter(g => g.result === 'L').length
@@ -238,7 +253,7 @@ export function computePlayDNA(gamesData: GameRawData[], username: string): Prof
   // Build per-cadence profiles
   const cadences: CadenceProfile[] = []
   for (const [tcType, games] of byTc) {
-    cadences.push(buildCadenceProfile(tcType, games, username))
+    cadences.push(buildCadenceProfile(tcType, games, username, opts?.accountCreatedAt))
   }
 
   // Cross-cadence
@@ -261,7 +276,194 @@ export function computePlayDNA(gamesData: GameRawData[], username: string): Prof
   }
 }
 
-function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], username: string): CadenceProfile {
+// ─── Style wording system ───
+
+// Deterministic seed from stats — same stats always produce the same index
+function statSeed(vals: (number | null | undefined)[]): number {
+  let h = 0
+  for (const v of vals) {
+    const n = v != null ? Math.round(v * 100) : 0
+    h = ((h << 5) - h + n) | 0
+  }
+  return Math.abs(h)
+}
+
+function pickFrom(arr: string[], seed: number): string {
+  return arr[seed % arr.length]
+}
+
+// Tiered wordings: mild (<70%), strong (70-85%), elite (>85%) based on dominant phase accuracy
+// 10 wordings per tier × 3 tiers = 30 per category
+
+const STYLE_OPENING: Record<string, string[]> = {
+  mild: [
+    'Opening Dabbler', 'Theory Curious', 'Opening Leaner',
+    'Slight Book Preference', 'Opening Inclined', 'Theory Taster',
+    'First-Move Thinker', 'Casual Theorist', 'Opening Aware', 'Prep Curious',
+  ],
+  strong: [
+    'Opening Specialist', 'Theory Expert', 'Book Shark',
+    'Repertoire Master', 'Opening Tactician', 'Prep Enthusiast',
+    'Opening Strategist', 'Theory Devotee', 'Opening Scholar', 'Line Specialist',
+  ],
+  elite: [
+    'Prep Assassin', 'Opening Wizard', 'Theory Savant',
+    'Preparation Sniper', 'Opening Prodigy', 'Prep Machine',
+    'First-Move Architect', 'Opening Connoisseur', 'Novelty Hunter', 'Book Surgeon',
+  ],
+}
+
+const STYLE_MIDDLEGAME: Record<string, string[]> = {
+  mild: [
+    'Middlegame Leaner', 'Tactical Thinker', 'Combat Curious',
+    'Slight Tactical Edge', 'Middlegame Inclined', 'Position Taster',
+    'Combination Aware', 'Casual Tactician', 'Board Thinker', 'Attack Curious',
+  ],
+  strong: [
+    'Tactical Brawler', 'Middlegame Specialist', 'Combination Artist',
+    'Board Dominator', 'Tactical Sniper', 'Complication Seeker',
+    'Attack Master', 'Piece Coordinator', 'Pressure Builder', 'Initiative Seeker',
+  ],
+  elite: [
+    'Tactical Wizard', 'Middlegame Monster', 'Chaos Agent',
+    'Tactical Genius', 'Board Commander', 'Middlegame Predator',
+    'Piece Magician', 'Tactical Storm', 'Middlegame Surgeon', 'Tactical Maverick',
+  ],
+}
+
+const STYLE_ENDGAME: Record<string, string[]> = {
+  mild: [
+    'Endgame Leaner', 'Late-Game Curious', 'Technique Taster',
+    'Slight Endgame Edge', 'Endgame Inclined', 'Patient Leaner',
+    'Conversion Curious', 'Casual Grinder', 'Endgame Thinker', 'Pawn Aware',
+  ],
+  strong: [
+    'Endgame Grinder', 'Late-Game Specialist', 'Endgame Technician',
+    'Conversion Expert', 'Technique Master', 'Pawn Whisperer',
+    'Squeeze Master', 'Endgame Artisan', 'Material Converter', 'Patience Master',
+  ],
+  elite: [
+    'Endgame Machine', 'Endgame Virtuoso', 'Fortress Breaker',
+    'Zugzwang Dealer', 'Endgame Surgeon', 'Endgame Prophet',
+    'King Activator', 'Endgame Sage', 'Technical Wizard', 'Simplification Artist',
+  ],
+}
+
+const STYLE_ALLROUND: Record<string, string[]> = {
+  mild: [
+    'Developing Player', 'Balanced Learner', 'Steady Beginner',
+    'Growing All-Rounder', 'Flexible Learner', 'Adaptive Newcomer',
+    'Even-Keeled Player', 'Phase Explorer', 'Balanced Thinker', 'Budding Generalist',
+  ],
+  strong: [
+    'All-Rounder', 'Complete Player', 'Versatile Fighter',
+    'Balanced Strategist', 'Flexible Fighter', 'Full-Spectrum Player',
+    'Versatile Competitor', 'Adaptable Player', 'Consistent Performer', 'Steady Operator',
+  ],
+  elite: [
+    'Universal Soldier', 'Swiss Army Knight', 'Equilibrium Master',
+    'Multi-Phase Master', 'Harmonious Player', 'Complete Competitor',
+    'Calibrated Player', 'Phase Equalizer', 'Versatile Mind', 'Balanced Force',
+  ],
+}
+
+const MOD_RISK: Record<string, string[]> = {
+  mild: [
+    'Slight Gambler', 'Occasional Risk-Taker', 'Sometimes Bold',
+    'Edge Curious', 'Mild Daredevil', 'Spark of Chaos',
+    'Opportunistic', 'Casual Aggressor', 'Slight Wild Card', 'Sometimes Sharp',
+  ],
+  strong: [
+    'Risk-Taker', 'Aggressive Player', 'Double-Edged Specialist',
+    'Gambit Player', 'Bold Operator', 'Sword Fighter',
+    'Sharp Calculator', 'Explosive Player', 'Fearless Attacker', 'Thrill Seeker',
+  ],
+  elite: [
+    'Berserker', 'Fire on Board', 'Controlled Madness',
+    'Volatile Genius', 'All-In Specialist', 'Unhinged Talent',
+    'Brilliant or Blunder', 'Danger Zone Player', 'Chaos Architect', 'Playing with Fire',
+  ],
+}
+
+const MOD_SOLID: Record<string, string[]> = {
+  mild: [
+    'Slightly Careful', 'Cautious Leaner', 'Measured Player',
+    'Risk-Averse', 'Careful Thinker', 'Steady Mover',
+    'Conservative Lean', 'Mild Grinder', 'Low-Risk Player', 'Quiet Approach',
+  ],
+  strong: [
+    'Solid Positional', 'Rock Solid', 'Patient Strategist',
+    'Iron Defense', 'Quiet Killer', 'Strategic Thinker',
+    'Methodical Player', 'Controlled Player', 'Precision Player', 'Clean Technician',
+  ],
+  elite: [
+    'Fortress Builder', 'Prophylaxis Master', 'Ice-Cold Calculator',
+    'Positional Surgeon', 'Calm Under Pressure', 'Slow Constrictor',
+    'Defensive Wall', 'Quiet Assassin', 'Mistake Avoider', 'Calculated Patience',
+  ],
+}
+
+function getTier(accuracy: number): string {
+  if (accuracy >= 85) return 'elite'
+  if (accuracy >= 70) return 'strong'
+  return 'mild'
+}
+
+// For modifiers: tier based on how extreme the modifier stats are
+function getModTier(bestMoveRate: number, blunderRate: number, goodPct: number): string {
+  // Risk: higher bestMove + higher blunder = more extreme
+  if (bestMoveRate > 55 && blunderRate > 5) return 'elite'
+  if (bestMoveRate > 50 || blunderRate > 4) return 'strong'
+  return 'mild'
+}
+
+function getSolidTier(goodPct: number, blunderRate: number): string {
+  if (goodPct > 25 && blunderRate < 1) return 'elite'
+  if (goodPct > 20 || blunderRate < 1.5) return 'strong'
+  return 'mild'
+}
+
+function generateStyle(stats: {
+  op: number | undefined; mid: number | undefined; end: number | undefined
+  bestMoveRate: number; blunderRate: number; goodPct: number
+  avgAcc: number | null; accStd: number | null; avgRating: number; totalMoves: number
+}): string {
+  const { op, mid, end, bestMoveRate, blunderRate, goodPct, avgAcc, accStd, avgRating, totalMoves } = stats
+  const seed = statSeed([op, mid, end, avgAcc, accStd, avgRating, totalMoves])
+
+  // Phase category + tier based on dominant phase accuracy
+  let phase: string
+  if (op != null && mid != null) {
+    if (op > mid + 10 && (!end || op > end + 10)) {
+      phase = pickFrom(STYLE_OPENING[getTier(op)], seed)
+    } else if (end != null && end > mid + 10 && end > op + 10) {
+      phase = pickFrom(STYLE_ENDGAME[getTier(end)], seed)
+    } else if (mid > op + 10) {
+      phase = pickFrom(STYLE_MIDDLEGAME[getTier(mid)], seed)
+    } else {
+      // All-round: tier based on overall accuracy
+      const overall = avgAcc ?? ((op + mid + (end ?? mid)) / (end != null ? 3 : 2))
+      phase = pickFrom(STYLE_ALLROUND[getTier(overall)], seed)
+    }
+  } else {
+    phase = pickFrom(STYLE_ALLROUND[getTier(avgAcc ?? 50)], seed)
+  }
+
+  // Modifier with its own tier
+  const modSeed = statSeed([bestMoveRate, blunderRate, goodPct, avgAcc])
+  if (bestMoveRate > 45 && blunderRate > 3) {
+    const tier = getModTier(bestMoveRate, blunderRate, goodPct)
+    return `${phase} · ${pickFrom(MOD_RISK[tier], modSeed)}`
+  }
+  if (goodPct > 15 && blunderRate < 2) {
+    const tier = getSolidTier(goodPct, blunderRate)
+    return `${phase} · ${pickFrom(MOD_SOLID[tier], modSeed)}`
+  }
+
+  return phase
+}
+
+function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], username: string, accountCreatedAt?: number | null): CadenceProfile {
   const t = getThresholds(tcType)
   const tcLabel = timeControlLabel(tcType)
 
@@ -365,15 +567,8 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   const op = phases.find(p => p.phase === 'gp0')?.mean
   const mid = phases.find(p => p.phase === 'gp1')?.mean
   const end = phases.find(p => p.phase === 'gp2')?.mean
-  let style = 'All-rounder'
-  if (op != null && mid != null) {
-    if (op > mid + 10 && (!end || op > end + 10)) style = 'Opening specialist'
-    else if (end != null && end > mid + 10 && end > op + 10) style = 'Endgame grinder'
-    else if (mid > op + 10) style = 'Tactical middlegame player'
-  }
   const goodPct = nonBookTotal > 0 ? ((cls.good || 0) / nonBookTotal) * 100 : 0
-  if (bestMoveRate > 45 && blunderRate > 3) style += ' / Risk-taker'
-  else if (goodPct > 15 && blunderRate < 2) style += ' / Solid positional'
+  const style = generateStyle({ op, mid, end, bestMoveRate, blunderRate, goodPct, avgAcc, accStd, avgRating: avgRat, totalMoves })
 
   // Anti-cheat checks
   const checks: AntiCheatCheck[] = []
@@ -396,18 +591,22 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   else if (bestMoveRate > t.bestMoveRate) checks.push({ status: 'WARN', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate}%`, detail: 'elevated' })
   else checks.push({ status: 'PASS', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `<${t.bestMoveRate}%`, detail: 'normal' })
 
-  // 4. Piece uniformity
+  // 4. Piece uniformity — scale by elo: low elo has naturally higher piece variance, GMs are more uniform
   if (pieceVar != null) {
-    if (pieceVar < t.pieceVar * 0.6) checks.push({ status: 'FAIL', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `<${(t.pieceVar * 0.6).toFixed(1)}`, detail: 'all pieces same accuracy' })
-    else if (pieceVar < t.pieceVar) checks.push({ status: 'WARN', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `<${t.pieceVar}`, detail: 'pieces too uniform' })
-    else checks.push({ status: 'PASS', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `>${t.pieceVar}`, detail: 'human-like weaknesses' })
+    const pieceEloFactor = avgRat < 1000 ? 1.8 : avgRat < 1500 ? 1.4 : avgRat < 2000 ? 1.0 : avgRat < 2500 ? 0.7 : 0.5
+    const adjPieceVar = t.pieceVar * pieceEloFactor
+    if (pieceVar < adjPieceVar * 0.6) checks.push({ status: 'FAIL', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `<${(adjPieceVar * 0.6).toFixed(1)}`, detail: 'all pieces same accuracy' })
+    else if (pieceVar < adjPieceVar) checks.push({ status: 'WARN', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `<${adjPieceVar.toFixed(1)}`, detail: 'pieces too uniform' })
+    else checks.push({ status: 'PASS', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `>${adjPieceVar.toFixed(1)}`, detail: 'human-like weaknesses' })
   }
 
-  // 5. Phase uniformity
+  // 5. Phase uniformity — scale by elo same as piece
   if (phaseVar != null) {
-    if (phaseVar < t.phaseVar * 0.5) checks.push({ status: 'FAIL', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `<${(t.phaseVar * 0.5).toFixed(1)}`, detail: 'same accuracy all phases' })
-    else if (phaseVar < t.phaseVar) checks.push({ status: 'WARN', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `<${t.phaseVar}`, detail: 'phases too balanced' })
-    else checks.push({ status: 'PASS', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `>${t.phaseVar}`, detail: 'normal phase variation' })
+    const phaseEloFactor = avgRat < 1000 ? 1.8 : avgRat < 1500 ? 1.4 : avgRat < 2000 ? 1.0 : avgRat < 2500 ? 0.7 : 0.5
+    const adjPhaseVar = t.phaseVar * phaseEloFactor
+    if (phaseVar < adjPhaseVar * 0.5) checks.push({ status: 'FAIL', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `<${(adjPhaseVar * 0.5).toFixed(1)}`, detail: 'same accuracy all phases' })
+    else if (phaseVar < adjPhaseVar) checks.push({ status: 'WARN', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `<${adjPhaseVar.toFixed(1)}`, detail: 'phases too balanced' })
+    else checks.push({ status: 'PASS', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `>${adjPhaseVar.toFixed(1)}`, detail: 'normal phase variation' })
   }
 
   // 6. Think/Reflex ratio
@@ -437,18 +636,40 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   const humanScore = Math.max(0, Math.min(10, Math.round((score / maxScore) * 10)))
   const riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = humanScore >= 7 ? 'LOW' : humanScore >= 4 ? 'MEDIUM' : 'HIGH'
 
-  // Per-game data for the trend chart
-  const gamesList = games.map(g => ({
-    gameId: g.gameId,
-    accuracy: g.caps?.[g.playerColor]?.all as number | null ?? null,
-    delta: normalizeAccuracy(g.caps?.[g.playerColor]?.all, g.playerRating, tcType),
-    result: g.result,
-    opponentName: g.opponentName,
-    opponentRating: g.opponentRating,
-    opening: (g.caps?.[g.playerColor]?.gp0 as number | null) ?? null,
-    middlegame: (g.caps?.[g.playerColor]?.gp1 as number | null) ?? null,
-    endgame: (g.caps?.[g.playerColor]?.gp2 as number | null) ?? null,
-  }))
+  // Per-game data
+  const gamesList = games.map(g => {
+    const playerCaps = g.caps?.[g.playerColor]
+    // Per-game move classifications
+    const gameCls: Record<string, number> = {}
+    let gameMoves = 0
+    for (const pos of g.positions) {
+      if (pos.color === g.playerColor) {
+        const cn = pos.classificationName?.toLowerCase()
+        if (cn) { gameCls[cn] = (gameCls[cn] || 0) + 1; gameMoves++ }
+      }
+    }
+    // Per-game piece accuracy
+    const gamePieces = PIECE_KEYS.map(p => ({
+      piece: p,
+      label: PIECE_LABELS[p],
+      accuracy: (playerCaps?.[p] as number | null) ?? null,
+    }))
+
+    return {
+      gameId: g.gameId,
+      accuracy: playerCaps?.all as number | null ?? null,
+      delta: normalizeAccuracy(playerCaps?.all, g.playerRating, tcType),
+      result: g.result,
+      opponentName: g.opponentName,
+      opponentRating: g.opponentRating,
+      opening: (playerCaps?.gp0 as number | null) ?? null,
+      middlegame: (playerCaps?.gp1 as number | null) ?? null,
+      endgame: (playerCaps?.gp2 as number | null) ?? null,
+      classifications: gameCls,
+      totalMoves: gameMoves,
+      pieces: gamePieces,
+    }
+  })
 
   return {
     tcType, tcLabel, gamesCount: games.length, avgRating: Math.round(avgRat),
@@ -462,7 +683,115 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
       criticalAvg, calmAvg, thinkReflexRatio, timeCV,
       blunderAvgTime, blunderPattern,
     },
+    flags: computeProfileFlags({
+      delta, bestMoveRate, blunderRate, thinkReflexRatio, timeCV,
+      accStd, tcType, avgRating: avgRat, games, username,
+      wins: games.filter(g => g.result === 'W').length,
+      losses: games.filter(g => g.result === 'L').length,
+      draws: games.filter(g => g.result === 'D').length,
+      accountCreatedAt,
+    }),
     antiCheat: { checks, humanScore, riskLevel, passCount, warnCount, failCount },
     games: gamesList,
   }
+}
+
+function computeProfileFlags(stats: {
+  delta: number | null; bestMoveRate: number; blunderRate: number
+  thinkReflexRatio: number | null; timeCV: number | null
+  accStd: number | null; tcType: string; avgRating: number
+  games: GameRawData[]; username: string
+  wins: number; losses: number; draws: number
+  accountCreatedAt?: number | null // unix timestamp
+}): ProfileFlag[] {
+  const t = getThresholds(stats.tcType)
+  const flags: ProfileFlag[] = []
+
+  // 1. Account age vs elo (new account + high rating = suspect)
+  // Realistic max rating by account age (based on chess.com stats)
+  if (stats.accountCreatedAt) {
+    const ageMonths = (Date.now() / 1000 - stats.accountCreatedAt) / (30 * 24 * 3600)
+    const rating = stats.avgRating
+
+    // Expected max rating by account age (generous — allows for strong OTB players)
+    // suspiciousThreshold: above this = suspicious
+    // flaggedThreshold: above this = flagged
+    const ageBrackets = [
+      { maxMonths: 1,  suspRating: 1500, flagRating: 1800 },
+      { maxMonths: 3,  suspRating: 1700, flagRating: 2000 },
+      { maxMonths: 6,  suspRating: 2000, flagRating: 2200 },
+      { maxMonths: 12, suspRating: 2200, flagRating: 2500 },
+      { maxMonths: 24, suspRating: 2400, flagRating: 2600 },
+    ]
+
+    let aaStatus: FlagStatus = 'clean'
+    let bracket = ageBrackets.find(b => ageMonths < b.maxMonths)
+    if (bracket) {
+      if (rating > bracket.flagRating) aaStatus = 'flagged'
+      else if (rating > bracket.suspRating) aaStatus = 'suspicious'
+    }
+
+    // Weight scales with how extreme the mismatch is
+    // The younger the account AND the higher the rating, the heavier the weight
+    let weight = 1
+    if (aaStatus !== 'clean' && bracket) {
+      const ratingExcess = rating - bracket.suspRating
+      const ageUrgency = ageMonths < 1 ? 3 : ageMonths < 3 ? 2.5 : ageMonths < 6 ? 2 : ageMonths < 12 ? 1.5 : 1.2
+      // Weight: base 1.5 + up to 1.5 more based on how far above threshold
+      weight = Math.min(3, ageUrgency * (1 + Math.min(1, ratingExcess / 500)))
+    }
+
+    const ageLabel = ageMonths < 1 ? '<1 month' : ageMonths < 12 ? `${Math.round(ageMonths)} months` : `${(ageMonths / 12).toFixed(1)} years`
+    flags.push({
+      id: 'accountAge', label: 'Account Age', status: aaStatus, weight,
+      value: `${ageLabel} · ${Math.round(rating)} elo`,
+      detail: aaStatus === 'clean' ? 'Account age matches rating' : 'High rating for a new account',
+    })
+  }
+
+  // 2. Win rate vs accuracy coherence
+  const total = stats.wins + stats.losses + stats.draws
+  if (total >= 5) {
+    const winPct = (stats.wins / total) * 100
+    const avgAcc = stats.delta != null ? (stats.delta + getExpectedAccuracy(stats.avgRating, stats.tcType)) : null
+    if (avgAcc != null) {
+      const expectedWinPct = Math.min(90, Math.max(10, (avgAcc - 50) * 2))
+      const winDiff = Math.abs(winPct - expectedWinPct)
+      const wrStatus: FlagStatus = winDiff > 35 ? 'flagged' : winDiff > 25 ? 'suspicious' : 'clean'
+      flags.push({
+        id: 'winRate', label: 'Win Rate', status: wrStatus, weight: 1,
+        value: `${winPct.toFixed(0)}% wins`,
+        detail: wrStatus === 'clean' ? 'Win rate matches accuracy' : 'Win rate doesn\'t match accuracy',
+      })
+    }
+  }
+
+  // 3. Blunder rate (too low = suspect)
+  const expectedBlunder = stats.avgRating < 1200 ? 8 : stats.avgRating < 1600 ? 5 : stats.avgRating < 2000 ? 3 : stats.avgRating < 2400 ? 1.5 : 0.5
+  const blStatus: FlagStatus = stats.blunderRate < expectedBlunder * 0.2 ? 'flagged' : stats.blunderRate < expectedBlunder * 0.5 ? 'suspicious' : 'clean'
+  flags.push({
+    id: 'blunders', label: 'Blunders', status: blStatus, weight: 1,
+    value: `${stats.blunderRate.toFixed(1)}%`,
+    detail: blStatus === 'clean' ? 'Normal mistake rate' : 'Suspiciously few mistakes',
+  })
+
+  // 4. Move time entropy (timeCV too low = robotic tempo)
+  if (stats.timeCV != null) {
+    const teStatus: FlagStatus = stats.timeCV < t.timeCV * 0.6 ? 'flagged' : stats.timeCV < t.timeCV ? 'suspicious' : 'clean'
+    flags.push({
+      id: 'timeEntropy', label: 'Time Entropy', status: teStatus, weight: 1,
+      value: `CV ${stats.timeCV.toFixed(2)}`,
+      detail: teStatus === 'clean' ? 'Natural time variation' : 'Too uniform timing',
+    })
+  }
+
+  // 5. Opponent strength correlation (optional — needs ≥10 games + ≥600 elo spread)
+  if (stats.games.length >= 10) {
+    const gamesWithAcc = stats.games
+      .map(g => ({ acc: g.caps?.[g.playerColor]?.all as number | undefined, oppRating: g.opponentRating }))
+      .filter((g): g is { acc: number; oppRating: number } => g.acc != null && g.oppRating != null)
+
+  }
+
+  return flags
 }

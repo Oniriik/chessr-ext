@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { computePlayDNA, type GameRawData, type ProfileAnalysisResult } from '@/lib/play-dna'
 import { Button } from '@/components/ui/button'
-import { Loader2, ChevronDown, Play, Clock, CheckCircle2, XCircle, AlertTriangle, Shield } from 'lucide-react'
+import { Loader2, Play, Clock, CheckCircle2, XCircle, Shield, Swords, Target, Zap, TrendingUp, ChevronRight, Dna, Crown, Flame } from 'lucide-react'
+import { AccountSelector } from '@/components/account-selector'
+import { TcIcon } from '@/components/tc-icon'
 
 interface LinkedAccount {
   id: string
@@ -17,9 +20,59 @@ interface ProfileAnalysis {
   platform_username: string
   status: 'pending' | 'analyzing' | 'success' | 'error'
   games_count: number | null
+  games_requested: number | null
   created_at: string
   completed_at: string | null
   error_message: string | null
+  games_data: GameRawData[] | null
+}
+
+// Human score calculation (same as detail page)
+const FLAG_PTS: Record<string, number> = { clean: 1, suspicious: 0.5, flagged: -0.5 }
+const CHECK_PTS: Record<string, number> = { PASS: 1, WARN: 0.5, FAIL: -0.5 }
+function combinedHumanScore(flags: { status: string; weight?: number }[], checks: { status: string }[]): number {
+  const flagScore = Math.max(0, flags.reduce((sum, f) => sum + (FLAG_PTS[f.status] ?? 0) * (f.weight ?? 1), 0))
+  const flagMax = flags.reduce((sum, f) => sum + (f.weight ?? 1), 0)
+  const fairPlay = Math.max(0, checks.reduce((sum, c) => sum + (CHECK_PTS[c.status] ?? 0), 0))
+  const norm = (s: number, m: number) => m > 0 ? Math.max(0, Math.round((s / m) * 100) / 10) : 0
+  return Math.max(0, Math.round(((norm(flagScore, flagMax) + norm(fairPlay, checks.length)) / 2) * 10) / 10)
+}
+
+interface AnalysisSummary {
+  accuracy: number | null
+  humanScore: number
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH'
+  winRate: number
+  wins: number
+  losses: number
+  draws: number
+  style: string
+  bestMoveRate: number
+  avgRating: number
+}
+
+function computeSummary(gamesData: GameRawData[], username: string): AnalysisSummary | null {
+  try {
+    const dna = computePlayDNA(gamesData, username)
+    const main = dna.cadences[0]
+    if (!main) return null
+    const hs = combinedHumanScore(main.flags, main.antiCheat.checks)
+    const risk: 'LOW' | 'MEDIUM' | 'HIGH' = hs >= 7 ? 'LOW' : hs >= 4 ? 'MEDIUM' : 'HIGH'
+    return {
+      accuracy: main.avgAccuracy,
+      humanScore: hs,
+      riskLevel: risk,
+      winRate: dna.gamesCount > 0 ? Math.round((dna.wins / dna.gamesCount) * 100) : 0,
+      wins: dna.wins,
+      losses: dna.losses,
+      draws: dna.draws,
+      style: main.style,
+      bestMoveRate: main.bestMoveRate,
+      avgRating: dna.avgRating,
+    }
+  } catch {
+    return null
+  }
 }
 
 export default function ProfileAnalysisPage() {
@@ -28,11 +81,23 @@ export default function ProfileAnalysisPage() {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null)
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [analyses, setAnalyses] = useState<ProfileAnalysis[]>([])
-  const [analysesLoading, setAnalysesLoading] = useState(false)
+  const [analysesLoading, setAnalysesLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [gamesCount, setGamesCount] = useState(10)
+  const [gamesPerMode, setGamesPerMode] = useState(10)
+  const [modes, setModes] = useState<string[]>(['bullet', 'blitz', 'rapid'])
 
-  // Fetch linked accounts
+  // Compute summaries for completed analyses
+  const summaries = useMemo(() => {
+    const map: Record<string, AnalysisSummary> = {}
+    for (const a of analyses) {
+      if (a.status === 'success' && a.games_data) {
+        const s = computeSummary(a.games_data, a.platform_username)
+        if (s) map[a.id] = s
+      }
+    }
+    return map
+  }, [analyses])
+
   useEffect(() => {
     async function fetchAccounts() {
       try {
@@ -53,7 +118,6 @@ export default function ProfileAnalysisPage() {
     fetchAccounts()
   }, [])
 
-  // Fetch analyses when account changes
   useEffect(() => {
     if (!selectedAccount) return
     setAnalysesLoading(true)
@@ -81,7 +145,7 @@ export default function ProfileAnalysisPage() {
           Authorization: `Bearer ${session?.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ platformUsername: selectedAccount, gamesCount }),
+        body: JSON.stringify({ platformUsername: selectedAccount, modes, gamesPerMode }),
       })
       const data = await res.json()
       if (data.id) {
@@ -92,13 +156,31 @@ export default function ProfileAnalysisPage() {
     } catch { /* */ } finally { setCreating(false) }
   }
 
-  const lastSuccess = analyses.find(a => a.status === 'success')
-
-  if (accountsLoading) {
+  if (accountsLoading || (accounts.length > 0 && analysesLoading && analyses.length === 0)) {
     return (
-      <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-12">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="w-5 h-5 animate-spin" /> Loading...
+      <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6">
+        <div className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 sm:p-8 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
+            <div className="space-y-2">
+              <div className="h-6 w-56 bg-muted rounded animate-pulse" />
+              <div className="h-4 w-72 bg-muted/60 rounded animate-pulse" />
+            </div>
+            <div className="h-10 w-44 bg-muted rounded-xl animate-pulse" />
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border/60 bg-card/50 p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-muted rounded-xl animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-48 bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-64 bg-muted/60 rounded animate-pulse" />
+                  <div className="h-2 w-full bg-muted/30 rounded animate-pulse" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </main>
     )
@@ -107,9 +189,11 @@ export default function ProfileAnalysisPage() {
   if (accounts.length === 0) {
     return (
       <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-12">
-        <div className="text-center py-12">
-          <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground mb-2">No Chess.com accounts linked</p>
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+            <Shield className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-lg font-semibold mb-2">No Chess.com accounts linked</h2>
           <p className="text-sm text-muted-foreground">Link your Chess.com account in the Chessr extension first.</p>
         </div>
       </main>
@@ -118,85 +202,81 @@ export default function ProfileAnalysisPage() {
 
   return (
     <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6">
-      {/* Header card */}
-      <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-4 sm:p-6 mb-6">
-        {lastSuccess ? (
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold mb-1">Last Profile Analysis</h2>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                {lastSuccess.platform_username} — {lastSuccess.games_count} games — {new Date(lastSuccess.created_at).toLocaleDateString()}
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <GamesCountSelector value={gamesCount} onChange={setGamesCount} compact />
-              <Button onClick={handleRunAnalysis} disabled={creating} className="w-full sm:w-auto">
-                {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-                Run New Analysis
-              </Button>
-            </div>
+      {/* Hero — Run New Analysis */}
+      <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-primary/5 via-card/50 to-card/50 backdrop-blur-sm p-5 sm:p-8 mb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <Dna className="w-5 h-5 text-primary" />
           </div>
-        ) : (
-          <div className="text-center py-4">
-            <Shield className="w-10 h-10 text-primary mx-auto mb-3" />
-            <h2 className="text-lg font-semibold mb-1">Profile Analysis</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Analyze your recent games to get your Play DNA and anti-cheat report.
+          <div>
+            <h1 className="text-xl font-bold">Profile Analysis</h1>
+            <p className="text-sm text-muted-foreground">
+              Analyze games to get your Play DNA, anti-cheat report & Human Score.
             </p>
-            <GamesCountSelector value={gamesCount} onChange={setGamesCount} />
-            <Button onClick={handleRunAnalysis} disabled={creating} size="lg" className="mt-4">
-              {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-              Start Your Profile Analysis
-            </Button>
           </div>
-        )}
+        </div>
+
+        {/* Mode toggles */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="flex-1 space-y-3">
+            <div>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Modes</span>
+              <ModeSelector modes={modes} onChange={setModes} />
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Games per mode</span>
+              <GamesCountSelector value={gamesPerMode} onChange={setGamesPerMode} />
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-2">
+            <Button onClick={handleRunAnalysis} disabled={creating || modes.length === 0} size="lg">
+              {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+              New Analysis
+            </Button>
+            <EstimatedTimeBadge modes={modes} gamesPerMode={gamesPerMode} />
+          </div>
+        </div>
       </div>
 
       {/* Account selector */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm text-muted-foreground">Account:</span>
-        <div className="relative">
-          <select
-            value={selectedAccount || ''}
-            onChange={(e) => { setSelectedAccount(e.target.value); localStorage.setItem('chessr_selected_account', e.target.value) }}
-            className="appearance-none bg-muted border border-border rounded-lg px-3 py-1.5 pr-8 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            {accounts.map((acc) => (
-              <option key={acc.id} value={acc.platform_username}>{acc.platform_username}</option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-        </div>
+      <div className="mb-5">
+        <AccountSelector accounts={accounts} selected={selectedAccount} onSelect={setSelectedAccount} />
       </div>
 
       {/* Analyses list */}
       {analysesLoading ? (
-        <div className="flex items-center gap-2 text-muted-foreground text-sm py-8">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading analyses...
-        </div>
-      ) : analyses.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No analyses yet for this account.</p>
-      ) : (
-        <div className="space-y-2">
-          {analyses.map((a) => (
-            <div
-              key={a.id}
-              onClick={() => router.push(`/profile-analysis/${a.id}`)}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card/50 backdrop-blur-sm hover:bg-card/70 transition-colors cursor-pointer border border-border/60"
-            >
-              <StatusIcon status={a.status} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">{a.platform_username}</span>
-                  {a.games_count && <span className="text-muted-foreground">{a.games_count} games</span>}
-                </div>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  {new Date(a.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  {a.error_message && <span className="text-rose-400 ml-2">{a.error_message}</span>}
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-border/60 bg-card/50 p-5">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-muted rounded-xl animate-pulse" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-48 bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-64 bg-muted/60 rounded animate-pulse" />
                 </div>
               </div>
-              <StatusBadge status={a.status} />
             </div>
+          ))}
+        </div>
+      ) : analyses.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="w-14 h-14 rounded-2xl bg-muted/30 flex items-center justify-center mx-auto mb-4">
+            <Target className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground mb-1">No analyses yet for this account.</p>
+          <p className="text-xs text-muted-foreground">Run your first analysis to get started.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {analyses.map((a, i) => (
+            <AnalysisCard
+              key={a.id}
+              analysis={a}
+              summary={summaries[a.id] ?? null}
+              isLatest={i === 0}
+              onClick={() => router.push(`/profile-analysis/${a.id}`)}
+            />
           ))}
         </div>
       )}
@@ -204,27 +284,309 @@ export default function ProfileAnalysisPage() {
   )
 }
 
-function StatusIcon({ status }: { status: string }) {
-  switch (status) {
-    case 'success': return <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-    case 'error': return <XCircle className="w-5 h-5 text-rose-400 shrink-0" />
-    case 'analyzing': return <Loader2 className="w-5 h-5 text-sky-400 animate-spin shrink-0" />
-    case 'pending': return <Clock className="w-5 h-5 text-amber-400 shrink-0" />
-    default: return <AlertTriangle className="w-5 h-5 text-muted-foreground shrink-0" />
+function AnalysisCard({ analysis: a, summary, isLatest, onClick }: {
+  analysis: ProfileAnalysis
+  summary: AnalysisSummary | null
+  isLatest: boolean
+  onClick: () => void
+}) {
+  const isSuccess = a.status === 'success'
+  const isError = a.status === 'error'
+  const isRunning = a.status === 'analyzing' || a.status === 'pending'
+  const gamesLabel = a.games_count ?? a.games_requested ?? '?'
+  const timeAgo = getTimeAgo(a.created_at)
+
+  // Completed analysis with summary data
+  if (isSuccess && summary) {
+    const hsColor = summary.riskLevel === 'LOW' ? '#34d399' : summary.riskLevel === 'MEDIUM' ? '#fbbf24' : '#f87171'
+    const hsBg = summary.riskLevel === 'LOW' ? 'rgba(52,211,153,0.08)' : summary.riskLevel === 'MEDIUM' ? 'rgba(251,191,36,0.08)' : 'rgba(248,113,113,0.08)'
+    const hsLabel = summary.riskLevel === 'LOW' ? 'Legit' : summary.riskLevel === 'MEDIUM' ? 'Suspicious' : 'Flagged'
+
+    return (
+      <div
+        onClick={onClick}
+        className={`group rounded-2xl border bg-card/50 backdrop-blur-sm cursor-pointer transition-all hover:bg-card/70 overflow-hidden ${
+          isLatest ? 'border-primary/30 hover:border-primary/50' : 'border-border/60 hover:border-border/80'
+        }`}
+      >
+        <div className="p-4 sm:p-5">
+          {/* Top row: username + time + latest badge */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">{a.platform_username}</span>
+              {isLatest && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">LATEST</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Clock className="w-3 h-3" />
+              <span>{timeAgo}</span>
+              <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </div>
+
+          {/* Main content: stats + score ring */}
+          <div className="flex items-center gap-4 sm:gap-6">
+            {/* Left: Human score mini ring */}
+            <div className="shrink-0">
+              <MiniScoreRing score={summary.humanScore} riskLevel={summary.riskLevel} />
+            </div>
+
+            {/* Center: stats + W/L/D */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-5 sm:gap-6 flex-wrap">
+                <div>
+                  <span className="text-lg font-bold text-sky-400">{summary.accuracy != null ? `${summary.accuracy.toFixed(1)}` : '-'}</span>
+                  <span className="text-xs text-sky-400/70">%</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">accuracy</span>
+                </div>
+                <div>
+                  <span className="text-lg font-bold text-amber-400">{summary.bestMoveRate.toFixed(0)}</span>
+                  <span className="text-xs text-amber-400/70">%</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">best moves</span>
+                </div>
+                <div>
+                  <span className="text-lg font-bold text-emerald-400">{summary.winRate}</span>
+                  <span className="text-xs text-emerald-400/70">%</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">win rate</span>
+                </div>
+                <div>
+                  <span className="text-lg font-bold">{gamesLabel}</span>
+                  <span className="text-[10px] text-muted-foreground ml-1">games</span>
+                </div>
+              </div>
+
+              {/* W/L/D bar */}
+              <div className="mt-3">
+                <MiniWinLossBar wins={summary.wins} losses={summary.losses} draws={summary.draws} />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom: style + rating */}
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border/30">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Flame className="w-3 h-3" />
+              <span className="font-medium text-foreground/80">{summary.style}</span>
+            </span>
+            <span className="text-border">·</span>
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Crown className="w-3 h-3" />
+              Avg {Math.round(summary.avgRating)}
+            </span>
+            <div className="ml-auto">
+              <span
+                className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                style={{ color: hsColor, backgroundColor: hsBg, borderColor: `${hsColor}33` }}
+              >
+                {hsLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
+
+  // Running / Error / Success without summary
+  return (
+    <div
+      onClick={onClick}
+      className={`rounded-2xl border bg-card/50 backdrop-blur-sm p-4 sm:p-5 cursor-pointer transition-all hover:bg-card/70 hover:border-border/80 group ${
+        isLatest && isSuccess ? 'border-primary/30' : 'border-border/60'
+      }`}
+    >
+      <div className="flex items-center gap-4">
+        {/* Status icon */}
+        <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${
+          isSuccess ? 'bg-emerald-500/10' :
+          isError ? 'bg-rose-500/10' :
+          isRunning ? 'bg-sky-500/10' : 'bg-muted/30'
+        }`}>
+          {isSuccess ? <CheckCircle2 className="w-6 h-6 text-emerald-400" /> :
+           isError ? <XCircle className="w-6 h-6 text-rose-400" /> :
+           isRunning ? <Loader2 className="w-6 h-6 text-sky-400 animate-spin" /> :
+           <Clock className="w-6 h-6 text-amber-400" />}
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-semibold text-sm">{a.platform_username}</span>
+            {isLatest && isSuccess && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">LATEST</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <Swords className="w-3 h-3" />
+              {gamesLabel} games
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {timeAgo}
+            </span>
+            {a.error_message && (
+              <span className="text-rose-400 truncate max-w-48">{a.error_message}</span>
+            )}
+          </div>
+
+          {/* Progress bar for running analyses */}
+          {isRunning && (
+            <div className="mt-2.5 w-full">
+              <div className="h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                <div className="h-full rounded-full bg-sky-400/60 animate-pulse" style={{ width: a.status === 'pending' ? '15%' : '60%' }} />
+              </div>
+              <span className="text-[10px] text-muted-foreground mt-1 block">
+                {a.status === 'pending' ? 'Queued...' : 'Analyzing games...'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Right side */}
+        <div className="shrink-0">
+          {isRunning ? (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              {a.status === 'pending' ? 'Queued' : 'Analyzing'}
+            </span>
+          ) : isError ? (
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              Failed
+            </span>
+          ) : (
+            <ChevronRight className="w-5 h-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MiniScoreRing({ score, riskLevel }: { score: number; riskLevel: string }) {
+  const size = 72
+  const strokeWidth = 5
+  const radius = (size - strokeWidth) / 2
+  const circumference = 2 * Math.PI * radius
+  const progress = (score / 10) * circumference
+  const color = riskLevel === 'LOW' ? '#34d399' : riskLevel === 'MEDIUM' ? '#fbbf24' : '#f87171'
+  const bgColor = riskLevel === 'LOW' ? 'rgba(52,211,153,0.1)' : riskLevel === 'MEDIUM' ? 'rgba(251,191,36,0.1)' : 'rgba(248,113,113,0.1)'
+
+  return (
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill={bgColor} stroke="rgba(255,255,255,0.06)" strokeWidth={strokeWidth} />
+        <circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none"
+          stroke={color} strokeWidth={strokeWidth} strokeLinecap="round"
+          strokeDasharray={circumference} strokeDashoffset={circumference - progress}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-lg font-black leading-none" style={{ color }}>
+          {score % 1 === 0 ? score : score.toFixed(1)}
+        </span>
+        <span className="text-[9px] text-muted-foreground">/10</span>
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-muted/30 border border-border/20">
+      {icon}
+      <div className="min-w-0">
+        <span className="text-sm font-bold leading-none block">{value}</span>
+        <span className="text-[9px] text-muted-foreground leading-none">{label}</span>
+      </div>
+    </div>
+  )
+}
+
+function MiniWinLossBar({ wins, losses, draws }: { wins: number; losses: number; draws: number }) {
+  const total = wins + losses + draws
+  if (total === 0) return null
+  const wp = (wins / total) * 100
+  const dp = (draws / total) * 100
+  const lp = (losses / total) * 100
+
+  return (
+    <div>
+      <div className="flex h-1.5 rounded-full overflow-hidden gap-px">
+        {wp > 0 && <div className="bg-emerald-400 rounded-l-full" style={{ width: `${wp}%` }} />}
+        {dp > 0 && <div className="bg-zinc-500" style={{ width: `${dp}%` }} />}
+        {lp > 0 && <div className="bg-rose-400 rounded-r-full" style={{ width: `${lp}%` }} />}
+      </div>
+      <div className="flex justify-between mt-1 text-[10px] text-muted-foreground">
+        <span className="text-emerald-400 font-medium">{wins}W</span>
+        {draws > 0 && <span>{draws}D</span>}
+        <span className="text-rose-400 font-medium">{losses}L</span>
+      </div>
+    </div>
+  )
+}
+
+function getTimeAgo(dateStr: string): string {
+  const now = Date.now()
+  const date = new Date(dateStr).getTime()
+  const diffMs = now - date
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+const MODE_OPTIONS = ['bullet', 'blitz', 'rapid']
+const MODE_LABELS: Record<string, string> = { bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid' }
+
+function ModeSelector({ modes, onChange }: { modes: string[]; onChange: (m: string[]) => void }) {
+  const toggle = (id: string) => {
+    if (modes.includes(id)) {
+      if (modes.length <= 1) return // at least 1 required
+      onChange(modes.filter(m => m !== id))
+    } else {
+      onChange([...modes, id])
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {MODE_OPTIONS.map((id) => {
+        const active = modes.includes(id)
+        return (
+          <button
+            key={id}
+            onClick={() => toggle(id)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              active
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}
+          >
+            <TcIcon tc={id} className="w-3.5 h-3.5" />
+            {MODE_LABELS[id]}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 const GAMES_OPTIONS = [5, 10, 15, 20, 30]
 
-function GamesCountSelector({ value, onChange, compact }: { value: number; onChange: (n: number) => void; compact?: boolean }) {
+function GamesCountSelector({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
-    <div className={`flex items-center gap-1.5 ${compact ? '' : 'justify-center'}`}>
-      {!compact && <span className="text-xs text-muted-foreground mr-1">Games:</span>}
+    <div className="flex items-center gap-1.5">
       {GAMES_OPTIONS.map((n) => (
         <button
           key={n}
           onClick={() => onChange(n)}
-          className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
             value === n
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -237,16 +599,15 @@ function GamesCountSelector({ value, onChange, compact }: { value: number; onCha
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    error: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    analyzing: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
-    pending: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-  }
+function EstimatedTimeBadge({ modes, gamesPerMode }: { modes: string[]; gamesPerMode: number }) {
+  const totalGames = modes.length * gamesPerMode
+  const totalSeconds = totalGames * 7 + 6
+  const mins = Math.floor(totalSeconds / 60)
+  const secs = totalSeconds % 60
+
   return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${styles[status] || 'bg-muted text-muted-foreground border-border'}`}>
-      {status}
+    <span className="text-xs text-muted-foreground">
+      {totalGames} games total · ~{mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`}
     </span>
   )
 }

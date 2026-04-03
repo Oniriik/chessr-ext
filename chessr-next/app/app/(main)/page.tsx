@@ -3,7 +3,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Loader2, AlertTriangle, ChevronDown, Copy, Check } from 'lucide-react'
+import { TcIcon } from '@/components/tc-icon'
 import { PlayerAvatar } from '@/components/player-avatar'
+import { AccountSelector } from '@/components/account-selector'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface LinkedAccount {
   id: string
@@ -146,10 +149,30 @@ export default function HomePage() {
         </div>
 
         {/* Account selector */}
-        {accountsLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm mb-6">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading accounts...
+        {(accountsLoading || (accounts.length > 0 && games.length === 0 && gamesLoading)) ? (
+          <div className="space-y-4">
+            {/* Account selector skeleton */}
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-16 bg-muted/60 rounded animate-pulse" />
+              <div className="h-8 w-36 bg-muted rounded-xl animate-pulse" />
+            </div>
+            {/* Game list skeleton */}
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-card/30 border border-border/30">
+                  <div className="w-1.5 h-10 bg-muted rounded-full animate-pulse shrink-0" />
+                  <div className="flex items-center shrink-0">
+                    <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
+                    <div className="w-8 h-8 bg-muted rounded-full animate-pulse -ml-2" />
+                  </div>
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-4 w-52 bg-muted rounded animate-pulse" />
+                    <div className="h-3 w-32 bg-muted/60 rounded animate-pulse" />
+                  </div>
+                  <div className="h-4 w-10 bg-muted rounded animate-pulse" />
+                </div>
+              ))}
+            </div>
           </div>
         ) : accounts.length === 0 ? (
           <div className="text-center py-12">
@@ -158,22 +181,8 @@ export default function HomePage() {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm text-muted-foreground">Account:</span>
-              <div className="relative">
-                <select
-                  value={selectedAccount || ''}
-                  onChange={(e) => { setSelectedAccount(e.target.value); localStorage.setItem('chessr_selected_account', e.target.value) }}
-                  className="appearance-none bg-card/50 border border-border/40 rounded-xl px-3 py-1.5 pr-8 text-sm font-medium text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring backdrop-blur-sm"
-                >
-                  {accounts.map((acc) => (
-                    <option key={acc.id} value={acc.platform_username}>
-                      {acc.platform_username}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              </div>
+            <div className="mb-4">
+              <AccountSelector accounts={accounts} selected={selectedAccount} onSelect={setSelectedAccount} />
             </div>
 
             {/* Games list */}
@@ -217,7 +226,6 @@ function GameRow({ game, username }: { game: ChessComGame; username: string }) {
   const timeAgo = getTimeAgo(date)
 
   const timeClass = game.time_class
-  const tcIcon = timeClass === 'bullet' ? '⚡' : timeClass === 'blitz' ? '🔥' : timeClass === 'rapid' ? '⏱️' : '📅'
 
   const playerAccuracy = game.accuracies ? (isWhite ? game.accuracies.white : game.accuracies.black) : null
   const opponentAccuracy = game.accuracies ? (isWhite ? game.accuracies.black : game.accuracies.white) : null
@@ -280,7 +288,7 @@ function GameRow({ game, username }: { game: ChessComGame; username: string }) {
           <span className="text-muted-foreground text-xs">({opponent.rating})</span>
         </div>
         <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
-          <span>{tcIcon} {timeClass}</span>
+          <span className="flex items-center gap-1"><TcIcon tc={timeClass} className="w-3 h-3" colored /> {timeClass}</span>
           <span>•</span>
           <span>{formattedDate}</span>
         </div>
@@ -290,23 +298,33 @@ function GameRow({ game, username }: { game: ChessComGame; username: string }) {
       <div className="relative z-10 flex items-center gap-2 shrink-0">
         <span className={`text-sm font-bold ${resultColor} w-10 text-right`}>{resultLabel}</span>
         <div className={`w-2.5 h-2.5 rounded-full border ${isWhite ? 'bg-white border-white/30' : 'bg-zinc-700 border-zinc-500'}`} />
-        <button
-          onClick={handleCopyPgn}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
-          title="Copy PGN"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-        </button>
-        <a
-          href={game.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={e => e.stopPropagation()}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
-          title="Open on Chess.com"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-        </a>
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleCopyPgn}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{copied ? 'Copied!' : 'Copy PGN'}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={game.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded hover:bg-muted/50 opacity-0 group-hover:opacity-100"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </a>
+            </TooltipTrigger>
+            <TooltipContent side="top">Open on Chess.com</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     </div>
   )

@@ -55,13 +55,15 @@ function getTypeColor(type: RequestType): string {
   switch (type) {
     case 'suggestion': return colors.yellow;
     case 'analyze': return colors.blue;
+    case 'game-review': return colors.magenta;
+    case 'profile-analysis': return colors.cyan;
     case 'connect': return colors.green;
     case 'disconnect': return colors.red;
     default: return colors.white;
   }
 }
 
-export type RequestType = 'suggestion' | 'analyze' | 'auth' | 'connect' | 'disconnect';
+export type RequestType = 'suggestion' | 'analyze' | 'auth' | 'connect' | 'disconnect' | 'game-review' | 'profile-analysis';
 
 interface LogStartParams {
   requestId: string;
@@ -153,16 +155,18 @@ export function logError({ requestId, email, type, error }: LogEndParams & { err
 /**
  * Log connection events (no requestId)
  */
-export function logConnection(email: string, event: 'connected' | 'disconnected'): void {
+export function logConnection(email: string, event: 'connected' | 'disconnected', source?: string): void {
   const c = colors;
   const timestamp = formatTimestamp();
   const shortEmail = truncate(email, 25);
   const statusColor = event === 'connected' ? c.green : c.red;
+  const sourceStr = source ? ` ${c.dim}(${source})${c.reset}` : '';
 
   console.log(
     `${c.dim}[${timestamp}]${c.reset} ` +
     `${c.white}[${shortEmail}]${c.reset} ` +
-    `${statusColor}[${event}]${c.reset}`
+    `${statusColor}[${event}]${c.reset}` +
+    sourceStr
   );
 }
 

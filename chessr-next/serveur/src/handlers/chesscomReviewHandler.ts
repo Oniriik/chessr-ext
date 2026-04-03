@@ -13,6 +13,7 @@ import type { WebSocket as WS } from 'ws';
 import { WebSocket } from 'ws';
 import { Chess } from 'chess.js';
 import { createClient } from '@supabase/supabase-js';
+import { logEnd, logError } from '../utils/logger.js';
 
 // Supabase client for caching reviews
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY
@@ -255,7 +256,8 @@ export async function handleChesscomReview(
   message: { type: string; requestId: string; gameId: string; gameType?: string; coachId?: string; userColor?: string },
   clientWs: WS,
   userId?: string,
-  supabaseClient?: ReturnType<typeof import('@supabase/supabase-js').createClient>
+  supabaseClient?: ReturnType<typeof import('@supabase/supabase-js').createClient>,
+  userEmail?: string,
 ): Promise<void> {
   const { requestId, gameId, gameType = 'live', coachId = 'David_coach', userColor = 'white' } = message;
 
@@ -293,7 +295,7 @@ export async function handleChesscomReview(
         .single();
 
       if (cached?.analysis) {
-        console.log(`[ChesscomReview] Cache hit for game ${gameId} (coach: ${coachId})`);
+        logEnd({ requestId: gameId, email: userEmail || gameId, type: 'game-review', result: 'cache hit' });
         if (clientWs.readyState === 1) {
           clientWs.send(JSON.stringify({ type: 'chesscom_review_result', requestId, analysis: cached.analysis }));
         }
@@ -326,7 +328,7 @@ export async function handleChesscomReview(
 
         const dailyUsage = count || 0;
         if (dailyUsage >= DAILY_LIMIT) {
-          console.log(`[ChesscomReview] Daily limit reached for user ${userId} (${dailyUsage}/${DAILY_LIMIT})`);
+          logEnd({ requestId: gameId, email: userEmail || gameId, type: 'game-review', result: `daily limit (${dailyUsage}/${DAILY_LIMIT})` });
           if (clientWs.readyState === 1) {
             clientWs.send(JSON.stringify({
               type: 'chesscom_review_error',
@@ -341,13 +343,8 @@ export async function handleChesscomReview(
       }
     }
 
-    console.log(`[ChesscomReview] Fetching analysis for game ${gameId} (coach: ${coachId}, color: ${userColor})`);
-
     // Step 1: Fetch game data
     const gameData = await fetchGameData(gameId);
-    console.log(
-      `[ChesscomReview] ${gameData.headers.White} vs ${gameData.headers.Black} (${gameData.plyCount} plies)`
-    );
 
     // Step 2: Decode moveList to PGN
     const pgn = decodeMoveListToPGN(gameData.moveList, gameData.headers);
@@ -377,7 +374,7 @@ export async function handleChesscomReview(
       }
     );
 
-    console.log(`[ChesscomReview] Analysis received for game ${gameId} (coach: ${coachId}, color: ${userColor})`);
+    // Analysis received
 
     // Step 5: Cache in DB
     if (supabase) {
@@ -394,9 +391,8 @@ export async function handleChesscomReview(
           white_username: gameData.headers.White || null,
           black_username: gameData.headers.Black || null,
         }, { onConflict: 'game_id,platform,coach_id' });
-        console.log(`[ChesscomReview] Cached analysis for game ${gameId}`);
       } catch (err) {
-        console.error(`[ChesscomReview] Failed to cache:`, err);
+        console.error(`  [game-review] cache failed:`, (err as Error).message || err);
       }
     }
 
@@ -416,8 +412,12 @@ export async function handleChesscomReview(
         })
       );
     }
+
+    const white = gameData.headers.White || '?';
+    const black = gameData.headers.Black || '?';
+    logEnd({ requestId: gameId, email: userEmail || gameId, type: 'game-review', result: `${white} vs ${black}` });
   } catch (error) {
-    console.error(`[ChesscomReview] Error:`, error);
+    logError({ requestId: gameId, email: userEmail || gameId, type: 'game-review', error: error instanceof Error ? error.message : 'Unknown error' });
     if (clientWs.readyState === 1) {
       clientWs.send(
         JSON.stringify({

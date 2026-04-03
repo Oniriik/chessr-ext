@@ -9,9 +9,10 @@ import type { Key } from 'chessground/types'
 import 'chessground/assets/chessground.base.css'
 import 'chessground/assets/chessground.brown.css'
 import 'chessground/assets/chessground.cburnett.css'
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowLeft, Clock, Copy, Check, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowLeft, Clock, Copy, Check, Sparkles, Loader2, Eye, ShieldCheck, Target, Flame, AlertTriangle, Dna, Timer, Crown, Swords } from 'lucide-react'
 import { PlayerAvatar } from '@/components/player-avatar'
 import { EvalGraph } from '@/components/eval-graph'
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
 
 // Chess.com sends "greatFind" but we normalize to "great"
 function normCls(cls?: string): string {
@@ -31,6 +32,8 @@ interface GameHeaders {
   Black: string
   WhiteElo: string
   BlackElo: string
+  WhiteRatingDiff: string
+  BlackRatingDiff: string
   Result: string
   TimeControl: string
   ECO: string
@@ -128,7 +131,7 @@ export default function ReviewPage() {
       const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
-        if (token) ws.send(JSON.stringify({ type: 'auth', token }))
+        if (token) ws.send(JSON.stringify({ type: 'auth', token, source: 'app' }))
       }
 
       ws.onmessage = (event) => {
@@ -263,6 +266,7 @@ export default function ReviewPage() {
           setHeaders({
             White: h.White || '', Black: h.Black || '',
             WhiteElo: h.WhiteElo || '', BlackElo: h.BlackElo || '',
+            WhiteRatingDiff: h.WhiteRatingDiff || '', BlackRatingDiff: h.BlackRatingDiff || '',
             Result: h.Result || '', TimeControl: h.TimeControl || '',
             ECO: h.ECO || '', Date: h.Date || '',
           })
@@ -648,18 +652,31 @@ export default function ReviewPage() {
       </header>
 
       {/* Players bar */}
-      {headers && (
-        <div className="relative z-10">
-          <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
-            <PlayerInfo name={headers.White} elo={headers.WhiteElo} color="white" />
-            <div className="text-xs text-muted-foreground px-3 text-center">
-              <div className="font-mono font-bold">{headers.Result}</div>
-              <div className="text-[10px] mt-0.5">{headers.ECO}</div>
+      {headers && (() => {
+        const result = headers.Result
+        const whiteWon = result === '1-0'
+        const blackWon = result === '0-1'
+        const isDraw = result === '1/2-1/2'
+        const wResult = whiteWon ? 'Win' : blackWon ? 'Loss' : 'Draw'
+        const bResult = blackWon ? 'Win' : whiteWon ? 'Loss' : 'Draw'
+        const resultColor = (r: string) => r === 'Win' ? 'text-emerald-400 bg-emerald-500/15' : r === 'Loss' ? 'text-rose-400 bg-rose-500/15' : 'text-muted-foreground bg-muted/50'
+
+        return (
+          <div className="relative z-10">
+            <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PlayerInfo name={headers.White} elo={headers.WhiteElo} eloDiff={headers.WhiteRatingDiff} color="white" />
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${resultColor(wResult)}`}>{wResult}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">vs</div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${resultColor(bResult)}`}>{bResult}</span>
+                <PlayerInfo name={headers.Black} elo={headers.BlackElo} eloDiff={headers.BlackRatingDiff} color="black" />
+              </div>
             </div>
-            <PlayerInfo name={headers.Black} elo={headers.BlackElo} color="black" />
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Main content */}
       <main className="relative z-10 max-w-6xl mx-auto p-4">
@@ -945,6 +962,7 @@ export default function ReviewPage() {
 
         {/* Review results */}
         {review && <ReviewPanel review={review} headers={headers} />}
+        {review && <GameAnalysisSections review={review} headers={headers} orientation={orientation} />}
       </main>
 
       {/* Coach selection modal */}
@@ -1302,6 +1320,7 @@ function buildEvalPoints(review: Record<string, unknown>, moves?: Array<{ san: s
 function ReviewPanel({ review, headers }: { review: Record<string, unknown>; headers: GameHeaders | null }) {
   const [expanded, setExpanded] = useState(false)
   const caps = review.CAPS as { white: Record<string, number | null>; black: Record<string, number | null> } | undefined
+  const reportCard = review.reportCard as { white?: { effectiveElo?: number }; black?: { effectiveElo?: number } } | undefined
   const positions = review.positions as Array<{ classificationName?: string; color?: string }> | undefined
 
   if (!caps) return null
@@ -1354,7 +1373,15 @@ function ReviewPanel({ review, headers }: { review: Record<string, unknown>; hea
             <PlayerAvatar username={bName} size={48} />
           </div>
         </div>
-        <div className="grid grid-cols-[1fr_140px_1fr] items-center justify-items-center gap-4">
+        {/* Game Rating (effectiveElo) */}
+        {(reportCard?.white?.effectiveElo || reportCard?.black?.effectiveElo) && (
+          <div className="grid grid-cols-[1fr_140px_1fr] items-center justify-items-center gap-4">
+            <span className="text-lg font-bold px-3 py-1 rounded-lg border border-border/60">{reportCard?.white?.effectiveElo || '-'}</span>
+            <div className="text-xs text-muted-foreground">Game Rating</div>
+            <span className="text-lg font-bold px-3 py-1 rounded-lg border border-border/60">{reportCard?.black?.effectiveElo || '-'}</span>
+          </div>
+        )}
+        <div className="grid grid-cols-[1fr_140px_1fr] items-center justify-items-center gap-4 mt-2">
           <span className={`text-lg font-bold px-3 py-1 rounded-lg ${whiteWon ? 'bg-emerald-500/20 text-emerald-400' : 'bg-muted'}`}>{fmt(caps.white.all)}</span>
           <div className="text-xs text-muted-foreground">Accuracy</div>
           <span className={`text-lg font-bold px-3 py-1 rounded-lg ${blackWon ? 'bg-emerald-500/20 text-emerald-400' : 'bg-muted'}`}>{fmt(caps.black.all)}</span>
@@ -1408,6 +1435,216 @@ function ReviewPanel({ review, headers }: { review: Record<string, unknown>; hea
   )
 }
 
+// ─── Move Quality + Fair Play + Piece DNA sections ───
+
+interface PositionData {
+  classificationName?: string
+  color?: string
+  difference?: number
+  caps2?: number
+}
+
+const MOVE_CATS = [
+  { key: 'brilliant', label: 'Brilliant', color: '#00e5ff' },
+  { key: 'great', label: 'Great', color: '#8b5cf6' },
+  { key: 'best', label: 'Best', color: '#34d399' },
+  { key: 'excellent', label: 'Excellent', color: '#22d3ee' },
+  { key: 'good', label: 'Good', color: '#a3e635' },
+  { key: 'book', label: 'Book', color: '#94a3b8' },
+  { key: 'inaccuracy', label: 'Inaccuracy', color: '#fbbf24' },
+  { key: 'mistake', label: 'Mistake', color: '#f97316' },
+  { key: 'miss', label: 'Miss', color: '#ef4444' },
+  { key: 'blunder', label: 'Blunder', color: '#dc2626' },
+]
+
+
+function GameAnalysisSections({ review, headers, orientation }: { review: Record<string, unknown>; headers: GameHeaders | null; orientation: 'white' | 'black' }) {
+  const caps = review.CAPS as { white: Record<string, number | null>; black: Record<string, number | null> } | undefined
+  const positions = review.positions as PositionData[] | undefined
+  if (!caps || !positions) return null
+
+  const wName = headers?.White || 'White'
+  const bName = headers?.Black || 'Black'
+  const youColor = orientation
+  const youName = youColor === 'white' ? wName : bName
+  const oppName = youColor === 'white' ? bName : wName
+
+  // Move classification counts per player
+  const wCls: Record<string, number> = {}
+  const bCls: Record<string, number> = {}
+  for (const p of positions) {
+    const cn = normCls(p.classificationName)
+    if (!cn) continue
+    if (p.color === 'white') wCls[cn] = (wCls[cn] || 0) + 1
+    if (p.color === 'black') bCls[cn] = (bCls[cn] || 0) + 1
+  }
+
+  const youCls = youColor === 'white' ? wCls : bCls
+  const oppCls = youColor === 'white' ? bCls : wCls
+  const youTotal = Object.values(youCls).reduce((a, b) => a + b, 0) || 1
+  const oppTotal = Object.values(oppCls).reduce((a, b) => a + b, 0) || 1
+
+  const youCaps = youColor === 'white' ? caps.white : caps.black
+  const oppCaps = youColor === 'white' ? caps.black : caps.white
+
+  // Piece radar — merged
+  const pieceLabels: Record<string, string> = { K: 'King', Q: 'Queen', R: 'Rook', B: 'Bishop', N: 'Knight', P: 'Pawn' }
+  const pieceKeys = ['K', 'Q', 'R', 'B', 'N', 'P']
+  const radarData = pieceKeys.map(k => ({
+    piece: pieceLabels[k],
+    you: (youCaps[k] as number) || 0,
+    opponent: (oppCaps[k] as number) || 0,
+    fullMark: 100,
+  }))
+
+  return (
+    <div className="mt-6 space-y-4">
+      <SwitchableCard
+        icon={<Eye className="w-4 h-4 text-primary" />}
+        title="Move Quality"
+        youLabel={youName}
+        oppLabel={oppName}
+        youContent={<MoveQualityContent cls={youCls} total={youTotal} />}
+        oppContent={<MoveQualityContent cls={oppCls} total={oppTotal} />}
+        youExtra={<span className="text-xs text-muted-foreground">{youTotal} moves</span>}
+        oppExtra={<span className="text-xs text-muted-foreground">{oppTotal} moves</span>}
+      />
+
+      <PieceRadarMerged data={radarData} youName={youName} oppName={oppName} />
+    </div>
+  )
+}
+
+function SwitchableCard({ icon, title, youLabel, oppLabel, youContent, oppContent, youExtra, oppExtra }: {
+  icon: React.ReactNode; title: string
+  youLabel: string; oppLabel: string
+  youContent: React.ReactNode; oppContent: React.ReactNode
+  youExtra?: React.ReactNode; oppExtra?: React.ReactNode
+}) {
+  const [active, setActive] = useState<'you' | 'opp'>('you')
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h3 className="text-sm font-bold uppercase tracking-wider">{title}</h3>
+        </div>
+        {active === 'you' ? youExtra : oppExtra}
+      </div>
+      <div className="flex items-center gap-4 mb-4 border-b border-border/30">
+        <button
+          onClick={() => setActive('you')}
+          className={`pb-2 text-sm font-medium transition-colors relative ${
+            active === 'you' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {youLabel}
+          {active === 'you' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
+        </button>
+        <button
+          onClick={() => setActive('opp')}
+          className={`pb-2 text-sm font-medium transition-colors relative ${
+            active === 'opp' ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {oppLabel}
+          {active === 'opp' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full" />}
+        </button>
+      </div>
+      {active === 'you' ? youContent : oppContent}
+    </div>
+  )
+}
+
+function MoveQualityContent({ cls, total }: { cls: Record<string, number>; total: number }) {
+  return (
+    <>
+      <div className="flex h-7 rounded-lg overflow-hidden gap-px mb-3">
+        {MOVE_CATS.map(cat => {
+          const count = cls[cat.key] || 0
+          const pct = (count / total) * 100
+          if (pct < 1) return null
+          return (
+            <div
+              key={cat.key}
+              className="flex items-center justify-center text-[10px] font-bold text-black/70 min-w-[20px]"
+              style={{ width: `${pct}%`, backgroundColor: cat.color }}
+            >
+              {pct >= 5 ? `${Math.round(pct)}%` : ''}
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        {MOVE_CATS.map(cat => {
+          const count = cls[cat.key] || 0
+          if (!count) return null
+          return (
+            <span key={cat.key} className="flex items-center gap-1 text-xs">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
+              <span className="text-muted-foreground">{cat.label}</span>
+              <span className="font-bold">{count}</span>
+            </span>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
+
+function PieceRadarMerged({ data, youName, oppName }: {
+  data: { piece: string; you: number; opponent: number; fullMark: number }[]
+  youName: string; oppName: string
+}) {
+  const hasYou = data.some(d => d.you > 0)
+  const hasOpp = data.some(d => d.opponent > 0)
+  if (!hasYou && !hasOpp) return null
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-card/50 backdrop-blur-sm p-4 sm:p-5">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Dna className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-bold uppercase tracking-wider">Piece Accuracy</h3>
+        </div>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400" />{youName}</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-400" />{oppName}</span>
+        </div>
+      </div>
+      <div className="h-[250px] -mx-4" style={{ minWidth: 200, minHeight: 200 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={data} cx="50%" cy="50%" outerRadius="70%">
+            <PolarGrid stroke="rgba(255,255,255,0.08)" />
+            <PolarAngleAxis dataKey="piece" tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }} />
+            <Tooltip
+              content={({ payload, label }) => {
+                if (!payload?.length) return null
+                return (
+                  <div className="rounded-lg bg-zinc-900 border border-border/60 px-3 py-2 text-xs shadow-lg">
+                    <div className="font-semibold mb-1">{label}</div>
+                    {payload.map((p: any) => (
+                      <div key={p.dataKey} className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                        <span className="text-muted-foreground">{p.dataKey === 'you' ? youName : oppName}</span>
+                        <span className="font-bold ml-auto">{p.value?.toFixed(1)}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }}
+            />
+            {hasYou && <Radar dataKey="you" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.12} strokeWidth={2} />}
+            {hasOpp && <Radar dataKey="opponent" stroke="#fb7185" fill="#fb7185" fillOpacity={0.08} strokeWidth={2} />}
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
 // Format clock: "0:00:31.7" -> "0:31", "1:23:45.0" -> "1:23:45"
 function formatClock(raw: string): string {
   const parts = raw.split(':')
@@ -1446,9 +1683,13 @@ function BoardPlayerBar({ name, elo, clock, isActive }: {
   )
 }
 
-function PlayerInfo({ name, elo, color }: {
-  name: string; elo: string; color: 'white' | 'black'
+function PlayerInfo({ name, elo, eloDiff, color }: {
+  name: string; elo: string; eloDiff?: string; color: 'white' | 'black'
 }) {
+  const diff = eloDiff ? parseInt(eloDiff) : null
+  const diffColor = diff != null && diff > 0 ? 'text-emerald-400' : diff != null && diff < 0 ? 'text-rose-400' : 'text-muted-foreground'
+  const diffStr = diff != null ? (diff > 0 ? `+${diff}` : `${diff}`) : null
+
   return (
     <div className={`flex items-center gap-2 ${color === 'black' ? 'flex-row-reverse text-right' : ''}`}>
       <div className="relative shrink-0">
@@ -1457,7 +1698,10 @@ function PlayerInfo({ name, elo, color }: {
       </div>
       <div>
         <div className="text-sm font-semibold leading-tight">{name}</div>
-        <div className="text-[11px] text-muted-foreground">{elo}</div>
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <span>{elo}</span>
+          {diffStr && <span className={`font-semibold ${diffColor}`}>{diffStr}</span>}
+        </div>
       </div>
     </div>
   )
