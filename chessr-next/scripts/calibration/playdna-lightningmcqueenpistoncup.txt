@@ -1,0 +1,201 @@
+
+============================================================
+  PLAY DNA — lightningmcqueenpistoncup
+  10 games analyzed | Avg rating: 774
+  W: 4 / L: 5 / D: 1
+  Cadences: Blitz (6), Rapid (4)
+============================================================
+
+  --- Cross-Cadence Overview ---
+  Normalized delta (accuracy vs expected for cadence/rating):
+  Avg delta:  +18.1%  (stddev 13.4)
+  (!!) Consistently above expected across cadences
+
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  BLITZ — 6 games (avg rating 658)
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Accuracy:     77.1%  (expected ~55.0% → delta +22.1%) (!!)
+  Consistency:  stddev 9.4 (normal)
+
+   1. ████████████░░░░░░░░  62.1%  L  vs ravindra_reddy (680)  (+7.1)
+   2. ███████████████░░░░░  74.3%  L  vs nguyentiendu169 (689)  (+19.3)
+   3. ████████████████░░░░  79.2%  D  vs kaiser0703 (665)  (+24.2)
+   4. ███████████████░░░░░  74.0%  W  vs kaiser0703 (657)  (+19.0)
+   5. █████████████████░░░  84.7%  W  vs giocagiuseppe (1707)  (+29.7)
+   6. ██████████████████░░  88.7%  W  vs bastiaanvaert (519)  (+33.7)
+
+  Piece DNA (Blitz):
+  King     ██████████████████░░  89.6% <-- strength
+  Knight   ██████████████████░░  87.7%
+  Bishop   ████████████████░░░░  78.7%
+  Pawn     ███████████████░░░░░  74.6%
+  Rook     ███████████████░░░░░  73.6%
+  Queen    ██████████████░░░░░░  72.4% <-- weakness
+  Piece variance: 7.5 (normal)
+
+  Phase Balance (Blitz):
+  Opening      █████████████████░░░  85.4%
+  Middlegame   ███████████████░░░░░  73.3%
+  Endgame      ██████████████░░░░░░  69.2%
+  Phase variance: 8.4 (normal)
+
+  Move Profile (Blitz):
+  brilliant       1  (0.5%)
+  best           66  (35.1%)
+  excellent      38  (20.2%)
+  good           30  (16.0%)
+  inaccuracy     11  (5.9%)
+  mistake         6  (3.2%)
+  miss            9  (4.8%)
+  blunder         2  (1.1%)
+  Best move rate (non-book): 38.2% 
+
+  Tempo (Blitz):
+  Avg think time: 3.6s  (stddev 4.6s)
+  best           3.2s avg  (64 moves)
+  excellent      3.3s avg  (37 moves)
+  good           5.7s avg  (30 moves)
+  inaccuracy     4.9s avg  (11 moves)
+  mistake        3.6s avg  (6 moves)
+  miss           3.8s avg  (9 moves)
+  blunder        1.8s avg  (2 moves)
+
+  Think/Reflex ratio:
+  Critical: 2.1s  |  Calm: 3.8s  |  Ratio: 0.55x (!! low for blitz)
+  Time CV: 1.28 (normal)
+
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  RAPID — 4 games (avg rating 947)
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Accuracy:     75.8%  (expected ~63.7% → delta +12.1%) (!!)
+  Consistency:  stddev 17.7 (normal)
+
+   1. █████████████░░░░░░░  63.2%  L  vs ZacZOUIN (597)  (-0.5)
+   2. ████████████████░░░░  78.0%  L  vs SG3049D (1246)  (+14.4)
+   3. ████████████░░░░░░░░  62.0%  W  vs godswillekpen (955)  (-1.7)
+   4. ████████████████████ 100.0%  L  vs helloLetsPlayAndHaveFun (1100)  (+36.3)
+
+  Piece DNA (Rapid):
+  Rook     ████████████████████ 100.0% <-- strength
+  King     ████████████████████  97.7%
+  Queen    ██████████████████░░  91.0%
+  Pawn     ██████████████████░░  90.7%
+  Bishop   █████████████████░░░  86.4%
+  Knight   ████████░░░░░░░░░░░░  40.5% <-- weakness
+  Piece variance: 22.0 (normal)
+
+  Phase Balance (Rapid):
+  Opening      ████████████████░░░░  78.2%
+  Middlegame   ███████████░░░░░░░░░  53.1%
+  Phase variance: 17.7 (normal)
+
+  Move Profile (Rapid):
+  best            8  (25.0%)
+  excellent       7  (21.9%)
+  good            2  (6.3%)
+  inaccuracy      2  (6.3%)
+  mistake         1  (3.1%)
+  miss            1  (3.1%)
+  blunder         2  (6.3%)
+  Best move rate (non-book): 32.0% 
+
+  Tempo (Rapid):
+  Avg think time: 6.7s  (stddev 7.7s)
+  best           4.7s avg  (7 moves)
+  excellent      4.3s avg  (7 moves)
+  good          10.5s avg  (2 moves)
+  blunder        1.7s avg  (2 moves)
+  Time CV: 1.14 (normal)
+
+============================================================
+  YOUR DNA
+============================================================
+
+  --- Blitz Profile ---
+  style:              Opening specialist
+  accuracy:           77.1% avg (expected 55.0% for 658)
+  accuracy_stddev:    9.4  — game-to-game variance
+  delta_vs_expected:  +22.1%
+  strongest_piece:    King (89.6%)
+  weakest_piece:      Queen (72.4%)
+  piece_spread:       17.2pp  — diff between best and worst piece
+  best_phase:         Opening (85.4%)
+  worst_phase:        Endgame (69.2%)
+  phase_drop:         12.1pp opening→middle, 4.1pp middle→end
+  best_move_rate:     38.2% (non-book)
+  blunder_rate:       5.9%
+  avg_think_time:     3.6s
+  think_critical:     2.1s (2 positions)
+  think_calm:         3.8s (167 positions)
+  think_reflex_ratio: 0.55x  — >1 = thinks more on hard moves
+  blunder_avg_time:   3.4s  — no clear pattern
+
+  --- Rapid Profile ---
+  style:              Opening specialist
+  accuracy:           75.8% avg (expected 63.7% for 947)
+  accuracy_stddev:    17.7  — game-to-game variance
+  delta_vs_expected:  +12.1%
+  strongest_piece:    Rook (100.0%)
+  weakest_piece:      Knight (40.5%)
+  piece_spread:       59.5pp  — diff between best and worst piece
+  best_phase:         Opening (78.2%)
+  worst_phase:        Middlegame (53.1%)
+  phase_drop:         25.0pp opening→middle
+  best_move_rate:     32.0% (non-book)
+  blunder_rate:       9.4%
+  avg_think_time:     6.7s
+  think_critical:     -s (0 positions)
+  think_calm:         5.1s (22 positions)
+  think_reflex_ratio: -  — >1 = thinks more on hard moves
+  blunder_avg_time:   1.8s  — blunders when rushing
+
+============================================================
+  ANTI-CHEAT ANALYSIS
+============================================================
+
+  --- Blitz (thresholds for blitz) ---
+  [FAIL]  accuracy_delta           +22.1%           threshold: >15        way above expected for rating/cadence
+  [PASS]  accuracy_consistency     stddev 9.4       threshold: >6         normal human variance
+  [PASS]  best_move_rate           38.2%            threshold: <65%       normal
+  [PASS]  piece_uniformity         var 7.5          threshold: >6         human-like piece weaknesses
+  [PASS]  phase_uniformity         var 8.4          threshold: >4         normal phase variation
+  [FAIL]  think_reflex_ratio       0.55x            threshold: <0.8x      thinks LESS on hard moves than easy ones
+  [PASS]  time_rhythm              CV 1.28          threshold: >0.35      natural time rhythm
+  [PASS]  has_mistakes             17 mistakes/blunders threshold: >0         humans make mistakes
+
+  Human Score: 4/10  (6 pass, 0 warn, 2 fail)
+  Risk Level:  MEDIUM
+
+  --- Rapid (thresholds for rapid) ---
+  [WARN]  accuracy_delta           +12.1%           threshold: >8         above expected for rating/cadence
+  [PASS]  accuracy_consistency     stddev 17.7      threshold: >5         normal human variance
+  [PASS]  best_move_rate           32.0%            threshold: <70%       normal
+  [PASS]  piece_uniformity         var 22.0         threshold: >5         human-like piece weaknesses
+  [PASS]  phase_uniformity         var 17.7         threshold: >3         normal phase variation
+  [PASS]  time_rhythm              CV 1.14          threshold: >0.3       natural time rhythm
+  [PASS]  has_mistakes             4 mistakes/blunders threshold: >0         humans make mistakes
+
+  Human Score: 8/10  (6 pass, 1 warn, 0 fail)
+  Risk Level:  LOW
+
+  --- Cross-Cadence ---
+  avg_delta:      +18.1%  — normalized performance vs expected
+  delta_stddev:   13.4  — [PASS] normal variation
+
+============================================================
+  GAME LOG
+============================================================
+   #    Acc   Delta  R  TC    Opponent          OppRat   Open    Mid    End
+  --------------------------------------------------------------------------------
+   1   62.1    +7.1  L  Blit  ravindra_reddy       680   88.1   48.1   53.1
+   2   74.3   +19.3  L  Blit  nguyentiendu169      689   78.5   78.0   57.3
+   3   79.2   +24.2  D  Blit  kaiser0703           665   85.7   75.8   78.4
+   4   74.0   +19.0  W  Blit  kaiser0703           657   86.6   69.7   57.5
+   5   63.2    -0.5  L  Rapi  ZacZOUIN             597   75.8    6.3      -
+   6   78.0   +14.4  L  Rapi  SG3049D             1246   74.9  100.0      -
+   7   62.0    -1.7  W  Rapi  godswillekpen        955   62.0      -      -
+   8  100.0   +36.3  L  Rapi  helloLetsPlayAnd    1100  100.0      -      -
+   9   84.7   +29.7  W  Blit  giocagiuseppe       1707   86.8   81.7      -
+  10   88.7   +33.7  W  Blit  bastiaanvaert        519   86.7   86.7   99.8

@@ -19,6 +19,7 @@ export interface GameRawData {
   timeControl: string
   publicPgn: string
   caps: Record<string, any>
+  reportCard?: Record<string, any> | null
   positions: Array<{
     color: string
     classificationName: string
@@ -60,6 +61,7 @@ export interface ProfileFlag {
 export interface AntiCheatCheck {
   status: 'PASS' | 'WARN' | 'FAIL'
   label: string
+  tooltip?: string
   value: string
   threshold: string
   detail: string
@@ -110,6 +112,7 @@ export interface CadenceProfile {
   games: Array<{
     gameId: string
     accuracy: number | null
+    gameRating: number | null
     delta: number | null
     result: string
     opponentName: string
@@ -570,70 +573,109 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   const goodPct = nonBookTotal > 0 ? ((cls.good || 0) / nonBookTotal) * 100 : 0
   const style = generateStyle({ op, mid, end, bestMoveRate, blunderRate, goodPct, avgAcc, accStd, avgRating: avgRat, totalMoves })
 
-  // Anti-cheat checks
+  // Profile flags (computed first so humanScore can use them)
+  const profileFlags = computeProfileFlags({
+    delta, bestMoveRate, blunderRate, thinkReflexRatio, timeCV,
+    accStd, tcType, avgRating: avgRat, games, username,
+    wins: games.filter(g => g.result === 'W').length,
+    losses: games.filter(g => g.result === 'L').length,
+    draws: games.filter(g => g.result === 'D').length,
+    accountCreatedAt,
+  })
+
+  // Anti-cheat checks (ordered: performance → errors → consistency → balance → timing)
   const checks: AntiCheatCheck[] = []
   const deltaAbs = delta ?? 0
 
-  // 1. Accuracy delta
-  if (deltaAbs > t.deltaFlag + 5) checks.push({ status: 'FAIL', label: 'accuracy_delta', value: `+${deltaAbs.toFixed(1)}%`, threshold: `>${t.deltaFlag + 5}`, detail: 'way above expected for rating/cadence' })
-  else if (deltaAbs > t.deltaFlag) checks.push({ status: 'WARN', label: 'accuracy_delta', value: `+${deltaAbs.toFixed(1)}%`, threshold: `>${t.deltaFlag}`, detail: 'above expected for rating/cadence' })
-  else checks.push({ status: 'PASS', label: 'accuracy_delta', value: `${deltaAbs >= 0 ? '+' : ''}${deltaAbs.toFixed(1)}%`, threshold: `<${t.deltaFlag}`, detail: 'within expected range' })
+  // 1. Accuracy — how far above/below expected for rating
+  const expectedAcc = getExpectedAccuracy(avgRat, tcType)
+  const accDetail = `Expected around ${expectedAcc.toFixed(0)}% for ${Math.round(avgRat)} elo`
+  if (deltaAbs > t.deltaFlag + 5) checks.push({ status: 'FAIL', label: 'accuracy_delta', value: `+${deltaAbs.toFixed(1)}% above`, threshold: `>${t.deltaFlag + 5}`, detail: accDetail })
+  else if (deltaAbs > t.deltaFlag) checks.push({ status: 'WARN', label: 'accuracy_delta', value: `+${deltaAbs.toFixed(1)}% above`, threshold: `>${t.deltaFlag}`, detail: accDetail })
+  else checks.push({ status: 'PASS', label: 'accuracy_delta', value: `${deltaAbs >= 0 ? '+' : ''}${deltaAbs.toFixed(1)}%`, threshold: `<${t.deltaFlag}`, detail: accDetail })
 
-  // 2. Consistency
-  if (accStd != null && accs.length >= 3) {
-    if (accStd < t.accStdDev * 0.6) checks.push({ status: 'FAIL', label: 'accuracy_consistency', value: `stddev ${accStd.toFixed(1)}`, threshold: `<${(t.accStdDev * 0.6).toFixed(1)}`, detail: 'extremely consistent' })
-    else if (accStd < t.accStdDev) checks.push({ status: 'WARN', label: 'accuracy_consistency', value: `stddev ${accStd.toFixed(1)}`, threshold: `<${t.accStdDev}`, detail: 'too consistent for cadence' })
-    else checks.push({ status: 'PASS', label: 'accuracy_consistency', value: `stddev ${accStd.toFixed(1)}`, threshold: `>${t.accStdDev}`, detail: 'normal human variance' })
+  // 2. Best move rate — too many best moves is suspect
+  if (bestMoveRate > t.bestMoveRate + 10) checks.push({ status: 'FAIL', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate + 10}%`, detail: 'Engine-level best move rate' })
+  else if (bestMoveRate > t.bestMoveRate) checks.push({ status: 'WARN', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate}%`, detail: 'Higher than expected for rating' })
+  else checks.push({ status: 'PASS', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `<${t.bestMoveRate}%`, detail: 'Normal for rating level' })
+
+  // 3. Blunder rate — too few blunders is suspect
+  if (totalMoves > 10) {
+    const blunderMistakes = (cls.blunder || 0) + (cls.miss || 0)
+    const blunderPct = (blunderMistakes / totalMoves) * 100
+    if (blunderPct < 0.5 && totalMoves > 30) checks.push({ status: 'WARN', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: '<0.5%', detail: 'Almost no blunders is unusual' })
+    else checks.push({ status: 'PASS', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: '>0.5%', detail: `${blunderMistakes} blunders in ${totalMoves} moves` })
   }
 
-  // 3. Best move rate
-  if (bestMoveRate > t.bestMoveRate + 10) checks.push({ status: 'FAIL', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate + 10}%`, detail: 'engine-level' })
-  else if (bestMoveRate > t.bestMoveRate) checks.push({ status: 'WARN', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate}%`, detail: 'elevated' })
-  else checks.push({ status: 'PASS', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `<${t.bestMoveRate}%`, detail: 'normal' })
+  // 4. Mistakes — zero mistakes in many moves is unusual
+  const mistakeCount = (cls.blunder || 0) + (cls.miss || 0) + (cls.mistake || 0)
+  if (mistakeCount === 0 && totalMoves > 30) checks.push({ status: 'WARN', label: 'has_mistakes', value: `0 in ${totalMoves} moves`, threshold: '>0', detail: 'Zero mistakes is unusual for a human' })
+  else checks.push({ status: 'PASS', label: 'has_mistakes', value: `${mistakeCount} mistakes`, threshold: '>0', detail: `${mistakeCount} in ${totalMoves} moves` })
 
-  // 4. Piece uniformity — scale by elo: low elo has naturally higher piece variance, GMs are more uniform
+  // 5. Consistency — how much accuracy varies between games
+  if (accStd != null && accs.length >= 3) {
+    const consLabel = accStd < t.accStdDev * 0.6 ? 'Very stable' : accStd < t.accStdDev ? 'Stable' : accStd < t.accStdDev * 2 ? 'Normal' : 'Inconsistent'
+    const consDetail = `±${accStd.toFixed(0)}% between games`
+    if (accStd < t.accStdDev * 0.6) checks.push({ status: 'FAIL', label: 'accuracy_consistency', value: consLabel, threshold: `<${(t.accStdDev * 0.6).toFixed(1)}`, detail: consDetail })
+    else if (accStd < t.accStdDev) checks.push({ status: 'WARN', label: 'accuracy_consistency', value: consLabel, threshold: `<${t.accStdDev}`, detail: consDetail })
+    else checks.push({ status: 'PASS', label: 'accuracy_consistency', value: consLabel, threshold: `>${t.accStdDev}`, detail: consDetail })
+  }
+
+  // 6. Piece balance — all pieces at same level is suspect
   if (pieceVar != null) {
     const pieceEloFactor = avgRat < 1000 ? 1.8 : avgRat < 1500 ? 1.4 : avgRat < 2000 ? 1.0 : avgRat < 2500 ? 0.7 : 0.5
     const adjPieceVar = t.pieceVar * pieceEloFactor
-    if (pieceVar < adjPieceVar * 0.6) checks.push({ status: 'FAIL', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `<${(adjPieceVar * 0.6).toFixed(1)}`, detail: 'all pieces same accuracy' })
-    else if (pieceVar < adjPieceVar) checks.push({ status: 'WARN', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `<${adjPieceVar.toFixed(1)}`, detail: 'pieces too uniform' })
-    else checks.push({ status: 'PASS', label: 'piece_uniformity', value: `var ${pieceVar.toFixed(1)}`, threshold: `>${adjPieceVar.toFixed(1)}`, detail: 'human-like weaknesses' })
+    const pieceLabel = pieceVar < adjPieceVar * 0.6 ? 'Too uniform' : pieceVar < adjPieceVar ? 'Slightly uniform' : 'Natural'
+    const pieceDetail = pieceVar < adjPieceVar ? 'All pieces played at same level' : 'Some pieces stronger than others'
+    if (pieceVar < adjPieceVar * 0.6) checks.push({ status: 'FAIL', label: 'piece_uniformity', value: pieceLabel, threshold: `<${(adjPieceVar * 0.6).toFixed(1)}`, detail: pieceDetail })
+    else if (pieceVar < adjPieceVar) checks.push({ status: 'WARN', label: 'piece_uniformity', value: pieceLabel, threshold: `<${adjPieceVar.toFixed(1)}`, detail: pieceDetail })
+    else checks.push({ status: 'PASS', label: 'piece_uniformity', value: pieceLabel, threshold: `>${adjPieceVar.toFixed(1)}`, detail: pieceDetail })
   }
 
-  // 5. Phase uniformity — scale by elo same as piece
+  // 7. Phase balance — same accuracy in all phases is suspect
   if (phaseVar != null) {
     const phaseEloFactor = avgRat < 1000 ? 1.8 : avgRat < 1500 ? 1.4 : avgRat < 2000 ? 1.0 : avgRat < 2500 ? 0.7 : 0.5
     const adjPhaseVar = t.phaseVar * phaseEloFactor
-    if (phaseVar < adjPhaseVar * 0.5) checks.push({ status: 'FAIL', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `<${(adjPhaseVar * 0.5).toFixed(1)}`, detail: 'same accuracy all phases' })
-    else if (phaseVar < adjPhaseVar) checks.push({ status: 'WARN', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `<${adjPhaseVar.toFixed(1)}`, detail: 'phases too balanced' })
-    else checks.push({ status: 'PASS', label: 'phase_uniformity', value: `var ${phaseVar.toFixed(1)}`, threshold: `>${adjPhaseVar.toFixed(1)}`, detail: 'normal phase variation' })
+    const phaseLabel = phaseVar < adjPhaseVar * 0.5 ? 'Too balanced' : phaseVar < adjPhaseVar ? 'Slightly balanced' : 'Natural'
+    const phaseDetail = phaseVar < adjPhaseVar ? 'Same level in all game phases' : 'Varies between opening, middle & endgame'
+    if (phaseVar < adjPhaseVar * 0.5) checks.push({ status: 'FAIL', label: 'phase_uniformity', value: phaseLabel, threshold: `<${(adjPhaseVar * 0.5).toFixed(1)}`, detail: phaseDetail })
+    else if (phaseVar < adjPhaseVar) checks.push({ status: 'WARN', label: 'phase_uniformity', value: phaseLabel, threshold: `<${adjPhaseVar.toFixed(1)}`, detail: phaseDetail })
+    else checks.push({ status: 'PASS', label: 'phase_uniformity', value: phaseLabel, threshold: `>${adjPhaseVar.toFixed(1)}`, detail: phaseDetail })
   }
 
-  // 6. Think/Reflex ratio
-  if (thinkReflexRatio != null) {
-    if (thinkReflexRatio < t.thinkRatio * 0.5) checks.push({ status: 'FAIL', label: 'think_reflex_ratio', value: `${thinkReflexRatio.toFixed(2)}x`, threshold: `<${(t.thinkRatio * 0.5).toFixed(1)}x`, detail: 'thinks LESS on hard moves' })
-    else if (thinkReflexRatio < t.thinkRatio) checks.push({ status: 'WARN', label: 'think_reflex_ratio', value: `${thinkReflexRatio.toFixed(2)}x`, threshold: `<${t.thinkRatio}x`, detail: 'not enough differentiation' })
-    else checks.push({ status: 'PASS', label: 'think_reflex_ratio', value: `${thinkReflexRatio.toFixed(2)}x`, threshold: `>${t.thinkRatio}x`, detail: 'thinks more on hard positions' })
-  }
-
-  // 7. Time CV
+  // 8. Think time — robotic timing is suspect
   if (timeCV != null) {
-    if (timeCV < t.timeCV * 0.6) checks.push({ status: 'FAIL', label: 'time_rhythm', value: `CV ${timeCV.toFixed(2)}`, threshold: `<${(t.timeCV * 0.6).toFixed(2)}`, detail: 'robotic tempo' })
-    else if (timeCV < t.timeCV) checks.push({ status: 'WARN', label: 'time_rhythm', value: `CV ${timeCV.toFixed(2)}`, threshold: `<${t.timeCV}`, detail: 'low time variation' })
-    else checks.push({ status: 'PASS', label: 'time_rhythm', value: `CV ${timeCV.toFixed(2)}`, threshold: `>${t.timeCV}`, detail: 'natural rhythm' })
+    const tvLabel = timeCV >= t.timeCV ? 'Natural' : timeCV >= t.timeCV * 0.6 ? 'Regular' : 'Robotic'
+    if (timeCV < t.timeCV * 0.6) checks.push({ status: 'FAIL', label: 'time_rhythm', value: tvLabel, threshold: `<${(t.timeCV * 0.6).toFixed(2)}`, detail: 'Same speed every move' })
+    else if (timeCV < t.timeCV) checks.push({ status: 'WARN', label: 'time_rhythm', value: tvLabel, threshold: `<${t.timeCV}`, detail: 'Timing too consistent' })
+    else checks.push({ status: 'PASS', label: 'time_rhythm', value: tvLabel, threshold: `>${t.timeCV}`, detail: 'Varies naturally between moves' })
   }
 
-  // 8. Has mistakes
-  const mistakeCount = (cls.blunder || 0) + (cls.miss || 0) + (cls.mistake || 0)
-  if (mistakeCount === 0 && totalMoves > 30) checks.push({ status: 'WARN', label: 'has_mistakes', value: `0 in ${totalMoves} moves`, threshold: '>0', detail: 'zero mistakes is unusual' })
-  else checks.push({ status: 'PASS', label: 'has_mistakes', value: `${mistakeCount} mistakes`, threshold: '>0', detail: 'humans make mistakes' })
+  // Add tooltips explaining each check
+  const TOOLTIPS: Record<string, string> = {
+    accuracy_delta: 'Compares your accuracy to what is expected for your rating. Playing way above your level consistently can indicate external help.',
+    best_move_rate: 'Percentage of moves that match the engine\'s top choice. Humans typically play 20-50% best moves depending on rating.',
+    blunder_rate: 'Percentage of serious mistakes (blunders + misses). Too few blunders over many games is unusual for humans.',
+    has_mistakes: 'Total count of inaccuracies, mistakes, misses and blunders. Every human makes mistakes — zero is a red flag.',
+    accuracy_consistency: 'How much your accuracy varies game to game. Humans naturally fluctuate — very stable accuracy is unusual.',
+    piece_uniformity: 'Whether all pieces are played at the same accuracy. Humans have strengths and weaknesses with different pieces.',
+    phase_uniformity: 'Whether opening, middlegame and endgame accuracy are similar. Most players are stronger in some phases than others.',
+    time_rhythm: 'How much your thinking time varies between moves. Humans think longer on hard positions and faster on obvious ones.',
+  }
+  for (const c of checks) c.tooltip = TOOLTIPS[c.label]
 
   const passCount = checks.filter(c => c.status === 'PASS').length
   const warnCount = checks.filter(c => c.status === 'WARN').length
   const failCount = checks.filter(c => c.status === 'FAIL').length
-  const score = passCount * 2 - warnCount - failCount * 3
-  const maxScore = checks.length * 2
-  const humanScore = Math.max(0, Math.min(10, Math.round((score / maxScore) * 10)))
+
+  // Human score: combine profile flags + fair play checks (same formula as UI)
+  const FLAG_PTS: Record<string, number> = { clean: 1, suspicious: 0.5, flagged: -0.5 }
+  const CHECK_PTS: Record<string, number> = { PASS: 1, WARN: 0.5, FAIL: -0.5 }
+  const flagScore = Math.max(0, profileFlags.reduce((sum, f) => sum + (FLAG_PTS[f.status] ?? 0) * (f.weight ?? 1), 0))
+  const flagMax = profileFlags.reduce((sum, f) => sum + (f.weight ?? 1), 0)
+  const fairPlay = Math.max(0, checks.reduce((sum, c) => sum + (CHECK_PTS[c.status] ?? 0), 0))
+  const norm = (s: number, m: number) => m > 0 ? Math.max(0, Math.round((s / m) * 100) / 10) : 0
+  const humanScore = Math.max(0, Math.round(((norm(flagScore, flagMax) + norm(fairPlay, checks.length)) / 2) * 10) / 10)
   const riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = humanScore >= 7 ? 'LOW' : humanScore >= 4 ? 'MEDIUM' : 'HIGH'
 
   // Per-game data
@@ -658,6 +700,7 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
     return {
       gameId: g.gameId,
       accuracy: playerCaps?.all as number | null ?? null,
+      gameRating: (g.reportCard?.[g.playerColor]?.effectiveElo as number | null) ?? null,
       delta: normalizeAccuracy(playerCaps?.all, g.playerRating, tcType),
       result: g.result,
       opponentName: g.opponentName,
@@ -683,14 +726,7 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
       criticalAvg, calmAvg, thinkReflexRatio, timeCV,
       blunderAvgTime, blunderPattern,
     },
-    flags: computeProfileFlags({
-      delta, bestMoveRate, blunderRate, thinkReflexRatio, timeCV,
-      accStd, tcType, avgRating: avgRat, games, username,
-      wins: games.filter(g => g.result === 'W').length,
-      losses: games.filter(g => g.result === 'L').length,
-      draws: games.filter(g => g.result === 'D').length,
-      accountCreatedAt,
-    }),
+    flags: profileFlags,
     antiCheat: { checks, humanScore, riskLevel, passCount, warnCount, failCount },
     games: gamesList,
   }
@@ -766,22 +802,23 @@ function computeProfileFlags(stats: {
     }
   }
 
-  // 3. Blunder rate (too low = suspect)
-  const expectedBlunder = stats.avgRating < 1200 ? 8 : stats.avgRating < 1600 ? 5 : stats.avgRating < 2000 ? 3 : stats.avgRating < 2400 ? 1.5 : 0.5
-  const blStatus: FlagStatus = stats.blunderRate < expectedBlunder * 0.2 ? 'flagged' : stats.blunderRate < expectedBlunder * 0.5 ? 'suspicious' : 'clean'
-  flags.push({
-    id: 'blunders', label: 'Blunders', status: blStatus, weight: 1,
-    value: `${stats.blunderRate.toFixed(1)}%`,
-    detail: blStatus === 'clean' ? 'Normal mistake rate' : 'Suspiciously few mistakes',
-  })
-
-  // 4. Move time entropy (timeCV too low = robotic tempo)
+  // 3. Think time variation
   if (stats.timeCV != null) {
     const teStatus: FlagStatus = stats.timeCV < t.timeCV * 0.6 ? 'flagged' : stats.timeCV < t.timeCV ? 'suspicious' : 'clean'
     flags.push({
-      id: 'timeEntropy', label: 'Time Entropy', status: teStatus, weight: 1,
-      value: `CV ${stats.timeCV.toFixed(2)}`,
-      detail: teStatus === 'clean' ? 'Natural time variation' : 'Too uniform timing',
+      id: 'thinkTime', label: 'Think Time', status: teStatus, weight: 1,
+      value: teStatus === 'clean' ? 'Natural' : teStatus === 'suspicious' ? 'Regular' : 'Robotic',
+      detail: teStatus === 'clean' ? 'Varies naturally between moves' : 'Too consistent between moves',
+    })
+  }
+
+  // 5. Focus — thinks harder on critical positions
+  if (stats.thinkReflexRatio != null) {
+    const frStatus: FlagStatus = stats.thinkReflexRatio < t.thinkRatio * 0.5 ? 'flagged' : stats.thinkReflexRatio < t.thinkRatio ? 'suspicious' : 'clean'
+    flags.push({
+      id: 'focus', label: 'Focus', status: frStatus, weight: 1,
+      value: frStatus === 'clean' ? `${stats.thinkReflexRatio.toFixed(1)}x slower` : frStatus === 'suspicious' ? `${stats.thinkReflexRatio.toFixed(1)}x` : 'No difference',
+      detail: frStatus === 'clean' ? 'Thinks harder on critical moves' : 'Same speed on easy and hard moves',
     })
   }
 

@@ -1,0 +1,109 @@
+
+============================================================
+  PLAY DNA — chessr-io
+  6 games analyzed | Avg rating: 1873
+  W: 6 / L: 0 / D: 0
+============================================================
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  BULLET — 6 games (avg rating 1873)
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  Accuracy:     86.6%  (expected ~76.8% → delta +9.8%)
+  Consistency:  stddev 11.7 (normal)
+
+   1. ██████████████████░░  92.5%  W  vs Sambinoe1 (1366)  (+21.9)
+   2. ███████████████████░  94.8%  W  vs qwertyqweww121 (1709)  (+20.3)
+   3. ███████████████░░░░░  74.0%  W  vs juanchess1984 (1747)  (-2.6)
+   4. ██████████████░░░░░░  69.5%  W  vs HetHoofd (1907)  (-9.2)
+   5. ███████████████████░  94.0%  W  vs tanyer23 (1723)  (+14.4)
+   6. ███████████████████░  95.2%  W  vs unclebaba (1971)  (+14.3)
+
+  Piece DNA (Bullet):
+  Pawn     ██████████████████░░  90.8% <-- strength
+  Knight   ██████████████████░░  88.8%
+  King     █████████████████░░░  86.4%
+  Queen    █████████████████░░░  86.3%
+  Rook     ████████████████░░░░  80.7%
+  Bishop   ████████████████░░░░  80.3% <-- weakness
+  Piece variance: 4.3 (!! uniform for bullet)
+
+  Phase Balance (Bullet):
+  Opening      ██████████████████░░  88.8%
+  Middlegame   █████████████████░░░  84.4%
+  Phase variance: 3.1 (!! uniform for bullet)
+
+  Move Profile (Bullet):
+  brilliant       1  (0.5%)
+  best           75  (39.7%)
+  excellent      46  (24.3%)
+  good           12  (6.3%)
+  inaccuracy     10  (5.3%)
+  mistake        12  (6.3%)
+  miss            7  (3.7%)
+  blunder         1  (0.5%)
+  Best move rate (non-book): 44.1% 
+
+  Tempo (Bullet):
+  Avg think time: 1.8s  (stddev 2.0s)
+  best           1.9s avg  (72 moves)
+  excellent      1.7s avg  (45 moves)
+  good           1.7s avg  (12 moves)
+  inaccuracy     1.8s avg  (10 moves)
+  mistake        1.3s avg  (12 moves)
+  miss           1.5s avg  (7 moves)
+
+  Think/Reflex ratio:
+  Critical: 1.0s  |  Calm: 1.8s  |  Ratio: 0.59x (!! low for bullet)
+  Time CV: 1.11 (normal)
+
+============================================================
+  YOUR DNA
+============================================================
+
+  --- Bullet Profile ---
+  style:              All-rounder
+  accuracy:           86.6% avg (expected 76.8% for 1873)
+  accuracy_stddev:    11.7  — game-to-game variance
+  delta_vs_expected:  +9.8%
+  strongest_piece:    Pawn (90.8%)
+  weakest_piece:      Bishop (80.3%)
+  piece_spread:       10.5pp  — diff between best and worst piece
+  best_phase:         Opening (88.8%)
+  worst_phase:        Middlegame (84.4%)
+  phase_drop:         4.4pp opening→middle
+  best_move_rate:     44.1% (non-book)
+  blunder_rate:       4.2%
+  avg_think_time:     1.8s
+  think_critical:     1.0s (3 positions)
+  think_calm:         1.8s (163 positions)
+  think_reflex_ratio: 0.59x  — >1 = thinks more on hard moves
+  blunder_avg_time:   1.4s  — no clear pattern
+
+============================================================
+  ANTI-CHEAT ANALYSIS
+============================================================
+
+  --- Bullet (thresholds for bullet) ---
+  [PASS]  accuracy_delta           +9.8%            threshold: <12        within expected range
+  [PASS]  accuracy_consistency     stddev 11.7      threshold: >8         normal human variance
+  [PASS]  best_move_rate           44.1%            threshold: <55%       normal
+  [FAIL]  piece_uniformity         var 4.3          threshold: <4.8       all pieces same accuracy, engines have no weakness
+  [WARN]  phase_uniformity         var 3.1          threshold: <5         phases too balanced
+  [WARN]  think_reflex_ratio       0.59x            threshold: <1x        not enough time differentiation
+  [PASS]  time_rhythm              CV 1.11          threshold: >0.4       natural time rhythm
+  [PASS]  has_mistakes             20 mistakes/blunders threshold: >0         humans make mistakes
+
+  Human Score: 3/10  (5 pass, 2 warn, 1 fail)
+  Risk Level:  HIGH
+
+============================================================
+  GAME LOG
+============================================================
+   #    Acc   Delta  R  TC    Opponent          OppRat   Open    Mid    End
+  --------------------------------------------------------------------------------
+   1   92.5   +21.9  W  Bull  Sambinoe1           1366   93.1   91.5      -
+   2   94.8   +20.3  W  Bull  qwertyqweww121      1709   93.7      -      -
+   3   74.0    -2.6  W  Bull  juanchess1984       1747   87.8   70.0      -
+   4   69.5    -9.2  W  Bull  HetHoofd            1907   65.6   72.0      -
+   5   94.0   +14.4  W  Bull  tanyer23            1723   99.7   90.8      -
+   6   95.2   +14.3  W  Bull  unclebaba           1971   92.7   97.5      -

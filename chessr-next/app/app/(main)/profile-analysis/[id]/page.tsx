@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, use, memo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { computePlayDNA, type GameRawData, type ProfileAnalysisResult } from '@/lib/play-dna'
-import { CheckCircle2, Shield, AlertTriangle, ChevronLeft, Search, Dna, Timer, ShieldCheck, Flag, Clock, ChevronDown, Zap, Target, Brain, Flame, Crown, Swords, TrendingUp, Eye, XCircle, CircleAlert, Crosshair } from 'lucide-react'
+import { CheckCircle2, Shield, AlertTriangle, ChevronLeft, Search, Dna, Timer, ShieldCheck, Flag, Clock, ChevronDown, Zap, Target, Brain, Flame, Crown, Swords, TrendingUp, Eye, XCircle, CircleAlert, Crosshair, Info } from 'lucide-react'
 import { TcIcon, TC_LABELS } from '@/components/tc-icon'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -455,7 +455,7 @@ export default function ProfileAnalysisDetailPage({ params }: { params: Promise<
       const fakeSteps: ProgressStep[] = [
         { id: 'dna', label: 'Computing player DNA', detail: 'Piece accuracy, phase balance, style detection', status: 'active', minDuration: 1300, stepType: 'compute' },
         { id: 'tempo', label: 'Analyzing reaction times', detail: 'Think time patterns, critical vs calm positions', status: 'active', minDuration: 1000, stepType: 'compute' },
-        { id: 'report', label: 'Generating anti-cheat report', detail: 'Consistency checks, human score calculation', status: 'active', minDuration: 2000, stepType: 'compute' },
+        { id: 'report', label: 'Generating Fair Play Analysis', detail: 'Consistency checks, human score calculation', status: 'active', minDuration: 2000, stepType: 'compute' },
         { id: 'complete', label: 'Analysis completed', status: 'active', minDuration: 2000, stepType: 'compute' },
       ]
 
@@ -847,21 +847,27 @@ function AnalysisReport({ result, profile }: { result: ProfileAnalysisResult; pr
               </div>
             </div>
 
-            {/* Quick stats row */}
-            <div className="grid grid-cols-4 gap-3 mt-2">
+            {/* Quick stats — inline on mobile, cards on desktop */}
+            <div className="hidden sm:grid grid-cols-4 gap-3 mt-2">
               <QuickStat icon={<Swords className="w-4 h-4" />} value={`${result.gamesCount}`} label="games" />
               <QuickStat icon={<TrendingUp className="w-4 h-4 text-emerald-400" />} value={`${winRate}%`} label="win rate" color="text-emerald-400" />
               <QuickStat icon={<Target className="w-4 h-4 text-sky-400" />} value={`${mainCadence?.avgAccuracy?.toFixed(1) ?? '-'}%`} label="accuracy" color="text-sky-400" />
               <QuickStat icon={<Zap className="w-4 h-4 text-amber-400" />} value={`${mainCadence?.bestMoveRate.toFixed(0) ?? '-'}%`} label="best moves" color="text-amber-400" />
             </div>
+            <div className="flex sm:hidden items-center gap-4 mt-2 flex-wrap">
+              <span className="text-sm"><span className="font-bold">{result.gamesCount}</span> <span className="text-muted-foreground text-xs">games</span></span>
+              <span className="text-sm"><span className="font-bold text-emerald-400">{winRate}%</span> <span className="text-muted-foreground text-xs">win rate</span></span>
+              <span className="text-sm"><span className="font-bold text-sky-400">{mainCadence?.avgAccuracy?.toFixed(1) ?? '-'}%</span> <span className="text-muted-foreground text-xs">accuracy</span></span>
+              <span className="text-sm"><span className="font-bold text-amber-400">{mainCadence?.bestMoveRate.toFixed(0) ?? '-'}%</span> <span className="text-muted-foreground text-xs">best moves</span></span>
+            </div>
           </div>
 
-          {/* Right — Human Score Ring */}
+          {/* Right — Human Score Ring (desktop) */}
           {mainCadence && (() => {
             const hs = combinedHumanScore(mainCadence.flags, mainCadence.antiCheat.checks)
             const risk: string = hs >= 7 ? 'LOW' : hs >= 4 ? 'MEDIUM' : 'HIGH'
             return (
-              <div className="flex flex-col items-center gap-2 shrink-0">
+              <div className="hidden md:flex flex-col items-center gap-2 shrink-0">
                 <ScoreRing score={hs} maxScore={10} riskLevel={risk} size={140} />
                 <span className="text-xs text-muted-foreground">Human Score</span>
               </div>
@@ -869,8 +875,31 @@ function AnalysisReport({ result, profile }: { result: ProfileAnalysisResult; pr
           })()}
         </div>
 
-        {/* W/L/D Bar */}
-        <div className="mt-5">
+        {/* Mobile: Human Score inline + W/L/D compact */}
+        {mainCadence && (() => {
+          const hs = combinedHumanScore(mainCadence.flags, mainCadence.antiCheat.checks)
+          const risk: string = hs >= 7 ? 'LOW' : hs >= 4 ? 'MEDIUM' : 'HIGH'
+          const hsColor = risk === 'LOW' ? 'text-emerald-400' : risk === 'MEDIUM' ? 'text-amber-400' : 'text-rose-400'
+          const hsBg = risk === 'LOW' ? 'bg-emerald-500/10 border-emerald-500/20' : risk === 'MEDIUM' ? 'bg-amber-500/10 border-amber-500/20' : 'bg-rose-500/10 border-rose-500/20'
+          const hsLabel = risk === 'LOW' ? 'Legit' : risk === 'MEDIUM' ? 'Suspicious' : 'Flagged'
+          return (
+            <div className="flex md:hidden items-center justify-between mt-4 gap-3">
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${hsBg}`}>
+                <span className={`text-lg font-black ${hsColor}`}>{hs % 1 === 0 ? hs : hs.toFixed(1)}</span>
+                <span className="text-xs text-muted-foreground">/10</span>
+                <span className={`text-xs font-semibold ${hsColor}`}>{hsLabel}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-medium">
+                <span className="text-emerald-400">{result.wins}W</span>
+                {result.draws > 0 && <span className="text-muted-foreground">{result.draws}D</span>}
+                <span className="text-rose-400">{result.losses}L</span>
+              </div>
+            </div>
+          )
+        })()}
+
+        {/* W/L/D Bar (desktop) */}
+        <div className="hidden md:block mt-5">
           <WinLossBar wins={result.wins} losses={result.losses} draws={result.draws} />
         </div>
       </div>
@@ -1136,33 +1165,37 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
             <SectionScore score={fairPlayScore(c.antiCheat.checks)} max={c.antiCheat.checks.length} />
           </div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {c.antiCheat.checks.map((check, i) => (
-            <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
-              check.status === 'PASS' ? 'bg-emerald-500/5 border-emerald-500/15' :
-              check.status === 'WARN' ? 'bg-amber-500/5 border-amber-500/15' :
-              'bg-rose-500/5 border-rose-500/15'
-            }`}>
-              <span className="shrink-0">
-                {check.status === 'PASS' ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> :
-                 check.status === 'WARN' ? <CircleAlert className="w-4 h-4 text-amber-400" /> :
-                 <XCircle className="w-4 h-4 text-rose-400" />}
-              </span>
-              <div className="min-w-0">
-                <div className="text-xs font-medium truncate">{ANTICHEAT_LABELS[check.label] || check.label.replace(/_/g, ' ')}</div>
-                <div className="text-[10px] text-muted-foreground truncate">{check.value}</div>
-              </div>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {c.antiCheat.checks.map((check, i) => {
+            const flag = check.status === 'FAIL' ? 'flagged' as const : check.status === 'WARN' ? 'suspicious' as const : 'clean' as const
+            return (
+              <MetricCard
+                key={i}
+                icon={ANTICHEAT_ICONS[check.label] || <Shield className="w-4 h-4" />}
+                label={ANTICHEAT_LABELS[check.label] || check.label.replace(/_/g, ' ')}
+                value={check.value}
+                sub={check.detail}
+                flag={flag}
+                tooltip={check.tooltip}
+              />
+            )
+          })}
         </div>
       </div>
 
       {/* ── Game Log ── */}
       <div className="report-section">
-        <div className="flex items-center gap-2 mb-4">
-          <Flag className="w-4 h-4 text-primary" />
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Game Log</h3>
-          <span className="text-xs text-muted-foreground">{c.games.length} games</span>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Flag className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Game Log</h3>
+            <span className="text-xs text-muted-foreground">{c.games.length} games</span>
+          </div>
+          <div className="hidden sm:flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider pr-3">
+            <span>Game Rating</span>
+            <span>Accuracy</span>
+            <span>Result</span>
+          </div>
         </div>
         <div className="space-y-2">
           {c.games.map((g, i) => (
@@ -1182,9 +1215,20 @@ const ANTICHEAT_LABELS: Record<string, string> = {
   best_move_rate: 'Best Moves',
   piece_uniformity: 'Piece Balance',
   phase_uniformity: 'Phase Balance',
-  think_reflex_ratio: 'Think Time',
-  time_rhythm: 'Time Rhythm',
+  blunder_rate: 'Blunder Rate',
+  time_rhythm: 'Think Time',
   has_mistakes: 'Mistakes',
+}
+
+const ANTICHEAT_ICONS: Record<string, React.ReactNode> = {
+  accuracy_delta: <Target className="w-4 h-4" />,
+  accuracy_consistency: <Swords className="w-4 h-4" />,
+  best_move_rate: <Flame className="w-4 h-4" />,
+  piece_uniformity: <Dna className="w-4 h-4" />,
+  phase_uniformity: <Timer className="w-4 h-4" />,
+  blunder_rate: <AlertTriangle className="w-4 h-4" />,
+  time_rhythm: <Clock className="w-4 h-4" />,
+  has_mistakes: <AlertTriangle className="w-4 h-4" />,
 }
 
 // Score badge for a section: shows X/max
@@ -1231,15 +1275,45 @@ function combinedHumanScore(flags: { status: string; weight?: number }[], checks
 const FLAG_ICONS: Record<string, React.ReactNode> = {
   accuracy: <Target className="w-4 h-4" />,
   bestMoves: <Flame className="w-4 h-4" />,
-  blunders: <AlertTriangle className="w-4 h-4" />,
-  focus: <Timer className="w-4 h-4" />,
-  timeEntropy: <Clock className="w-4 h-4" />,
+  thinkTime: <Clock className="w-4 h-4" />,
+  focus: <Eye className="w-4 h-4" />,
   winRate: <Crown className="w-4 h-4" />,
   accountAge: <Shield className="w-4 h-4" />,
 }
 
-function MetricCard({ icon, label, value, sub, flag = 'clean' }: {
-  icon: React.ReactNode; label: string; value: string; sub: string; flag?: 'clean' | 'suspicious' | 'flagged'
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('touchstart', handler)
+    return () => { document.removeEventListener('mousedown', handler); document.removeEventListener('touchstart', handler) }
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}
+        className="text-muted-foreground/40 hover:text-muted-foreground"
+      >
+        <Info className="w-3 h-3" />
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1.5 z-50 w-56 rounded-lg border border-border/60 bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg">
+          {text}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MetricCard({ icon, label, value, sub, flag = 'clean', tooltip }: {
+  icon: React.ReactNode; label: string; value: string; sub: string; flag?: 'clean' | 'suspicious' | 'flagged'; tooltip?: string
 }) {
   const styles = flag === 'flagged'
     ? 'bg-rose-500/5 border-rose-500/20'
@@ -1252,8 +1326,14 @@ function MetricCard({ icon, label, value, sub, flag = 'clean' }: {
       <div className="flex items-center gap-1.5 mb-1">
         <span className="text-muted-foreground">{icon}</span>
         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</span>
-        {flag === 'flagged' && <CircleAlert className="w-3 h-3 text-rose-400 ml-auto" />}
-        {flag === 'suspicious' && <CircleAlert className="w-3 h-3 text-amber-400 ml-auto" />}
+        <span className="ml-auto">
+          {tooltip ? <InfoTip text={tooltip} /> : (
+            <>
+              {flag === 'flagged' && <CircleAlert className="w-3 h-3 text-rose-400" />}
+              {flag === 'suspicious' && <CircleAlert className="w-3 h-3 text-amber-400" />}
+            </>
+          )}
+        </span>
       </div>
       <div className="text-lg font-bold leading-tight">{value}</div>
       <div className={`text-[10px] mt-0.5 ${flag !== 'clean' ? (flag === 'flagged' ? 'text-rose-400/80' : 'text-amber-400/80') : 'text-muted-foreground'}`}>{sub}</div>
@@ -1311,28 +1391,31 @@ function GameCard({ game: g, index: i, avatar }: { game: ReturnType<typeof compu
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-3 sm:p-4">
-      {/* Header: avatar + opponent + accuracy + result */}
-      <div className="flex items-center gap-3">
+      {/* Header: avatar + opponent + stats */}
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* vs + opponent avatar */}
         <span className="text-[10px] text-muted-foreground/60 font-semibold uppercase shrink-0">vs</span>
         {avatar ? (
-          <img src={avatar} alt={g.opponentName} className="shrink-0 w-9 h-9 rounded-lg object-cover" />
+          <img src={avatar} alt={g.opponentName} className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover" />
         ) : (
-          <div className={`shrink-0 w-9 h-9 rounded-lg ${resultBg} flex items-center justify-center`}>
+          <div className={`shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg ${resultBg} flex items-center justify-center`}>
             <span className="text-sm font-bold text-muted-foreground">{g.opponentName[0]?.toUpperCase()}</span>
           </div>
         )}
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{g.opponentName}</span>
-            <span className="text-xs text-muted-foreground">({g.opponentRating})</span>
-          </div>
+          <span className="text-sm font-medium truncate block">{g.opponentName}</span>
+          <span className="text-xs text-muted-foreground">({g.opponentRating})</span>
+        </div>
+
+        {/* Game Rating */}
+        <div className="text-right shrink-0">
+          <span className="text-sm font-bold text-muted-foreground">{g.gameRating ?? '-'}</span>
         </div>
 
         {/* Accuracy */}
         <div className="text-right shrink-0">
-          <span className={`text-lg font-bold ${accColorClass(g.accuracy)}`}>{g.accuracy?.toFixed(1) ?? '-'}%</span>
+          <span className={`text-base sm:text-lg font-bold ${accColorClass(g.accuracy)}`}>{g.accuracy?.toFixed(1) ?? '-'}%</span>
         </div>
 
         {/* Result badge */}
@@ -1359,12 +1442,12 @@ function GameCard({ game: g, index: i, avatar }: { game: ReturnType<typeof compu
             </span>
           ) : null)}
 
-          {/* Separator */}
-          {g.pieces.some(p => p.accuracy != null) && <div className="w-px h-4 bg-border/30 mx-0.5" />}
+          {/* Separator — hidden on mobile */}
+          {g.pieces.some(p => p.accuracy != null) && <div className="hidden sm:block w-px h-4 bg-border/30 mx-0.5" />}
 
-          {/* Pieces */}
+          {/* Pieces — hidden on mobile */}
           {g.pieces.filter(p => p.accuracy != null).map(p => (
-            <span key={p.piece} className={`text-[11px] font-semibold px-1 py-0.5 rounded-md bg-muted/30 ${accColorClass(p.accuracy)}`} title={`${p.label} accuracy: ${p.accuracy!.toFixed(1)}%`}>
+            <span key={p.piece} className={`hidden sm:inline-flex text-[11px] font-semibold px-1 py-0.5 rounded-md bg-muted/30 ${accColorClass(p.accuracy)}`} title={`${p.label} accuracy: ${p.accuracy!.toFixed(1)}%`}>
               {PIECE_ICONS[p.piece]}{p.accuracy!.toFixed(0)}
             </span>
           ))}

@@ -196,6 +196,7 @@ interface GameRawData {
   timeControl: string;
   publicPgn: string; // PGN with %clk annotations from Chess.com public API
   caps: Record<string, any>; // CAPS data for both colors
+  reportCard: Record<string, any> | null; // effectiveElo per color
   positions: any[]; // position data with classificationName, isPositionCritical
   bookPly: number;
   whiteName: string;
@@ -426,6 +427,7 @@ export async function handleProfileAnalysis(
           timeControl: g.time_control || '',
           publicPgn: g.pgn || '',
           caps: analysis.CAPS || {},
+          reportCard: analysis.reportCard || null,
           positions,
           bookPly: analysis.bookPly || 0,
           whiteName, blackName,
