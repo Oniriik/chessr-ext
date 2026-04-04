@@ -112,11 +112,13 @@ function decodeMoveListToPGN(
 
 // ─── Fetch game data ───
 
-async function fetchGameData(gameId: string): Promise<{
+async function fetchGameData(gameId: string, _gameType: string = 'live'): Promise<{
   moveList: string;
   headers: Record<string, string>;
   plyCount: number;
 }> {
+  // All game types use the live endpoint (computer game IDs are in a different namespace
+  // but the analysis token handles the game_type distinction)
   const res = await fetch(
     `https://www.chess.com/callback/live/game/${gameId}?all=true`,
     { headers: { Accept: 'application/json' } }
@@ -344,7 +346,7 @@ export async function handleChesscomReview(
     }
 
     // Step 1: Fetch game data
-    const gameData = await fetchGameData(gameId);
+    const gameData = await fetchGameData(gameId, gameType);
 
     // Step 2: Decode moveList to PGN
     const pgn = decodeMoveListToPGN(gameData.moveList, gameData.headers);

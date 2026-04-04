@@ -18,7 +18,7 @@ export function getMountPoints(): MountPoint[] {
     // Floating sidebar for pages without a dedicated sidebar
     {
       id: 'floating-sidebar',
-      route: ['home', 'analysis', 'unknown'],
+      route: ['home', 'unknown'],
       selector: 'body',
       position: 'append',
       component: FloatingSidebar,
@@ -63,6 +63,18 @@ export function getMountPoints(): MountPoint[] {
       },
       parentStyles: {
         gap: '8px',
+      },
+    },
+    // Analysis/review page (e.g., /analysis/game/live/123/review)
+    {
+      id: 'analysis-review-toggle',
+      route: 'analysis',
+      selector: '#board-layout-player-bottom .player-component',
+      position: 'append',
+      component: SidebarMount,
+      props: {
+        originalSidebarSelector: '#board-layout-sidebar',
+        inheritClass: 'board-layout-sidebar',
       },
     },
     // Game detector — always mounted so DOM watchers run even in streamer mode

@@ -12,7 +12,16 @@ export interface BetaFlag {
 }
 
 export const BETA_FLAGS: BetaFlag[] = [
-  { code: "test_feature", status: "hidden", description: "Test feature flag for development" },
+  {
+    code: "test_feature",
+    status: "hidden",
+    description: "Test feature flag for development",
+  },
+  {
+    code: "chesscomUnlock",
+    status: "all",
+    description: "Unlock Chess.com full analysis on app.chessr.io",
+  },
 ];
 
 /**
@@ -20,12 +29,12 @@ export const BETA_FLAGS: BetaFlag[] = [
  * Merges all "all" flags with the user's personal beta_flags from DB.
  */
 export function resolveUserBetas(userBetaFlags: string[]): string[] {
-  const allFlags = BETA_FLAGS
-    .filter((f) => f.status === "all")
-    .map((f) => f.code);
+  const allFlags = BETA_FLAGS.filter((f) => f.status === "all").map(
+    (f) => f.code,
+  );
 
   const validHiddenCodes = new Set(
-    BETA_FLAGS.filter((f) => f.status === "hidden").map((f) => f.code)
+    BETA_FLAGS.filter((f) => f.status === "hidden").map((f) => f.code),
   );
 
   const userFlags = userBetaFlags.filter((code) => validHiddenCodes.has(code));

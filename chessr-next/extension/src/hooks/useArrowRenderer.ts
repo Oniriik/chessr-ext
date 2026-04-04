@@ -15,6 +15,7 @@ import {
 } from "../stores/suggestionStore";
 import { useOpeningStore } from "../stores/openingStore";
 import { useStreamerModeStore } from "../stores/streamerModeStore";
+import { useBoardContextStore } from "../stores/boardContextStore";
 import { useOpeningTracker } from "./useOpeningTracker";
 import { useAlternativeOpenings } from "./useAlternativeOpenings";
 import { OverlayManager } from "../content/overlay/OverlayManager";
@@ -225,6 +226,7 @@ export function useArrowRenderer() {
   } = useSettingsStore();
   const { showOpeningArrows, openingArrowColor } = useOpeningStore();
   const isStreamerTabOpen = useStreamerModeStore((s) => s.isStreamerTabOpen);
+  const boardGameOver = useBoardContextStore((s) => s.isGameOver);
   const openingTracker = useOpeningTracker();
   const { alternatives } = useAlternativeOpenings(openingTracker.hasDeviated);
 
@@ -314,8 +316,8 @@ export function useArrowRenderer() {
       return;
     }
 
-    // Hide arrows when streamer mode is active
-    if (isStreamerTabOpen) {
+    // Hide arrows when streamer mode is active or game is over
+    if (isStreamerTabOpen || boardGameOver || document.querySelector('.game-review-emphasis-component')) {
       renderer.clear();
       renderer.clearOpeningArrows();
       return;

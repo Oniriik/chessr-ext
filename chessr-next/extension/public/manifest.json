@@ -17,6 +17,12 @@
       "js": ["content.js"],
       "run_at": "document_idle",
       "world": "ISOLATED"
+    },
+    {
+      "matches": ["*://chess.com/*", "*://*.chess.com/*"],
+      "js": ["pageContext.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
     }
   ],
   "background": {

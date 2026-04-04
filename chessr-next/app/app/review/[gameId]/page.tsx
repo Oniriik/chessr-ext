@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { Chess } from 'chess.js'
 import { Chessground } from 'chessground'
 import type { Api } from 'chessground/api'
@@ -43,7 +43,9 @@ interface GameHeaders {
 
 export default function ReviewPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const gameId = params.gameId as string
+  const gameType = searchParams.get('gameType') || 'live'
 
   const [orientation, setOrientation] = useState<'white' | 'black'>('white')
 
@@ -149,7 +151,7 @@ export default function ReviewPage() {
               type: 'chesscom_review',
               requestId: `review-${gameId}`,
               gameId,
-              gameType: 'live',
+              gameType,
               coachId,
               userColor: orientation === 'black' ? 'black' : 'white',
             }))
@@ -264,7 +266,7 @@ export default function ReviewPage() {
         }
 
         // Fallback: Use our proxy API (avoids CORS)
-        const apiRes = await fetch(`/api/game?id=${gameId}`)
+        const apiRes = await fetch(`/api/game?id=${gameId}&gameType=${gameType}`)
         if (!apiRes.ok) throw new Error('Game not found')
         const apiData = await apiRes.json()
 

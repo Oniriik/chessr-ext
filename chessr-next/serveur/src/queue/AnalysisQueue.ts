@@ -13,17 +13,14 @@ export type MoveClassification =
   | 'mistake'
   | 'blunder';
 
-export type GamePhase = 'opening' | 'middlegame' | 'endgame';
-
 export interface AnalysisResult {
   move: string;
   classification: MoveClassification;
-  cpl: number;
-  accuracyImpact: number;
-  weightedImpact: number;
-  phase: GamePhase;
-  evalBefore: number;
-  evalAfter: number;
+  caps2: number;           // CAPS2 score (-100 to 100, calibrated to Chess.com)
+  diff: number;            // Raw pawn difference (bestEval - afterEval)
+  wpDiff: number;          // Win probability % lost (used for classification)
+  evalBefore: number;      // Eval from player's perspective (in pawns)
+  evalAfter: number;       // Eval from player's perspective (in pawns)
   bestMove: string;
 }
 

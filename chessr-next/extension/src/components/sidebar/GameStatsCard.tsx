@@ -1,18 +1,19 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TrendingDown, TrendingUp, Minus, Lock } from 'lucide-react';
+import { TrendingDown, TrendingUp, Minus, ExternalLink } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { useGameStore } from '../../stores/gameStore';
+import { useBetaStore } from '../../stores/betaStore';
+import { getRealHref } from '../../content/anonymousBlur';
 import {
   useAccuracy,
   useAccuracyTrend,
   useMoveAnalyses,
-  usePhaseStats,
   computeClassificationCounts,
   type AccuracyTrend,
   type MoveClassification,
 } from '../../stores/accuracyStore';
-import { usePlanLimits } from '../../lib/planUtils';
+import { useBoardContextStore } from '../../stores/boardContextStore';
 
 // Coherent color palette: emerald (good) → sky (ok) → amber (warning) → rose (bad)
 function getAccuracyColor(accuracy: number): string {
@@ -75,12 +76,31 @@ const CLASSIFICATION_CONFIG: {
 
 export function GameStatsCard() {
   const { t } = useTranslation(['game', 'common']);
-  const { isGameStarted } = useGameStore();
+  const { isGameStarted, chessInstance } = useGameStore();
   const accuracy = useAccuracy();
   const trend = useAccuracyTrend();
   const moveAnalyses = useMoveAnalyses();
-  const phaseStats = usePhaseStats();
-  const { canSeePhaseAccuracy } = usePlanLimits();
+  const hasChesscomUnlock = useBetaStore((s) => s.hasBeta('chesscomUnlock'));
+
+  const boardGameOver = useBoardContextStore((s) => s.isGameOver);
+
+  // Extract gameId from Chess.com URL (live/daily games only)
+  const gameId = useMemo(() => {
+    try {
+      const url = new URL(getRealHref());
+      const match = url.pathname.match(/\/(?:game|analysis\/game)\/(?:live\/|daily\/)?(\d+)/);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGameStarted, chessInstance, boardGameOver]);
+  const isGameOver = (!isGameStarted && moveAnalyses.length > 0)
+    || !!chessInstance?.isGameOver()
+    || !!document.querySelector('.game-review-emphasis-component')
+    || boardGameOver;
+  const isReviewPage = getRealHref().includes('/analysis/game/');
+  const showUnlockButton = hasChesscomUnlock && gameId && (isGameOver || isReviewPage);
 
   // Memoize classification counts to prevent re-renders
   const counts = useMemo(
@@ -89,7 +109,7 @@ export function GameStatsCard() {
   );
 
   const moveCount = moveAnalyses.length;
-  const isIdle = !isGameStarted;
+  const isIdle = !isGameStarted && !isGameOver;
 
   return (
     <Card className={`tw-bg-muted/50 tw-overflow-hidden ${isIdle ? 'tw-opacity-60' : ''}`}>
@@ -140,53 +160,17 @@ export function GameStatsCard() {
           </div>
         </div>
 
-        {/* Phase stats */}
-        {!isIdle && moveCount > 0 && (
-          <div className="tw-mt-2 tw-pt-2 tw-border-t tw-border-border">
-            <span className="tw-text-[10px] tw-text-muted-foreground tw-block tw-mb-1">{t('game:accuracyByPhase')}</span>
-            <div className="tw-relative">
-              {/* Actual or fake stats */}
-              <div className={`tw-grid tw-grid-cols-3 tw-gap-1 tw-text-center ${!canSeePhaseAccuracy ? 'tw-blur-[3px] tw-select-none' : ''}`}>
-                {(['opening', 'middlegame', 'endgame'] as const).map((phase) => {
-                  const stats = phaseStats[phase];
-                  // Show fake data for free users
-                  const displayAccuracy = canSeePhaseAccuracy
-                    ? (stats.accuracy !== null ? Math.round(stats.accuracy) : null)
-                    : [87, 72, 91][['opening', 'middlegame', 'endgame'].indexOf(phase)];
-                  const displayMoves = canSeePhaseAccuracy
-                    ? stats.moves
-                    : [8, 15, 6][['opening', 'middlegame', 'endgame'].indexOf(phase)];
-
-                  if (canSeePhaseAccuracy && stats.moves === 0) return null;
-
-                  return (
-                    <div key={phase} className="tw-flex tw-flex-col tw-leading-tight">
-                      <span className="tw-text-[10px] tw-text-muted-foreground tw-capitalize">
-                        {t(`game:${phase}`)}
-                      </span>
-                      <span className={`tw-text-xs tw-font-medium ${displayAccuracy !== null ? getAccuracyColor(displayAccuracy) : ''}`}>
-                        {displayAccuracy !== null ? displayAccuracy : '-'}
-                      </span>
-                      <span className="tw-text-[10px] tw-text-muted-foreground">
-                        {displayMoves} {t('common:moves')}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Unlock overlay */}
-              {!canSeePhaseAccuracy && (
-                <div className="tw-absolute tw-inset-0 tw-flex tw-items-center tw-justify-center">
-                  <div className="tw-flex tw-items-center tw-gap-1.5 tw-px-2 tw-py-1 tw-rounded-full tw-bg-background/80 tw-backdrop-blur-sm tw-border tw-border-border">
-                    <Lock className="tw-w-3 tw-h-3 tw-text-amber-400" />
-                    <span className="tw-text-[10px] tw-font-medium">{t('game:unlockWithPremium')}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Unlock Chess.com Analysis button (beta) */}
+        {showUnlockButton && (
+          <button
+            onClick={() => window.open(`http://localhost:3002/review/${gameId}`, '_blank')}
+            className="tw-mt-3 tw-w-full tw-flex tw-items-center tw-justify-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-lg tw-bg-emerald-500/15 tw-ring-1 tw-ring-emerald-500/30 tw-text-emerald-400 tw-text-xs tw-font-medium hover:tw-bg-emerald-500/25 tw-transition-all tw-cursor-pointer"
+          >
+            <ExternalLink className="tw-w-3.5 tw-h-3.5" />
+            Unlock Chess.com Analysis
+          </button>
         )}
+
       </CardContent>
     </Card>
   );

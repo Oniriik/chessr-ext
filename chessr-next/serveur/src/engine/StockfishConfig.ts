@@ -3,8 +3,8 @@
  * Full strength analysis (no ELO limiting, no personality)
  */
 
-export const ANALYSIS_DEPTH = 10;
-export const ANALYSIS_MULTIPV = 2;
+export const ANALYSIS_DEPTH = 18;
+export const ANALYSIS_MULTIPV = 1;
 
 export interface AnalysisConfigParams {
   depth?: number;
@@ -21,7 +21,7 @@ export function getAnalysisConfig(params?: AnalysisConfigParams): Record<string,
     'MultiPV': multiPv.toString(),
     'UCI_ShowWDL': 'true',
     'Threads': '1',
-    'Hash': '128',
+    'Hash': '1024',
     // No UCI_LimitStrength - full strength analysis
     // No Personality - Stockfish doesn't support it
   };

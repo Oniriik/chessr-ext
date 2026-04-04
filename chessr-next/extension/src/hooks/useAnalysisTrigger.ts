@@ -7,6 +7,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useAccuracyStore } from '../stores/accuracyStore';
 import { useWebSocketStore } from '../stores/webSocketStore';
 import { logger } from '../lib/logger';
+import { useBoardContextStore } from '../stores/boardContextStore';
 
 /**
  * Hook that triggers analysis when:
@@ -25,6 +26,7 @@ export function useAnalysisTrigger() {
 
   const lastAnalyzedMoveCount = useRef<number>(0);
   const previousFenRef = useRef<string | null>(null);
+  const wasGameStarted = useRef<boolean>(false);
 
   useEffect(() => {
     if (!isGameStarted || !isConnected || !chessInstance || !playerColor) {
@@ -93,12 +95,15 @@ export function useAnalysisTrigger() {
     send,
   ]);
 
-  // Reset on new game
+  // Reset only when a NEW game starts (not when old game ends)
   useEffect(() => {
-    if (!isGameStarted) {
+    if (isGameStarted && !wasGameStarted.current) {
+      // New game started — reset accuracy for the new game
       lastAnalyzedMoveCount.current = 0;
       previousFenRef.current = null;
       resetAccuracy();
+      useBoardContextStore.setState({ isGameOver: false });
     }
+    wasGameStarted.current = isGameStarted;
   }, [isGameStarted, resetAccuracy]);
 }

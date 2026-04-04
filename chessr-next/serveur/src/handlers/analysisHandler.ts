@@ -1,6 +1,6 @@
 /**
  * analysisHandler - WebSocket message handler for move analysis
- * Uses Stockfish ONLY (separate from Komodo suggestion pool)
+ * Uses Stockfish 18 @ depth 18 with CAPS2 scoring calibrated to Chess.com
  */
 
 import type { WebSocket } from 'ws';
@@ -10,7 +10,6 @@ import {
   AnalysisQueue,
   type AnalysisResult,
   type MoveClassification,
-  type GamePhase,
 } from '../queue/AnalysisQueue.js';
 import { logStart, logEnd, logError } from '../utils/logger.js';
 import { logActivity } from '../utils/activityLogger.js';
@@ -41,88 +40,50 @@ const queue = new AnalysisQueue();
 // Processing loop flag
 let isLoopRunning = false;
 
-// ============ CLASSIFICATION LOGIC ============
+// ============ FORMULAS (calibrated to Chess.com) ============
 
 /**
- * Classify move based on CPL (centipawn loss)
- * Thresholds calibrated for depth 10
+ * Win probability using Chess.com's formula
+ * Returns 0-100 (percentage)
  */
-function classifyMove(cpl: number): MoveClassification {
-  if (cpl <= 10) return 'best';
-  if (cpl <= 25) return 'excellent';
-  if (cpl <= 60) return 'good';
-  if (cpl <= 120) return 'inaccuracy';
-  if (cpl <= 250) return 'mistake';
+function winProb(evalPawns: number): number {
+  const cp = evalPawns * 100;
+  return 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
+}
+
+/**
+ * Classify move based on win probability % loss
+ * Thresholds match Chess.com's Expected Points model
+ */
+function classifyMove(bestEval: number, afterEval: number): MoveClassification {
+  const wpBefore = winProb(bestEval);
+  const wpAfter = winProb(afterEval);
+  const wpDiff = Math.max(0, wpBefore - wpAfter);
+  if (wpDiff <= 0.001) return 'best';
+  if (wpDiff <= 2) return 'excellent';
+  if (wpDiff <= 5) return 'good';
+  if (wpDiff <= 10) return 'inaccuracy';
+  if (wpDiff <= 20) return 'mistake';
   return 'blunder';
 }
 
 /**
- * Calculate accuracy impact using exponential curve
- * Formula: cap * (1 - exp(-cpl / scale))
- * - 0 CPL = 0 impact
- * - 50 CPL = ~12 impact
- * - 150 CPL = ~25 impact
- * - 300+ CPL = ~40 (capped)
+ * Compute CAPS2 score from pawn diff and position eval
+ * Calibrated via regression on Chess.com data
+ * Returns roughly -100 to 100 (can go negative for blunders)
  */
-function computeImpact(cpl: number): number {
-  const cap = 40;
-  const scale = 150;
-  const impact = cap * (1 - Math.exp(-cpl / scale));
-  return Math.round(impact * 10) / 10;
+function computeCAPS2(diff: number, absEval: number): number {
+  if (diff <= 0) return 100;
+  return 100 * (1 - 0.50 * Math.pow(diff, 0.95) * (1 + 0.005 * Math.pow(absEval, 2.25)));
 }
 
 /**
- * Detect game phase from material count
- * Piece values: Q=9, R=5, B=3, N=3, P=1
- * Starting material = 78 (excluding kings)
- */
-function detectPhase(fen: string): GamePhase {
-  const board = fen.split(' ')[0];
-
-  const pieceValues: Record<string, number> = {
-    q: 9, Q: 9,
-    r: 5, R: 5,
-    b: 3, B: 3,
-    n: 3, N: 3,
-    p: 1, P: 1,
-  };
-
-  let material = 0;
-  for (const char of board) {
-    material += pieceValues[char] || 0;
-  }
-
-  const startingMaterial = 78;
-  const ratio = material / startingMaterial;
-
-  if (ratio > 0.85) return 'opening';
-  if (ratio > 0.35) return 'middlegame';
-  return 'endgame';
-}
-
-/**
- * Get phase weight multiplier
- * Opening: mistakes less impactful (learning phase)
- * Middlegame: standard weight
- * Endgame: mistakes more impactful (precision required)
- */
-function getPhaseWeight(phase: GamePhase): number {
-  switch (phase) {
-    case 'opening':
-      return 0.7;
-    case 'middlegame':
-      return 1.0;
-    case 'endgame':
-      return 1.3;
-  }
-}
-
-/**
- * Normalize evaluation to player's perspective
+ * Normalize evaluation to player's perspective (in pawns)
  * Positive = good for player, Negative = bad for player
  */
 function normalizeEval(evalCp: number, playerColor: 'white' | 'black'): number {
-  return playerColor === 'white' ? evalCp : -evalCp;
+  const evalPawns = evalCp / 100;
+  return playerColor === 'white' ? evalPawns : -evalPawns;
 }
 
 // ============ POOL MANAGEMENT ============
@@ -232,8 +193,8 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
       // Configure engine for analysis
       await engine.configure(config);
 
-      // 1. Analyze position BEFORE move (get best eval and best move)
-      const beforeResults = await engine.search(fenBefore, 2, { depth: ANALYSIS_DEPTH });
+      // 1. Analyze position BEFORE move (get best eval)
+      const beforeResults = await engine.search(fenBefore, 1, { depth: ANALYSIS_DEPTH });
 
       // 2. Analyze position AFTER move (get resulting eval)
       const afterResults = await engine.search(fenAfter, 1, { depth: ANALYSIS_DEPTH });
@@ -243,30 +204,33 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
       const evalAfterRaw = afterResults[0]?.evaluation ?? 0;
       const bestMove = beforeResults[0]?.move ?? move;
 
-      // Normalize to player's perspective
+      // Normalize to player's perspective (in pawns)
       const bestEval = normalizeEval(bestEvalRaw, playerColor);
       const evalAfter = normalizeEval(evalAfterRaw, playerColor);
 
-      // Calculate CPL (from player's perspective, positive = loss)
-      const cpl = Math.max(0, bestEval - evalAfter);
+      // Raw pawn difference
+      const diff = Math.max(0, bestEval - evalAfter);
 
-      // Detect phase and calculate weighted impact
-      const phase = detectPhase(fenBefore);
-      const phaseWeight = getPhaseWeight(phase);
-      const accuracyImpact = computeImpact(cpl);
-      const weightedImpact = Math.round(accuracyImpact * phaseWeight * 10) / 10;
+      // Win probability difference (for classification)
+      const wpBefore = winProb(bestEval);
+      const wpAfter = winProb(evalAfter);
+      const wpDiff = Math.max(0, wpBefore - wpAfter);
 
-      const classification = classifyMove(cpl);
+      // CAPS2 score
+      const absEval = Math.abs(bestEval);
+      const caps2 = computeCAPS2(diff, absEval);
+
+      // Classification based on WP% loss
+      const classification = classifyMove(bestEval, evalAfter);
 
       return {
         move,
         classification,
-        cpl,
-        accuracyImpact,
-        weightedImpact,
-        phase,
-        evalBefore: bestEval,
-        evalAfter,
+        caps2: Math.round(caps2 * 10) / 10,
+        diff: Math.round(diff * 100) / 100,
+        wpDiff: Math.round(wpDiff * 100) / 100,
+        evalBefore: Math.round(bestEval * 100) / 100,
+        evalAfter: Math.round(evalAfter * 100) / 100,
         bestMove,
       };
     },
@@ -297,7 +261,7 @@ export function handleAnalysisRequest(message: AnalysisMessage, client: Client):
           requestId,
           email: client.user.email,
           type: 'analyze',
-          result: `${result.move} → ${result.classification}, cpl=${result.cpl}`,
+          result: `${result.move} → ${result.classification}, caps2=${result.caps2}`,
         });
 
         client.ws.send(

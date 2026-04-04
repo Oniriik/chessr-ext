@@ -4,12 +4,13 @@ import { Chess } from 'chess.js'
 // Proxy Chess.com game data to avoid CORS issues
 export async function GET(request: NextRequest) {
   const gameId = request.nextUrl.searchParams.get('id')
+  const gameType = request.nextUrl.searchParams.get('gameType') || 'live'
   if (!gameId) {
     return NextResponse.json({ error: 'Missing game id' }, { status: 400 })
   }
 
   try {
-    const res = await fetch(`https://www.chess.com/callback/live/game/${gameId}?all=true`, {
+    const res = await fetch(`https://www.chess.com/callback/${gameType}/game/${gameId}?all=true`, {
       headers: { Accept: 'application/json' },
     })
 
