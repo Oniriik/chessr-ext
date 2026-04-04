@@ -1416,7 +1416,9 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       handleProfileAnalysisDisconnect(ws);
       clients.delete(userId);
       clientAlive.delete(userId);
-      logConnection(client?.user.email || userId, 'disconnected', clientSource || undefined);
+      if (clientSource !== 'app') {
+        logConnection(client?.user.email || userId, 'disconnected', clientSource || undefined);
+      }
     }
   });
 

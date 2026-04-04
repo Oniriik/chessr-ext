@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowLeft, Cloc
 import { PlayerAvatar } from '@/components/player-avatar'
 import { EvalGraph } from '@/components/eval-graph'
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip } from 'recharts'
+import { UpgradeButton } from '@/components/upgrade-button'
 
 // Chess.com sends "greatFind" but we normalize to "great"
 function normCls(cls?: string): string {
@@ -64,6 +65,10 @@ export default function ReviewPage() {
 
   // Review limit
   const [reviewLimit, setReviewLimit] = useState<{ isLimited: boolean; dailyUsage: number; dailyLimit: number | null }>({ isLimited: false, dailyUsage: 0, dailyLimit: null })
+  const [showReviewConfirm, setShowReviewConfirm] = useState(false)
+  const [limitReady, setLimitReady] = useState(false)
+  const [cacheReady, setCacheReady] = useState(false)
+  const reviewReady = limitReady && cacheReady
   useEffect(() => {
     async function fetchLimit() {
       try {
@@ -75,7 +80,9 @@ export default function ReviewPage() {
         })
         const data = await res.json()
         setReviewLimit(data)
-      } catch { /* ignore */ }
+      } catch { /* ignore */ } finally {
+        setLimitReady(true)
+      }
     }
     fetchLimit()
   }, [])
@@ -310,7 +317,7 @@ export default function ReviewPage() {
       }
       userChangedCoachRef.current = false
     }
-    checkCacheAndAnalyze()
+    checkCacheAndAnalyze().finally(() => setCacheReady(true))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId, coachId])
 
@@ -681,16 +688,27 @@ export default function ReviewPage() {
       {/* Main content */}
       <main className="relative z-10 max-w-6xl mx-auto p-4">
         {/* Analyze button + loading (no card wrapper) */}
-        {!review && !reviewLoading && (
+        {!review && !reviewLoading && !reviewReady && (
+          <div className="mb-4 flex justify-center">
+            <div className="h-10 w-44 bg-muted/50 rounded-xl animate-pulse" />
+          </div>
+        )}
+        {!review && !reviewLoading && reviewReady && (
           <div className="mb-4 flex flex-col items-center gap-2">
             {reviewLimit.isLimited && reviewLimit.dailyLimit != null && reviewLimit.dailyUsage >= reviewLimit.dailyLimit ? (
-              <div className="text-sm text-muted-foreground text-center">
-                <div className="text-rose-400 font-medium mb-1">Daily limit reached ({reviewLimit.dailyLimit}/{reviewLimit.dailyLimit})</div>
-                <div className="text-xs">Upgrade to Premium for unlimited reviews</div>
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="text-rose-400 font-medium text-sm">Daily limit reached ({reviewLimit.dailyLimit}/{reviewLimit.dailyLimit})</div>
+                <UpgradeButton>Upgrade for unlimited reviews</UpgradeButton>
               </div>
             ) : (
               <button
-                onClick={analyzeGame}
+                onClick={() => {
+                  if (reviewLimit.isLimited) {
+                    setShowReviewConfirm(true)
+                  } else {
+                    analyzeGame()
+                  }
+                }}
                 className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-opacity"
               >
                 <Sparkles className="w-4 h-4" /> Analyze Game
@@ -972,6 +990,33 @@ export default function ReviewPage() {
           onSelect={(id) => { if (id === coachId) { setShowCoachModal(false); return } setPendingCoach(id) }}
           onClose={() => setShowCoachModal(false)}
         />
+      )}
+
+      {/* Review confirmation dialog for free users */}
+      {showReviewConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowReviewConfirm(false)}>
+          <div className="bg-card border border-border/60 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Start a game review?</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              You have <span className="font-medium text-foreground">{Math.max(0, (reviewLimit.dailyLimit ?? 0) - reviewLimit.dailyUsage)}</span> of{' '}
+              <span className="font-medium text-foreground">{reviewLimit.dailyLimit}</span> reviews remaining today.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowReviewConfirm(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowReviewConfirm(false); analyzeGame() }}
+                className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+              >
+                Start Review
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Coach change confirmation */}

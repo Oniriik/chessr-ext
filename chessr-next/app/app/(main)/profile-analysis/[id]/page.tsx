@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, use, memo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { computePlayDNA, type GameRawData, type ProfileAnalysisResult } from '@/lib/play-dna'
-import { CheckCircle2, Shield, AlertTriangle, ChevronLeft, Search, Dna, Timer, ShieldCheck, Flag, Clock, ChevronDown, Zap, Target, Brain, Flame, Crown, Swords, TrendingUp, Eye, XCircle, CircleAlert, Crosshair, Info } from 'lucide-react'
+import { CheckCircle2, Shield, AlertTriangle, ChevronLeft, Search, Dna, Timer, ShieldCheck, Flag, Clock, ChevronDown, Zap, Target, Flame, Crown, Swords, TrendingUp, Eye, CircleAlert, Info } from 'lucide-react'
 import { TcIcon, TC_LABELS } from '@/components/tc-icon'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -353,7 +353,11 @@ export default function ProfileAnalysisDetailPage({ params }: { params: Promise<
           }
 
           if (msg.type === 'profile_analysis_error') {
-            setError(msg.error)
+            if (msg.error === 'weekly_limit') {
+              setError(`Weekly limit reached (${msg.weeklyUsage}/${msg.weeklyLimit}). Upgrade to Premium for unlimited analyses.`)
+            } else {
+              setError(msg.error)
+            }
             setStatus('error')
             return
           }
@@ -376,7 +380,7 @@ export default function ProfileAnalysisDetailPage({ params }: { params: Promise<
       } else if (msg.type === 'profile_analysis_result') {
         if (resultHandled) return
         resultHandled = true
-        handleResult(msg.gamesData, msg.platformUsername || analysis?.platform_username)
+        handleResult(msg.gamesData, msg.platformUsername || username)
       }
     }
 
@@ -1017,7 +1021,7 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
       <div className="report-section rounded-2xl border border-border/60 bg-gradient-to-r from-primary/5 via-card/50 to-card/50 backdrop-blur-sm p-5 sm:p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Brain className="w-5 h-5 text-primary" />
+            <TcIcon tc={c.tcType} className="w-5 h-5" colored />
           </div>
           <div>
             <h2 className="text-lg font-bold">{c.tcLabel} Profile</h2>
@@ -1043,13 +1047,13 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
         </div>
       </div>
 
-      {/* ── Piece DNA (Radar) + Phase Balance ── */}
+      {/* ── Piece Mastery (Radar) + Phase Balance ── */}
       <div className="report-section grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Piece DNA Radar */}
+        {/* Piece Mastery Radar */}
         <div className="rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 sm:p-6">
           <div className="flex items-center gap-2 mb-2">
             <Dna className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider">Piece DNA</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Piece Mastery</h3>
           </div>
           <div className="h-[220px] -mx-4" style={{ minWidth: 200, minHeight: 200 }}>
             <ResponsiveContainer width="100%" height="100%">
@@ -1057,7 +1061,19 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
                 <PolarGrid stroke="rgba(255,255,255,0.08)" />
                 <PolarAngleAxis
                   dataKey="piece"
-                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 12 }}
+                  tick={({ x, y, payload }: any) => {
+                    const item = radarData.find((d: any) => d.piece === payload.value)
+                    return (
+                      <g>
+                        <text x={x} y={y} textAnchor="middle" fill="rgba(255,255,255,0.5)" fontSize={12}>
+                          {payload.value}
+                        </text>
+                        <text x={x} y={y + 13} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize={10}>
+                          {item ? `${item.value.toFixed(0)}%` : ''}
+                        </text>
+                      </g>
+                    )
+                  }}
                 />
                 <Radar
                   dataKey="value"
@@ -1160,11 +1176,19 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
       <div className="report-section rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-5 sm:p-6">
         <div className="flex items-center gap-3 mb-4">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          <h3 className="text-sm font-semibold uppercase tracking-wider">Fair Play Analysis</h3>
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider">Fair Play Analysis</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Based on {c.games.length} games, {c.antiCheat.totalMoves} moves analyzed. Thresholds are scaled to your rating (~{Math.round(c.avgRating)} elo).
+            </p>
+          </div>
           <div className="ml-auto">
             <SectionScore score={fairPlayScore(c.antiCheat.checks)} max={c.antiCheat.checks.length} />
           </div>
         </div>
+        <p className="text-[11px] text-muted-foreground/70 mb-4 leading-relaxed">
+          Each metric compares your play patterns against what is expected for your rating and time control. A single warning or fail does not indicate cheating — it highlights an area where your play stands out. Hover on any card for details.
+        </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {c.antiCheat.checks.map((check, i) => {
             const flag = check.status === 'FAIL' ? 'flagged' as const : check.status === 'WARN' ? 'suspicious' as const : 'clean' as const
@@ -1183,27 +1207,42 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
         </div>
       </div>
 
-      {/* ── Game Log ── */}
-      <div className="report-section">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Flag className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold uppercase tracking-wider">Game Log</h3>
-            <span className="text-xs text-muted-foreground">{c.games.length} games</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-4 text-[10px] text-muted-foreground uppercase tracking-wider pr-3">
+      {/* ── Game Log (accordion) ── */}
+      <GameLogAccordion games={c.games} opponentAvatars={opponentAvatars} />
+    </>
+  )
+}
+
+function GameLogAccordion({ games, opponentAvatars }: { games: any[]; opponentAvatars: Record<string, string> }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="report-section">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between py-1 group"
+      >
+        <div className="flex items-center gap-2">
+          <Flag className="w-4 h-4 text-primary" />
+          <h3 className="text-sm font-semibold uppercase tracking-wider">Game Log</h3>
+          <span className="text-xs text-muted-foreground">{games.length} games</span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="mt-4">
+          <div className="hidden sm:flex items-center justify-end gap-4 text-[10px] text-muted-foreground uppercase tracking-wider pr-3 mb-2">
             <span>Game Rating</span>
             <span>Accuracy</span>
             <span>Result</span>
           </div>
+          <div className="space-y-2">
+            {games.map((g, i) => (
+              <GameCard key={g.gameId} game={g} index={i} avatar={opponentAvatars[g.opponentName]} />
+            ))}
+          </div>
         </div>
-        <div className="space-y-2">
-          {c.games.map((g, i) => (
-            <GameCard key={g.gameId} game={g} index={i} avatar={opponentAvatars[g.opponentName]} />
-          ))}
-        </div>
-      </div>
-    </>
+      )}
+    </div>
   )
 }
 
@@ -1217,7 +1256,8 @@ const ANTICHEAT_LABELS: Record<string, string> = {
   phase_uniformity: 'Phase Balance',
   blunder_rate: 'Blunder Rate',
   time_rhythm: 'Think Time',
-  has_mistakes: 'Mistakes',
+  has_mistakes: 'Mistake Rate',
+  instant_moves: 'Instant Moves',
 }
 
 const ANTICHEAT_ICONS: Record<string, React.ReactNode> = {
@@ -1229,6 +1269,7 @@ const ANTICHEAT_ICONS: Record<string, React.ReactNode> = {
   blunder_rate: <AlertTriangle className="w-4 h-4" />,
   time_rhythm: <Clock className="w-4 h-4" />,
   has_mistakes: <AlertTriangle className="w-4 h-4" />,
+  instant_moves: <Zap className="w-4 h-4" />,
 }
 
 // Score badge for a section: shows X/max

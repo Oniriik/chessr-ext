@@ -245,6 +245,47 @@ export async function handleProfileAnalysis(
     return;
   }
 
+  // Check weekly limit for free users
+  const { data: userSettings } = await supabase
+    .from('user_settings')
+    .select('plan')
+    .eq('user_id', userId)
+    .single();
+
+  const plan = userSettings?.plan || 'free';
+  const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
+
+  if (!isPremium) {
+    const WEEKLY_LIMIT = 3;
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const { count } = await supabase
+      .from('user_activity')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('event_type', 'profile_analysis')
+      .gte('created_at', weekAgo.toISOString());
+
+    const weeklyUsage = count || 0;
+    if (weeklyUsage >= WEEKLY_LIMIT) {
+      // Mark the pending row as error so it doesn't stay stuck
+      await supabase.from('profile_analyses').update({
+        status: 'error',
+        error_message: 'Weekly limit reached',
+      }).eq('id', analysisId);
+
+      clientWs.send(JSON.stringify({
+        type: 'profile_analysis_error',
+        analysisId,
+        error: 'weekly_limit',
+        weeklyUsage,
+        weeklyLimit: WEEKLY_LIMIT,
+      }));
+      return;
+    }
+  }
+
   // Determine mode-by-mode vs legacy behavior
   const validModes = ['bullet', 'blitz', 'rapid'];
   const useModeBased = Array.isArray(requestedModes) && requestedModes.length > 0;
@@ -448,6 +489,13 @@ export async function handleProfileAnalysis(
       games_count: gamesData.length,
       completed_at: new Date().toISOString(),
     }).eq('id', analysisId);
+
+    // Log activity for weekly limit tracking
+    await supabase.from('user_activity').insert({
+      user_id: userId,
+      event_type: 'profile_analysis',
+      metadata: { analysisId, platformUsername, gamesCount: gamesData.length },
+    });
 
     broadcast(analysisId, {
       type: 'profile_analysis_result', analysisId, gamesData,

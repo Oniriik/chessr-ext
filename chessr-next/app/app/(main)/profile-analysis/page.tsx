@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Play, Clock, CheckCircle2, XCircle, Shield, Swords, Target, Zap, TrendingUp, ChevronRight, Dna, Crown, Flame } from 'lucide-react'
 import { AccountSelector } from '@/components/account-selector'
 import { TcIcon } from '@/components/tc-icon'
+import { UpgradeButton } from '@/components/upgrade-button'
 
 interface LinkedAccount {
   id: string
@@ -84,7 +85,9 @@ export default function ProfileAnalysisPage() {
   const [analysesLoading, setAnalysesLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [gamesPerMode, setGamesPerMode] = useState(10)
-  const [modes, setModes] = useState<string[]>(['bullet', 'blitz', 'rapid'])
+  const [selectedMode, setSelectedMode] = useState<string>('blitz')
+  const [analysisLimit, setAnalysisLimit] = useState<{ isLimited: boolean; weeklyUsage: number; weeklyLimit: number | null } | null>(null)
+  const [showAnalysisConfirm, setShowAnalysisConfirm] = useState(false)
 
   // Compute summaries for completed analyses
   const summaries = useMemo(() => {
@@ -119,6 +122,20 @@ export default function ProfileAnalysisPage() {
   }, [])
 
   useEffect(() => {
+    async function fetchLimit() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        const res = await fetch('/api/profile-analysis-limit', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        setAnalysisLimit(await res.json())
+      } catch { /* */ }
+    }
+    fetchLimit()
+  }, [])
+
+  useEffect(() => {
     if (!selectedAccount) return
     setAnalysesLoading(true)
     async function fetchAnalyses() {
@@ -145,7 +162,7 @@ export default function ProfileAnalysisPage() {
           Authorization: `Bearer ${session?.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ platformUsername: selectedAccount, modes, gamesPerMode }),
+        body: JSON.stringify({ platformUsername: selectedAccount, modes: [selectedMode], gamesPerMode }),
       })
       const data = await res.json()
       if (data.id) {
@@ -203,40 +220,90 @@ export default function ProfileAnalysisPage() {
   return (
     <main className="max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6">
       {/* Hero — Run New Analysis */}
-      <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-primary/5 via-card/50 to-card/50 backdrop-blur-sm p-5 sm:p-8 mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <Dna className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold">Profile Analysis</h1>
-            <p className="text-sm text-muted-foreground">
-              Analyze games to get your Play DNA, anti-cheat report & Human Score.
-            </p>
-          </div>
-        </div>
-
-        {/* Mode toggles */}
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <div className="flex-1 space-y-3">
-            <div>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Modes</span>
-              <ModeSelector modes={modes} onChange={setModes} />
+      <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-primary/5 via-card/50 to-card/50 backdrop-blur-sm p-5 sm:p-6 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          {/* Left: settings */}
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              {MODE_OPTIONS.map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setSelectedMode(id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    selectedMode === id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <TcIcon tc={id} className="w-3.5 h-3.5" colored={selectedMode === id} />
+                  {MODE_LABELS[id]}
+                </button>
+              ))}
             </div>
-            <div>
-              <span className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5 block">Games per mode</span>
-              <GamesCountSelector value={gamesPerMode} onChange={setGamesPerMode} />
+            <div className="w-px h-6 bg-border/40" />
+            <div className="flex items-center gap-1">
+              {GAMES_OPTIONS.map((n) => (
+                <button
+                  key={n}
+                  onClick={() => setGamesPerMode(n)}
+                  className={`w-7 h-7 rounded-md text-[11px] font-bold transition-all ${
+                    gamesPerMode === n
+                      ? 'bg-primary/15 text-primary border border-primary/30'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+              {analysisLimit?.isLimited && [15, 20, 30].map((n) => (
+                <button
+                  key={n}
+                  disabled
+                  className="w-7 h-7 rounded-md text-[11px] font-bold text-muted-foreground/25 cursor-not-allowed relative"
+                  title="Premium"
+                >
+                  {n}
+                </button>
+              ))}
+              <span className="text-[11px] text-muted-foreground ml-1.5">games</span>
             </div>
           </div>
 
-          <div className="flex flex-col items-end gap-2">
-            <Button onClick={handleRunAnalysis} disabled={creating || modes.length === 0} size="lg">
+          {/* Right: CTA */}
+          {analysisLimit?.isLimited && analysisLimit.weeklyLimit != null && analysisLimit.weeklyUsage >= analysisLimit.weeklyLimit ? (
+            <UpgradeButton>Unlock analyses</UpgradeButton>
+          ) : (
+            <Button
+              onClick={() => {
+                if (analysisLimit?.isLimited) {
+                  setShowAnalysisConfirm(true)
+                } else {
+                  handleRunAnalysis()
+                }
+              }}
+              disabled={creating}
+            >
               {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-              New Analysis
+              Analyze {MODE_LABELS[selectedMode]}
+              {analysisLimit?.isLimited && analysisLimit.weeklyLimit != null && (
+                <span className="text-xs opacity-75 ml-1">({analysisLimit.weeklyUsage}/{analysisLimit.weeklyLimit})</span>
+              )}
             </Button>
-            <EstimatedTimeBadge modes={modes} gamesPerMode={gamesPerMode} />
-          </div>
+          )}
         </div>
+
+        {/* Premium upsell — compact */}
+        {analysisLimit?.isLimited && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30">
+            <Crown className="w-3 h-3 text-amber-500/60 shrink-0" />
+            <span className="text-[11px] text-muted-foreground">
+              <span className="text-amber-400/80">Premium</span> — Multi-mode, up to 30 games, unlimited
+            </span>
+            <UpgradeButton className="ml-auto flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors">
+              Upgrade
+            </UpgradeButton>
+          </div>
+        )}
       </div>
 
       {/* Account selector */}
@@ -278,6 +345,33 @@ export default function ProfileAnalysisPage() {
               onClick={() => router.push(`/profile-analysis/${a.id}`)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Analysis confirmation dialog for free users */}
+      {showAnalysisConfirm && analysisLimit?.isLimited && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowAnalysisConfirm(false)}>
+          <div className="bg-card border border-border/60 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-2">Start a profile analysis?</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              You have <span className="font-medium text-foreground">{Math.max(0, (analysisLimit.weeklyLimit ?? 0) - analysisLimit.weeklyUsage)}</span> of{' '}
+              <span className="font-medium text-foreground">{analysisLimit.weeklyLimit}</span> analyses remaining this week.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowAnalysisConfirm(false)}
+                className="px-4 py-2 text-sm rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowAnalysisConfirm(false); handleRunAnalysis() }}
+                className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+              >
+                Start Analysis
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </main>
@@ -544,70 +638,6 @@ function getTimeAgo(dateStr: string): string {
 const MODE_OPTIONS = ['bullet', 'blitz', 'rapid']
 const MODE_LABELS: Record<string, string> = { bullet: 'Bullet', blitz: 'Blitz', rapid: 'Rapid' }
 
-function ModeSelector({ modes, onChange }: { modes: string[]; onChange: (m: string[]) => void }) {
-  const toggle = (id: string) => {
-    if (modes.includes(id)) {
-      if (modes.length <= 1) return // at least 1 required
-      onChange(modes.filter(m => m !== id))
-    } else {
-      onChange([...modes, id])
-    }
-  }
 
-  return (
-    <div className="flex items-center gap-1.5">
-      {MODE_OPTIONS.map((id) => {
-        const active = modes.includes(id)
-        return (
-          <button
-            key={id}
-            onClick={() => toggle(id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-              active
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            <TcIcon tc={id} className="w-3.5 h-3.5" />
-            {MODE_LABELS[id]}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
+const GAMES_OPTIONS = [5, 10]
 
-const GAMES_OPTIONS = [5, 10, 15, 20, 30]
-
-function GamesCountSelector({ value, onChange }: { value: number; onChange: (n: number) => void }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      {GAMES_OPTIONS.map((n) => (
-        <button
-          key={n}
-          onClick={() => onChange(n)}
-          className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            value === n
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-          }`}
-        >
-          {n}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function EstimatedTimeBadge({ modes, gamesPerMode }: { modes: string[]; gamesPerMode: number }) {
-  const totalGames = modes.length * gamesPerMode
-  const totalSeconds = totalGames * 7 + 6
-  const mins = Math.floor(totalSeconds / 60)
-  const secs = totalSeconds % 60
-
-  return (
-    <span className="text-xs text-muted-foreground">
-      {totalGames} games total · ~{mins > 0 ? `${mins}m${secs > 0 ? ` ${secs}s` : ''}` : `${secs}s`}
-    </span>
-  )
-}

@@ -108,6 +108,7 @@ export interface CadenceProfile {
     passCount: number
     warnCount: number
     failCount: number
+    totalMoves: number
   }
   games: Array<{
     gameId: string
@@ -151,7 +152,7 @@ const NORMS: Record<string, Record<number, number>> = {
 }
 
 const THRESHOLDS: Record<string, { accStdDev: number; pieceVar: number; phaseVar: number; thinkRatio: number; timeCV: number; bestMoveRate: number; deltaFlag: number }> = {
-  bullet:    { accStdDev: 8,  pieceVar: 8,  phaseVar: 5, thinkRatio: 1.0, timeCV: 0.4,  bestMoveRate: 55, deltaFlag: 12 },
+  bullet:    { accStdDev: 8,  pieceVar: 8,  phaseVar: 5, thinkRatio: 0.7, timeCV: 0.4,  bestMoveRate: 55, deltaFlag: 12 },
   blitz:     { accStdDev: 6,  pieceVar: 6,  phaseVar: 4, thinkRatio: 1.5, timeCV: 0.35, bestMoveRate: 65, deltaFlag: 10 },
   rapid:     { accStdDev: 5,  pieceVar: 5,  phaseVar: 3, thinkRatio: 2.0, timeCV: 0.3,  bestMoveRate: 70, deltaFlag: 8 },
   classical: { accStdDev: 5,  pieceVar: 5,  phaseVar: 3, thinkRatio: 2.0, timeCV: 0.3,  bestMoveRate: 70, deltaFlag: 8 },
@@ -203,6 +204,64 @@ function getExpectedAccuracy(rating: number, tcType: string): number {
     }
   }
   return 70
+}
+
+// Expected best move rate by ELO + time control — above threshold + margin is suspicious
+function getExpectedBestMoveRate(rating: number, tcType: string): number {
+  // Base rate by ELO (blitz-like)
+  const brackets: [number, number][] = [
+    [400, 20], [800, 25], [1000, 30], [1200, 35], [1400, 40],
+    [1600, 45], [1800, 50], [2000, 55], [2200, 62], [2500, 72],
+  ]
+  let base = 40
+  if (rating <= brackets[0][0]) base = brackets[0][1]
+  else if (rating >= brackets[brackets.length - 1][0]) base = brackets[brackets.length - 1][1]
+  else {
+    for (let i = 0; i < brackets.length - 1; i++) {
+      if (rating >= brackets[i][0] && rating < brackets[i + 1][0]) {
+        const pct = (rating - brackets[i][0]) / (brackets[i + 1][0] - brackets[i][0])
+        base = brackets[i][1] + pct * (brackets[i + 1][1] - brackets[i][1])
+        break
+      }
+    }
+  }
+  // Time control modifier: bullet players find fewer best moves, rapid/classical more
+  const tcMod: Record<string, number> = { bullet: -8, blitz: 0, rapid: 5, classical: 5 }
+  return base + (tcMod[tcType] ?? 0)
+}
+
+// Minimum expected blunder rate (blunders + misses) by ELO — below this threshold is suspicious
+function getExpectedBlunderRate(rating: number): number {
+  const brackets: [number, number][] = [
+    [400, 12], [800, 8], [1000, 6], [1200, 4.5], [1400, 3.5],
+    [1600, 2.5], [1800, 2], [2000, 1.5], [2200, 1], [2500, 0.6],
+  ]
+  if (rating <= brackets[0][0]) return brackets[0][1]
+  if (rating >= brackets[brackets.length - 1][0]) return brackets[brackets.length - 1][1]
+  for (let i = 0; i < brackets.length - 1; i++) {
+    if (rating >= brackets[i][0] && rating < brackets[i + 1][0]) {
+      const pct = (rating - brackets[i][0]) / (brackets[i + 1][0] - brackets[i][0])
+      return brackets[i][1] + pct * (brackets[i + 1][1] - brackets[i][1])
+    }
+  }
+  return 3
+}
+
+// Minimum expected mistake rate by ELO — below this threshold is suspicious
+function getExpectedMistakeRate(rating: number): number {
+  const brackets: [number, number][] = [
+    [400, 25], [800, 18], [1000, 14], [1200, 11], [1400, 8.5],
+    [1600, 6.5], [1800, 5], [2000, 4], [2200, 3], [2500, 2],
+  ]
+  if (rating <= brackets[0][0]) return brackets[0][1]
+  if (rating >= brackets[brackets.length - 1][0]) return brackets[brackets.length - 1][1]
+  for (let i = 0; i < brackets.length - 1; i++) {
+    if (rating >= brackets[i][0] && rating < brackets[i + 1][0]) {
+      const pct = (rating - brackets[i][0]) / (brackets[i + 1][0] - brackets[i][0])
+      return brackets[i][1] + pct * (brackets[i + 1][1] - brackets[i][1])
+    }
+  }
+  return 8
 }
 
 function normalizeAccuracy(acc: number | null, rating: number, tcType: string): number | null {
@@ -518,6 +577,11 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   const criticalTimes: number[] = []
   const calmTimes: number[] = []
   const thinkByClassMap: Record<string, number[]> = {}
+  // Suspect instant moves: fast AND not a premove candidate
+  // Premove candidates: book moves, moves right after a check, recaptures, forced positions
+  let suspectInstantCount = 0
+  let nonBookMoveCount = 0
+  const INSTANT_THRESHOLD = tcType === 'bullet' || tcType === 'blitz' ? 0.15 : 0.3
 
   for (const g of games) {
     const increment = parseInt((g.timeControl || '').split('+')[1] || '0')
@@ -530,8 +594,8 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
     for (const pos of g.positions) {
       if (pos.color !== g.playerColor) continue
       const tt = thinkTimes[posIdx] ?? null
+      const cn = pos.classificationName
       if (tt != null) {
-        const cn = pos.classificationName
         if (cn) {
           if (!thinkByClassMap[cn]) thinkByClassMap[cn] = []
           thinkByClassMap[cn].push(tt)
@@ -539,6 +603,14 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
         if (cn !== 'book') {
           if (pos.isPositionCritical) criticalTimes.push(tt)
           else calmTimes.push(tt)
+
+          nonBookMoveCount++
+          // Count suspect instant: fast move on a non-trivial position
+          // Exclude: book moves, "best" or "great" on non-critical (likely premove/obvious recapture)
+          const isLikelyPremove = !pos.isPositionCritical && (cn === 'best' || cn === 'great' || cn === 'excellent')
+          if (tt < INSTANT_THRESHOLD && !isLikelyPremove) {
+            suspectInstantCount++
+          }
         }
       }
       posIdx++
@@ -594,31 +666,45 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   else if (deltaAbs > t.deltaFlag) checks.push({ status: 'WARN', label: 'accuracy_delta', value: `+${deltaAbs.toFixed(1)}% above`, threshold: `>${t.deltaFlag}`, detail: accDetail })
   else checks.push({ status: 'PASS', label: 'accuracy_delta', value: `${deltaAbs >= 0 ? '+' : ''}${deltaAbs.toFixed(1)}%`, threshold: `<${t.deltaFlag}`, detail: accDetail })
 
-  // 2. Best move rate — too many best moves is suspect
-  if (bestMoveRate > t.bestMoveRate + 10) checks.push({ status: 'FAIL', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate + 10}%`, detail: 'Engine-level best move rate' })
-  else if (bestMoveRate > t.bestMoveRate) checks.push({ status: 'WARN', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${t.bestMoveRate}%`, detail: 'Higher than expected for rating' })
-  else checks.push({ status: 'PASS', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `<${t.bestMoveRate}%`, detail: 'Normal for rating level' })
+  // 2. Best move rate — too many best moves is suspect (ELO-scaled)
+  const expectedBestMove = getExpectedBestMoveRate(avgRat, tcType)
+  const bmWarn = expectedBestMove + 8
+  const bmFail = expectedBestMove + 16
+  if (bestMoveRate > bmFail) checks.push({ status: 'FAIL', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${bmFail.toFixed(0)}%`, detail: `Threshold ${bmWarn.toFixed(0)}% for ${Math.round(avgRat)} elo` })
+  else if (bestMoveRate > bmWarn) checks.push({ status: 'WARN', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `>${bmWarn.toFixed(0)}%`, detail: `Threshold ${bmWarn.toFixed(0)}% for ${Math.round(avgRat)} elo` })
+  else checks.push({ status: 'PASS', label: 'best_move_rate', value: `${bestMoveRate.toFixed(1)}%`, threshold: `<${bmWarn.toFixed(0)}%`, detail: `Normal for ${Math.round(avgRat)} elo` })
 
-  // 3. Blunder rate — too few blunders is suspect
+  // 3. Blunder rate — too few blunders for rating is suspect
   if (totalMoves > 10) {
     const blunderMistakes = (cls.blunder || 0) + (cls.miss || 0)
     const blunderPct = (blunderMistakes / totalMoves) * 100
-    if (blunderPct < 0.5 && totalMoves > 30) checks.push({ status: 'WARN', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: '<0.5%', detail: 'Almost no blunders is unusual' })
-    else checks.push({ status: 'PASS', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: '>0.5%', detail: `${blunderMistakes} blunders in ${totalMoves} moves` })
+    const expectedBlunderPct = getExpectedBlunderRate(avgRat)
+    const blunderFail = expectedBlunderPct * 0.3
+    const blunderWarn = expectedBlunderPct * 0.5
+    if (totalMoves > 30 && blunderPct < blunderFail) checks.push({ status: 'FAIL', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: `<${blunderFail.toFixed(1)}%`, detail: `Threshold ${blunderWarn.toFixed(1)}% for ${Math.round(avgRat)} elo` })
+    else if (totalMoves > 30 && blunderPct < blunderWarn) checks.push({ status: 'WARN', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: `<${blunderWarn.toFixed(1)}%`, detail: `Threshold ${blunderWarn.toFixed(1)}% for ${Math.round(avgRat)} elo` })
+    else checks.push({ status: 'PASS', label: 'blunder_rate', value: `${blunderPct.toFixed(1)}%`, threshold: `>${blunderWarn.toFixed(1)}%`, detail: `${blunderMistakes} blunders in ${totalMoves} moves` })
   }
 
-  // 4. Mistakes — zero mistakes in many moves is unusual
-  const mistakeCount = (cls.blunder || 0) + (cls.miss || 0) + (cls.mistake || 0)
-  if (mistakeCount === 0 && totalMoves > 30) checks.push({ status: 'WARN', label: 'has_mistakes', value: `0 in ${totalMoves} moves`, threshold: '>0', detail: 'Zero mistakes is unusual for a human' })
-  else checks.push({ status: 'PASS', label: 'has_mistakes', value: `${mistakeCount} mistakes`, threshold: '>0', detail: `${mistakeCount} in ${totalMoves} moves` })
+  // 4. Mistakes — too few mistakes for rating is suspicious
+  const mistakeCount = (cls.blunder || 0) + (cls.miss || 0) + (cls.mistake || 0) + (cls.inaccuracy || 0)
+  const mistakePct = totalMoves > 0 ? (mistakeCount / totalMoves) * 100 : 0
+  const expectedMistakePct = getExpectedMistakeRate(avgRat)
+  const failThreshold = expectedMistakePct * 0.3
+  const warnThreshold = expectedMistakePct * 0.5
+  if (totalMoves > 30 && mistakePct < failThreshold) checks.push({ status: 'FAIL', label: 'has_mistakes', value: `${mistakePct.toFixed(1)}%`, threshold: `<${failThreshold.toFixed(1)}%`, detail: `Threshold ${warnThreshold.toFixed(1)}% for ${Math.round(avgRat)} elo` })
+  else if (totalMoves > 30 && mistakePct < warnThreshold) checks.push({ status: 'WARN', label: 'has_mistakes', value: `${mistakePct.toFixed(1)}%`, threshold: `<${warnThreshold.toFixed(1)}%`, detail: `Threshold ${warnThreshold.toFixed(1)}% for ${Math.round(avgRat)} elo` })
+  else checks.push({ status: 'PASS', label: 'has_mistakes', value: `${mistakePct.toFixed(1)}%`, threshold: `>${warnThreshold.toFixed(1)}%`, detail: `${mistakeCount} in ${totalMoves} moves` })
 
-  // 5. Consistency — how much accuracy varies between games
+  // 5. Consistency — how much accuracy varies between games (ELO-scaled)
   if (accStd != null && accs.length >= 3) {
-    const consLabel = accStd < t.accStdDev * 0.6 ? 'Very stable' : accStd < t.accStdDev ? 'Stable' : accStd < t.accStdDev * 2 ? 'Normal' : 'Inconsistent'
+    const consEloFactor = avgRat < 1000 ? 1.5 : avgRat < 1500 ? 1.2 : avgRat < 2000 ? 1.0 : avgRat < 2500 ? 0.7 : 0.5
+    const adjAccStdDev = t.accStdDev * consEloFactor
+    const consLabel = accStd < adjAccStdDev * 0.6 ? 'Very stable' : accStd < adjAccStdDev ? 'Stable' : accStd < adjAccStdDev * 2 ? 'Normal' : 'Inconsistent'
     const consDetail = `±${accStd.toFixed(0)}% between games`
-    if (accStd < t.accStdDev * 0.6) checks.push({ status: 'FAIL', label: 'accuracy_consistency', value: consLabel, threshold: `<${(t.accStdDev * 0.6).toFixed(1)}`, detail: consDetail })
-    else if (accStd < t.accStdDev) checks.push({ status: 'WARN', label: 'accuracy_consistency', value: consLabel, threshold: `<${t.accStdDev}`, detail: consDetail })
-    else checks.push({ status: 'PASS', label: 'accuracy_consistency', value: consLabel, threshold: `>${t.accStdDev}`, detail: consDetail })
+    if (accStd < adjAccStdDev * 0.6) checks.push({ status: 'FAIL', label: 'accuracy_consistency', value: consLabel, threshold: `<${(adjAccStdDev * 0.6).toFixed(1)}`, detail: consDetail })
+    else if (accStd < adjAccStdDev) checks.push({ status: 'WARN', label: 'accuracy_consistency', value: consLabel, threshold: `<${adjAccStdDev.toFixed(1)}`, detail: consDetail })
+    else checks.push({ status: 'PASS', label: 'accuracy_consistency', value: consLabel, threshold: `>${adjAccStdDev.toFixed(1)}`, detail: consDetail })
   }
 
   // 6. Piece balance — all pieces at same level is suspect
@@ -651,16 +737,25 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
     else checks.push({ status: 'PASS', label: 'time_rhythm', value: tvLabel, threshold: `>${t.timeCV}`, detail: 'Varies naturally between moves' })
   }
 
+  // 9. Suspect instant moves — fast moves on non-trivial positions (premoves excluded)
+  if (nonBookMoveCount > 20) {
+    const suspectPct = (suspectInstantCount / nonBookMoveCount) * 100
+    if (suspectPct > 15) checks.push({ status: 'FAIL', label: 'instant_moves', value: `${suspectPct.toFixed(1)}%`, threshold: '>15%', detail: `${suspectInstantCount} moves under ${INSTANT_THRESHOLD}s on non-trivial positions` })
+    else if (suspectPct > 5) checks.push({ status: 'WARN', label: 'instant_moves', value: `${suspectPct.toFixed(1)}%`, threshold: '>5%', detail: `${suspectInstantCount} moves under ${INSTANT_THRESHOLD}s on non-trivial positions` })
+    else checks.push({ status: 'PASS', label: 'instant_moves', value: `${suspectPct.toFixed(1)}%`, threshold: '<5%', detail: 'Normal reaction times' })
+  }
+
   // Add tooltips explaining each check
   const TOOLTIPS: Record<string, string> = {
     accuracy_delta: 'Compares your accuracy to what is expected for your rating. Playing way above your level consistently can indicate external help.',
     best_move_rate: 'Percentage of moves that match the engine\'s top choice. Humans typically play 20-50% best moves depending on rating.',
     blunder_rate: 'Percentage of serious mistakes (blunders + misses). Too few blunders over many games is unusual for humans.',
-    has_mistakes: 'Total count of inaccuracies, mistakes, misses and blunders. Every human makes mistakes — zero is a red flag.',
+    has_mistakes: 'Percentage of moves that are inaccuracies, mistakes, misses or blunders. Too few mistakes for rating level is a red flag.',
     accuracy_consistency: 'How much your accuracy varies game to game. Humans naturally fluctuate — very stable accuracy is unusual.',
     piece_uniformity: 'Whether all pieces are played at the same accuracy. Humans have strengths and weaknesses with different pieces.',
     phase_uniformity: 'Whether opening, middlegame and endgame accuracy are similar. Most players are stronger in some phases than others.',
     time_rhythm: 'How much your thinking time varies between moves. Humans think longer on hard positions and faster on obvious ones.',
+    instant_moves: 'Percentage of non-trivial moves played faster than human reaction time. Premoves on obvious positions are excluded.',
   }
   for (const c of checks) c.tooltip = TOOLTIPS[c.label]
 
@@ -727,7 +822,7 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
       blunderAvgTime, blunderPattern,
     },
     flags: profileFlags,
-    antiCheat: { checks, humanScore, riskLevel, passCount, warnCount, failCount },
+    antiCheat: { checks, humanScore, riskLevel, passCount, warnCount, failCount, totalMoves },
     games: gamesList,
   }
 }
@@ -820,14 +915,6 @@ function computeProfileFlags(stats: {
       value: frStatus === 'clean' ? `${stats.thinkReflexRatio.toFixed(1)}x slower` : frStatus === 'suspicious' ? `${stats.thinkReflexRatio.toFixed(1)}x` : 'No difference',
       detail: frStatus === 'clean' ? 'Thinks harder on critical moves' : 'Same speed on easy and hard moves',
     })
-  }
-
-  // 5. Opponent strength correlation (optional — needs ≥10 games + ≥600 elo spread)
-  if (stats.games.length >= 10) {
-    const gamesWithAcc = stats.games
-      .map(g => ({ acc: g.caps?.[g.playerColor]?.all as number | undefined, oppRating: g.opponentRating }))
-      .filter((g): g is { acc: number; oppRating: number } => g.acc != null && g.oppRating != null)
-
   }
 
   return flags
