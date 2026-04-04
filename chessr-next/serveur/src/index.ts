@@ -166,7 +166,7 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
 // Discord Bot API for notifications
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_ADMIN || process.env.DISCORD_NOTIFICATION_CHANNEL_ID || "1477490743588159488";
-const DISCORD_SIGNUP_CHANNEL_ID = process.env.DISCORD_CHANNEL_SIGNUP || "1477490534074548498";
+const DISCORD_SIGNUP_CHANNEL_ID = process.env.DISCORD_CHANNEL_SIGNUP || "1476547865039077416";
 
 async function checkBanStatus(
   userId: string,
@@ -550,8 +550,6 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           const geo = await resolveIpCountry(cleanIp);
           country = geo.country;
           countryCode = geo.countryCode;
-          // Store IP in signup_ips so unverified accounts are also tracked
-          storeUserIp(userId, clientIp);
         }
 
         // Update user_settings with country
@@ -562,9 +560,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
             .eq("user_id", userId);
         }
 
-        // Store fingerprint in user_fingerprints table
-        storeFingerprint(userId, fingerprint);
-
+        // Check for other accounts BEFORE storing (avoids self-match)
         // Check for other accounts with the same IP or fingerprint
         const otherUserIds = new Set<string>();
         if (cleanIp) {
@@ -601,6 +597,10 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
             otherAccountsText = otherAccounts.join("\n");
           }
         }
+
+        // Store IP and fingerprint AFTER the check to avoid self-match
+        storeUserIp(userId, clientIp);
+        storeFingerprint(userId, fingerprint);
 
         // Send Discord signup notification
         if (DISCORD_BOT_TOKEN && DISCORD_SIGNUP_CHANNEL_ID) {

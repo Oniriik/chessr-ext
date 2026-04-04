@@ -252,7 +252,7 @@ async function enrichCases(supabase: any, cases: AbuseCase[]) {
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL_ABUSE = process.env.DISCORD_CHANNEL_ABUSE || '1490126841493717024';
-const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://admin.chessr.io';
+const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://dashboard.chessr.io';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function sendAbuseScanNotification(supabase: any, source: string, created: number, updated: number, affectedUserIds: string[]) {

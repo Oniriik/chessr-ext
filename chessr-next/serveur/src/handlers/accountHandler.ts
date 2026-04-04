@@ -147,7 +147,8 @@ async function notifyAccountChange(
 
     const fields: { name: string; value: string; inline: boolean }[] = [
       { name: '👤 User', value: userDisplay, inline: true },
-      { name: '🏰 Platform', value: `${platformName} — ${profileLink}`, inline: true },
+      { name: '🏰 Platform', value: platformName, inline: true },
+      { name: '♟️ Username', value: profileLink, inline: true },
     ];
 
     if (isLinked && ratings) {

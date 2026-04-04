@@ -265,7 +265,7 @@ async function upsertAbuseCases(detected: DetectedGroup[]): Promise<{ created: n
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CHANNEL_ABUSE = process.env.DISCORD_CHANNEL_ABUSE || '1490126841493717024';
-const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://admin.chessr.io';
+const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://dashboard.chessr.io';
 
 async function sendAbuseScanNotification(
   source: string,
