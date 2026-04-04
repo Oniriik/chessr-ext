@@ -31,6 +31,7 @@ import {
   EyeOff,
   ChevronDown,
   FlaskConical,
+  Fingerprint,
 } from 'lucide-react'
 import {
   canModifyRoles,
@@ -88,6 +89,7 @@ export function UserEditDialog({
   onUnbanUser,
 }: UserEditDialogProps) {
   const [showIps, setShowIps] = useState(false)
+  const [showFingerprints, setShowFingerprints] = useState(false)
   const [showCooldown, setShowCooldown] = useState(false)
   const [showUnlinked, setShowUnlinked] = useState(false)
 
@@ -491,6 +493,42 @@ export function UserEditDialog({
                       </div>
                       <span className="text-[10px] text-muted-foreground">
                         {formatRelativeTime(ip.created_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fingerprints Section */}
+          {linkedAccounts && linkedAccounts.fingerprints && linkedAccounts.fingerprints.length > 0 && (
+            <div className="space-y-2 pt-4 border-t border-border/50">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Fingerprint className="w-3.5 h-3.5" />
+                  Fingerprints
+                </label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowFingerprints(!showFingerprints)}
+                  className="h-7 px-2 text-xs gap-1"
+                >
+                  {showFingerprints ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                  {showFingerprints ? 'Hide' : 'Show'}
+                </Button>
+              </div>
+              {showFingerprints && (
+                <div className="space-y-1.5">
+                  {linkedAccounts.fingerprints.map((fp, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/30"
+                    >
+                      <code className="text-xs font-mono text-foreground">{fp.fingerprint}</code>
+                      <span className="text-[10px] text-muted-foreground">
+                        {formatRelativeTime(fp.created_at)}
                       </span>
                     </div>
                   ))}

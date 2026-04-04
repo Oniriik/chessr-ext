@@ -7,14 +7,6 @@
 const USERCHECK_API_KEY = 'prd_wAyzZvqbPGE3qb57kZnuHAeDJZdv';
 
 /**
- * Synchronous check — always returns false (no local list anymore).
- * Kept for backward compatibility with login flow.
- */
-export function isDisposableEmail(_email: string): boolean {
-  return false;
-}
-
-/**
  * Async check using UserCheck API (used for signup)
  * Returns true if the email is disposable, a relay, or spam
  */

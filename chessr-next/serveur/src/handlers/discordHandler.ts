@@ -24,10 +24,11 @@ const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET!;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI!;
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID;
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID;
-const DISCORD_CHANNEL_DISCORD = process.env.DISCORD_CHANNEL_DISCORD;
-const DISCORD_CHANNEL_PLANS = process.env.DISCORD_CHANNEL_PLANS;
-const DISCORD_CHANNEL_ACCOUNTS = process.env.DISCORD_CHANNEL_ACCOUNTS;
+const DISCORD_LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID || '1476675259691175968';
+const DISCORD_CHANNEL_DISCORD = process.env.DISCORD_CHANNEL_DISCORD || '1476675259691175968';
+const DISCORD_CHANNEL_PLANS = process.env.DISCORD_CHANNEL_PLANS || '1477490823376535726';
+const DISCORD_CHANNEL_ACCOUNTS = process.env.DISCORD_CHANNEL_ACCOUNTS || '1477491006609035395';
+const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_NOTIFICATION || process.env.DISCORD_NOTIFICATION_CHANNEL_ID || '1477490743588159488';
 
 // =============================================================================
 // Nonce store: maps nonce → userId with 5-minute TTL
@@ -350,6 +351,99 @@ export async function handleDiscordCallback(
         .single();
 
       if (!discordHistory) {
+        // Check fingerprint cross-reference: another user with same fingerprint already had a trial
+        let freetrialAbuse = false;
+
+        const { data: userFingerprints } = await supabase
+          .from('user_fingerprints')
+          .select('fingerprint')
+          .eq('user_id', userId);
+
+        if (userFingerprints && userFingerprints.length > 0) {
+          const fps = userFingerprints.map(f => f.fingerprint);
+          const { data: sameFpUsers } = await supabase
+            .from('user_fingerprints')
+            .select('user_id')
+            .in('fingerprint', fps)
+            .neq('user_id', userId);
+
+          if (sameFpUsers && sameFpUsers.length > 0) {
+            const otherUserIds = [...new Set(sameFpUsers.map(u => u.user_id))];
+            const { data: trialUsers } = await supabase
+              .from('user_settings')
+              .select('user_id')
+              .in('user_id', otherUserIds)
+              .eq('freetrial_used', true)
+              .limit(1);
+
+            if (trialUsers && trialUsers.length > 0) {
+              console.log(`[Discord] Freetrial abuse (fingerprint match with ${trialUsers[0].user_id}) for ${userEmail}`);
+              freetrialAbuse = true;
+            }
+          }
+        }
+
+        // Check IP cross-reference: another user with same IP already had a trial
+        if (!freetrialAbuse) {
+          const { data: userIps } = await supabase
+            .from('signup_ips')
+            .select('ip_address')
+            .eq('user_id', userId);
+
+          if (userIps && userIps.length > 0) {
+            const ips = userIps.map(i => i.ip_address);
+            const { data: sameIpUsers } = await supabase
+              .from('signup_ips')
+              .select('user_id')
+              .in('ip_address', ips)
+              .neq('user_id', userId);
+
+            if (sameIpUsers && sameIpUsers.length > 0) {
+              const otherUserIds = [...new Set(sameIpUsers.map(u => u.user_id))];
+              const { data: trialUsers } = await supabase
+                .from('user_settings')
+                .select('user_id')
+                .in('user_id', otherUserIds)
+                .eq('freetrial_used', true)
+                .limit(1);
+
+              if (trialUsers && trialUsers.length > 0) {
+                console.log(`[Discord] Freetrial abuse (IP match with ${trialUsers[0].user_id}) for ${userEmail}`);
+                freetrialAbuse = true;
+              }
+            }
+          }
+        }
+
+        if (freetrialAbuse) {
+          // Mark as used so they can't retry
+          updateData.freetrial_used = true;
+          console.log(`[Discord] Freetrial denied for ${userEmail} due to abuse detection`);
+
+          // Send Discord notification (fire-and-forget)
+          if (DISCORD_BOT_TOKEN && DISCORD_NOTIFICATION_CHANNEL_ID) {
+            const fields = [
+              { name: '📧 Email', value: userEmail || 'unknown', inline: true },
+              { name: '🔑 Reason', value: 'Shared Fingerprint / Shared IP', inline: true },
+              { name: '🔗 Discord', value: `${discordUsername} (\`${discordId}\`)`, inline: true },
+            ];
+            fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+              body: JSON.stringify({
+                embeds: [{
+                  title: '🎁 Free Trial Denied',
+                  color: 0xffa500,
+                  fields,
+                  timestamp: new Date().toISOString(),
+                  footer: { text: 'Chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+                }],
+              }),
+            }).catch(e => console.error('[Discord] Failed to send trial denied notification:', e));
+          }
+        }
+
+        if (!freetrialAbuse) {
         // Discord never used for a trial → grant it
         const expiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
         updateData.plan = 'freetrial';
@@ -371,6 +465,7 @@ export async function handleDiscordCallback(
           delete updateData.freetrial_used;
           planChanged = false;
         }
+        } // end if (!freetrialAbuse)
       } else {
         console.log(`[Discord] Discord ${discordId} already used freetrial, skipping trial for ${userEmail}`);
       }

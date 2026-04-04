@@ -32,10 +32,8 @@ import {
   handleGetLinkedAccounts,
   handleLinkAccount,
   handleUnlinkAccount,
-  handleCheckCooldown,
   type LinkAccountMessage,
   type UnlinkAccountMessage,
-  type CheckCooldownMessage,
 } from "./handlers/accountHandler.js";
 import {
   handleOpeningRequest,
@@ -167,8 +165,8 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
 
 // Discord Bot API for notifications
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_ADMIN || process.env.DISCORD_NOTIFICATION_CHANNEL_ID;
-const DISCORD_SIGNUP_CHANNEL_ID = process.env.DISCORD_CHANNEL_SIGNUP || "1476547865039077416";
+const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_ADMIN || process.env.DISCORD_NOTIFICATION_CHANNEL_ID || "1477490743588159488";
+const DISCORD_SIGNUP_CHANNEL_ID = process.env.DISCORD_CHANNEL_SIGNUP || "1477490534074548498";
 
 async function checkBanStatus(
   userId: string,
@@ -345,6 +343,174 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  // Check signup: block if fingerprint or IP already belongs to another user
+  if (req.url === "/check-signup" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { fingerprint, email } = JSON.parse(body);
+
+        const clientIp =
+          (req.headers["x-forwarded-for"] as string)
+            ?.split(",")[0]
+            ?.trim() ||
+          req.socket.remoteAddress ||
+          null;
+        const cleanIp = cleanIpAddress(clientIp);
+
+        // Check 1: fingerprint match (priority)
+        let blocked = false;
+        let reason = "";
+        let matchedUserIds: string[] = [];
+
+        if (fingerprint) {
+          const { data: fpMatches } = await supabase
+            .from("user_fingerprints")
+            .select("user_id")
+            .eq("fingerprint", fingerprint);
+
+          if (fpMatches && fpMatches.length > 0) {
+            blocked = true;
+            reason = "Shared Fingerprint";
+            matchedUserIds = fpMatches.map(r => r.user_id);
+          }
+        }
+
+        // Check 2: IP match (fallback if no fingerprint match)
+        if (!blocked && cleanIp) {
+          const { data: ipMatches } = await supabase
+            .from("signup_ips")
+            .select("user_id")
+            .eq("ip_address", cleanIp);
+
+          if (ipMatches && ipMatches.length > 0) {
+            blocked = true;
+            reason = "Shared IP";
+            matchedUserIds = ipMatches.map(r => r.user_id);
+          }
+        }
+
+        if (blocked) {
+          // Send Discord notification (fire-and-forget)
+          (async () => {
+            try {
+              if (!DISCORD_BOT_TOKEN || !DISCORD_NOTIFICATION_CHANNEL_ID) return;
+
+              const { country } = cleanIp ? await resolveIpCountry(cleanIp) : { country: null };
+
+              // Fetch associated accounts
+              const uniqueUserIds = [...new Set(matchedUserIds)];
+              let linkedAccountsText = "";
+              if (uniqueUserIds.length > 0) {
+                const { data: settings } = await supabase
+                  .from("user_settings")
+                  .select("user_id, plan")
+                  .in("user_id", uniqueUserIds);
+                const accounts: string[] = [];
+                for (const s of settings || []) {
+                  const { data: authData } = await supabase.auth.admin.getUserById(s.user_id);
+                  accounts.push(`${authData?.user?.email || s.user_id} (${s.plan})`);
+                }
+                linkedAccountsText = accounts.join("\n");
+              }
+
+              const fields = [
+                { name: "📧 Email", value: email || "unknown", inline: true },
+                { name: "🔑 Reason", value: reason, inline: true },
+                { name: "🌍 Country", value: country || "Unknown", inline: true },
+              ];
+              if (fingerprint) fields.push({ name: "🖥️ Fingerprint", value: `\`${fingerprint}\``, inline: false });
+              if (cleanIp) fields.push({ name: "🔒 IP", value: cleanIp, inline: true });
+              if (linkedAccountsText) fields.push({ name: "⚠️ Linked Accounts", value: linkedAccountsText, inline: false });
+
+              await fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+                body: JSON.stringify({
+                  embeds: [{
+                    title: "🚫 Signup Blocked — Multi-Account",
+                    color: 0xef4444,
+                    fields,
+                    timestamp: new Date().toISOString(),
+                    footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
+                  }],
+                }),
+              });
+            } catch (e) {
+              console.error("[Discord] Failed to send blocked signup notification:", e);
+            }
+          })();
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ allowed: false }));
+          return;
+        }
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ allowed: true }));
+      } catch {
+        // On error, allow signup (don't block legitimate users)
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ allowed: true }));
+      }
+    });
+    return;
+  }
+
+  // Report banned login attempt
+  if (req.url === "/report-banned-login" && req.method === "POST") {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", async () => {
+      try {
+        const { email, banReason } = JSON.parse(body);
+        if (!DISCORD_BOT_TOKEN || !DISCORD_NOTIFICATION_CHANNEL_ID) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+          return;
+        }
+
+        const clientIp =
+          (req.headers["x-forwarded-for"] as string)
+            ?.split(",")[0]
+            ?.trim() ||
+          req.socket.remoteAddress ||
+          null;
+        const cleanIp = cleanIpAddress(clientIp);
+        const { country } = cleanIp ? await resolveIpCountry(cleanIp) : { country: null };
+
+        const fields = [
+          { name: "📧 Email", value: email || "unknown", inline: true },
+          { name: "📛 Ban Reason", value: banReason || "No reason", inline: true },
+          { name: "🌍 Country", value: country || "Unknown", inline: true },
+        ];
+        if (cleanIp) fields.push({ name: "🔒 IP", value: cleanIp, inline: true });
+
+        await fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
+          body: JSON.stringify({
+            embeds: [{
+              title: "🔒 Banned Login Attempt",
+              color: 0xef4444,
+              fields,
+              timestamp: new Date().toISOString(),
+              footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
+            }],
+          }),
+        });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      }
+    });
     return;
   }
 
@@ -1335,12 +1501,6 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           );
           break;
 
-        case "check_cooldown":
-          handleCheckCooldown(
-            message as CheckCooldownMessage,
-            client,
-          );
-          break;
 
         case "get_opening":
           handleOpeningRequest(

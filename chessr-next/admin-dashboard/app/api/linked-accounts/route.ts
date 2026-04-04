@@ -70,6 +70,13 @@ export async function GET(request: Request) {
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
 
+    // Fetch fingerprints from user_fingerprints
+    const { data: fpData } = await supabase
+      .from('user_fingerprints')
+      .select('fingerprint, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+
     return NextResponse.json({
       active,
       unlinked: unlinkedWithCooldown,
@@ -77,6 +84,7 @@ export async function GET(request: Request) {
       totalUnlinked: unlinked.length,
       discord,
       ips: ipData || [],
+      fingerprints: fpData || [],
     })
   } catch (error) {
     console.error('GET linked-accounts error:', error)

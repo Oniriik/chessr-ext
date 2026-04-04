@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes, PermissionFlagsBits } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration
@@ -35,6 +35,29 @@ const ELO_BRACKETS = [
 ];
 
 const LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID;
+
+// =============================================================================
+// Ticket System Configuration
+// =============================================================================
+
+const TICKET_TYPES = {
+  support: {
+    label: 'Support',
+    prefix: 'help',
+    closedPrefix: 'closed',
+    categoryId: '1464217313879396427',
+    panelChannelId: '1464217383739723914',
+    logChannelId: '1464219123805323380',
+    teamRoleId: '1464229158782763081',
+    panelEmbed: {
+      title: '🎫 Chessr Support',
+      description: 'Need help with your account, a bug, or billing?\nOpen a ticket and our team will assist you.',
+      color: 0x3b82f6,
+    },
+    welcomeMessage: (user, ticketNumber) =>
+      `🎫 **Ticket #${ticketNumber}** opened by ${user}\n\nPlease describe your issue and <@&1464229158782763081> will get back to you shortly.`,
+  },
+};
 
 // Initialize Supabase
 const supabase = createClient(config.supabaseUrl, config.supabaseKey);
@@ -444,6 +467,15 @@ const commands = [
     .setDescription('Look up a user\'s Chessr account details (admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addUserOption(opt => opt.setName('member').setDescription('The Discord user to look up').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('ticket-setup')
+    .setDescription('Send the ticket panel embed in the current channel (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption(opt =>
+      opt.setName('type')
+        .setDescription('Ticket type')
+        .setRequired(true)
+        .addChoices(...Object.keys(TICKET_TYPES).map(k => ({ name: TICKET_TYPES[k].label, value: k })))),
 ];
 
 async function registerCommands() {
@@ -729,8 +761,238 @@ async function handleLookupCommand(interaction) {
   }
 }
 
-// Handle slash command interactions
+// =============================================================================
+// Ticket System Handlers
+// =============================================================================
+
+async function handleTicketSetup(interaction) {
+  const type = interaction.options.getString('type');
+  const ticketType = TICKET_TYPES[type];
+  if (!ticketType) {
+    await interaction.reply({ content: `Unknown ticket type: ${type}`, ephemeral: true });
+    return;
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(ticketType.panelEmbed.title)
+    .setDescription(ticketType.panelEmbed.description)
+    .setColor(ticketType.panelEmbed.color)
+    .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket_open:${type}`)
+      .setLabel('Open a Ticket')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('🆕'),
+  );
+
+  await interaction.channel.send({ embeds: [embed], components: [row] });
+  await interaction.reply({ content: '✅ Ticket panel sent.', ephemeral: true });
+}
+
+async function getNextTicketNumber(type) {
+  const { data, error } = await supabase.rpc('increment_ticket_counter', { ticket_type: type });
+  if (error || data === null) {
+    // Fallback: manual increment
+    const { data: counter } = await supabase
+      .from('ticket_counters')
+      .select('last_number')
+      .eq('type', type)
+      .single();
+    const next = (counter?.last_number || 0) + 1;
+    await supabase.from('ticket_counters').update({ last_number: next }).eq('type', type);
+    return next;
+  }
+  return data;
+}
+
+async function handleTicketOpen(interaction) {
+  const type = interaction.customId.split(':')[1];
+  const ticketType = TICKET_TYPES[type];
+  if (!ticketType) return;
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const guild = interaction.guild;
+  const user = interaction.user;
+
+  // Check if user already has an open ticket of this type
+  const existing = guild.channels.cache.find(
+    ch => ch.parentId === ticketType.categoryId &&
+          ch.name.startsWith(`${ticketType.prefix}-`) &&
+          ch.topic?.includes(user.id)
+  );
+  if (existing) {
+    await interaction.editReply({ content: `You already have an open ticket: ${existing}` });
+    return;
+  }
+
+  // Get next ticket number
+  const ticketNumber = await getNextTicketNumber(type);
+  const paddedNumber = String(ticketNumber).padStart(4, '0');
+  const channelName = `${ticketType.prefix}-${paddedNumber}-${user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+  // Create channel
+  const channel = await guild.channels.create({
+    name: channelName,
+    type: ChannelType.GuildText,
+    parent: ticketType.categoryId,
+    topic: `Ticket #${paddedNumber} | Opened by ${user.tag} (${user.id})`,
+    permissionOverwrites: [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+      { id: ticketType.teamRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+    ],
+  });
+
+  // Send welcome message with close button
+  const closeRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket_close:${type}`)
+      .setLabel('Close Ticket')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🔒'),
+  );
+
+  await channel.send({
+    content: ticketType.welcomeMessage(`<@${user.id}>`, paddedNumber),
+    components: [closeRow],
+  });
+
+  await interaction.editReply({ content: `✅ Ticket created: ${channel}` });
+  console.log(`[Tickets] ${user.tag} opened ${channelName}`);
+}
+
+async function handleTicketClose(interaction) {
+  const type = interaction.customId.split(':')[1];
+  const ticketType = TICKET_TYPES[type];
+  if (!ticketType) return;
+
+  // Check we're in a ticket channel
+  const channel = interaction.channel;
+  if (channel.parentId !== ticketType.categoryId || !channel.name.startsWith(`${ticketType.prefix}-`)) {
+    await interaction.reply({ content: 'This is not a ticket channel.', ephemeral: true });
+    return;
+  }
+
+  // Show confirmation
+  const confirmRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket_confirm_close:${type}`)
+      .setLabel('Confirm Close')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId('ticket_cancel_close')
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Secondary),
+  );
+
+  await interaction.reply({
+    content: '⚠️ Are you sure you want to close this ticket?',
+    components: [confirmRow],
+    ephemeral: true,
+  });
+}
+
+async function handleTicketConfirmClose(interaction) {
+  const type = interaction.customId.split(':')[1];
+  const ticketType = TICKET_TYPES[type];
+  if (!ticketType) return;
+
+  await interaction.deferUpdate();
+
+  const channel = interaction.channel;
+  const closedBy = interaction.user;
+
+  // Extract ticket number from channel name (help-0042-username → 0042)
+  const match = channel.name.match(new RegExp(`^${ticketType.prefix}-(\\d+)-`));
+  const ticketNumber = match ? match[1] : '0000';
+
+  // Collect messages for transcript
+  const messages = await channel.messages.fetch({ limit: 100 });
+  const sorted = [...messages.values()].reverse();
+  const transcript = sorted
+    .filter(m => !m.author.bot || m.content)
+    .map(m => `${m.author.tag}: ${m.content || '(embed/attachment)'}`)
+    .join('\n');
+
+  // Extract opener from topic
+  const openerMatch = channel.topic?.match(/\((\d+)\)/);
+  const openerId = openerMatch ? openerMatch[1] : null;
+
+  // Send log to closed tickets channel
+  const logChannel = await interaction.guild.channels.fetch(ticketType.logChannelId).catch(() => null);
+  if (logChannel) {
+    const logEmbed = new EmbedBuilder()
+      .setTitle(`🔒 Ticket #${ticketNumber} Closed`)
+      .setColor(0x94a3b8)
+      .addFields(
+        { name: '👤 Opened by', value: openerId ? `<@${openerId}>` : 'Unknown', inline: true },
+        { name: '🔒 Closed by', value: `<@${closedBy.id}>`, inline: true },
+        { name: '💬 Messages', value: String(sorted.length), inline: true },
+      )
+      .setTimestamp()
+      .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' });
+
+    // Attach transcript as file if it has content
+    const files = [];
+    if (transcript.length > 0) {
+      files.push({
+        attachment: Buffer.from(transcript, 'utf-8'),
+        name: `transcript-${ticketNumber}.txt`,
+      });
+    }
+
+    await logChannel.send({ embeds: [logEmbed], files });
+  }
+
+  // Rename channel to closed-XXXX-username and remove user permissions
+  const closedName = channel.name.replace(new RegExp(`^${ticketType.prefix}-`), `${ticketType.closedPrefix}-`);
+  await channel.setName(closedName);
+
+  // Remove the opener's access
+  if (openerId) {
+    await channel.permissionOverwrites.edit(openerId, { ViewChannel: false }).catch(() => {});
+  }
+
+  // Replace close button with a "Ticket closed" message
+  await channel.send({
+    content: `🔒 Ticket closed by <@${closedBy.id}>. This channel will be deleted shortly.`,
+  });
+
+  // Delete after 10 seconds
+  setTimeout(() => channel.delete().catch(() => {}), 10_000);
+
+  console.log(`[Tickets] ${closedBy.tag} closed ticket #${ticketNumber}`);
+}
+
+// =============================================================================
+// Interaction Handler (commands + buttons)
+// =============================================================================
+
 client.on('interactionCreate', async (interaction) => {
+  // Button interactions
+  if (interaction.isButton()) {
+    try {
+      const id = interaction.customId;
+      if (id.startsWith('ticket_open:')) return await handleTicketOpen(interaction);
+      if (id.startsWith('ticket_close:')) return await handleTicketClose(interaction);
+      if (id.startsWith('ticket_confirm_close:')) return await handleTicketConfirmClose(interaction);
+      if (id === 'ticket_cancel_close') {
+        await interaction.update({ content: '❌ Close cancelled.', components: [] });
+        return;
+      }
+    } catch (err) {
+      console.error('[Tickets] Button error:', err.message);
+      const reply = { content: 'Something went wrong.', ephemeral: true };
+      if (interaction.replied || interaction.deferred) await interaction.followUp(reply).catch(() => {});
+      else await interaction.reply(reply).catch(() => {});
+    }
+    return;
+  }
+
+  // Slash command interactions
   if (!interaction.isChatInputCommand()) return;
 
   try {
@@ -740,6 +1002,8 @@ client.on('interactionCreate', async (interaction) => {
       await handleLeaderboardCommand(interaction);
     } else if (interaction.commandName === 'lookup') {
       await handleLookupCommand(interaction);
+    } else if (interaction.commandName === 'ticket-setup') {
+      await handleTicketSetup(interaction);
     }
   } catch (err) {
     console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);

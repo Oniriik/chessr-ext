@@ -20,7 +20,7 @@ const supabase = createClient(
 );
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_CHANNEL_ACCOUNTS = process.env.DISCORD_CHANNEL_ACCOUNTS;
+const DISCORD_CHANNEL_ACCOUNTS = process.env.DISCORD_CHANNEL_ACCOUNTS || '1477491006609035395';
 
 // =============================================================================
 // Message Types
@@ -46,12 +46,6 @@ export interface UnlinkAccountMessage {
   accountId: string;
 }
 
-export interface CheckCooldownMessage {
-  type: 'check_cooldown';
-  platform: 'chesscom' | 'lichess' | 'worldchess';
-  username: string;
-}
-
 // =============================================================================
 // Response Types
 // =============================================================================
@@ -68,35 +62,7 @@ interface LinkedAccount {
   linkedAt: string;
 }
 
-type LinkErrorCode = 'ALREADY_LINKED' | 'COOLDOWN' | 'LIMIT_REACHED' | 'UNKNOWN';
-
-// =============================================================================
-// Plan Helpers
-// =============================================================================
-
-type UserPlan = 'free' | 'freetrial' | 'premium' | 'lifetime' | 'beta';
-
-interface UserPlanInfo {
-  plan: UserPlan;
-}
-
-async function getUserPlan(userId: string): Promise<UserPlanInfo> {
-  const { data, error } = await supabase
-    .from('user_settings')
-    .select('plan')
-    .eq('user_id', userId)
-    .single();
-
-  if (error || !data) {
-    return { plan: 'free' };
-  }
-
-  return { plan: data.plan || 'free' };
-}
-
-function isPremiumPlan(plan: UserPlan): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta';
-}
+type LinkErrorCode = 'ALREADY_LINKED' | 'UNKNOWN';
 
 // =============================================================================
 // Validation Logic
@@ -106,7 +72,6 @@ interface CanLinkResult {
   ok: boolean;
   error?: string;
   code?: LinkErrorCode;
-  hoursRemaining?: number;
 }
 
 async function canLinkAccount(
@@ -140,57 +105,6 @@ async function canLinkAccount(
     };
   }
 
-  // 2. Get user plan
-  const userPlanInfo = await getUserPlan(userId);
-  const isPremium = isPremiumPlan(userPlanInfo.plan);
-
-  // 3. Check cooldown (48h after unlink) - only for non-premium users
-  if (!isPremium) {
-    const { data: recentUnlink } = await supabase
-      .from('linked_accounts')
-      .select('unlinked_at')
-      .eq('platform', platform)
-      .eq('platform_username', username.toLowerCase())
-      .not('unlinked_at', 'is', null)
-      .order('unlinked_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (recentUnlink?.unlinked_at) {
-      const unlinkedAt = new Date(recentUnlink.unlinked_at);
-      const hoursSince = (Date.now() - unlinkedAt.getTime()) / (1000 * 60 * 60);
-
-      if (hoursSince < 48) {
-        const hoursRemaining = Math.ceil(48 - hoursSince);
-        return {
-          ok: false,
-          error: `This account was recently unlinked. Please wait ${hoursRemaining}h before linking again.`,
-          code: 'COOLDOWN',
-          hoursRemaining,
-        };
-      }
-    }
-  }
-
-  // 4. Check linking limit (free/freetrial = 1 per platform, premium = unlimited)
-  const { data: currentLinks } = await supabase
-    .from('linked_accounts')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('platform', platform)
-    .is('unlinked_at', null);
-
-  const maxLinks = isPremium ? Infinity : 1;
-  const currentCount = currentLinks?.length || 0;
-
-  if (currentCount >= maxLinks) {
-    return {
-      ok: false,
-      error: 'You have reached your account linking limit. Upgrade to Premium for unlimited links.',
-      code: 'LIMIT_REACHED',
-    };
-  }
-
   return { ok: true };
 }
 
@@ -198,38 +112,53 @@ async function canLinkAccount(
 // Discord Notifications
 // =============================================================================
 
+function buildProfileUrl(platform: string, username: string): string {
+  if (platform === 'chesscom') return `https://www.chess.com/member/${username}`;
+  if (platform === 'lichess') return `https://lichess.org/@/${username}`;
+  return username;
+}
+
 async function notifyAccountChange(
   action: 'linked' | 'unlinked',
   userEmail: string,
   platform: string,
   username: string,
   userId: string,
+  ratings?: { bullet?: number; blitz?: number; rapid?: number },
 ): Promise<void> {
   if (!DISCORD_BOT_TOKEN || !DISCORD_CHANNEL_ACCOUNTS) return;
 
   try {
     const platformName = platform === 'chesscom' ? 'Chess.com' : platform === 'lichess' ? 'Lichess' : 'World Chess';
     const isLinked = action === 'linked';
+    const profileUrl = buildProfileUrl(platform, username);
+    const profileLink = `[${username}](${profileUrl})`;
 
-    const fields: { name: string; value: string; inline: boolean }[] = [
-      { name: '📧 Email', value: userEmail, inline: true },
-    ];
-
-    // Add Discord mention if user has linked Discord
+    // Get Discord ID for mention
     const { data: settings } = await supabase
       .from('user_settings')
       .select('discord_id')
       .eq('user_id', userId)
       .single();
 
-    if (settings?.discord_id) {
-      fields.push({ name: '🎮 Discord', value: `<@${settings.discord_id}>`, inline: true });
-    }
+    const userDisplay = settings?.discord_id
+      ? `<@${settings.discord_id}>`
+      : userEmail;
 
-    fields.push(
-      { name: '🏰 Platform', value: platformName, inline: true },
-      { name: '👤 Username', value: username, inline: true },
-    );
+    const fields: { name: string; value: string; inline: boolean }[] = [
+      { name: '👤 User', value: userDisplay, inline: true },
+      { name: '🏰 Platform', value: `${platformName} — ${profileLink}`, inline: true },
+    ];
+
+    if (isLinked && ratings) {
+      const parts: string[] = [];
+      if (ratings.bullet) parts.push(`🎯 ${ratings.bullet}`);
+      if (ratings.blitz) parts.push(`⚡ ${ratings.blitz}`);
+      if (ratings.rapid) parts.push(`⏱️ ${ratings.rapid}`);
+      if (parts.length > 0) {
+        fields.push({ name: '📊 Ratings', value: parts.join('  ·  '), inline: false });
+      }
+    }
 
     await fetch(`https://discord.com/api/v10/channels/${DISCORD_CHANNEL_ACCOUNTS}/messages`, {
       method: 'POST',
@@ -291,9 +220,7 @@ export async function handleGetLinkedAccounts(client: Client): Promise<void> {
       linkedAt: row.linked_at,
     }));
 
-    // Check if user needs linking (free/freetrial with no linked accounts)
-    const userPlan = await getUserPlan(client.user.id);
-    const needsLinking = !isPremiumPlan(userPlan.plan) && accounts.length === 0;
+    const needsLinking = accounts.length === 0;
 
     client.ws.send(
       JSON.stringify({
@@ -356,7 +283,6 @@ export async function handleLinkAccount(
           type: 'link_account_error',
           error: canLink.error,
           code: canLink.code,
-          hoursRemaining: canLink.hoursRemaining,
         })
       );
       return;
@@ -425,7 +351,11 @@ export async function handleLinkAccount(
     );
 
     // Send Discord notification (non-blocking)
-    notifyAccountChange('linked', client.user.email, platform, username, client.user.id).catch(() => {});
+    notifyAccountChange('linked', client.user.email, platform, username, client.user.id, {
+      bullet: ratingBullet,
+      blitz: ratingBlitz,
+      rapid: ratingRapid,
+    }).catch(() => {});
   } catch (error) {
     console.error('[AccountHandler] Exception in handleLinkAccount:', error);
     client.ws.send(
@@ -501,103 +431,3 @@ export async function handleUnlinkAccount(
   }
 }
 
-/**
- * Handle check_cooldown request
- * Checks if there's a cooldown preventing linking this account
- */
-export async function handleCheckCooldown(
-  message: CheckCooldownMessage,
-  client: Client
-): Promise<void> {
-  const { platform, username } = message;
-
-  if (!platform || !username) {
-    client.ws.send(
-      JSON.stringify({
-        type: 'cooldown_status',
-        hasCooldown: false,
-      })
-    );
-    return;
-  }
-
-  try {
-    // Get user plan
-    const userPlanInfo = await getUserPlan(client.user.id);
-    const isPremium = isPremiumPlan(userPlanInfo.plan);
-
-    // Premium users don't have cooldown
-    if (isPremium) {
-      client.ws.send(
-        JSON.stringify({
-          type: 'cooldown_status',
-          hasCooldown: false,
-        })
-      );
-      return;
-    }
-
-    // Check if already linked to another user
-    const { data: existing } = await supabase
-      .from('linked_accounts')
-      .select('user_id')
-      .eq('platform', platform)
-      .eq('platform_username', username.toLowerCase())
-      .is('unlinked_at', null)
-      .single();
-
-    if (existing && existing.user_id !== client.user.id) {
-      client.ws.send(
-        JSON.stringify({
-          type: 'cooldown_status',
-          hasCooldown: false,
-          isAlreadyLinked: true,
-        })
-      );
-      return;
-    }
-
-    // Check cooldown (48h after unlink)
-    const { data: recentUnlink } = await supabase
-      .from('linked_accounts')
-      .select('unlinked_at')
-      .eq('platform', platform)
-      .eq('platform_username', username.toLowerCase())
-      .not('unlinked_at', 'is', null)
-      .order('unlinked_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (recentUnlink?.unlinked_at) {
-      const unlinkedAt = new Date(recentUnlink.unlinked_at);
-      const hoursSince = (Date.now() - unlinkedAt.getTime()) / (1000 * 60 * 60);
-
-      if (hoursSince < 48) {
-        const hoursRemaining = Math.ceil(48 - hoursSince);
-        client.ws.send(
-          JSON.stringify({
-            type: 'cooldown_status',
-            hasCooldown: true,
-            hoursRemaining,
-          })
-        );
-        return;
-      }
-    }
-
-    client.ws.send(
-      JSON.stringify({
-        type: 'cooldown_status',
-        hasCooldown: false,
-      })
-    );
-  } catch (error) {
-    console.error('[AccountHandler] Exception in handleCheckCooldown:', error);
-    client.ws.send(
-      JSON.stringify({
-        type: 'cooldown_status',
-        hasCooldown: false,
-      })
-    );
-  }
-}

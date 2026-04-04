@@ -264,7 +264,6 @@ class WebSocketManager {
             store.setLinkError({
               message: data.error,
               code: data.code as LinkErrorCode,
-              hoursRemaining: data.hoursRemaining,
             });
             store.setLoading(false);
           } else if (data.type === 'unlink_account_success') {
@@ -275,7 +274,6 @@ class WebSocketManager {
             store.removeAccount(data.accountId);
             store.setLoading(false);
 
-            // All users need to re-check after unlink (premium users included, they just don't have cooldown)
             // Set needsLinking to true - this triggers the re-check in useLinkingCheck
             // If remaining accounts include the current platform, the hook will set it back to false
             store.setNeedsLinking(true);
@@ -283,16 +281,6 @@ class WebSocketManager {
             // Handle linked accounts errors
             logger.error('Linked accounts error:', data.error);
             useLinkedAccountsStore.getState().setLoading(false);
-          } else if (data.type === 'cooldown_status') {
-            // Handle cooldown check response
-            const store = useLinkedAccountsStore.getState();
-            if (data.hasCooldown) {
-              logger.log(`Cooldown active: ${data.hoursRemaining}h remaining`);
-              store.setCooldownHours(data.hoursRemaining || 48);
-            } else {
-              store.setCooldownHours(null);
-            }
-            store.setLoading(false);
           } else if (data.type === 'discord_link_url') {
             // Redirect to Discord OAuth on same page
             logger.log('Redirecting to Discord OAuth');
@@ -307,11 +295,11 @@ class WebSocketManager {
           } else if (data.type === 'discord_unlink_error') {
             logger.error('Discord unlink error:', data.error);
           } else if (data.type === 'banned') {
-            // Server detected user is banned - force sign out
+            // Server detected user is banned - force sign out and show banned screen
             logger.log('User banned by server:', data.reason);
             const authStore = useAuthStore.getState();
             authStore.signOut();
-            useAuthStore.setState({ error: `Banned: ${data.reason || 'Your account has been banned.'}` });
+            useAuthStore.setState({ bannedReason: data.reason || 'Your account has been banned.' });
             this.disconnect();
           } else if (data.type === 'opening_result' || data.type === 'opening_error') {
             // Handle opening data response - dispatch to pending callbacks

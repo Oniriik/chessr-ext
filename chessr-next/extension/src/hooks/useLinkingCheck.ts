@@ -48,13 +48,8 @@ function detectCurrentPlatformUser(): { platform: Platform; username: string } |
 /**
  * Hook that manages the linking check flow
  */
-// Check if plan is premium (no linking required, no cooldown)
-function isPremiumPlan(plan: string): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta';
-}
-
 export function useLinkingCheck() {
-  const { user, plan } = useAuthStore();
+  const { user } = useAuthStore();
   const { isConnected } = useWebSocketStore();
   const needsLinking = useNeedsLinking();
   const pendingProfile = usePendingProfile();
@@ -64,7 +59,6 @@ export function useLinkingCheck() {
     setLoading,
     setPendingProfile,
     setNeedsLinking,
-    setCooldownHours,
     reset: resetLinkedAccountsStore,
   } = useLinkedAccountsStore();
 
@@ -123,7 +117,7 @@ export function useLinkingCheck() {
     hasCheckedLinkingRef.current = true;
     setNeedsLinking(true);
     fetchAndShowProfile(platformUser.platform, platformUser.username);
-  }, [user, isConnected, accounts, accountsFetched, plan, setNeedsLinking]);
+  }, [user, isConnected, accounts, accountsFetched, setNeedsLinking]);
 
   // Function to fetch profile and show modal
   const fetchAndShowProfile = async (platform: Platform, username: string) => {
@@ -133,20 +127,6 @@ export function useLinkingCheck() {
       const profile = await fetchPlatformProfile(platform, username);
       if (profile) {
         setPendingProfile(profile);
-
-        // Check cooldown status for this account (only for non-premium users)
-        // Premium users don't have cooldowns
-        if (!isPremiumPlan(plan)) {
-          webSocketManager.send({
-            type: 'check_cooldown',
-            platform,
-            username,
-          });
-          // Note: setLoading(false) will be called when cooldown_status response arrives
-          return;
-        }
-        // Premium users: ensure cooldown is cleared (no cooldown for them)
-        setCooldownHours(null);
         setLoading(false);
         return;
       } else {

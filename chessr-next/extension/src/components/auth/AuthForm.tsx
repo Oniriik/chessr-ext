@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Mail, Lock, ArrowLeft, Loader2 } from 'lucide-react';
-import { useAuthStore } from '../../stores/authStore';
+import { useAuthStore, DUPLICATE_ACCOUNT_ERROR } from '../../stores/authStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
@@ -26,7 +26,7 @@ function DiscordIcon({ className }: { className?: string }) {
 
 export function AuthForm({ compact = false }: AuthFormProps) {
   const { t } = useTranslation(['auth', 'common']);
-  const { signIn, signUp, resetPassword, resendConfirmationEmail, loading, error, clearError } = useAuthStore();
+  const { signIn, signUp, resetPassword, resendConfirmationEmail, loading, error, clearError, bannedReason } = useAuthStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -100,6 +100,50 @@ export function AuthForm({ compact = false }: AuthFormProps) {
 
   const displayError = localError || error;
 
+  // Banned screen - shown instead of login form when user is banned
+  if (bannedReason) {
+    return (
+      <div className="tw-h-full">
+        <Card className="tw-h-full tw-flex tw-flex-col tw-overflow-hidden">
+          <div className="tw-bg-gradient-to-b tw-from-red-500/20 tw-to-transparent tw-p-6 tw-text-center">
+            <img
+              src={chrome.runtime.getURL('icons/chessr-logo.png')}
+              alt="Chessr"
+              className="tw-w-20 tw-h-20 tw-mx-auto tw-mb-2"
+            />
+            <h1 className="tw-text-2xl tw-font-bold tw-tracking-tight tw-mb-1">
+              <span className="tw-text-foreground">chessr</span>
+              <span className="tw-text-secondary">.io</span>
+            </h1>
+          </div>
+
+          <div className="tw-p-6 tw-flex-1 tw-flex tw-flex-col tw-items-center tw-justify-center">
+            <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-rounded-lg tw-p-4 tw-w-full tw-text-center">
+              <h2 className="tw-font-semibold tw-text-destructive tw-mb-2">
+                {t('auth:accountBanned')}
+              </h2>
+              <p className="tw-text-sm tw-text-muted-foreground tw-mb-1">
+                {bannedReason}
+              </p>
+              <p className="tw-text-xs tw-text-muted-foreground tw-mb-4">
+                {t('auth:banAppealMessage')}
+              </p>
+              <a
+                href={DISCORD_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tw-inline-flex tw-items-center tw-gap-2 tw-py-2.5 tw-px-4 tw-rounded-lg tw-bg-[#5865F2] tw-text-white tw-text-sm tw-font-medium hover:tw-bg-[#5865F2]/90 tw-transition-colors"
+              >
+                <DiscordIcon className="tw-w-4 tw-h-4" />
+                {t('auth:makeAppeal')}
+              </a>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   // Compact mode for puzzle sidebar
   if (compact) {
     return (
@@ -159,7 +203,18 @@ export function AuthForm({ compact = false }: AuthFormProps) {
           )}
 
           {displayError && !needsEmailConfirmation && (
-            <div className="tw-text-destructive tw-text-xs tw-py-1">{displayError}</div>
+            displayError === DUPLICATE_ACCOUNT_ERROR ? (
+              <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-rounded-lg tw-p-3 tw-text-center">
+                <p className="tw-text-destructive tw-text-xs tw-font-semibold tw-mb-1">{t('auth:duplicateAccountTitle')}</p>
+                <p className="tw-text-muted-foreground tw-text-xs tw-mb-2">{t('auth:duplicateAccountMessage')}</p>
+                <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="tw-inline-flex tw-items-center tw-gap-1.5 tw-text-xs tw-text-[#5865F2] tw-font-medium hover:tw-underline">
+                  <DiscordIcon className="tw-w-3.5 tw-h-3.5" />
+                  {t('auth:contactDiscord')}
+                </a>
+              </div>
+            ) : (
+              <div className="tw-text-destructive tw-text-xs tw-py-1">{displayError}</div>
+            )
           )}
 
           {successMessage && (
@@ -301,9 +356,20 @@ export function AuthForm({ compact = false }: AuthFormProps) {
 
             {/* Error message */}
             {displayError && !needsEmailConfirmation && (
-              <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-text-destructive tw-text-xs tw-rounded-lg tw-p-3">
-                {displayError}
-              </div>
+              displayError === DUPLICATE_ACCOUNT_ERROR ? (
+                <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-rounded-lg tw-p-3 tw-text-center">
+                  <p className="tw-text-destructive tw-text-xs tw-font-semibold tw-mb-1">{t('auth:duplicateAccountTitle')}</p>
+                  <p className="tw-text-muted-foreground tw-text-xs tw-mb-2">{t('auth:duplicateAccountMessage')}</p>
+                  <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="tw-inline-flex tw-items-center tw-gap-1.5 tw-text-xs tw-text-[#5865F2] tw-font-medium hover:tw-underline">
+                    <DiscordIcon className="tw-w-3.5 tw-h-3.5" />
+                    {t('auth:contactDiscord')}
+                  </a>
+                </div>
+              ) : (
+                <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-text-destructive tw-text-xs tw-rounded-lg tw-p-3">
+                  {displayError}
+                </div>
+              )
             )}
 
             {/* Email confirmation needed */}

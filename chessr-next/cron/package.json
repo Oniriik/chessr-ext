@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "check-expirations": "tsx check-expirations.ts",
-    "update-ratings": "tsx update-ratings.ts"
+    "update-ratings": "tsx update-ratings.ts",
+    "scan-abuse": "tsx scan-abuse.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1"

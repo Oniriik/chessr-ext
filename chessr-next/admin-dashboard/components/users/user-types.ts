@@ -31,6 +31,11 @@ export interface UserIp {
   created_at: string
 }
 
+export interface UserFingerprint {
+  fingerprint: string
+  created_at: string
+}
+
 export interface LinkedAccountsData {
   active: LinkedAccount[]
   unlinked: LinkedAccount[]
@@ -38,6 +43,7 @@ export interface LinkedAccountsData {
   totalUnlinked: number
   discord: DiscordInfo | null
   ips: UserIp[]
+  fingerprints: UserFingerprint[]
 }
 
 export type SortField = 'created_at' | 'plan_expiry' | 'last_activity'

@@ -5,14 +5,13 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link2, AlertCircle, Loader2, User, Clock, Sparkles } from 'lucide-react';
+import { Link2, AlertCircle, Loader2, User } from 'lucide-react';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { useLinkedAccountsStore, usePendingProfile, useLinkError, useIsLinkingLoading, useCooldownHours } from '../stores/linkedAccountsStore';
+import { useLinkedAccountsStore, usePendingProfile, useLinkError, useIsLinkingLoading } from '../stores/linkedAccountsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { webSocketManager } from '../lib/webSocket';
-import { useUpgradeModal } from './UpgradeModal';
 
 interface RatingBadgeProps {
   label: string;
@@ -34,44 +33,14 @@ interface ErrorDisplayProps {
   error: {
     message: string;
     code: string;
-    hoursRemaining?: number;
   };
 }
 
 function ErrorDisplay({ error }: ErrorDisplayProps) {
   const { t } = useTranslation(['banners', 'common']);
 
-  // Cooldown gets special orange styling with upgrade button
-  if (error.code === 'COOLDOWN') {
-    return (
-      <div className="tw-bg-warning/10 tw-border tw-border-warning/30 tw-text-warning tw-text-xs tw-rounded-lg tw-p-3">
-        <div className="tw-flex tw-items-start tw-gap-2">
-          <Clock className="tw-w-4 tw-h-4 tw-flex-shrink-0 tw-mt-0.5" />
-          <div className="tw-flex-1">
-            <div className="tw-font-semibold tw-mb-0.5">{t('banners:cooldownActive')}</div>
-            <div className="tw-opacity-80 tw-mb-2">
-              {error.hoursRemaining
-                ? t('banners:cooldownWait', { hours: error.hoursRemaining })
-                : error.message}
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="tw-h-7 tw-text-xs tw-border-warning/50 tw-text-warning hover:tw-bg-warning/10"
-              onClick={() => useUpgradeModal.getState().open()}
-            >
-              <Sparkles className="tw-w-3 tw-h-3 tw-mr-1" />
-              {t('banners:upgradeSkipCooldown')}
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const title =
-    error.code === 'ALREADY_LINKED' ? t('banners:accountAlreadyLinked') :
-    error.code === 'LIMIT_REACHED' ? t('banners:limitReached') : t('common:error');
+    error.code === 'ALREADY_LINKED' ? t('banners:accountAlreadyLinked') : t('common:error');
 
   return (
     <div className="tw-bg-destructive/10 tw-border tw-border-destructive/30 tw-text-destructive tw-text-xs tw-rounded-lg tw-p-3">
@@ -90,15 +59,11 @@ export function LinkAccountModal() {
   const pendingProfile = usePendingProfile();
   const linkError = useLinkError();
   const isLoading = useIsLinkingLoading();
-  const cooldownHours = useCooldownHours();
   const { setLoading, setLinkError } = useLinkedAccountsStore();
   const { signOut } = useAuthStore();
   const anonNames = useSettingsStore((s) => s.anonNames);
   const { t } = useTranslation(['banners', 'common']);
   const [isLinking, setIsLinking] = useState(false);
-
-  // Check if cooldown is active
-  const hasCooldown = cooldownHours !== null && cooldownHours > 0;
 
   if (!pendingProfile) {
     return null;
@@ -173,30 +138,14 @@ export function LinkAccountModal() {
             <RatingBadge label={t('banners:rapid')} rating={pendingProfile.ratings.rapid} />
           </div>
 
-          {/* Cooldown message - shown instead of info box when cooldown is active */}
-          {hasCooldown ? (
-            <div className="tw-bg-warning/10 tw-border tw-border-warning/30 tw-rounded-lg tw-p-3 tw-mb-4">
-              <div className="tw-flex tw-items-start tw-gap-2">
-                <Clock className="tw-w-4 tw-h-4 tw-text-warning tw-flex-shrink-0 tw-mt-0.5" />
-                <div className="tw-text-xs tw-text-warning">
-                  <span className="tw-font-semibold">{t('banners:cooldownActive')}</span>
-                  <p className="tw-opacity-80 tw-mt-1">
-                    {t('banners:cooldownUnlinked', { hours: cooldownHours })}
-                  </p>
-                </div>
+          <div className="tw-bg-muted/30 tw-border tw-border-border/50 tw-rounded-lg tw-p-3 tw-mb-4">
+            <div className="tw-flex tw-items-start tw-gap-2">
+              <Link2 className="tw-w-4 tw-h-4 tw-text-primary tw-flex-shrink-0 tw-mt-0.5" />
+              <div className="tw-text-xs tw-text-muted-foreground">
+                <span className="tw-font-medium tw-text-foreground">{t('banners:linkAccount')}</span> {t('banners:linkAccountDesc')}
               </div>
             </div>
-          ) : (
-            <div className="tw-bg-muted/30 tw-border tw-border-border/50 tw-rounded-lg tw-p-3 tw-mb-4">
-              <div className="tw-flex tw-items-start tw-gap-2">
-                <Link2 className="tw-w-4 tw-h-4 tw-text-primary tw-flex-shrink-0 tw-mt-0.5" />
-                <div className="tw-text-xs tw-text-muted-foreground">
-                  <span className="tw-font-medium tw-text-foreground">{t('banners:linkAccount')}</span> {t('banners:linkAccountDesc')}
-                  {' '}{t('banners:eachAccountLimit', { platform: platformName })}
-                </div>
-              </div>
-            </div>
-          )}
+          </div>
 
           {/* Error display */}
           {linkError && <ErrorDisplay error={linkError} />}
@@ -206,33 +155,23 @@ export function LinkAccountModal() {
 
           {/* Actions */}
           <div className="tw-space-y-2 tw-mt-4">
-            {hasCooldown ? (
-              <Button
-                className="tw-w-full tw-bg-gradient-to-r tw-from-warning tw-to-orange-500 hover:tw-opacity-90 tw-transition-opacity"
-                onClick={() => useUpgradeModal.getState().open()}
-              >
-                <Sparkles className="tw-w-4 tw-h-4 tw-mr-2" />
-                {t('banners:upgradeToSkipCooldown')}
-              </Button>
-            ) : (
-              <Button
-                className="tw-w-full tw-bg-gradient-to-r tw-from-primary tw-to-secondary hover:tw-opacity-90 tw-transition-opacity"
-                onClick={handleLink}
-                disabled={isLoading || isLinking}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
-                    {t('banners:linking')}
-                  </>
-                ) : (
-                  <>
-                    <Link2 className="tw-w-4 tw-h-4 tw-mr-2" />
-                    {t('banners:linkThisAccount')}
-                  </>
-                )}
-              </Button>
-            )}
+            <Button
+              className="tw-w-full tw-bg-gradient-to-r tw-from-primary tw-to-secondary hover:tw-opacity-90 tw-transition-opacity"
+              onClick={handleLink}
+              disabled={isLoading || isLinking}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="tw-w-4 tw-h-4 tw-animate-spin tw-mr-2" />
+                  {t('banners:linking')}
+                </>
+              ) : (
+                <>
+                  <Link2 className="tw-w-4 tw-h-4 tw-mr-2" />
+                  {t('banners:linkThisAccount')}
+                </>
+              )}
+            </Button>
 
             <Button
               variant="ghost"

@@ -15,6 +15,7 @@ import { DataPanel } from '@/components/data-panel'
 import { LeaderboardPanel } from '@/components/leaderboard-panel'
 import { ExplanationsPanel } from '@/components/explanations-panel'
 import { MapPanel } from '@/components/map-panel'
+import { AbusePanel } from '@/components/abuse-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
 import {
   LogOut,
@@ -33,9 +34,10 @@ import {
   PanelLeftClose,
   PanelLeft,
   Globe,
+  ShieldAlert,
 } from 'lucide-react'
 
-type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard' | 'map'
+type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard' | 'map' | 'abuse'
 
 interface NavItem {
   id: TabId
@@ -51,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'leaderboard', label: 'Leaderboard', icon: Trophy, group: 'Monitor' },
   { id: 'server', label: 'Server', icon: Server, group: 'Manage' },
   { id: 'logs', label: 'Logs', icon: ScrollText, group: 'Manage' },
+  { id: 'abuse', label: 'Abuse', icon: ShieldAlert, group: 'Manage' },
   { id: 'users', label: 'Users', icon: Users, group: 'Users' },
   { id: 'map', label: 'User Map', icon: Globe, group: 'Users' },
   { id: 'plans', label: 'Activity', icon: Gift, group: 'Users' },
@@ -63,9 +66,31 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState('')
   const [userRole, setUserRole] = useState<UserRole>('user')
   const [userId, setUserId] = useState('')
-  const [activeTab, setActiveTab] = useState<TabId>('live')
+  const [activeTab, setActiveTabState] = useState<TabId>(() => {
+    if (typeof window === 'undefined') return 'live'
+    const params = new URLSearchParams(window.location.search)
+    const tab = params.get('tab')
+    if (tab && NAV_ITEMS.some(n => n.id === tab)) return tab as TabId
+    return 'live'
+  })
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const setActiveTab = (tab: TabId) => {
+    setActiveTabState(tab)
+    const oldParams = new URLSearchParams(window.location.search)
+    const newParams = new URLSearchParams()
+    // tab always first
+    if (tab !== 'live') newParams.set('tab', tab)
+    // Carry over other params (except tab), keep filter only for abuse
+    oldParams.forEach((value, key) => {
+      if (key === 'tab') return
+      if (key === 'filter' && tab !== 'abuse') return
+      newParams.set(key, value)
+    })
+    const qs = newParams.toString()
+    window.history.replaceState({}, '', qs ? `?${qs}` : window.location.pathname)
+  }
 
   useEffect(() => {
     checkAuth()
@@ -133,6 +158,7 @@ export default function DashboardPage() {
       case 'leaderboard': return <LeaderboardPanel />
       case 'map': return <MapPanel />
       case 'discord': return <DiscordPanel />
+      case 'abuse': return <AbusePanel userRole={userRole} userId={userId} userEmail={userEmail} />
     }
   }
 

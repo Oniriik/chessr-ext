@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import { isDisposableEmail, isDisposableEmailAsync, DISPOSABLE_EMAIL_ERROR } from '../lib/emailValidator';
+import { isDisposableEmailAsync, DISPOSABLE_EMAIL_ERROR } from '../lib/emailValidator';
 import { isRateLimited, recordFailedAttempt, resetAttempts, RATE_LIMIT_ERROR } from '../lib/rateLimiter';
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import type { Plan } from '../components/ui/plan-badge';
@@ -25,6 +25,8 @@ function reportBlockedSignup(email: string): void {
   }).catch(() => {});
 }
 
+export const DUPLICATE_ACCOUNT_ERROR = '__DUPLICATE_ACCOUNT__';
+
 interface AuthState {
   // User state
   user: User | null;
@@ -34,6 +36,7 @@ interface AuthState {
   initializing: boolean; // true only during initial auth check
   loading: boolean; // true during actions (login, signup, etc.)
   error: string | null;
+  bannedReason: string | null; // set when user is banned, shows dedicated UI
 
   // Actions
   initialize: () => Promise<void>;
@@ -55,6 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializing: true,
   loading: false,
   error: null,
+  bannedReason: null,
 
   initialize: async () => {
     try {
@@ -121,9 +125,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   fetchPlan: async (userId: string) => {
     const processPlanData = (data: { plan?: string; plan_expiry?: string; banned?: boolean; ban_reason?: string } | null) => {
       if (data?.banned) {
-        const reason = `Banned: ${data.ban_reason || 'Your account has been banned.'}`;
+        const reason = data.ban_reason || 'Your account has been banned.';
         supabase.auth.signOut();
-        set({ user: null, session: null, plan: 'free', planExpiry: null, loading: false, error: reason });
+        set({ user: null, session: null, plan: 'free', planExpiry: null, loading: false, bannedReason: reason });
         useEngineStore.getState().enforcePlanLimits('free');
         return;
       }
@@ -199,23 +203,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false, error: DISPOSABLE_EMAIL_ERROR };
       }
     } catch {
-      // If validation fails completely, still check static list
-      if (isDisposableEmail(email)) {
-        reportBlockedSignup(email);
-        set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
-        return { success: false, error: DISPOSABLE_EMAIL_ERROR };
-      }
+      // If API validation fails, allow signup to proceed
     }
 
-    // Check if IP is banned before signup
+    // Collect fingerprint and check for existing accounts (fingerprint + IP)
+    let visitorId: string | null = null;
     try {
-      const ipCheck = await fetch(`${SERVER_URL}/check-ip-ban`);
-      if (ipCheck.ok) {
-        const { banned } = await ipCheck.json();
-        if (banned) {
-          const error = 'Your IP address has been banned.';
-          set({ loading: false, error });
-          return { success: false, error };
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      visitorId = result.visitorId;
+    } catch {
+      // FingerprintJS failed, continue without it
+    }
+
+    try {
+      const checkRes = await fetch(`${SERVER_URL}/check-signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint: visitorId, email }),
+      });
+      if (checkRes.ok) {
+        const { allowed } = await checkRes.json();
+        if (!allowed) {
+          set({ loading: false, error: DUPLICATE_ACCOUNT_ERROR });
+          return { success: false, error: DUPLICATE_ACCOUNT_ERROR };
         }
       }
     } catch {
@@ -238,20 +249,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Report signup to server with fingerprint for country resolution + multi-account detection
       if (signUpData.user?.id) {
-        FingerprintJS.load().then(fp => fp.get()).then(result => {
-          fetch(`${SERVER_URL}/report-signup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: signUpData.user!.id, email, fingerprint: result.visitorId }),
-          });
-        }).catch(() => {
-          // Fallback without fingerprint
-          fetch(`${SERVER_URL}/report-signup`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: signUpData.user!.id, email }),
-          }).catch(() => {});
-        });
+        fetch(`${SERVER_URL}/report-signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: signUpData.user!.id, email, fingerprint: visitorId }),
+        }).catch(() => {});
       }
 
       // Don't set user/session - wait for email confirmation
@@ -279,11 +281,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: false, error };
     }
 
-    // Block disposable email addresses
-    if (isDisposableEmail(email)) {
-      set({ loading: false, error: DISPOSABLE_EMAIL_ERROR });
-      return { success: false, error: DISPOSABLE_EMAIL_ERROR };
-    }
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -296,10 +293,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Success - reset attempts
       await resetAttempts(email);
 
+      // Check if user is banned before granting access
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('banned, ban_reason')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (settings?.banned) {
+        const reason = settings.ban_reason || 'Your account has been banned.';
+        await supabase.auth.signOut();
+        set({ loading: false, bannedReason: reason });
+        // Report banned login attempt (fire-and-forget)
+        fetch(`${SERVER_URL}/report-banned-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, banReason: reason }),
+        }).catch(() => {});
+        return { success: false };
+      }
+
       set({
         user: data.user,
         session: data.session,
         loading: false,
+        bannedReason: null,
       });
 
       // Fetch plan status
@@ -408,5 +426,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, bannedReason: null }),
 }));

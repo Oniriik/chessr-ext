@@ -18,12 +18,11 @@ export interface LinkedAccount {
   linkedAt: string;
 }
 
-export type LinkErrorCode = 'ALREADY_LINKED' | 'COOLDOWN' | 'LIMIT_REACHED' | 'UNKNOWN';
+export type LinkErrorCode = 'ALREADY_LINKED' | 'UNKNOWN';
 
 interface LinkError {
   message: string;
   code: LinkErrorCode;
-  hoursRemaining?: number;
 }
 
 interface LinkedAccountsState {
@@ -37,9 +36,6 @@ interface LinkedAccountsState {
   // Profile being linked (for modal display)
   pendingProfile: PlatformProfile | null;
 
-  // Cooldown state (hours remaining, null if no cooldown)
-  cooldownHours: number | null;
-
   // Actions
   setAccounts: (accounts: LinkedAccount[]) => void;
   addAccount: (account: LinkedAccount) => void;
@@ -48,7 +44,6 @@ interface LinkedAccountsState {
   setLoading: (loading: boolean) => void;
   setLinkError: (error: LinkError | null) => void;
   setPendingProfile: (profile: PlatformProfile | null) => void;
-  setCooldownHours: (hours: number | null) => void;
   reset: () => void;
 
   // Computed helpers
@@ -63,7 +58,6 @@ const initialState = {
   needsLinking: false,
   linkError: null,
   pendingProfile: null,
-  cooldownHours: null,
 };
 
 export const useLinkedAccountsStore = create<LinkedAccountsState>((set, get) => ({
@@ -103,10 +97,6 @@ export const useLinkedAccountsStore = create<LinkedAccountsState>((set, get) => 
     set({ pendingProfile: profile });
   },
 
-  setCooldownHours: (hours) => {
-    set({ cooldownHours: hours });
-  },
-
   reset: () => {
     set(initialState);
   },
@@ -127,4 +117,3 @@ export const useNeedsLinking = () => useLinkedAccountsStore((state) => state.nee
 export const useLinkError = () => useLinkedAccountsStore((state) => state.linkError);
 export const usePendingProfile = () => useLinkedAccountsStore((state) => state.pendingProfile);
 export const useIsLinkingLoading = () => useLinkedAccountsStore((state) => state.isLoading);
-export const useCooldownHours = () => useLinkedAccountsStore((state) => state.cooldownHours);
