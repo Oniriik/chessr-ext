@@ -9,4 +9,5 @@ export interface BetaFlag {
 
 export const BETA_FLAGS: BetaFlag[] = [
   { code: 'test_feature', status: 'hidden', description: 'Test feature flag for development' },
+  { code: 'chesscomUnlock', status: 'hidden', description: 'Unlock Chess.com full analysis on app.chessr.io' },
 ]
