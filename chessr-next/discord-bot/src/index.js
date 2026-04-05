@@ -494,7 +494,7 @@ const commands = [
       opt.setName('type')
         .setDescription('Ticket type')
         .setRequired(true)
-        .addChoices(...Object.keys(TICKET_TYPES).map(k => ({ name: TICKET_TYPES[k].label, value: k })))),
+        .addChoices(...Object.keys(TICKET_TYPES).filter(k => TICKET_TYPES[k].panelEmbed).map(k => ({ name: TICKET_TYPES[k].label, value: k })))),
   new SlashCommandBuilder()
     .setName('ticket-new')
     .setDescription('Create a support ticket for a user (admin only)')
@@ -946,11 +946,17 @@ async function handleTicketOpen(interaction) {
 async function handleTicketClose(interaction) {
   const type = interaction.customId.split(':')[1];
   const ticketType = TICKET_TYPES[type];
-  if (!ticketType) return;
+  if (!ticketType) {
+    console.error(`[Tickets] Unknown ticket type: ${type}`);
+    return;
+  }
 
-  // Check we're in a ticket channel
   const channel = interaction.channel;
-  if (channel.parentId !== ticketType.categoryId || !channel.name.startsWith(`${ticketType.prefix}-`)) {
+  console.log(`[Tickets] Close requested in ${channel.name} (parent: ${channel.parentId}, expected: ${ticketType.categoryId})`);
+
+  // Allow close if channel is in the open OR closed category (in case of re-close)
+  const validParents = [ticketType.categoryId, ticketType.closedCategoryId].filter(Boolean);
+  if (!validParents.includes(channel.parentId)) {
     await interaction.reply({ content: 'This is not a ticket channel.', ephemeral: true });
     return;
   }
@@ -981,8 +987,12 @@ async function handleTicketClose(interaction) {
 async function handleTicketConfirmClose(interaction) {
   const type = interaction.customId.split(':')[1];
   const ticketType = TICKET_TYPES[type];
-  if (!ticketType) return;
+  if (!ticketType) {
+    console.error(`[Tickets] Confirm close: unknown type ${type}`);
+    return;
+  }
 
+  console.log(`[Tickets] Confirm close in ${interaction.channel.name}`);
   await interaction.deferUpdate();
 
   const channel = interaction.channel;

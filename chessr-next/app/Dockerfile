@@ -1,4 +1,4 @@
-# Chessr Admin Dashboard Dockerfile
+# Chessr Web App Dockerfile (app.chessr.io)
 # Next.js with standalone output
 
 FROM node:20-alpine AS deps
@@ -48,17 +48,12 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install docker CLI and compose plugin for server control panel
-RUN apk add --no-cache docker-cli docker-cli-compose
-
 # Copy public assets
 COPY --from=builder /app/public ./public
 
 # Copy standalone build
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-
-# Run as root for docker socket access (admin dashboard only)
 
 EXPOSE 3000
 
