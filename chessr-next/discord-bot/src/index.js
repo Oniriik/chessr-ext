@@ -493,6 +493,11 @@ const commands = [
         .setDescription('Ticket type')
         .setRequired(true)
         .addChoices(...Object.keys(TICKET_TYPES).map(k => ({ name: TICKET_TYPES[k].label, value: k })))),
+  new SlashCommandBuilder()
+    .setName('ticket-new')
+    .setDescription('Create a support ticket for a user (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addUserOption(opt => opt.setName('member').setDescription('The user to create a ticket for').setRequired(true)),
 ];
 
 async function registerCommands() {
@@ -806,6 +811,55 @@ async function handleTicketSetup(interaction) {
 
   await interaction.channel.send({ embeds: [embed], components: [row] });
   await interaction.reply({ content: '✅ Ticket panel sent.', ephemeral: true });
+}
+
+async function handleTicketNew(interaction) {
+  const targetUser = interaction.options.getUser('member');
+  const ticketType = TICKET_TYPES.support;
+  const guild = interaction.guild;
+
+  await interaction.deferReply({ ephemeral: true });
+
+  // Check if user already has an open support ticket
+  const existing = guild.channels.cache.find(
+    ch => ch.parentId === ticketType.categoryId &&
+          ch.name.startsWith(`${ticketType.prefix}-`) &&
+          ch.topic?.includes(targetUser.id)
+  );
+  if (existing) {
+    await interaction.editReply({ content: `This user already has an open ticket: ${existing}` });
+    return;
+  }
+
+  const ticketNumber = await getNextTicketNumber('support');
+  const paddedNumber = String(ticketNumber).padStart(4, '0');
+  const channelName = `${ticketType.prefix}-${paddedNumber}-${targetUser.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+  const channel = await guild.channels.create({
+    name: channelName,
+    type: ChannelType.GuildText,
+    parent: ticketType.categoryId,
+    topic: `Ticket #${paddedNumber} | Opened by ${targetUser.tag} (${targetUser.id}) | Created by ${interaction.user.tag}`,
+    permissionOverwrites: [
+      { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+      { id: targetUser.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+      { id: ticketType.teamRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+    ],
+  });
+
+  const buttons = [
+    new ButtonBuilder().setCustomId('ticket_close:support').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+    new ButtonBuilder().setCustomId('ticket_info:support').setLabel('Info').setStyle(ButtonStyle.Primary).setEmoji('ℹ️'),
+  ];
+  const closeRow = new ActionRowBuilder().addComponents(...buttons);
+
+  await channel.send({
+    content: ticketType.welcomeMessage(`<@${targetUser.id}>`, paddedNumber),
+    components: [closeRow],
+  });
+
+  await interaction.editReply({ content: `✅ Ticket created for ${targetUser}: ${channel}` });
+  console.log(`[Tickets] ${interaction.user.tag} created ticket for ${targetUser.tag}: ${channelName}`);
 }
 
 async function getNextTicketNumber(type) {
@@ -1143,6 +1197,8 @@ client.on('interactionCreate', async (interaction) => {
       await handleLookupCommand(interaction);
     } else if (interaction.commandName === 'ticket-setup') {
       await handleTicketSetup(interaction);
+    } else if (interaction.commandName === 'ticket-new') {
+      await handleTicketNew(interaction);
     }
   } catch (err) {
     console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);
