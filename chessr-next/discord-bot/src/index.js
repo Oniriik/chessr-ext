@@ -854,7 +854,7 @@ async function handleTicketNew(interaction) {
   const closeRow = new ActionRowBuilder().addComponents(...buttons);
 
   await channel.send({
-    content: ticketType.welcomeMessage(`<@${targetUser.id}>`, paddedNumber),
+    content: `🎫 **Ticket #${paddedNumber}** opened by <@&${CHESSR_TEAM_ROLE_ID}> for <@${targetUser.id}>\n\nPlease describe your issue and we will get back to you shortly.`,
     components: [closeRow],
   });
 
