@@ -163,7 +163,7 @@ export function GameStatsCard() {
         {/* Unlock Chess.com Analysis button (beta) */}
         {showUnlockButton && (
           <button
-            onClick={() => window.open(`http://localhost:3002/review/${gameId}`, '_blank')}
+            onClick={() => window.open(`https://app.chessr.io/review/${gameId}`, '_blank')}
             className="tw-mt-3 tw-w-full tw-flex tw-items-center tw-justify-center tw-gap-1.5 tw-px-3 tw-py-1.5 tw-rounded-lg tw-bg-emerald-500/15 tw-ring-1 tw-ring-emerald-500/30 tw-text-emerald-400 tw-text-xs tw-font-medium hover:tw-bg-emerald-500/25 tw-transition-all tw-cursor-pointer"
           >
             <ExternalLink className="tw-w-3.5 tw-h-3.5" />
