@@ -16,6 +16,7 @@ import { LeaderboardPanel } from '@/components/leaderboard-panel'
 import { ExplanationsPanel } from '@/components/explanations-panel'
 import { MapPanel } from '@/components/map-panel'
 import { AbusePanel } from '@/components/abuse-panel'
+import { MessagesPanel } from '@/components/messages-panel'
 import { type UserRole, roleLabels, roleColors } from '@/lib/types'
 import {
   LogOut,
@@ -35,9 +36,10 @@ import {
   PanelLeft,
   Globe,
   ShieldAlert,
+  Mail,
 } from 'lucide-react'
 
-type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'leaderboard' | 'map' | 'abuse'
+type TabId = 'live' | 'data' | 'explanations' | 'server' | 'logs' | 'users' | 'plans' | 'discord' | 'messages' | 'leaderboard' | 'map' | 'abuse'
 
 interface NavItem {
   id: TabId
@@ -58,6 +60,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'map', label: 'User Map', icon: Globe, group: 'Users' },
   { id: 'plans', label: 'Activity', icon: Gift, group: 'Users' },
   { id: 'discord', label: 'Discord', icon: MessageSquare, group: 'Communicate' },
+  { id: 'messages', label: 'Messages', icon: Mail, group: 'Communicate' },
 ]
 
 export default function DashboardPage() {
@@ -158,6 +161,7 @@ export default function DashboardPage() {
       case 'leaderboard': return <LeaderboardPanel />
       case 'map': return <MapPanel />
       case 'discord': return <DiscordPanel />
+      case 'messages': return <MessagesPanel />
       case 'abuse': return <AbusePanel userRole={userRole} userId={userId} userEmail={userEmail} />
     }
   }

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, ChannelType, SlashCommandBuilder, REST, Routes, PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, Partials } from 'discord.js';
 import { createClient } from '@supabase/supabase-js';
 
 // Configuration
@@ -90,8 +90,27 @@ function formatNumber(num) {
 
 // Initialize Discord client with GuildMembers intent for role management
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent,
+  ],
+  partials: [Partials.Channel, Partials.Message],
 });
+
+// =============================================================================
+// DM Job Management (in-memory)
+// =============================================================================
+const dmJobs = new Map();
+
+// Cleanup jobs older than 1 hour
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [id, job] of dmJobs) {
+    if (job.createdAt < cutoff) dmJobs.delete(id);
+  }
+}, 5 * 60 * 1000);
 
 // =============================================================================
 // Role Management
@@ -1436,6 +1455,34 @@ client.on('guildMemberRemove', async (member) => {
   }
 });
 
+// Track DM responses
+client.on('messageCreate', async (message) => {
+  // Only track DMs from real users (not from guilds, not from bots)
+  if (message.guild || message.author.bot) return;
+
+  try {
+    // Find the most recent job that DMed this user (within last 24h)
+    let matchedJobId = null;
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [jobId, job] of dmJobs) {
+      if (job.createdAt > cutoff && job.done) {
+        matchedJobId = jobId;
+      }
+    }
+
+    await supabase.from('dm_responses').insert({
+      discord_id: message.author.id,
+      discord_username: message.author.username,
+      content: message.content,
+      job_id: matchedJobId,
+    });
+
+    console.log(`[DM Response] ${message.author.username}: ${message.content.substring(0, 50)}`);
+  } catch (err) {
+    console.error('[DM Response] Error saving:', err.message);
+  }
+});
+
 // Bot ready event
 client.once('ready', async () => {
   console.log(`[Discord] Logged in as ${client.user.tag}`);
@@ -1600,6 +1647,104 @@ const httpServer = http.createServer(async (req, res) => {
         console.error('[Tickets] Create abuse ticket error:', err.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Internal error' }));
+      }
+    });
+    return;
+  }
+
+  // ─── POST /send-dm-batch ───
+  if (req.method === 'POST' && url.pathname === '/send-dm-batch') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { jobId, discordIds, content } = JSON.parse(body);
+        if (!jobId || !discordIds?.length || !content) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing jobId, discordIds, or content' }));
+          return;
+        }
+
+        const job = {
+          total: discordIds.length,
+          sent: 0,
+          failed: 0,
+          failures: [],
+          done: false,
+          createdAt: Date.now(),
+        };
+        dmJobs.set(jobId, job);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+
+        // Process DMs asynchronously
+        for (const discordId of discordIds) {
+          try {
+            const user = await client.users.fetch(discordId);
+            await user.send(content);
+            job.sent++;
+          } catch (err) {
+            job.failed++;
+            job.failures.push({
+              discordId,
+              username: err.user?.username || discordId,
+              reason: err.code === 50007 ? 'DMs closed' : err.message,
+            });
+          }
+          // Rate limit: 4 DMs/sec
+          await new Promise(r => setTimeout(r, 250));
+        }
+        job.done = true;
+        console.log(`[DM Batch] Job ${jobId} complete: ${job.sent} sent, ${job.failed} failed`);
+      } catch (err) {
+        console.error('[DM Batch] Error:', err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal error' }));
+      }
+    });
+    return;
+  }
+
+  // ─── GET /dm-job-status ───
+  if (req.method === 'GET' && url.pathname === '/dm-job-status') {
+    const jobId = url.searchParams.get('jobId');
+    const job = dmJobs.get(jobId);
+    if (!job) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Job not found' }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      total: job.total,
+      sent: job.sent,
+      failed: job.failed,
+      failures: job.failures,
+      done: job.done,
+    }));
+    return;
+  }
+
+  // ─── POST /fetch-message ───
+  if (req.method === 'POST' && url.pathname === '/fetch-message') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const { channelId, messageId } = JSON.parse(body);
+        const channel = await client.channels.fetch(channelId);
+        const message = await channel.messages.fetch(messageId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          content: message.content,
+          author: { username: message.author.username, avatar: message.author.displayAvatarURL() },
+          embeds: message.embeds.map(e => e.toJSON()),
+        }));
+      } catch (err) {
+        console.error('[Fetch Message] Error:', err.message);
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Message not found' }));
       }
     });
     return;
