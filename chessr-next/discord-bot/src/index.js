@@ -103,6 +103,8 @@ const client = new Client({
 // DM Job Management (in-memory)
 // =============================================================================
 const dmJobs = new Map();
+// Track which job last DMed each user: discordId → jobId
+const lastJobPerUser = new Map();
 
 // Cleanup jobs older than 1 hour
 setInterval(() => {
@@ -1461,14 +1463,8 @@ client.on('messageCreate', async (message) => {
   if (message.guild || message.author.bot) return;
 
   try {
-    // Find the most recent job that DMed this user (within last 24h)
-    let matchedJobId = null;
-    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-    for (const [jobId, job] of dmJobs) {
-      if (job.createdAt > cutoff && job.done) {
-        matchedJobId = jobId;
-      }
-    }
+    // Find the job that last DMed this specific user
+    const matchedJobId = lastJobPerUser.get(message.author.id) || null;
 
     await supabase.from('dm_responses').insert({
       discord_id: message.author.id,
@@ -1686,6 +1682,7 @@ const httpServer = http.createServer(async (req, res) => {
             const user = await client.users.fetch(discordId);
             await user.send(content);
             job.sent++;
+            lastJobPerUser.set(discordId, jobId);
           } catch (err) {
             job.failed++;
             job.failures.push({
