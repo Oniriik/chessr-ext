@@ -49,8 +49,9 @@ const TICKET_TYPES = {
     prefix: 'help',
     closedPrefix: 'closed',
     categoryId: '1464217313879396427',
+    closedCategoryId: '1464219123805323380',
     panelChannelId: '1464217383739723914',
-    logChannelId: '1464219123805323380',
+    logChannelId: null,
     teamRoleId: CHESSR_TEAM_ROLE_ID,
     panelEmbed: {
       title: '🎫 Chessr Support',
@@ -65,8 +66,9 @@ const TICKET_TYPES = {
     prefix: 'abuse',
     closedPrefix: 'closed',
     categoryId: '1490137015415738428',
+    closedCategoryId: '1490137254033752335',
     panelChannelId: null,
-    logChannelId: '1490137254033752335',
+    logChannelId: null,
     teamRoleId: CHESSR_TEAM_ROLE_ID,
     panelEmbed: null,
     welcomeMessage: (user, _ticketNumber, extra) => {
@@ -965,8 +967,12 @@ async function handleTicketClose(interaction) {
       .setStyle(ButtonStyle.Secondary),
   );
 
+  const confirmEmbed = new EmbedBuilder()
+    .setDescription('⚠️ Are you sure you want to close this ticket?')
+    .setColor(0xffa500);
+
   await interaction.reply({
-    content: '⚠️ Are you sure you want to close this ticket?',
+    embeds: [confirmEmbed],
     components: [confirmRow],
     ephemeral: true,
   });
@@ -1022,9 +1028,12 @@ async function handleTicketConfirmClose(interaction) {
     }
   }
 
-  // Rename channel to closed-XXXX-username
+  // Rename and move to closed category
   const closedName = channel.name.replace(new RegExp(`^${ticketType.prefix}-`), `${ticketType.closedPrefix}-`);
   await channel.setName(closedName);
+  if (ticketType.closedCategoryId) {
+    await channel.setParent(ticketType.closedCategoryId, { lockPermissions: false }).catch(e => console.error('[Tickets] Move to closed category failed:', e.message));
+  }
 
   // Remove the opener's access
   if (openerId) {
@@ -1040,8 +1049,13 @@ async function handleTicketConfirmClose(interaction) {
       .setEmoji('🔓'),
   );
 
+  const closedEmbed = new EmbedBuilder()
+    .setDescription(`🔒 Ticket closed by <@${closedBy.id}>`)
+    .setColor(0x94a3b8)
+    .setTimestamp();
+
   await channel.send({
-    content: `🔒 Ticket closed by <@${closedBy.id}>.`,
+    embeds: [closedEmbed],
     components: [reopenRow],
   });
 
@@ -1063,9 +1077,10 @@ async function handleTicketReopen(interaction) {
 
   await interaction.deferUpdate();
 
-  // Rename back to open
+  // Rename and move back to open category
   const openName = channel.name.replace(new RegExp(`^${ticketType.closedPrefix}-`), `${ticketType.prefix}-`);
   await channel.setName(openName);
+  await channel.setParent(ticketType.categoryId, { lockPermissions: false }).catch(() => {});
 
   // Restore opener's access
   const openerMatch = channel.topic?.match(/\((\d+)\)/);
@@ -1083,8 +1098,13 @@ async function handleTicketReopen(interaction) {
   ];
   const row = new ActionRowBuilder().addComponents(...buttons);
 
+  const reopenEmbed = new EmbedBuilder()
+    .setDescription(`🔓 Ticket reopened by <@${interaction.user.id}>`)
+    .setColor(0x10b981)
+    .setTimestamp();
+
   await channel.send({
-    content: `🔓 Ticket reopened by <@${interaction.user.id}>.`,
+    embeds: [reopenEmbed],
     components: [row],
   });
 
