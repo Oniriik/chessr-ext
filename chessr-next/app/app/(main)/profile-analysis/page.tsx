@@ -307,6 +307,15 @@ export default function ProfileAnalysisPage() {
           )}
         </div>
 
+        {/* Estimated time */}
+        <div className="flex items-center gap-1.5 mt-2 text-[11px] text-muted-foreground/70">
+          <Clock className="w-3 h-3" />
+          <span>Estimated time: ~{(() => {
+            const total = selectedModes.length * gamesPerMode * 8 + 6
+            return total >= 60 ? `${Math.ceil(total / 60)} min` : `${total}s`
+          })()}</span>
+        </div>
+
         {/* Premium upsell — compact */}
         {analysisLimit?.isLimited && (
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/30">
