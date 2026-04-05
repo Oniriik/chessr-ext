@@ -24,23 +24,33 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-      setUser({ email: user.email || '', id: user.id })
+      // getSession restores from localStorage and refreshes the token if needed
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
+      setUser({ email: session.user.email || '', id: session.user.id })
       setLoading(false)
 
       // Fetch review limit
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-          const res = await fetch('/api/review-limit', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          })
-          setReviewLimit(await res.json())
-        }
+        const res = await fetch('/api/review-limit', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        setReviewLimit(await res.json())
       } catch { /* ignore */ }
     }
     init()
+
+    // Listen for auth changes (token refresh, sign out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null)
+        router.push('/login')
+      } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        setUser({ email: session.user.email || '', id: session.user.id })
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [router])
 
   if (loading) {

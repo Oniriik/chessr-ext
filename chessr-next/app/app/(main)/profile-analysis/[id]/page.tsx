@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback, use, memo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { computePlayDNA, type GameRawData, type ProfileAnalysisResult } from '@/lib/play-dna'
-import { CheckCircle2, Shield, AlertTriangle, ChevronLeft, Search, Dna, Timer, ShieldCheck, Flag, Clock, ChevronDown, Zap, Target, Flame, Crown, Swords, TrendingUp, Eye, CircleAlert, Info } from 'lucide-react'
+import { CheckCircle2, Shield, AlertTriangle, ChevronLeft, Search, Dna, Timer, ShieldCheck, Flag, Clock, ChevronDown, Zap, Target, Flame, Crown, Swords, TrendingUp, Eye, EyeOff, CircleAlert, Info } from 'lucide-react'
 import { TcIcon, TC_LABELS } from '@/components/tc-icon'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -38,6 +38,7 @@ export default function ProfileAnalysisDetailPage({ params }: { params: Promise<
   const [username, setUsername] = useState<string>('')
   const [gamesRequested, setGamesRequested] = useState(10)
   const [analysisStartTime, setAnalysisStartTime] = useState<number | null>(null)
+  const [anonymous, setAnonymous] = useState(false)
   const [profile, setProfile] = useState<{
     avatar: string; name: string; username: string; joined: string;
     title?: string; totalGames?: number;
@@ -515,9 +516,20 @@ export default function ProfileAnalysisDetailPage({ params }: { params: Promise<
     <>
       {/* Animated background blobs */}
       <main className="relative z-10 max-w-2xl sm:max-w-3xl lg:max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <Link href="/profile-analysis" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-6">
-          <ChevronLeft className="w-4 h-4" /> Back to analyses
-        </Link>
+        <div className="flex items-center justify-between mb-6">
+          <Link href="/profile-analysis" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ChevronLeft className="w-4 h-4" /> Back to analyses
+          </Link>
+          {status === 'done' && (
+            <button
+              onClick={() => setAnonymous(a => !a)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${anonymous ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-muted/50 text-muted-foreground border border-border/30 hover:bg-muted'}`}
+            >
+              {anonymous ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              {anonymous ? 'Anonymous' : 'Anonymous mode'}
+            </button>
+          )}
+        </div>
 
       {status === 'loading' && (
         <div className="flex items-center justify-center py-20">
@@ -644,7 +656,7 @@ export default function ProfileAnalysisDetailPage({ params }: { params: Promise<
 
       {status === 'done' && result && (
         <div ref={reportRef}>
-          <AnalysisReport result={result} profile={profile} />
+          <AnalysisReport result={result} profile={profile} anonymous={anonymous} />
         </div>
       )}
     </main>
@@ -786,7 +798,7 @@ type ProfileInfo = {
   joinedTimestamp?: number;
 }
 
-function AnalysisReport({ result, profile }: { result: ProfileAnalysisResult; profile: ProfileInfo | null }) {
+function AnalysisReport({ result, profile, anonymous }: { result: ProfileAnalysisResult; profile: ProfileInfo | null; anonymous?: boolean }) {
   const mainCadence = result.cadences[0]
   const winRate = result.gamesCount > 0 ? Math.round((result.wins / result.gamesCount) * 100) : 0
 
@@ -820,7 +832,11 @@ function AnalysisReport({ result, profile }: { result: ProfileAnalysisResult; pr
           {/* Left — Profile */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-4 mb-4">
-              {profile?.avatar ? (
+              {anonymous ? (
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                  <EyeOff className="w-7 h-7 text-muted-foreground" />
+                </div>
+              ) : profile?.avatar ? (
                 <img src={profile.avatar} alt={result.username} className="w-16 h-16 rounded-2xl border-2 border-border/40" />
               ) : (
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center text-2xl font-bold text-muted-foreground">
@@ -829,14 +845,14 @@ function AnalysisReport({ result, profile }: { result: ProfileAnalysisResult; pr
               )}
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  {profile?.title && (
+                  {!anonymous && profile?.title && (
                     <span className="text-xs font-bold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30">{profile.title}</span>
                   )}
-                  <h1 className="text-xl font-bold truncate">{result.username}</h1>
+                  <h1 className="text-xl font-bold truncate">{anonymous ? 'Anonymous' : result.username}</h1>
                 </div>
                 <div className="text-sm text-muted-foreground mt-0.5">
-                  {profile?.joined && <span>Joined {profile.joined}</span>}
-                  {profile?.totalGames != null && <><span className="text-border"> · </span><span>{profile.totalGames.toLocaleString()} games</span></>}
+                  {!anonymous && profile?.joined && <span>Joined {profile.joined}</span>}
+                  {profile?.totalGames != null && <>{!anonymous && profile?.joined && <span className="text-border"> · </span>}<span>{profile.totalGames.toLocaleString()} games</span></>}
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   {profile?.bullet != null && <RatingPill tc="bullet" value={profile.bullet} />}
@@ -910,7 +926,7 @@ function AnalysisReport({ result, profile }: { result: ProfileAnalysisResult; pr
 
       {/* Per cadence */}
       {result.cadences.map((cadence) => (
-        <CadenceSection key={cadence.tcType} cadence={cadence} opponentAvatars={opponentAvatars} />
+        <CadenceSection key={cadence.tcType} cadence={cadence} opponentAvatars={opponentAvatars} anonymous={anonymous} />
       ))}
     </div>
   )
@@ -990,7 +1006,7 @@ function WinLossBar({ wins, losses, draws }: { wins: number; losses: number; dra
 
 // ─── Cadence Section (Per time control) ───
 
-function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<typeof computePlayDNA>['cadences'][number]; opponentAvatars: Record<string, string> }) {
+function CadenceSection({ cadence, opponentAvatars, anonymous }: { cadence: ReturnType<typeof computePlayDNA>['cadences'][number]; opponentAvatars: Record<string, string>; anonymous?: boolean }) {
   const c = cadence
   // Radar data for piece DNA
   const radarData = c.pieces.map(p => ({
@@ -1208,12 +1224,12 @@ function CadenceSection({ cadence, opponentAvatars }: { cadence: ReturnType<type
       </div>
 
       {/* ── Game Log (accordion) ── */}
-      <GameLogAccordion games={c.games} opponentAvatars={opponentAvatars} />
+      <GameLogAccordion games={c.games} opponentAvatars={opponentAvatars} anonymous={anonymous} />
     </>
   )
 }
 
-function GameLogAccordion({ games, opponentAvatars }: { games: any[]; opponentAvatars: Record<string, string> }) {
+function GameLogAccordion({ games, opponentAvatars, anonymous }: { games: any[]; opponentAvatars: Record<string, string>; anonymous?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div className="report-section">
@@ -1237,7 +1253,7 @@ function GameLogAccordion({ games, opponentAvatars }: { games: any[]; opponentAv
           </div>
           <div className="space-y-2">
             {games.map((g, i) => (
-              <GameCard key={g.gameId} game={g} index={i} avatar={opponentAvatars[g.opponentName]} />
+              <GameCard key={g.gameId} game={g} index={i} avatar={opponentAvatars[g.opponentName]} anonymous={anonymous} />
             ))}
           </div>
         </div>
@@ -1423,7 +1439,7 @@ function accColorClass(acc: number | null): string {
   return 'text-rose-400'
 }
 
-function GameCard({ game: g, index: i, avatar }: { game: ReturnType<typeof computePlayDNA>['cadences'][number]['games'][number]; index: number; avatar?: string }) {
+function GameCard({ game: g, index: i, avatar, anonymous }: { game: ReturnType<typeof computePlayDNA>['cadences'][number]['games'][number]; index: number; avatar?: string; anonymous?: boolean }) {
   const isWin = g.result === 'W'
   const isLoss = g.result === 'L'
   const resultBg = isWin ? 'bg-emerald-500/10' : isLoss ? 'bg-rose-500/10' : 'bg-muted/30'
@@ -1436,7 +1452,11 @@ function GameCard({ game: g, index: i, avatar }: { game: ReturnType<typeof compu
       <div className="flex items-center gap-2 sm:gap-3">
         {/* vs + opponent avatar */}
         <span className="text-[10px] text-muted-foreground/60 font-semibold uppercase shrink-0">vs</span>
-        {avatar ? (
+        {anonymous ? (
+          <div className={`shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-muted/50 flex items-center justify-center`}>
+            <EyeOff className="w-4 h-4 text-muted-foreground/50" />
+          </div>
+        ) : avatar ? (
           <img src={avatar} alt={g.opponentName} className="shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-cover" />
         ) : (
           <div className={`shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-lg ${resultBg} flex items-center justify-center`}>
@@ -1445,7 +1465,7 @@ function GameCard({ game: g, index: i, avatar }: { game: ReturnType<typeof compu
         )}
 
         <div className="flex-1 min-w-0">
-          <span className="text-sm font-medium truncate block">{g.opponentName}</span>
+          <span className="text-sm font-medium truncate block">{anonymous ? `Opponent ${i + 1}` : g.opponentName}</span>
           <span className="text-xs text-muted-foreground">({g.opponentRating})</span>
         </div>
 

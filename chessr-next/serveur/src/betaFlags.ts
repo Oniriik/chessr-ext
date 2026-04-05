@@ -19,7 +19,7 @@ export const BETA_FLAGS: BetaFlag[] = [
   },
   {
     code: "chesscomUnlock",
-    status: "hidden",
+    status: "all",
     description: "Unlock Chess.com full analysis on app.chessr.io",
   },
 ];
