@@ -1385,8 +1385,12 @@ client.on('guildMemberAdd', async (member) => {
           ].join('\n'),
         },
         {
+          name: '🆓 chessr.io is free to use',
+          value: 'The extension works out of the box — **no payment required**. Free users get live engine analysis, move suggestions, eval bar, game reviews (5/day), profile analyses (3/week), and unlimited linked accounts. Premium just unlocks more (extra engine features, openings, puzzles, unlimited reviews).',
+        },
+        {
           name: '🎟️ Free Trial — 3 Days, No Credit Card',
-          value: 'Install the extension → open the sidebar → **Settings** → **Link Discord**\nPremium unlocks instantly for **3 days**. No credit card, no auto-charge.',
+          value: 'Want to try premium? Install the extension → open the sidebar → **Settings** → **Link Discord**\nPremium unlocks instantly for **3 days**. No credit card, no auto-charge.',
         },
         {
           name: '🔥 DISCOUNT — Code `DISCORD50`',
