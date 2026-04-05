@@ -40,6 +40,9 @@ const LINK_CHANNEL_ID = process.env.DISCORD_LINK_CHANNEL_ID;
 // Ticket System Configuration
 // =============================================================================
 
+const CHESSR_TEAM_ROLE_ID = '1464229158782763081';
+const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://dashboard.chessr.io';
+
 const TICKET_TYPES = {
   support: {
     label: 'Support',
@@ -48,14 +51,28 @@ const TICKET_TYPES = {
     categoryId: '1464217313879396427',
     panelChannelId: '1464217383739723914',
     logChannelId: '1464219123805323380',
-    teamRoleId: '1464229158782763081',
+    teamRoleId: CHESSR_TEAM_ROLE_ID,
     panelEmbed: {
       title: '🎫 Chessr Support',
       description: 'Need help with your account, a bug, or billing?\nOpen a ticket and our team will assist you.',
       color: 0x3b82f6,
     },
     welcomeMessage: (user, ticketNumber) =>
-      `🎫 **Ticket #${ticketNumber}** opened by ${user}\n\nPlease describe your issue and <@&1464229158782763081> will get back to you shortly.`,
+      `🎫 **Ticket #${ticketNumber}** opened by ${user}\n\nPlease describe your issue and <@&${CHESSR_TEAM_ROLE_ID}> will get back to you shortly.`,
+  },
+  abuse: {
+    label: 'Abuse',
+    prefix: 'abuse',
+    closedPrefix: 'closed',
+    categoryId: '1490137015415738428',
+    panelChannelId: null,
+    logChannelId: '1490137254033752335',
+    teamRoleId: CHESSR_TEAM_ROLE_ID,
+    panelEmbed: null,
+    welcomeMessage: (user, _ticketNumber, extra) => {
+      const types = extra?.types || 'Account Review';
+      return `⚠️ **Abuse Investigation** — ${user}\n\nYour account has been flagged for review.\n\n📋 **Reason:** ${types}\n📧 If you believe this is an error, please explain below.\n\n<@&${CHESSR_TEAM_ROLE_ID}> will review your case shortly.`;
+    },
   },
 };
 
@@ -846,14 +863,20 @@ async function handleTicketOpen(interaction) {
     ],
   });
 
-  // Send welcome message with close button
-  const closeRow = new ActionRowBuilder().addComponents(
+  // Send welcome message with close + info buttons
+  const buttons = [
     new ButtonBuilder()
       .setCustomId(`ticket_close:${type}`)
       .setLabel('Close Ticket')
       .setStyle(ButtonStyle.Danger)
       .setEmoji('🔒'),
-  );
+    new ButtonBuilder()
+      .setCustomId(`ticket_info:${type}`)
+      .setLabel('Info')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('ℹ️'),
+  ];
+  const closeRow = new ActionRowBuilder().addComponents(...buttons);
 
   await channel.send({
     content: ticketType.welcomeMessage(`<@${user.id}>`, paddedNumber),
@@ -967,6 +990,121 @@ async function handleTicketConfirmClose(interaction) {
   console.log(`[Tickets] ${closedBy.tag} closed ticket #${ticketNumber}`);
 }
 
+async function handleTicketInfo(interaction) {
+  const type = interaction.customId.split(':')[1];
+  const ticketType = TICKET_TYPES[type];
+  if (!ticketType) return;
+
+  // Check if user has the team role (admin only)
+  const member = interaction.member;
+  if (!member.roles.cache.has(ticketType.teamRoleId)) {
+    await interaction.reply({ content: '❌ You don\'t have permission to view this.', ephemeral: true });
+    return;
+  }
+
+  const channel = interaction.channel;
+
+  // Extract opener from topic
+  const openerMatch = channel.topic?.match(/\((\d+)\)/);
+  const openerId = openerMatch ? openerMatch[1] : null;
+
+  if (!openerId) {
+    await interaction.reply({ content: 'Could not find ticket owner info.', ephemeral: true });
+    return;
+  }
+
+  // Look up the user in Supabase
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('user_id, plan, freetrial_used, discord_id, discord_username, banned, ban_reason')
+    .eq('discord_id', openerId)
+    .single();
+
+  if (!settings) {
+    await interaction.reply({ content: `No Chessr account found for <@${openerId}>.`, ephemeral: true });
+    return;
+  }
+
+  // Get email
+  const { data: authData } = await supabase.auth.admin.getUserById(settings.user_id);
+  const email = authData?.user?.email || 'unknown';
+
+  // Get linked chess accounts
+  const { data: linkedAccounts } = await supabase
+    .from('linked_accounts')
+    .select('platform, platform_username, rating_bullet, rating_blitz, rating_rapid')
+    .eq('user_id', settings.user_id)
+    .is('unlinked_at', null);
+
+  // Get fingerprints
+  const { data: fingerprints } = await supabase
+    .from('user_fingerprints')
+    .select('fingerprint')
+    .eq('user_id', settings.user_id);
+
+  // Get IPs
+  const { data: ips } = await supabase
+    .from('signup_ips')
+    .select('ip_address, country')
+    .eq('user_id', settings.user_id);
+
+  // Check abuse cases
+  const { data: abuseCases } = await supabase
+    .from('abuse_cases')
+    .select('id, types, status, reasons, user_ids')
+    .contains('user_ids', [settings.user_id]);
+
+  // Build fields
+  const fields = [
+    { name: '📧 Email', value: email, inline: true },
+    { name: '💎 Plan', value: `${settings.plan}${settings.freetrial_used ? ' (trial used)' : ''}`, inline: true },
+    { name: '🎮 Discord', value: `<@${openerId}>`, inline: true },
+  ];
+
+  if (settings.banned) {
+    fields.push({ name: '🚫 Banned', value: settings.ban_reason || 'No reason', inline: false });
+  }
+
+  if (linkedAccounts?.length) {
+    const accountsText = linkedAccounts.map(a => {
+      const platform = a.platform === 'chesscom' ? 'Chess.com' : a.platform === 'lichess' ? 'Lichess' : a.platform;
+      const ratings = [a.rating_bullet && `🎯${a.rating_bullet}`, a.rating_blitz && `⚡${a.rating_blitz}`, a.rating_rapid && `⏱️${a.rating_rapid}`].filter(Boolean).join(' ');
+      return `**${platform}** ${a.platform_username}${ratings ? ` (${ratings})` : ''}`;
+    }).join('\n');
+    fields.push({ name: '♟️ Linked Accounts', value: accountsText, inline: false });
+  }
+
+  if (fingerprints?.length) {
+    fields.push({ name: '🖥️ Fingerprints', value: fingerprints.map(f => `\`${f.fingerprint}\``).join(', '), inline: false });
+  }
+
+  if (ips?.length) {
+    fields.push({ name: '🔒 IPs', value: ips.map(i => `\`${i.ip_address}\` ${i.country || ''}`).join('\n'), inline: false });
+  }
+
+  if (abuseCases?.length) {
+    const casesText = abuseCases.map(c => {
+      const types = (c.types || []).map(t => t === 'multi_account' ? 'Multi-Account' : 'VPN').join(', ');
+      return `${c.status === 'open' ? '🔴' : '🟢'} ${types} — ${c.user_ids.length} accounts`;
+    }).join('\n');
+    fields.push({ name: '🚨 Abuse Cases', value: casesText, inline: false });
+
+    // Add dashboard link for abuse cases
+    const filterEmails = [email];
+    const filterParam = encodeURIComponent(filterEmails.join(','));
+    fields.push({ name: '🔗 Dashboard', value: `[View abuse cases](${DASHBOARD_URL}/?tab=abuse&filter=${filterParam})`, inline: false });
+  }
+
+  const embed = new EmbedBuilder()
+    .setTitle(`ℹ️ Ticket Info — ${email}`)
+    .setColor(0x3b82f6)
+    .addFields(fields)
+    .setTimestamp()
+    .setFooter({ text: 'Chessr.io — Staff Only', iconURL: 'https://chessr.io/chessr-logo.png' });
+
+  await interaction.reply({ embeds: [embed], ephemeral: true });
+}
+
 // =============================================================================
 // Interaction Handler (commands + buttons)
 // =============================================================================
@@ -979,6 +1117,7 @@ client.on('interactionCreate', async (interaction) => {
       if (id.startsWith('ticket_open:')) return await handleTicketOpen(interaction);
       if (id.startsWith('ticket_close:')) return await handleTicketClose(interaction);
       if (id.startsWith('ticket_confirm_close:')) return await handleTicketConfirmClose(interaction);
+      if (id.startsWith('ticket_info:')) return await handleTicketInfo(interaction);
       if (id === 'ticket_cancel_close') {
         await interaction.update({ content: '❌ Close cancelled.', components: [] });
         return;
@@ -1142,6 +1281,93 @@ const httpServer = http.createServer(async (req, res) => {
         res.end(JSON.stringify({ ok: true }));
       } catch (err) {
         console.error('[Roles] Sync endpoint error:', err.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal error' }));
+      }
+    });
+    return;
+  }
+
+  // POST /create-abuse-ticket { discordId, abuseTypes, dashboardLink }
+  if (req.url === '/create-abuse-ticket' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => (body += chunk));
+    req.on('end', async () => {
+      try {
+        const { discordId, abuseTypes, dashboardLink } = JSON.parse(body);
+        if (!discordId) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Missing discordId' }));
+          return;
+        }
+
+        const ticketType = TICKET_TYPES.abuse;
+        const guild = client.guilds.cache.get(config.guildId);
+        if (!guild) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Guild not found' }));
+          return;
+        }
+
+        // Fetch the Discord member
+        const member = await guild.members.fetch(discordId).catch(() => null);
+        if (!member) {
+          res.writeHead(404, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'User not in server' }));
+          return;
+        }
+
+        // Check if already has an open abuse ticket
+        const existing = guild.channels.cache.find(
+          ch => ch.parentId === ticketType.categoryId &&
+                ch.name.startsWith(`${ticketType.prefix}-`) &&
+                ch.topic?.includes(discordId)
+        );
+        if (existing) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, channelId: existing.id, existing: true }));
+          return;
+        }
+
+        // Get next ticket number
+        const ticketNumber = await getNextTicketNumber('abuse');
+        const paddedNumber = String(ticketNumber).padStart(4, '0');
+        const channelName = `${ticketType.prefix}-${member.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+
+        // Create channel
+        const channel = await guild.channels.create({
+          name: channelName,
+          type: ChannelType.GuildText,
+          parent: ticketType.categoryId,
+          topic: `Abuse Ticket #${paddedNumber} | User: ${member.user.tag} (${discordId})`,
+          permissionOverwrites: [
+            { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+            { id: discordId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+            { id: ticketType.teamRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+          ],
+        });
+
+        // Build type display
+        const typesDisplay = (abuseTypes || []).map(t => t === 'multi_account' ? 'Multi-Account' : t === 'vpn' ? 'VPN Usage' : t).join(', ') || 'Account Review';
+
+        // Send welcome message
+        const buttons = [
+          new ButtonBuilder().setCustomId('ticket_close:abuse').setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+          new ButtonBuilder().setCustomId('ticket_info:abuse').setLabel('Info').setStyle(ButtonStyle.Primary).setEmoji('ℹ️'),
+        ];
+        const row = new ActionRowBuilder().addComponents(...buttons);
+
+        await channel.send({
+          content: ticketType.welcomeMessage(`<@${discordId}>`, paddedNumber, { types: typesDisplay }),
+          components: [row],
+        });
+
+        console.log(`[Tickets] Abuse ticket created for ${member.user.tag}: ${channelName}`);
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, channelId: channel.id }));
+      } catch (err) {
+        console.error('[Tickets] Create abuse ticket error:', err.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Internal error' }));
       }

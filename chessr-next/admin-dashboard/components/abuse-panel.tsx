@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ShieldAlert, RefreshCw, Loader2, Copy, Check, Globe, Fingerprint, Users, Ban, Trash2, Search, XCircle, CheckCircle2, MessageSquare, Send, X } from 'lucide-react'
+import { ShieldAlert, RefreshCw, Loader2, Copy, Check, Globe, Fingerprint, Users, Ban, Trash2, Search, XCircle, CheckCircle2, MessageSquare, MessageSquarePlus, Send, X } from 'lucide-react'
 import { formatRelativeTime } from '@/lib/format'
 import { toast } from 'sonner'
 import type { UserRole } from '@/lib/types'
@@ -339,6 +339,24 @@ export function AbusePanel({ userRole, userId, userEmail }: AbusePanelProps) {
     finally { setDeleting(false) }
   }
 
+  const handleOpenTicket = async (user: AbuseUser, group: AbuseGroup) => {
+    if (!user.discord_id) { toast.error('User has no Discord linked'); return }
+    try {
+      const emails = group.users.map(u => u.email)
+      const filterParam = encodeURIComponent(emails.join(','))
+      const dashboardLink = `https://dashboard.chessr.io/?tab=abuse&filter=${filterParam}`
+      const res = await fetch('/api/abuse/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discordId: user.discord_id, abuseTypes: group.types, dashboardLink }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Failed to create ticket'); return }
+      if (data.existing) { toast.info('Ticket already exists for this user'); return }
+      toast.success(`Ticket created for ${user.email}`)
+    } catch { toast.error('Failed to create ticket') }
+  }
+
   const openBanAll = (group: AbuseGroup) => {
     const unbanned = group.users.filter(u => !u.banned)
     if (unbanned.length === 0) { toast.info('All users already banned'); return }
@@ -532,6 +550,11 @@ export function AbusePanel({ userRole, userId, userEmail }: AbusePanelProps) {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 ml-2 flex-shrink-0">
+                    {user.discord_id && (
+                      <Button variant="ghost" size="sm" onClick={() => handleOpenTicket(user, group)} className="h-7 w-7 p-0 text-blue-400 hover:bg-blue-500/10" title="Open abuse ticket">
+                        <MessageSquarePlus className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                     {!user.banned && (
                       <Button variant="ghost" size="sm" onClick={() => openBanSingle(user)} className="h-7 w-7 p-0 text-red-400 hover:bg-red-500/10" title="Ban user">
                         <Ban className="w-3.5 h-3.5" />
