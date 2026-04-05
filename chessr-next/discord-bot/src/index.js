@@ -1126,10 +1126,12 @@ async function handleTicketInfo(interaction) {
   const ticketType = TICKET_TYPES[type];
   if (!ticketType) return;
 
+  await interaction.deferReply({ flags: 64 });
+
   // Check if user has the team role (admin only)
   const member = interaction.member;
   if (!member.roles.cache.has(ticketType.teamRoleId)) {
-    await interaction.reply({ content: '❌ You don\'t have permission to view this.', ephemeral: true });
+    await interaction.editReply({ content: '❌ You don\'t have permission to view this.' });
     return;
   }
 
@@ -1140,7 +1142,7 @@ async function handleTicketInfo(interaction) {
   const openerId = openerMatch ? openerMatch[1] : null;
 
   if (!openerId) {
-    await interaction.reply({ content: 'Could not find ticket owner info.', ephemeral: true });
+    await interaction.editReply({ content: 'Could not find ticket owner info.' });
     return;
   }
 
@@ -1152,7 +1154,7 @@ async function handleTicketInfo(interaction) {
     .single();
 
   if (!settings) {
-    await interaction.reply({ content: `No Chessr account found for <@${openerId}>.`, ephemeral: true });
+    await interaction.editReply({ content: `No Chessr account found for <@${openerId}>.` });
     return;
   }
 
@@ -1233,7 +1235,7 @@ async function handleTicketInfo(interaction) {
     .setTimestamp()
     .setFooter({ text: 'Chessr.io — Staff Only', iconURL: 'https://chessr.io/chessr-logo.png' });
 
-  await interaction.reply({ embeds: [embed], ephemeral: true });
+  await interaction.editReply({ embeds: [embed] });
 }
 
 // =============================================================================
