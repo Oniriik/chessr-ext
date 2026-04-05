@@ -982,7 +982,7 @@ async function handleTicketConfirmClose(interaction) {
   const channel = interaction.channel;
   const closedBy = interaction.user;
 
-  // Extract ticket number from channel name (help-0042-username → 0042)
+  // Extract ticket number from channel name
   const match = channel.name.match(new RegExp(`^${ticketType.prefix}-(\\d+)-`));
   const ticketNumber = match ? match[1] : '0000';
 
@@ -999,32 +999,30 @@ async function handleTicketConfirmClose(interaction) {
   const openerId = openerMatch ? openerMatch[1] : null;
 
   // Send log to closed tickets channel
-  const logChannel = await interaction.guild.channels.fetch(ticketType.logChannelId).catch(() => null);
-  if (logChannel) {
-    const logEmbed = new EmbedBuilder()
-      .setTitle(`🔒 Ticket #${ticketNumber} Closed`)
-      .setColor(0x94a3b8)
-      .addFields(
-        { name: '👤 Opened by', value: openerId ? `<@${openerId}>` : 'Unknown', inline: true },
-        { name: '🔒 Closed by', value: `<@${closedBy.id}>`, inline: true },
-        { name: '💬 Messages', value: String(sorted.length), inline: true },
-      )
-      .setTimestamp()
-      .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' });
+  if (ticketType.logChannelId) {
+    const logChannel = await interaction.guild.channels.fetch(ticketType.logChannelId).catch(() => null);
+    if (logChannel?.isTextBased()) {
+      const logEmbed = new EmbedBuilder()
+        .setTitle(`🔒 Ticket #${ticketNumber} Closed`)
+        .setColor(0x94a3b8)
+        .addFields(
+          { name: '👤 Opened by', value: openerId ? `<@${openerId}>` : 'Unknown', inline: true },
+          { name: '🔒 Closed by', value: `<@${closedBy.id}>`, inline: true },
+          { name: '💬 Messages', value: String(sorted.length), inline: true },
+        )
+        .setTimestamp()
+        .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' });
 
-    // Attach transcript as file if it has content
-    const files = [];
-    if (transcript.length > 0) {
-      files.push({
-        attachment: Buffer.from(transcript, 'utf-8'),
-        name: `transcript-${ticketNumber}.txt`,
-      });
+      const files = [];
+      if (transcript.length > 0) {
+        files.push({ attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${ticketNumber}.txt` });
+      }
+
+      await logChannel.send({ embeds: [logEmbed], files }).catch(e => console.error('[Tickets] Log send failed:', e.message));
     }
-
-    await logChannel.send({ embeds: [logEmbed], files });
   }
 
-  // Rename channel to closed-XXXX-username and remove user permissions
+  // Rename channel to closed-XXXX-username
   const closedName = channel.name.replace(new RegExp(`^${ticketType.prefix}-`), `${ticketType.closedPrefix}-`);
   await channel.setName(closedName);
 
@@ -1033,15 +1031,64 @@ async function handleTicketConfirmClose(interaction) {
     await channel.permissionOverwrites.edit(openerId, { ViewChannel: false }).catch(() => {});
   }
 
-  // Replace close button with a "Ticket closed" message
+  // Send closed message with reopen button
+  const reopenRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket_reopen:${type}`)
+      .setLabel('Reopen Ticket')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('🔓'),
+  );
+
   await channel.send({
-    content: `🔒 Ticket closed by <@${closedBy.id}>. This channel will be deleted shortly.`,
+    content: `🔒 Ticket closed by <@${closedBy.id}>.`,
+    components: [reopenRow],
   });
 
-  // Delete after 10 seconds
-  setTimeout(() => channel.delete().catch(() => {}), 10_000);
-
   console.log(`[Tickets] ${closedBy.tag} closed ticket #${ticketNumber}`);
+}
+
+async function handleTicketReopen(interaction) {
+  const type = interaction.customId.split(':')[1];
+  const ticketType = TICKET_TYPES[type];
+  if (!ticketType) return;
+
+  const channel = interaction.channel;
+
+  // Check it's actually a closed ticket
+  if (!channel.name.startsWith(`${ticketType.closedPrefix}-`)) {
+    await interaction.reply({ content: 'This ticket is not closed.', ephemeral: true });
+    return;
+  }
+
+  await interaction.deferUpdate();
+
+  // Rename back to open
+  const openName = channel.name.replace(new RegExp(`^${ticketType.closedPrefix}-`), `${ticketType.prefix}-`);
+  await channel.setName(openName);
+
+  // Restore opener's access
+  const openerMatch = channel.topic?.match(/\((\d+)\)/);
+  const openerId = openerMatch ? openerMatch[1] : null;
+  if (openerId) {
+    await channel.permissionOverwrites.edit(openerId, {
+      ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
+    }).catch(() => {});
+  }
+
+  // Send reopen message with close + info buttons
+  const buttons = [
+    new ButtonBuilder().setCustomId(`ticket_close:${type}`).setLabel('Close Ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒'),
+    new ButtonBuilder().setCustomId(`ticket_info:${type}`).setLabel('Info').setStyle(ButtonStyle.Primary).setEmoji('ℹ️'),
+  ];
+  const row = new ActionRowBuilder().addComponents(...buttons);
+
+  await channel.send({
+    content: `🔓 Ticket reopened by <@${interaction.user.id}>.`,
+    components: [row],
+  });
+
+  console.log(`[Tickets] ${interaction.user.tag} reopened ticket in ${channel.name}`);
 }
 
 async function handleTicketInfo(interaction) {
@@ -1172,6 +1219,7 @@ client.on('interactionCreate', async (interaction) => {
       if (id.startsWith('ticket_close:')) return await handleTicketClose(interaction);
       if (id.startsWith('ticket_confirm_close:')) return await handleTicketConfirmClose(interaction);
       if (id.startsWith('ticket_info:')) return await handleTicketInfo(interaction);
+      if (id.startsWith('ticket_reopen:')) return await handleTicketReopen(interaction);
       if (id === 'ticket_cancel_close') {
         await interaction.update({ content: '❌ Close cancelled.', components: [] });
         return;
