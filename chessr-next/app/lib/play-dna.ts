@@ -887,12 +887,12 @@ function computeProfileFlags(stats: {
     const avgAcc = stats.delta != null ? (stats.delta + getExpectedAccuracy(stats.avgRating, stats.tcType)) : null
     if (avgAcc != null) {
       const expectedWinPct = Math.min(90, Math.max(10, (avgAcc - 50) * 2))
-      const winDiff = Math.abs(winPct - expectedWinPct)
-      const wrStatus: FlagStatus = winDiff > 35 ? 'flagged' : winDiff > 25 ? 'suspicious' : 'clean'
+      const winOver = winPct - expectedWinPct // Only flag when win rate is ABOVE expected (too high = suspicious)
+      const wrStatus: FlagStatus = winOver > 35 ? 'flagged' : winOver > 25 ? 'suspicious' : 'clean'
       flags.push({
         id: 'winRate', label: 'Win Rate', status: wrStatus, weight: 1,
         value: `${winPct.toFixed(0)}% wins`,
-        detail: wrStatus === 'clean' ? 'Win rate matches accuracy' : 'Win rate doesn\'t match accuracy',
+        detail: wrStatus === 'clean' ? 'Win rate matches accuracy' : 'Win rate too high for accuracy',
       })
     }
   }
