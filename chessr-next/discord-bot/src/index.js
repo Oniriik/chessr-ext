@@ -1370,37 +1370,20 @@ client.on('interactionCreate', async (interaction) => {
 client.on('guildMemberAdd', async (member) => {
   // Send welcome DM
   try {
-    const embed1 = new EmbedBuilder()
+    const welcomeEmbed = new EmbedBuilder()
       .setColor(0x5865F2)
       .setTitle('Welcome to chessr.io! ♟️')
-      .setDescription(`Hey **${member.user.username}**!\n\nchessr.io is a browser extension that gives you **live engine analysis and full game reviews** on Chess.com & Lichess — **completely free**, no payment required.`);
-
-    const embed2 = new EmbedBuilder()
-      .setColor(0x2B2D31)
-      .setTitle('📌 Important Channels')
       .setDescription([
-        '📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) — read before posting',
-        '♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) — full feature breakdown',
-        '📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) — latest updates & news',
-        '💻 [Desktop Install](https://discord.com/channels/1464202133653028945/1464226843996459018) — setup guide',
-      ].join('\n\n'));
+        `Hey **${member.user.username}**! chessr.io is **free** — live engine, game reviews, eval bar, all included. No payment needed.`,
+        '',
+        '📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) · ♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) · 📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) · 💻 [Install](https://discord.com/channels/1464202133653028945/1464226843996459018)',
+        '',
+        '🎟️ **Free Trial** — Link your Discord in **Settings** to unlock premium for 3 days. No credit card.',
+        '',
+        '🔥 **Code DISCORD50** — 50% off monthly, yearly & lifetime. Only 3 claims left → [Pricing](https://chessr.io/#pricing)',
+      ].join('\n'));
 
-    const embed3 = new EmbedBuilder()
-      .setColor(0x2B2D31)
-      .setTitle('🆓 What you get for free')
-      .setDescription('Live engine analysis · Move suggestions & arrows · Eval bar\nGame reviews (5/day) · Profile analyses (3/week) · Unlimited linked accounts\n\nPremium unlocks extra engines, 12k+ openings, puzzles, AI explanations & unlimited reviews.');
-
-    const embed4 = new EmbedBuilder()
-      .setColor(0x2B2D31)
-      .setTitle('🎟️ Free Trial — 3 Days')
-      .setDescription('Want to try premium? No credit card needed.\n\n**Settings** → **Link Discord** → premium unlocks instantly for 3 days.');
-
-    const embed5 = new EmbedBuilder()
-      .setColor(0xED4245)
-      .setTitle('🔥 Code DISCORD50 — 50% off')
-      .setDescription('-50% on your first 2 months (monthly)\n-50% on yearly & lifetime\n\n⚠️ **Only 3 claims left** — won\'t be restocked.\n\n→ [See pricing](https://chessr.io/#pricing)');
-
-    await member.send({ embeds: [embed1, embed2, embed3, embed4, embed5] });
+    await member.send({ embeds: [welcomeEmbed] });
     console.log(`[Welcome] Sent DM to ${member.user.tag}`);
   } catch (dmError) {
     console.log(`[Welcome] Could not DM ${member.user.tag} (DMs probably closed)`);
