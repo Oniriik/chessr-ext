@@ -71,10 +71,10 @@ export function useAnalysisTrigger() {
   // Reset when a genuinely new game starts (not a re-detect of the same game)
   useEffect(() => {
     if (isGameStarted && !wasGameStarted.current) {
-      // If we already have analyses and the board has many moves, it's a re-detect, not a new game
       const existingAnalyses = useAccuracyStore.getState().moveAnalyses.length;
       const currentMoves = chessInstance?.history().length || 0;
-      const isRedetect = existingAnalyses > 0 && currentMoves > 2;
+      const isGameOver = useBoardContextStore.getState().isGameOver;
+      const isRedetect = existingAnalyses > 0 && (currentMoves > 2 || isGameOver);
 
       if (!isRedetect) {
         lastAnalyzedMoveIndex.current = 0;

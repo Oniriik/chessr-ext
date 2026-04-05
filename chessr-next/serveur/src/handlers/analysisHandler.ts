@@ -74,7 +74,8 @@ function classifyMove(bestEval: number, afterEval: number): MoveClassification {
  */
 function computeCAPS2(diff: number, absEval: number): number {
   if (diff <= 0) return 100;
-  return 100 * (1 - 0.50 * Math.pow(diff, 0.95) * (1 + 0.005 * Math.pow(absEval, 2.25)));
+  const raw = 100 * (1 - 0.50 * Math.pow(diff, 0.95) * (1 + 0.005 * Math.pow(absEval, 2.25)));
+  return Math.max(0, Math.min(100, raw));
 }
 
 /**
