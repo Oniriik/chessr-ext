@@ -255,7 +255,10 @@ function SendTab() {
             <Button size="sm" variant={mode === 'forward' ? 'default' : 'ghost'} className="h-7 text-xs gap-1" onClick={() => setMode('forward')}><Link2 className="w-3 h-3" /> Forward</Button>
           </div>
           {mode === 'write' ? (
-            <Textarea placeholder="Type your message..." rows={4} value={content} onChange={e => setContent(e.target.value)} />
+            <div className="space-y-1">
+              <Textarea placeholder="Type your message... Use {{user}} to mention the recipient" rows={4} value={content} onChange={e => setContent(e.target.value)} />
+              <p className="text-[10px] text-muted-foreground">{'{{user}}'} will be replaced with a @mention of each recipient</p>
+            </div>
           ) : (
             <div className="space-y-2">
               <div className="flex gap-2">
@@ -270,7 +273,9 @@ function SendTab() {
           {activeMessage && (
             <div className="border border-border/50 rounded-lg p-4 bg-[#2f3136]">
               <p className="text-xs text-muted-foreground mb-2">Preview</p>
-              <p className="text-sm text-gray-300 whitespace-pre-wrap">{activeMessage}</p>
+              <p className="text-sm text-gray-300 whitespace-pre-wrap">
+                {activeMessage.replace(/\{\{user\}\}/g, '@username')}
+              </p>
             </div>
           )}
         </CardContent>

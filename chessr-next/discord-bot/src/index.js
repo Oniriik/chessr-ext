@@ -1680,7 +1680,9 @@ const httpServer = http.createServer(async (req, res) => {
         for (const discordId of discordIds) {
           try {
             const user = await client.users.fetch(discordId);
-            await user.send(content);
+            // Replace {{user}} with Discord mention
+            const personalizedContent = content.replace(/\{\{user\}\}/g, `<@${discordId}>`);
+            await user.send(personalizedContent);
             job.sent++;
             lastJobPerUser.set(discordId, jobId);
             // Log sent message
@@ -1688,7 +1690,7 @@ const httpServer = http.createServer(async (req, res) => {
               await supabase.from('dm_sent').insert({
                 discord_id: discordId,
                 discord_username: user.username,
-                content,
+                content: personalizedContent,
                 job_id: jobId,
               });
             } catch { /* ignore logging errors */ }

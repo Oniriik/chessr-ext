@@ -161,7 +161,7 @@ export default function DashboardPage() {
       case 'leaderboard': return <LeaderboardPanel />
       case 'map': return <MapPanel />
       case 'discord': return <DiscordPanel />
-      case 'messages': return <MessagesPanel />
+      case 'messages': return userRole === 'super_admin' ? <MessagesPanel /> : <div className="text-center text-muted-foreground py-12">Super admin only</div>
       case 'abuse': return <AbusePanel userRole={userRole} userId={userId} userEmail={userEmail} />
     }
   }
