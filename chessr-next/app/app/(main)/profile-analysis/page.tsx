@@ -85,7 +85,7 @@ export default function ProfileAnalysisPage() {
   const [analysesLoading, setAnalysesLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [gamesPerMode, setGamesPerMode] = useState(10)
-  const [selectedMode, setSelectedMode] = useState<string>('blitz')
+  const [selectedModes, setSelectedModes] = useState<string[]>(['blitz'])
   const [analysisLimit, setAnalysisLimit] = useState<{ isLimited: boolean; weeklyUsage: number; weeklyLimit: number | null } | null>(null)
   const [showAnalysisConfirm, setShowAnalysisConfirm] = useState(false)
 
@@ -162,7 +162,7 @@ export default function ProfileAnalysisPage() {
           Authorization: `Bearer ${session?.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ platformUsername: selectedAccount, modes: [selectedMode], gamesPerMode }),
+        body: JSON.stringify({ platformUsername: selectedAccount, modes: selectedModes, gamesPerMode }),
       })
       const data = await res.json()
       if (data.id) {
@@ -225,20 +225,35 @@ export default function ProfileAnalysisPage() {
           {/* Left: settings */}
           <div className="flex items-center gap-3 flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              {MODE_OPTIONS.map((id) => (
-                <button
-                  key={id}
-                  onClick={() => setSelectedMode(id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                    selectedMode === id
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <TcIcon tc={id} className="w-3.5 h-3.5" colored={selectedMode === id} />
-                  {MODE_LABELS[id]}
-                </button>
-              ))}
+              {MODE_OPTIONS.map((id) => {
+                const isSelected = selectedModes.includes(id)
+                const isPremium = !analysisLimit?.isLimited
+                return (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      if (isPremium) {
+                        // Multi-select: toggle mode, keep at least one
+                        setSelectedModes(prev => {
+                          if (prev.includes(id)) return prev.length > 1 ? prev.filter(m => m !== id) : prev
+                          return [...prev, id]
+                        })
+                      } else {
+                        // Single select for free users
+                        setSelectedModes([id])
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <TcIcon tc={id} className="w-3.5 h-3.5" colored={isSelected} />
+                    {MODE_LABELS[id]}
+                  </button>
+                )
+              })}
             </div>
             <div className="w-px h-6 bg-border/40" />
             <div className="flex items-center gap-1">
@@ -284,7 +299,7 @@ export default function ProfileAnalysisPage() {
               disabled={creating}
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-              Analyze {MODE_LABELS[selectedMode]}
+              Analyze {selectedModes.map(m => MODE_LABELS[m]).join(', ')}
               {analysisLimit?.isLimited && analysisLimit.weeklyLimit != null && (
                 <span className="text-xs opacity-75 ml-1">({analysisLimit.weeklyUsage}/{analysisLimit.weeklyLimit})</span>
               )}

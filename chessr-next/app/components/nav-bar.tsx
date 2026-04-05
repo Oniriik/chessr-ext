@@ -8,7 +8,7 @@ import Link from 'next/link'
 
 const NAV_ITEMS = [
   { href: '/', label: 'Games' },
-  { href: '/profile-analysis', label: 'Analysis' },
+  { href: '/profile-analysis', label: 'Profile Analysis' },
 ]
 
 interface NavBarProps {

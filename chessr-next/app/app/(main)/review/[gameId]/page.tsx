@@ -608,57 +608,19 @@ export default function ReviewPage() {
   const blackClock = currentMove?.color === 'b' ? currentMove.clock : (currentPly >= 2 ? moves.slice(0, currentPly).filter(m => m.color === 'b').pop()?.clock : undefined)
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Background */}
-      <div className="animated-bg">
-        <div className="bg-grid" />
-        <div className="orb orb-1" />
-        <div className="orb orb-2" />
-        <div className="orb orb-3" />
-        <div className="bg-particles">
-          {Array.from({ length: 8 }, (_, i) => (
-            <div
-              key={i}
-              className="particle"
-              style={{
-                left: `${10 + i * 11}%`,
-                top: `${15 + (i % 3) * 25}%`,
-                animationDelay: `${i * 0.8}s`,
-                animationDuration: `${5 + (i % 3) * 2}s`,
-              }}
-            />
-          ))}
+    <div className="min-h-screen">
+      {/* PGN copy button */}
+      {pgn && (
+        <div className="flex justify-end px-4 sm:px-6 py-2">
+          <button
+            onClick={() => { navigator.clipboard.writeText(pgn); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            PGN
+          </button>
         </div>
-      </div>
-
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-background/60 backdrop-blur-xl">
-        <div className="w-full px-4 sm:px-6 h-12 sm:h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3 sm:gap-6">
-            <a href="/" className="flex items-center gap-2 shrink-0">
-              <img src="/icon.png" alt="Chessr" className="w-6 h-6 sm:w-8 sm:h-8" />
-              <span className="text-lg sm:text-xl font-bold hidden sm:inline">
-                <span className="text-white">chessr</span><span className="gradient-text">.io</span>
-              </span>
-            </a>
-            <nav className="flex items-center gap-1">
-              <a href="/" className="px-2.5 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium text-foreground bg-muted whitespace-nowrap">Games</a>
-              <a href="/profile-analysis" className="px-2.5 sm:px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 whitespace-nowrap">Analysis</a>
-            </nav>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2">
-            {pgn && (
-              <button
-                onClick={() => { navigator.clipboard.writeText(pgn); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                PGN
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      )}
 
       {/* Players bar */}
       {headers && (() => {
