@@ -1515,6 +1515,8 @@ process.on('unhandledRejection', (error) => {
 import http from 'http';
 
 const httpServer = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
   // POST /sync-roles { userId } — trigger immediate role sync for a specific user
   if (req.url === '/sync-roles' && req.method === 'POST') {
     let body = '';
@@ -1653,7 +1655,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // ─── POST /send-dm-batch ───
-  if (req.method === 'POST' && url.pathname === '/send-dm-batch') {
+  if (req.method === 'POST' && req.url === '/send-dm-batch') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
@@ -1708,7 +1710,7 @@ const httpServer = http.createServer(async (req, res) => {
 
   // ─── GET /dm-job-status ───
   if (req.method === 'GET' && url.pathname === '/dm-job-status') {
-    const jobId = url.searchParams.get('jobId');
+    const jobId = url.searchParams.get('jobId') || '';
     const job = dmJobs.get(jobId);
     if (!job) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -1727,7 +1729,7 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // ─── POST /fetch-message ───
-  if (req.method === 'POST' && url.pathname === '/fetch-message') {
+  if (req.method === 'POST' && req.url === '/fetch-message') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
