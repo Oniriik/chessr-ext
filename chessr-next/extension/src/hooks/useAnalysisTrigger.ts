@@ -10,13 +10,9 @@ import { logger } from '../lib/logger';
 import { useBoardContextStore } from '../stores/boardContextStore';
 
 /**
- * Hook that triggers analysis when:
- * 1. It becomes opponent's turn (player just moved)
- * 2. WebSocket is connected
- * 3. Move not already analyzed
- *
- * Key insight: We analyze AFTER player moves, so we watch for turn change
- * FROM player's turn TO opponent's turn
+ * Watches moveHistory for new player moves and sends them for analysis.
+ * Uses moveHistory length changes to detect new moves, then inspects
+ * the chess.js history to find the player's move and reconstruct FENs.
  */
 export function useAnalysisTrigger() {
   const { isGameStarted, playerColor, currentTurn, chessInstance, moveHistory } =
@@ -24,8 +20,7 @@ export function useAnalysisTrigger() {
   const { requestAnalysis, reset: resetAccuracy } = useAccuracyStore();
   const { isConnected, send } = useWebSocketStore();
 
-  const lastAnalyzedMoveCount = useRef<number>(0);
-  const previousFenRef = useRef<string | null>(null);
+  const lastAnalyzedMoveIndex = useRef<number>(0);
   const wasGameStarted = useRef<boolean>(false);
 
   useEffect(() => {
@@ -33,57 +28,35 @@ export function useAnalysisTrigger() {
       return;
     }
 
-    // Only analyze when it becomes opponent's turn (meaning player just moved)
-    const isOpponentTurn = playerColor !== currentTurn;
-
-    if (!isOpponentTurn) {
-      // Store the FEN before player's move
-      previousFenRef.current = chessInstance.fen();
-      return;
-    }
-
-    // Check if this is a new move (not already analyzed)
-    const currentMoveCount = moveHistory.length;
-    if (currentMoveCount <= lastAnalyzedMoveCount.current) {
-      return;
-    }
-
-    // Get the move that was just made
     const history = chessInstance.history({ verbose: true });
-    const lastMove = history[history.length - 1];
+    if (history.length === 0) return;
 
-    if (!lastMove || !previousFenRef.current) {
-      return;
+    // Find all unanalyzed player moves
+    for (let i = lastAnalyzedMoveIndex.current; i < history.length; i++) {
+      const move = history[i];
+      const moveColor = move.color === 'w' ? 'white' : 'black';
+
+      if (moveColor !== playerColor) continue;
+
+      const fenBefore = move.before;
+      const fenAfter = move.after;
+      const moveUci = move.from + move.to + (move.promotion || '');
+      const moveNumber = Math.ceil((i + 1) / 2);
+
+      logger.log(`Analyzing player move: ${moveUci} (move ${moveNumber}, index ${i})`);
+
+      lastAnalyzedMoveIndex.current = i + 1;
+
+      const requestId = requestAnalysis(moveNumber);
+      send({
+        type: 'analyze',
+        requestId,
+        fenBefore,
+        fenAfter,
+        move: moveUci,
+        playerColor,
+      });
     }
-
-    // Only analyze player's moves, not opponent's
-    const moveColor = lastMove.color === 'w' ? 'white' : 'black';
-    if (moveColor !== playerColor) {
-      return;
-    }
-
-    const fenBefore = previousFenRef.current;
-    const fenAfter = chessInstance.fen();
-    const move = lastMove.from + lastMove.to + (lastMove.promotion || '');
-    const moveNumber = Math.ceil(currentMoveCount / 2);
-
-    logger.log(`Triggering analysis for player's move: ${move} (move ${moveNumber})`);
-
-    // Mark as analyzed
-    lastAnalyzedMoveCount.current = currentMoveCount;
-
-    // Create request
-    const requestId = requestAnalysis(moveNumber);
-
-    // Send WebSocket message
-    send({
-      type: 'analyze',
-      requestId,
-      fenBefore,
-      fenAfter,
-      move,
-      playerColor,
-    });
   }, [
     isGameStarted,
     playerColor,
@@ -95,17 +68,20 @@ export function useAnalysisTrigger() {
     send,
   ]);
 
-  // Reset only when a NEW game starts (not when old game ends or URL changes to review)
-  const isGameOver = useBoardContextStore((s) => s.isGameOver);
-
+  // Reset when a genuinely new game starts (not a re-detect of the same game)
   useEffect(() => {
-    if (isGameStarted && !wasGameStarted.current && !isGameOver) {
-      // New game started — reset accuracy for the new game
-      lastAnalyzedMoveCount.current = 0;
-      previousFenRef.current = null;
-      resetAccuracy();
+    if (isGameStarted && !wasGameStarted.current) {
+      // If we already have analyses and the board has many moves, it's a re-detect, not a new game
+      const existingAnalyses = useAccuracyStore.getState().moveAnalyses.length;
+      const currentMoves = chessInstance?.history().length || 0;
+      const isRedetect = existingAnalyses > 0 && currentMoves > 2;
+
+      if (!isRedetect) {
+        lastAnalyzedMoveIndex.current = 0;
+        resetAccuracy();
+      }
       useBoardContextStore.setState({ isGameOver: false });
     }
     wasGameStarted.current = isGameStarted;
-  }, [isGameStarted, isGameOver, resetAccuracy]);
+  }, [isGameStarted, chessInstance, resetAccuracy]);
 }
