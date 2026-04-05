@@ -993,7 +993,13 @@ async function handleTicketConfirmClose(interaction) {
   }
 
   console.log(`[Tickets] Confirm close in ${interaction.channel.name}`);
-  await interaction.deferUpdate();
+
+  try {
+    await interaction.deferUpdate();
+  } catch (e) {
+    console.error('[Tickets] deferUpdate failed:', e.message);
+    // Interaction may have already been acknowledged — continue anyway
+  }
 
   const channel = interaction.channel;
   const closedBy = interaction.user;
@@ -1002,13 +1008,23 @@ async function handleTicketConfirmClose(interaction) {
   const match = channel.name.match(new RegExp(`^${ticketType.prefix}-(\\d+)-`));
   const ticketNumber = match ? match[1] : '0000';
 
+  console.log(`[Tickets] Processing close for ${channel.name}, ticket #${ticketNumber}`);
+
   // Collect messages for transcript
-  const messages = await channel.messages.fetch({ limit: 100 });
-  const sorted = [...messages.values()].reverse();
-  const transcript = sorted
-    .filter(m => !m.author.bot || m.content)
-    .map(m => `${m.author.tag}: ${m.content || '(embed/attachment)'}`)
-    .join('\n');
+  let sorted = [];
+  let transcript = '';
+  try {
+    console.log('[Tickets] Fetching messages...');
+    const messages = await channel.messages.fetch({ limit: 100 });
+    sorted = [...messages.values()].reverse();
+    transcript = sorted
+      .filter(m => !m.author.bot || m.content)
+      .map(m => `${m.author.tag}: ${m.content || '(embed/attachment)'}`)
+      .join('\n');
+    console.log(`[Tickets] Fetched ${sorted.length} messages`);
+  } catch (e) {
+    console.error('[Tickets] Fetch messages failed:', e.message);
+  }
 
   // Extract opener from topic
   const openerMatch = channel.topic?.match(/\((\d+)\)/);
@@ -1016,48 +1032,56 @@ async function handleTicketConfirmClose(interaction) {
 
   // Send log to closed tickets channel
   if (ticketType.logChannelId) {
-    const logChannel = await interaction.guild.channels.fetch(ticketType.logChannelId).catch(() => null);
-    if (logChannel?.isTextBased()) {
-      const logEmbed = new EmbedBuilder()
-        .setTitle(`🔒 Ticket #${ticketNumber} Closed`)
-        .setColor(0x94a3b8)
-        .addFields(
-          { name: '👤 Opened by', value: openerId ? `<@${openerId}>` : 'Unknown', inline: true },
-          { name: '🔒 Closed by', value: `<@${closedBy.id}>`, inline: true },
-          { name: '💬 Messages', value: String(sorted.length), inline: true },
-        )
-        .setTimestamp()
-        .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' });
+    try {
+      const logChannel = await interaction.guild.channels.fetch(ticketType.logChannelId).catch(() => null);
+      if (logChannel?.isTextBased()) {
+        const logEmbed = new EmbedBuilder()
+          .setTitle(`🔒 Ticket #${ticketNumber} Closed`)
+          .setColor(0x94a3b8)
+          .addFields(
+            { name: '👤 Opened by', value: openerId ? `<@${openerId}>` : 'Unknown', inline: true },
+            { name: '🔒 Closed by', value: `<@${closedBy.id}>`, inline: true },
+            { name: '💬 Messages', value: String(sorted.length), inline: true },
+          )
+          .setTimestamp()
+          .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' });
 
-      const files = [];
-      if (transcript.length > 0) {
-        files.push({ attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${ticketNumber}.txt` });
+        const files = [];
+        if (transcript.length > 0) {
+          files.push({ attachment: Buffer.from(transcript, 'utf-8'), name: `transcript-${ticketNumber}.txt` });
+        }
+
+        await logChannel.send({ embeds: [logEmbed], files });
       }
-
-      await logChannel.send({ embeds: [logEmbed], files }).catch(e => console.error('[Tickets] Log send failed:', e.message));
+    } catch (e) {
+      console.error('[Tickets] Log send failed:', e.message);
     }
   }
 
   // Rename and move to closed category
+  console.log('[Tickets] Renaming channel...');
   const currentName = channel.name;
   const closedName = currentName.startsWith(`${ticketType.closedPrefix}-`)
-    ? currentName  // Already has closed prefix (e.g. rename failed on reopen)
+    ? currentName
     : currentName.replace(new RegExp(`^${ticketType.prefix}-`), `${ticketType.closedPrefix}-`);
   try {
     if (closedName !== currentName) await channel.setName(closedName);
+    console.log(`[Tickets] Renamed to ${closedName}`);
   } catch (e) {
     console.error('[Tickets] Rename to closed failed (rate-limit?):', e.message);
-    // Continue — rename is cosmetic, don't block the close
   }
+  console.log('[Tickets] Moving to closed category...');
   if (ticketType.closedCategoryId) {
     await channel.setParent(ticketType.closedCategoryId, { lockPermissions: false }).catch(e => console.error('[Tickets] Move to closed category failed:', e.message));
   }
+  console.log('[Tickets] Moved. Removing opener access...');
 
   // Remove the opener's access
   if (openerId) {
     await channel.permissionOverwrites.edit(openerId, { ViewChannel: false }).catch(() => {});
   }
 
+  console.log('[Tickets] Sending close message...');
   // Send closed message with reopen button
   const reopenRow = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
