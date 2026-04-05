@@ -1039,8 +1039,16 @@ async function handleTicketConfirmClose(interaction) {
   }
 
   // Rename and move to closed category
-  const closedName = channel.name.replace(new RegExp(`^${ticketType.prefix}-`), `${ticketType.closedPrefix}-`);
-  await channel.setName(closedName);
+  const currentName = channel.name;
+  const closedName = currentName.startsWith(`${ticketType.closedPrefix}-`)
+    ? currentName  // Already has closed prefix (e.g. rename failed on reopen)
+    : currentName.replace(new RegExp(`^${ticketType.prefix}-`), `${ticketType.closedPrefix}-`);
+  try {
+    if (closedName !== currentName) await channel.setName(closedName);
+  } catch (e) {
+    console.error('[Tickets] Rename to closed failed (rate-limit?):', e.message);
+    // Continue — rename is cosmetic, don't block the close
+  }
   if (ticketType.closedCategoryId) {
     await channel.setParent(ticketType.closedCategoryId, { lockPermissions: false }).catch(e => console.error('[Tickets] Move to closed category failed:', e.message));
   }
@@ -1079,8 +1087,9 @@ async function handleTicketReopen(interaction) {
 
   const channel = interaction.channel;
 
-  // Check it's actually a closed ticket
-  if (!channel.name.startsWith(`${ticketType.closedPrefix}-`)) {
+  // Check it's actually a closed ticket (by category, not name — rename may have been rate-limited)
+  const validClosedParents = [ticketType.closedCategoryId, ticketType.categoryId].filter(Boolean);
+  if (!validClosedParents.includes(channel.parentId)) {
     await interaction.reply({ content: 'This ticket is not closed.', ephemeral: true });
     return;
   }
@@ -1088,8 +1097,15 @@ async function handleTicketReopen(interaction) {
   await interaction.deferUpdate();
 
   // Rename and move back to open category
-  const openName = channel.name.replace(new RegExp(`^${ticketType.closedPrefix}-`), `${ticketType.prefix}-`);
-  await channel.setName(openName);
+  const currentName = channel.name;
+  const openName = currentName.startsWith(`${ticketType.closedPrefix}-`)
+    ? currentName.replace(new RegExp(`^${ticketType.closedPrefix}-`), `${ticketType.prefix}-`)
+    : currentName;
+  try {
+    if (openName !== currentName) await channel.setName(openName);
+  } catch (e) {
+    console.error('[Tickets] Rename to open failed (rate-limit?):', e.message);
+  }
   await channel.setParent(ticketType.categoryId, { lockPermissions: false }).catch(() => {});
 
   // Restore opener's access
@@ -1498,7 +1514,7 @@ const httpServer = http.createServer(async (req, res) => {
         // Get next ticket number
         const ticketNumber = await getNextTicketNumber('abuse');
         const paddedNumber = String(ticketNumber).padStart(4, '0');
-        const channelName = `${ticketType.prefix}-${member.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        const channelName = `${ticketType.prefix}-${paddedNumber}-${member.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '');
 
         // Create channel
         const channel = await guild.channels.create({
