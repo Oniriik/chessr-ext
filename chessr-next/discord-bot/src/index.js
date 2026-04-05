@@ -1683,6 +1683,15 @@ const httpServer = http.createServer(async (req, res) => {
             await user.send(content);
             job.sent++;
             lastJobPerUser.set(discordId, jobId);
+            // Log sent message
+            try {
+              await supabase.from('dm_sent').insert({
+                discord_id: discordId,
+                discord_username: user.username,
+                content,
+                job_id: jobId,
+              });
+            } catch { /* ignore logging errors */ }
           } catch (err) {
             job.failed++;
             job.failures.push({
