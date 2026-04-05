@@ -1208,11 +1208,25 @@ async function handleTicketInfo(interaction) {
   }
 
   if (fingerprints?.length) {
-    fields.push({ name: '🖥️ Fingerprints', value: fingerprints.map(f => `\`${f.fingerprint}\``).join(', '), inline: false });
+    const fpText = fingerprints.map(f => `\`${f.fingerprint}\``).join(', ');
+    for (let i = 0; i < fpText.length; i += 1024) {
+      fields.push({ name: i === 0 ? '🖥️ Fingerprints' : '🖥️ Fingerprints (cont.)', value: fpText.slice(i, i + 1024), inline: false });
+    }
   }
 
   if (ips?.length) {
-    fields.push({ name: '🔒 IPs', value: ips.map(i => `\`${i.ip_address}\` ${i.country || ''}`).join('\n'), inline: false });
+    const ipLines = ips.map(i => `\`${i.ip_address}\` ${i.country || ''}`);
+    let chunk = '';
+    let part = 0;
+    for (const line of ipLines) {
+      if ((chunk + line + '\n').length > 1024) {
+        fields.push({ name: part === 0 ? `🔒 IPs (${ips.length})` : '🔒 IPs (cont.)', value: chunk, inline: false });
+        chunk = '';
+        part++;
+      }
+      chunk += line + '\n';
+    }
+    if (chunk) fields.push({ name: part === 0 ? `🔒 IPs (${ips.length})` : '🔒 IPs (cont.)', value: chunk, inline: false });
   }
 
   if (abuseCases?.length) {
@@ -1228,14 +1242,30 @@ async function handleTicketInfo(interaction) {
     fields.push({ name: '🔗 Dashboard', value: `[View abuse cases](${DASHBOARD_URL}/?tab=abuse&filter=${filterParam})`, inline: false });
   }
 
-  const embed = new EmbedBuilder()
-    .setTitle(`ℹ️ Ticket Info — ${email}`)
-    .setColor(0x3b82f6)
-    .addFields(fields)
-    .setTimestamp()
-    .setFooter({ text: 'Chessr.io — Staff Only', iconURL: 'https://chessr.io/chessr-logo.png' });
+  // Split fields into multiple embeds if needed (max 25 fields / 6000 chars per embed)
+  const embeds = [];
+  let currentFields = [];
+  let currentLen = 0;
+  for (const field of fields) {
+    const fieldLen = field.name.length + field.value.length;
+    if (currentFields.length >= 25 || (currentLen + fieldLen > 5500 && currentFields.length > 0)) {
+      embeds.push(currentFields);
+      currentFields = [];
+      currentLen = 0;
+    }
+    currentFields.push(field);
+    currentLen += fieldLen;
+  }
+  if (currentFields.length) embeds.push(currentFields);
 
-  await interaction.editReply({ embeds: [embed] });
+  const embedObjects = embeds.map((chunk, i) => {
+    const e = new EmbedBuilder().setColor(0x3b82f6).addFields(chunk);
+    if (i === 0) e.setTitle(`ℹ️ Ticket Info — ${email}`);
+    if (i === embeds.length - 1) e.setTimestamp().setFooter({ text: 'Chessr.io — Staff Only', iconURL: 'https://chessr.io/chessr-logo.png' });
+    return e;
+  });
+
+  await interaction.editReply({ embeds: embedObjects });
 }
 
 // =============================================================================
@@ -1257,7 +1287,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
     } catch (err) {
-      console.error('[Tickets] Button error:', err.message);
+      console.error('[Tickets] Button error:', err.message, err.stack, err);
       const reply = { content: 'Something went wrong.', ephemeral: true };
       if (interaction.replied || interaction.deferred) await interaction.followUp(reply).catch(() => {});
       else await interaction.reply(reply).catch(() => {});

@@ -257,7 +257,7 @@ export default function ProfileAnalysisPage() {
             </div>
             <div className="w-px h-6 bg-border/40" />
             <div className="flex items-center gap-1">
-              {GAMES_OPTIONS.map((n) => (
+              {(analysisLimit?.isLimited ? GAMES_OPTIONS : GAMES_OPTIONS_PREMIUM).map((n) => (
                 <button
                   key={n}
                   onClick={() => setGamesPerMode(n)}
@@ -655,4 +655,5 @@ const MODE_LABELS: Record<string, string> = { bullet: 'Bullet', blitz: 'Blitz', 
 
 
 const GAMES_OPTIONS = [5, 10]
+const GAMES_OPTIONS_PREMIUM = [5, 10, 15, 20, 30]
 
