@@ -5,10 +5,10 @@ import { promisify } from 'util'
 const execAsync = promisify(exec)
 
 // Server configuration - path where docker-compose.yml is located
-const SERVER_PATH = process.env.SERVER_PATH || '/opt/chessr/app'
+const SERVER_PATH = process.env.SERVER_PATH || '/opt/chessr/app/chessr-next'
 
 // Services that can be controlled
-const ALLOWED_SERVICES = ['server', 'admin', 'cron', 'discord-bot']
+const ALLOWED_SERVICES = ['server', 'admin', 'cron', 'discord-bot', 'app']
 
 // Actions that can be performed
 const ALLOWED_ACTIONS = ['start', 'stop', 'restart', 'status', 'logs', 'update', 'update-extension']
@@ -19,6 +19,7 @@ const CONTAINER_NAMES: Record<string, string> = {
   admin: 'chessr-admin',
   cron: 'chessr-cron',
   'discord-bot': 'chessr-discord',
+  app: 'chessr-app',
 }
 
 async function runCommand(
