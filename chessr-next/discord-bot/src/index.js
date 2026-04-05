@@ -1370,36 +1370,37 @@ client.on('interactionCreate', async (interaction) => {
 client.on('guildMemberAdd', async (member) => {
   // Send welcome DM
   try {
-    const welcomeEmbed = new EmbedBuilder()
+    const embed1 = new EmbedBuilder()
       .setColor(0x5865F2)
       .setTitle('Welcome to chessr.io! ♟️')
-      .setDescription(`Hey **${member.user.username}**, welcome to the chessr.io community!\n\nHere's everything you need to get started:`)
-      .addFields(
-        {
-          name: '📌 Important Channels',
-          value: [
-            '> 📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) — read before posting',
-            '> ♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) — full feature breakdown',
-            '> 📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) — latest updates & news',
-            '> 💻 [Desktop Install](https://discord.com/channels/1464202133653028945/1464226843996459018) — setup guide',
-          ].join('\n'),
-        },
-        {
-          name: '🆓 chessr.io is free to use',
-          value: 'The extension works out of the box — **no payment required**. Free users get live engine analysis, move suggestions, eval bar, game reviews (5/day), profile analyses (3/week), and unlimited linked accounts. Premium just unlocks more (extra engine features, openings, puzzles, unlimited reviews).',
-        },
-        {
-          name: '🎟️ Free Trial — 3 Days, No Credit Card',
-          value: 'Want to try premium? Install the extension → open the sidebar → **Settings** → **Link Discord**\nPremium unlocks instantly for **3 days**. No credit card, no auto-charge.',
-        },
-        {
-          name: '🔥 DISCOUNT — Code `DISCORD50`',
-          value: '**-50%** on your first 2 months (monthly) or **-50%** on yearly & lifetime.\n⚠️ **Only 3 claims left** — once gone, it\'s gone forever.\n\n→ [See pricing](https://chessr.io/#pricing)',
-        },
-      )
-      .setFooter({ text: 'chessr.io — Chess.com & Lichess analysis extension' });
+      .setDescription(`Hey **${member.user.username}**!\n\nchessr.io is a browser extension that gives you **live engine analysis and full game reviews** on Chess.com & Lichess — **completely free**, no payment required.`);
 
-    await member.send({ embeds: [welcomeEmbed] });
+    const embed2 = new EmbedBuilder()
+      .setColor(0x2B2D31)
+      .setTitle('📌 Important Channels')
+      .setDescription([
+        '📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) — read before posting',
+        '♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) — full feature breakdown',
+        '📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) — latest updates & news',
+        '💻 [Desktop Install](https://discord.com/channels/1464202133653028945/1464226843996459018) — setup guide',
+      ].join('\n\n'));
+
+    const embed3 = new EmbedBuilder()
+      .setColor(0x2B2D31)
+      .setTitle('🆓 What you get for free')
+      .setDescription('Live engine analysis · Move suggestions & arrows · Eval bar\nGame reviews (5/day) · Profile analyses (3/week) · Unlimited linked accounts\n\nPremium unlocks extra engines, 12k+ openings, puzzles, AI explanations & unlimited reviews.');
+
+    const embed4 = new EmbedBuilder()
+      .setColor(0x2B2D31)
+      .setTitle('🎟️ Free Trial — 3 Days')
+      .setDescription('Want to try premium? No credit card needed.\n\n**Settings** → **Link Discord** → premium unlocks instantly for 3 days.');
+
+    const embed5 = new EmbedBuilder()
+      .setColor(0xED4245)
+      .setTitle('🔥 Code DISCORD50 — 50% off')
+      .setDescription('-50% on your first 2 months (monthly)\n-50% on yearly & lifetime\n\n⚠️ **Only 3 claims left** — won\'t be restocked.\n\n→ [See pricing](https://chessr.io/#pricing)');
+
+    await member.send({ embeds: [embed1, embed2, embed3, embed4, embed5] });
     console.log(`[Welcome] Sent DM to ${member.user.tag}`);
   } catch (dmError) {
     console.log(`[Welcome] Could not DM ${member.user.tag} (DMs probably closed)`);
