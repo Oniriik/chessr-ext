@@ -1368,6 +1368,40 @@ client.on('interactionCreate', async (interaction) => {
 
 // When a new member joins, check if they have a linked Chessr account
 client.on('guildMemberAdd', async (member) => {
+  // Send welcome DM
+  try {
+    const welcomeEmbed = new EmbedBuilder()
+      .setColor(0x5865F2)
+      .setTitle('Welcome to chessr.io! ♟️')
+      .setDescription(`Hey **${member.user.username}**, welcome to the chessr.io community!\n\nHere's everything you need to get started:`)
+      .addFields(
+        {
+          name: '📌 Important Channels',
+          value: [
+            '> 📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) — read before posting',
+            '> ♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) — full feature breakdown',
+            '> 📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) — latest updates & news',
+            '> 💻 [Desktop Install](https://discord.com/channels/1464202133653028945/1464226843996459018) — setup guide',
+          ].join('\n'),
+        },
+        {
+          name: '🎟️ Free Trial — 3 Days, No Credit Card',
+          value: 'Install the extension → open the sidebar → **Settings** → **Link Discord**\nPremium unlocks instantly for **3 days**. No credit card, no auto-charge.',
+        },
+        {
+          name: '🔥 DISCOUNT — Code `DISCORD50`',
+          value: '**-50%** on your first 2 months (monthly) or **-50%** on yearly & lifetime.\n⚠️ **Only 3 claims left** — once gone, it\'s gone forever.\n\n→ [See pricing](https://chessr.io/#pricing)',
+        },
+      )
+      .setFooter({ text: 'chessr.io — Chess.com & Lichess analysis extension' });
+
+    await member.send({ embeds: [welcomeEmbed] });
+    console.log(`[Welcome] Sent DM to ${member.user.tag}`);
+  } catch (dmError) {
+    console.log(`[Welcome] Could not DM ${member.user.tag} (DMs probably closed)`);
+  }
+
+  // Assign roles if account is linked
   try {
     const { data: userSettings } = await supabase
       .from('user_settings')
