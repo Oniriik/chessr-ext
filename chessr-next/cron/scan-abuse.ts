@@ -145,7 +145,14 @@ async function detectAbuse(): Promise<DetectedGroup[]> {
   }
 
   for (const [, group] of groups) {
-    const groupIps = [...group.ipAddrs].map(ip => ({
+    // Collect ALL IPs from all users in the group (not just shared ones)
+    const allIpAddrs = new Set<string>(group.ipAddrs);
+    for (const uid of group.userIds) {
+      for (const row of ips) {
+        if (row.user_id === uid) allIpAddrs.add(row.ip_address);
+      }
+    }
+    const groupIps = [...allIpAddrs].map(ip => ({
       ip,
       country: ipMeta.get(ip)?.country || null,
       country_code: ipMeta.get(ip)?.country_code || null,
