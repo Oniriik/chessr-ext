@@ -95,9 +95,11 @@ export function useAnalysisTrigger() {
     send,
   ]);
 
-  // Reset only when a NEW game starts (not when old game ends)
+  // Reset only when a NEW game starts (not when old game ends or URL changes to review)
+  const isGameOver = useBoardContextStore((s) => s.isGameOver);
+
   useEffect(() => {
-    if (isGameStarted && !wasGameStarted.current) {
+    if (isGameStarted && !wasGameStarted.current && !isGameOver) {
       // New game started — reset accuracy for the new game
       lastAnalyzedMoveCount.current = 0;
       previousFenRef.current = null;
@@ -105,5 +107,5 @@ export function useAnalysisTrigger() {
       useBoardContextStore.setState({ isGameOver: false });
     }
     wasGameStarted.current = isGameStarted;
-  }, [isGameStarted, resetAccuracy]);
+  }, [isGameStarted, isGameOver, resetAccuracy]);
 }
