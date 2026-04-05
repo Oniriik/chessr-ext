@@ -362,16 +362,26 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           null;
         const cleanIp = cleanIpAddress(clientIp);
 
+        // Resolve current user ID from email (if account already exists) to exclude self-matches
+        let currentUserId: string | null = null;
+        if (email) {
+          const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+          const existing = users?.find((u: any) => u.email === email);
+          currentUserId = existing?.id || null;
+        }
+
         // Check 1: fingerprint match (priority)
         let blocked = false;
         let reason = "";
         let matchedUserIds: string[] = [];
 
         if (fingerprint) {
-          const { data: fpMatches } = await supabase
+          let query = supabase
             .from("user_fingerprints")
             .select("user_id")
             .eq("fingerprint", fingerprint);
+          if (currentUserId) query = query.neq("user_id", currentUserId);
+          const { data: fpMatches } = await query;
 
           if (fpMatches && fpMatches.length > 0) {
             blocked = true;
@@ -382,10 +392,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
 
         // Check 2: IP match (fallback if no fingerprint match)
         if (!blocked && cleanIp) {
-          const { data: ipMatches } = await supabase
+          let query = supabase
             .from("signup_ips")
             .select("user_id")
             .eq("ip_address", cleanIp);
+          if (currentUserId) query = query.neq("user_id", currentUserId);
+          const { data: ipMatches } = await query;
 
           if (ipMatches && ipMatches.length > 0) {
             blocked = true;
