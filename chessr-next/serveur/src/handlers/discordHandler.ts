@@ -132,7 +132,7 @@ export function handleDiscordLinkHttp(req: IncomingMessage, res: ServerResponse)
         client_id: DISCORD_CLIENT_ID,
         redirect_uri: DISCORD_REDIRECT_URI,
         response_type: 'code',
-        scope: 'identify guilds',
+        scope: 'identify guilds guilds.join',
         state,
       });
 
@@ -182,7 +182,7 @@ export function handleInitDiscordLink(
     client_id: DISCORD_CLIENT_ID,
     redirect_uri: DISCORD_REDIRECT_URI,
     response_type: 'code',
-    scope: 'identify guilds',
+    scope: 'identify guilds guilds.join',
     state,
   });
 
@@ -306,6 +306,31 @@ export async function handleDiscordCallback(
         }
       } catch {
         // Non-critical, default to false
+      }
+
+      // Auto-join Discord server if not already a member
+      if (!inGuild && DISCORD_BOT_TOKEN) {
+        try {
+          const joinRes = await fetch(
+            `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${discordId}`,
+            {
+              method: 'PUT',
+              headers: {
+                Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ access_token: accessToken }),
+            },
+          );
+          if (joinRes.ok || joinRes.status === 201) {
+            inGuild = true;
+            console.log(`[Discord] Auto-joined ${discordUsername} to guild`);
+          } else {
+            console.log(`[Discord] Auto-join failed for ${discordUsername}: ${joinRes.status}`);
+          }
+        } catch (joinErr) {
+          console.error('[Discord] Auto-join error:', joinErr);
+        }
       }
     }
 
