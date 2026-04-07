@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServiceRoleClient } from '@/lib/supabase'
 import { PLAN_ROLES, ELO_BRACKETS, PLAN_NAMES } from '@/lib/discord-constants'
+import { sendDiscordEmbed } from '@/lib/discord-notify'
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID
@@ -119,6 +120,34 @@ export async function POST(request: Request) {
       .from('user_settings')
       .update({ discord_roles_synced_at: new Date().toISOString() })
       .eq('user_id', userId)
+
+    // Send role change notification to Discord
+    if (toAdd.length > 0 || toRemove.length > 0) {
+      const getRoleName = (roleId: string) => {
+        const plan = Object.entries(PLAN_ROLES).find(([, id]) => id === roleId)
+        if (plan) return PLAN_NAMES[plan[0]] || plan[0]
+        const elo = ELO_BRACKETS.find((b) => b.roleId === roleId)
+        if (elo) return elo.name
+        return roleId
+      }
+
+      const fields = [
+        { name: '🎮 Discord', value: `<@${settings.discord_id}>`, inline: true },
+      ]
+      if (toRemove.length > 0) {
+        fields.push({ name: '❌ Removed', value: toRemove.map(getRoleName).join(', '), inline: true })
+      }
+      if (toAdd.length > 0) {
+        fields.push({ name: '✅ Added', value: toAdd.map(getRoleName).join(', '), inline: true })
+      }
+
+      await sendDiscordEmbed('discord', {
+        title: '🔄 Role Update',
+        color: 0xffa500,
+        fields,
+        thumbnail: { url: member.user?.avatar ? `https://cdn.discordapp.com/avatars/${settings.discord_id}/${member.user.avatar}.png?size=64` : '' },
+      })
+    }
 
     return NextResponse.json({
       success: true,
