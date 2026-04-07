@@ -10,6 +10,7 @@ import { AuthForm } from './AuthForm';
 import { LinkAccountModal } from '../LinkAccountModal';
 import { GiveawayModal } from '../GiveawayModal';
 import { useDiscordStore } from '../../stores/discordStore';
+import { useVersionStore } from '../../stores/versionStore';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -76,8 +77,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return <LinkAccountModal />;
   }
 
-  // Show giveaway modal if active giveaway and user not in Discord
-  const showGiveaway = activeGiveaway && !giveawayDismissed;
+  // Show giveaway modal if active giveaway and user not in Discord (and no update required)
+  const updateRequired = useVersionStore((s) => s.updateRequired);
+  const showGiveaway = activeGiveaway && !giveawayDismissed && !updateRequired;
 
   return (
     <>
