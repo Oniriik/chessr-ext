@@ -1401,7 +1401,7 @@ client.on('interactionCreate', async (interaction) => {
 // =============================================================================
 
 async function handleGiveaway(interaction) {
-  await interaction.deferReply();
+  await interaction.deferReply({ ephemeral: true });
 
   // Get active giveaway period
   const { data: period } = await supabase
