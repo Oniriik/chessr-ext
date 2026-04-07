@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCw, Zap, Activity, Users, TrendingUp, Calendar, MessageSquare, Eye, Shield } from 'lucide-react'
+import { RefreshCw, Zap, Activity, Users, TrendingUp, Calendar, MessageSquare, Eye, Shield, BarChart2, LineChart } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -86,6 +86,7 @@ export function DataPanel() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [discordOnly, setDiscordOnly] = useState(false)
+  const [cumulative, setCumulative] = useState(false)
 
   const isCustom = period === 'custom'
 
@@ -180,15 +181,37 @@ export function DataPanel() {
 
   const displayPeriod = isCustom ? 'custom' : period
 
-  const activityData = data?.timeline.activity.map((d) => ({
+  const rawActivityData = data?.timeline.activity.map((d) => ({
     ...d,
     label: formatTime(d.time, displayPeriod),
   })) || []
 
-  const activeUsersData = data?.timeline.activeUsers.map((d) => ({
+  const activityData = useMemo(() => {
+    if (!cumulative) return rawActivityData
+    let cKomodo = 0, cMaia = 0, cAnalyses = 0, cReviews = 0, cProfile = 0
+    return rawActivityData.map(d => ({
+      ...d,
+      komodo: (cKomodo += d.komodo),
+      maia: (cMaia += d.maia),
+      analyses: (cAnalyses += d.analyses),
+      reviews: (cReviews += d.reviews),
+      profileAnalyses: (cProfile += d.profileAnalyses),
+    }))
+  }, [rawActivityData, cumulative])
+
+  const rawActiveUsersData = data?.timeline.activeUsers.map((d) => ({
     ...d,
     label: formatTime(d.time, displayPeriod),
   })) || []
+
+  const activeUsersData = useMemo(() => {
+    if (!cumulative) return rawActiveUsersData
+    let cUsers = 0
+    return rawActiveUsersData.map(d => ({
+      ...d,
+      count: (cUsers += d.count),
+    }))
+  }, [rawActiveUsersData, cumulative])
 
   return (
     <div className="space-y-6">
@@ -226,7 +249,16 @@ export function DataPanel() {
             />
           </div>
         )}
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant={cumulative ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCumulative(!cumulative)}
+            className="gap-1.5"
+          >
+            {cumulative ? <LineChart className="w-4 h-4" /> : <BarChart2 className="w-4 h-4" />}
+            {cumulative ? 'Cumulative' : 'Per bucket'}
+          </Button>
           <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>

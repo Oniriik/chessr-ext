@@ -120,21 +120,20 @@ export async function GET(request: Request) {
 
     const supabase = getServiceRoleClient()
 
-    // Fetch all activity rows in period (paginate to bypass 1000 row limit)
+    // Fetch all activity rows in period (paginate to bypass row limit)
     const rows: { event_type: string; created_at: string; user_id: string }[] = []
-    const PAGE_SIZE = 1000
+    const PAGE_SIZE = 5000
     let from = 0
+    const MAX_ROWS = 100000
 
-    while (true) {
-      let query = supabase
+    while (from < MAX_ROWS) {
+      const { data, error } = await supabase
         .from('user_activity')
         .select('event_type, created_at, user_id')
         .gte('created_at', sinceISO)
         .lte('created_at', nowISO)
         .order('created_at', { ascending: true })
         .range(from, from + PAGE_SIZE - 1)
-
-      const { data, error } = await query
 
       if (error) {
         console.error('Error fetching activity:', error)
