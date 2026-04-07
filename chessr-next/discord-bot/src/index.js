@@ -1544,24 +1544,21 @@ async function handleGiveawayLeaderboard(interaction) {
 
 // When a new member joins, check if they have a linked Chessr account
 client.on('guildMemberAdd', async (member) => {
-  // Send welcome DM
+  // Send welcome DM (plain text — embeds don't render before onboarding)
   try {
-    const welcomeEmbed = new EmbedBuilder()
-      .setColor(0x5865F2)
-      .setTitle('Welcome to chessr.io! ♟️')
-      .setDescription([
-        `Hey **${member.user.username}**! You've just unlocked the best chess cheat 😈`,
-        '',
-        '📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) · ♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) · 📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) · 💻 [Install](https://discord.com/channels/1464202133653028945/1464226843996459018)',
-        '',
-        '🔓 **Free Chess.com Game Reviews** — Unlock full game reviews without any Chess.com subscription. [See how →](https://discord.com/channels/1464202133653028945/1464232479442473104/1490412414590779443)',
-        '',
-        '🎟️ **Free Trial** — Link your Discord in **Settings** to unlock premium for 3 days. No credit card.',
-        '',
-        '🔥 **Code DISCORD50** — 50% off monthly, yearly & lifetime. Only 3 claims left → [Pricing](https://chessr.io/#pricing)',
-      ].join('\n'));
-
-    await member.send({ embeds: [welcomeEmbed] });
+    await member.send([
+      `# Welcome to chessr.io! ♟️`,
+      '',
+      `Hey **${member.user.username}**! You've just unlocked the best chess cheat 😈`,
+      '',
+      '📜 [Rules](https://discord.com/channels/1464202133653028945/1464223587346157754) · ♟️ [What is chessr.io](https://discord.com/channels/1464202133653028945/1464223587346157754) · 📢 [Announcements](https://discord.com/channels/1464202133653028945/1464202530362888255) · 💻 [Install](https://discord.com/channels/1464202133653028945/1464226843996459018)',
+      '',
+      '🔓 **Free Chess.com Game Reviews** — Unlock full game reviews without any Chess.com subscription. [See how →](https://discord.com/channels/1464202133653028945/1464232479442473104/1490412414590779443)',
+      '',
+      '🎟️ **Free Trial** — Link your Discord in **Settings** to unlock premium for 3 days. No credit card.',
+      '',
+      '🔥 **Code DISCORD50** — 50% off monthly, yearly & lifetime. Only 3 claims left → [Pricing](https://chessr.io/#pricing)',
+    ].join('\n'));
     console.log(`[Welcome] Sent DM to ${member.user.tag}`);
   } catch (dmError) {
     console.log(`[Welcome] Could not DM ${member.user.tag} (DMs probably closed)`);
