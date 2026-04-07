@@ -1575,16 +1575,16 @@ client.on('guildMemberAdd', async (member) => {
       .eq('discord_id', member.id)
       .single();
 
-    if (!userSettings) return; // No linked account
+    if (userSettings) {
+      // Mark user as in guild
+      await supabase
+        .from('user_settings')
+        .update({ discord_in_guild: true })
+        .eq('user_id', userSettings.user_id);
 
-    // Mark user as in guild
-    await supabase
-      .from('user_settings')
-      .update({ discord_in_guild: true })
-      .eq('user_id', userSettings.user_id);
-
-    await assignRoles(member, userSettings);
-    console.log(`[Roles] Assigned roles to new member ${member.user.tag} (Chessr linked)`);
+      await assignRoles(member, userSettings);
+      console.log(`[Roles] Assigned roles to new member ${member.user.tag} (Chessr linked)`);
+    }
   } catch (error) {
     console.error(`[Roles] Error on member join ${member.user.tag}:`, error.message);
   }
