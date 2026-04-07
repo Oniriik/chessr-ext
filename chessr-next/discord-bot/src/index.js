@@ -93,11 +93,15 @@ const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildInvites,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.Channel, Partials.Message],
 });
+
+// Invite tracking cache: Map<inviteCode, uses>
+const inviteCache = new Map();
 
 // =============================================================================
 // DM Job Management (in-memory)
@@ -521,6 +525,12 @@ const commands = [
     .setDescription('Create a support ticket for a user (admin only)')
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addUserOption(opt => opt.setName('member').setDescription('The user to create a ticket for').setRequired(true)),
+  new SlashCommandBuilder()
+    .setName('giveaway')
+    .setDescription('Show current giveaway info and your invite count'),
+  new SlashCommandBuilder()
+    .setName('giveaway-leaderboard')
+    .setDescription('Show the top inviters for the current giveaway'),
 ];
 
 async function registerCommands() {
@@ -1370,6 +1380,10 @@ client.on('interactionCreate', async (interaction) => {
       await handleTicketSetup(interaction);
     } else if (interaction.commandName === 'ticket-new') {
       await handleTicketNew(interaction);
+    } else if (interaction.commandName === 'giveaway') {
+      await handleGiveaway(interaction);
+    } else if (interaction.commandName === 'giveaway-leaderboard') {
+      await handleGiveawayLeaderboard(interaction);
     }
   } catch (err) {
     console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);
@@ -1383,6 +1397,147 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // =============================================================================
+// Giveaway Commands
+// =============================================================================
+
+async function handleGiveaway(interaction) {
+  await interaction.deferReply();
+
+  // Get active giveaway period
+  const { data: period } = await supabase
+    .from('giveaway_periods')
+    .select('*')
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!period) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setColor(0x6366f1)
+        .setTitle('🎁 Giveaway')
+        .setDescription('No active giveaway at the moment. Stay tuned!')
+        .setFooter({ text: 'Chessr.io', iconURL: 'https://chessr.io/chessr-logo.png' })],
+    });
+  }
+
+  // Get invite count for this user during the period
+  const { data: userInvites, error } = await supabase
+    .from('invite_events')
+    .select('id', { count: 'exact' })
+    .eq('inviter_discord_id', interaction.user.id)
+    .eq('still_in_guild', true)
+    .gte('created_at', period.starts_at)
+    .lte('created_at', period.ends_at);
+
+  const inviteCount = error ? 0 : (userInvites?.length || 0);
+
+  // Get total participants (guild members)
+  const guild = interaction.guild;
+  const totalMembers = guild?.memberCount || '?';
+
+  // Get total invites in period
+  const { data: allInvites } = await supabase
+    .from('invite_events')
+    .select('id', { count: 'exact' })
+    .eq('still_in_guild', true)
+    .gte('created_at', period.starts_at)
+    .lte('created_at', period.ends_at);
+
+  const totalInvites = allInvites?.length || 0;
+
+  const endsAt = Math.floor(new Date(period.ends_at).getTime() / 1000);
+
+  const embed = new EmbedBuilder()
+    .setColor(0x6366f1)
+    .setTitle(`🎁 ${period.name}`)
+    .setDescription([
+      `**Ends:** <t:${endsAt}:R> (<t:${endsAt}:F>)`,
+      '',
+      `👥 **${totalMembers}** members · 📨 **${totalInvites}** invites this period`,
+      '',
+      '**How it works:**',
+      '• Every server member gets 1 ticket',
+      '• Each invite = 1 bonus ticket',
+      '• More invites = more chances to win!',
+    ].join('\n'))
+    .addFields(
+      { name: '📨 Your Invites', value: `**${inviteCount}**`, inline: true },
+      { name: '🎟️ Your Tickets', value: `**${1 + inviteCount}**`, inline: true },
+    )
+    .setFooter({ text: 'Chessr.io Giveaway', iconURL: 'https://chessr.io/chessr-logo.png' })
+    .setTimestamp();
+
+  return interaction.editReply({ embeds: [embed] });
+}
+
+async function handleGiveawayLeaderboard(interaction) {
+  await interaction.deferReply();
+
+  // Get active giveaway period
+  const { data: period } = await supabase
+    .from('giveaway_periods')
+    .select('*')
+    .eq('active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!period) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setColor(0x6366f1)
+        .setTitle('🎁 Giveaway Leaderboard')
+        .setDescription('No active giveaway at the moment.')],
+    });
+  }
+
+  // Get all invites in period grouped by inviter
+  const { data: invites } = await supabase
+    .from('invite_events')
+    .select('inviter_discord_id, inviter_username')
+    .eq('still_in_guild', true)
+    .gte('created_at', period.starts_at)
+    .lte('created_at', period.ends_at);
+
+  if (!invites || invites.length === 0) {
+    return interaction.editReply({
+      embeds: [new EmbedBuilder()
+        .setColor(0x6366f1)
+        .setTitle(`🏆 ${period.name} — Leaderboard`)
+        .setDescription('No invites yet for this period. Be the first!')],
+    });
+  }
+
+  // Count per inviter
+  const counts = {};
+  for (const inv of invites) {
+    const key = inv.inviter_discord_id;
+    if (!counts[key]) counts[key] = { username: inv.inviter_username, count: 0 };
+    counts[key].count++;
+  }
+
+  const sorted = Object.entries(counts)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 15);
+
+  const medals = ['🥇', '🥈', '🥉'];
+  const lines = sorted.map(([discordId, data], i) => {
+    const prefix = medals[i] || `**${i + 1}.**`;
+    return `${prefix} <@${discordId}> — **${data.count}** invite${data.count > 1 ? 's' : ''} (${1 + data.count} tickets)`;
+  });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x6366f1)
+    .setTitle(`🏆 ${period.name} — Leaderboard`)
+    .setDescription(lines.join('\n'))
+    .setFooter({ text: `${invites.length} total invites this period`, iconURL: 'https://chessr.io/chessr-logo.png' })
+    .setTimestamp();
+
+  return interaction.editReply({ embeds: [embed] });
+}
+
 // =============================================================================
 // Bot Events
 // =============================================================================
@@ -1433,6 +1588,35 @@ client.on('guildMemberAdd', async (member) => {
   } catch (error) {
     console.error(`[Roles] Error on member join ${member.user.tag}:`, error.message);
   }
+
+  // Track invite used
+  try {
+    const guild = member.guild;
+    const newInvites = await guild.invites.fetch();
+    const usedInvite = newInvites.find(inv => {
+      const oldUses = inviteCache.get(inv.code) || 0;
+      return inv.uses > oldUses;
+    });
+
+    // Update cache
+    newInvites.forEach(inv => inviteCache.set(inv.code, inv.uses));
+
+    if (usedInvite && usedInvite.inviter) {
+      await supabase.from('invite_events').insert({
+        inviter_discord_id: usedInvite.inviter.id,
+        inviter_username: usedInvite.inviter.username,
+        invited_discord_id: member.id,
+        invited_username: member.user.username,
+        invite_code: usedInvite.code,
+        still_in_guild: true,
+      });
+      console.log(`[Invites] ${usedInvite.inviter.username} invited ${member.user.username} (code: ${usedInvite.code})`);
+    } else {
+      console.log(`[Invites] Could not determine inviter for ${member.user.username}`);
+    }
+  } catch (err) {
+    console.error(`[Invites] Tracking error for ${member.user.tag}:`, err.message);
+  }
 });
 
 // When a member leaves, update discord_in_guild
@@ -1455,6 +1639,24 @@ client.on('guildMemberRemove', async (member) => {
   } catch (error) {
     console.error(`[Guild] Error on member leave ${member.user.tag}:`, error.message);
   }
+
+  // Mark invite as no longer in guild
+  try {
+    await supabase
+      .from('invite_events')
+      .update({ still_in_guild: false })
+      .eq('invited_discord_id', member.id);
+  } catch (err) {
+    console.error(`[Invites] Failed to update leave for ${member.user.tag}:`, err.message);
+  }
+});
+
+// Keep invite cache in sync
+client.on('inviteCreate', (invite) => {
+  inviteCache.set(invite.code, invite.uses);
+});
+client.on('inviteDelete', (invite) => {
+  inviteCache.delete(invite.code);
 });
 
 // Track DM responses
@@ -1466,14 +1668,29 @@ client.on('messageCreate', async (message) => {
     // Find the job that last DMed this specific user
     const matchedJobId = lastJobPerUser.get(message.author.id) || null;
 
+    // Build content: text + attachments + stickers
+    const parts = [];
+    if (message.content) parts.push(message.content);
+    if (message.attachments.size > 0) {
+      for (const [, att] of message.attachments) {
+        parts.push(att.contentType?.startsWith('image/') ? `[image: ${att.url}]` : `[file: ${att.name} — ${att.url}]`);
+      }
+    }
+    if (message.stickers.size > 0) {
+      for (const [, sticker] of message.stickers) {
+        parts.push(`[sticker: ${sticker.name}]`);
+      }
+    }
+    const fullContent = parts.join('\n') || '[empty message]';
+
     await supabase.from('dm_responses').insert({
       discord_id: message.author.id,
       discord_username: message.author.username,
-      content: message.content,
+      content: fullContent,
       job_id: matchedJobId,
     });
 
-    console.log(`[DM Response] ${message.author.username}: ${message.content.substring(0, 50)}`);
+    console.log(`[DM Response] ${message.author.username}: ${fullContent.substring(0, 80)}`);
   } catch (err) {
     console.error('[DM Response] Error saving:', err.message);
   }
@@ -1487,6 +1704,18 @@ client.once('ready', async () => {
 
   // Register slash commands
   await registerCommands();
+
+  // Cache guild invites for tracking
+  try {
+    const guild = client.guilds.cache.get(config.guildId);
+    if (guild) {
+      const invites = await guild.invites.fetch();
+      invites.forEach(inv => inviteCache.set(inv.code, inv.uses));
+      console.log(`[Invites] Cached ${inviteCache.size} invites`);
+    }
+  } catch (err) {
+    console.error('[Invites] Failed to cache invites:', err.message);
+  }
 
   // Initial update
   await updateStatsChannels();
@@ -1650,18 +1879,38 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  // ─── GET /member-count ───
+  if (req.method === 'GET' && url.pathname === '/member-count') {
+    try {
+      const guild = await client.guilds.fetch(config.guildId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ memberCount: guild.memberCount }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   // ─── POST /send-dm-batch ───
   if (req.method === 'POST' && req.url === '/send-dm-batch') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
-        const { jobId, discordIds, content } = JSON.parse(body);
-        if (!jobId || !discordIds?.length || !content) {
+        const { jobId, discordIds, content, embed } = JSON.parse(body);
+        if (!jobId || !discordIds?.length || (!content && !embed)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Missing jobId, discordIds, or content' }));
+          res.end(JSON.stringify({ error: 'Missing jobId, discordIds, or content/embed' }));
           return;
         }
+
+        // Resolve {{memberCount}}
+        let memberCount = '';
+        try {
+          const guild = await client.guilds.fetch(config.guildId);
+          memberCount = guild.memberCount.toString();
+        } catch { /* ignore */ }
 
         const job = {
           total: discordIds.length,
@@ -1680,17 +1929,32 @@ const httpServer = http.createServer(async (req, res) => {
         for (const discordId of discordIds) {
           try {
             const user = await client.users.fetch(discordId);
-            // Replace {{user}} with Discord mention
-            const personalizedContent = content.replace(/\{\{user\}\}/g, `<@${discordId}>`);
-            await user.send(personalizedContent);
+            // Replace variables
+            const replaceVars = (text) => text
+              .replace(/\{\{user\}\}/g, `<@${discordId}>`)
+              .replace(/\{\{memberCount\}\}/g, memberCount);
+
+            const sendPayload = {};
+            if (content) sendPayload.content = replaceVars(content);
+            if (embed) {
+              sendPayload.embeds = [{
+                title: embed.title ? replaceVars(embed.title) : undefined,
+                description: embed.description ? replaceVars(embed.description) : undefined,
+                color: embed.color || 0x5865f2,
+                footer: { text: 'chessr.io', icon_url: 'https://chessr.io/chessr-logo.png' },
+                timestamp: new Date().toISOString(),
+              }];
+            }
+            await user.send(sendPayload);
             job.sent++;
             lastJobPerUser.set(discordId, jobId);
             // Log sent message
             try {
+              const logContent = sendPayload.content || (embed ? `[embed] ${embed.title || ''}: ${embed.description || ''}` : '');
               await supabase.from('dm_sent').insert({
                 discord_id: discordId,
                 discord_username: user.username,
-                content: personalizedContent,
+                content: logContent,
                 job_id: jobId,
               });
             } catch { /* ignore logging errors */ }
