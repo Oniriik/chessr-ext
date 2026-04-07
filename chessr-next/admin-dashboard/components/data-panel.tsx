@@ -99,7 +99,7 @@ export function DataPanel() {
         ? `/api/data?from=${encodeURIComponent(dateFrom)}&to=${encodeURIComponent(dateTo)}`
         : `/api/data?period=${period}`
 
-      const res = await fetch(url)
+      const res = await fetch(url, { cache: 'no-store' })
       if (res.ok) setData(await res.json())
     } catch (err) {
       console.error('Failed to fetch data:', err)
