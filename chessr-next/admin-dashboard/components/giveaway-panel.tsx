@@ -15,6 +15,8 @@ import {
   CalendarClock,
   Plus,
   StopCircle,
+  Copy,
+  Check,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -63,6 +65,7 @@ export function GiveawayPanel() {
   const [editingPrizes, setEditingPrizes] = useState(false)
   const [editPrizes, setEditPrizes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [copiedTimestamp, setCopiedTimestamp] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -171,9 +174,23 @@ export function GiveawayPanel() {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Ends</div>
-                  <div className={`font-bold ${isExpired ? 'text-red-400' : 'text-amber-400'}`}>
+                  <div className={`font-bold ${isExpired ? 'text-red-400' : 'text-amber-400'} flex items-center gap-2`}>
                     {endsAt?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     {isExpired && ' (expired)'}
+                    {endsAt && (
+                      <button
+                        onClick={() => {
+                          const unix = Math.floor(endsAt.getTime() / 1000)
+                          navigator.clipboard.writeText(`<t:${unix}:F>`)
+                          setCopiedTimestamp(true)
+                          setTimeout(() => setCopiedTimestamp(false), 2000)
+                        }}
+                        className="text-muted-foreground hover:text-white transition-colors"
+                        title="Copy Discord timestamp"
+                      >
+                        {copiedTimestamp ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div>

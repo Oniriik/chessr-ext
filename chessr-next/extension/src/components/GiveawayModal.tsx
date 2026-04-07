@@ -36,7 +36,7 @@ export function GiveawayModal() {
           </button>
           <Gift className="tw-w-10 tw-h-10 tw-mx-auto tw-mb-2 tw-text-indigo-400" />
           <h2 className="tw-text-lg tw-font-bold tw-text-foreground">
-            {activeGiveaway.name}
+            Thank you for being a member! 🎉
           </h2>
           <p className="tw-text-xs tw-text-muted-foreground tw-mt-1">
             {daysLeft > 0 ? `${daysLeft} day${daysLeft > 1 ? 's' : ''} left` : 'Ends soon!'}
@@ -58,7 +58,7 @@ export function GiveawayModal() {
         {/* Description */}
         <div className="tw-px-5 tw-pb-3 tw-space-y-1.5">
           <p className="tw-text-xs tw-text-muted-foreground tw-leading-relaxed">
-            Join our Discord to participate in the giveaway!
+            Join our Discord to participate! We run a giveaway every month.
           </p>
           <div className="tw-text-xs tw-text-muted-foreground tw-leading-relaxed tw-space-y-0.5">
             <p>🎟️ Every member gets <span className="tw-text-foreground tw-font-medium">1 ticket</span></p>
