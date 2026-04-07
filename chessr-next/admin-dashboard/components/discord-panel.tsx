@@ -25,6 +25,8 @@ import {
   Rocket,
   Megaphone,
   RefreshCw,
+  Shield,
+  Users,
 } from 'lucide-react'
 
 interface Channel {
@@ -92,6 +94,14 @@ export function DiscordPanel() {
   // Maintenance schedule
   const [maintenanceStart, setMaintenanceStart] = useState<number | null>(null)
   const [maintenanceEnd, setMaintenanceEnd] = useState<number | null>(null)
+
+  // Bulk resync state
+  const [resyncing, setResyncing] = useState(false)
+  const [resyncProgress, setResyncProgress] = useState<{ current: number; total: number } | null>(null)
+  const [resyncResult, setResyncResult] = useState<{
+    synced: number; changed: number; notInGuild: number; errors: number;
+    changes: { user: string; added: string[]; removed: string[] }[]
+  } | null>(null)
 
   // Filter channels by search
   const filteredChannels = channels.filter((c) =>
@@ -230,6 +240,46 @@ export function DiscordPanel() {
     }
   }
 
+  const resyncAllRoles = async () => {
+    setResyncing(true)
+    setResyncProgress(null)
+    setResyncResult(null)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/discord/resync-all', { method: 'POST' })
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('No response stream')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const msg = JSON.parse(line)
+          if (msg.type === 'progress' || msg.type === 'start') {
+            setResyncProgress({ current: msg.current || 0, total: msg.total })
+          }
+          if (msg.type === 'done') {
+            setResyncResult(msg)
+          }
+        }
+      }
+    } catch (err) {
+      setError(`Resync failed: ${err}`)
+    } finally {
+      setResyncing(false)
+    }
+  }
+
   const quickUpdateStatus = async (maintenance: boolean) => {
     try {
       setSending(true)
@@ -261,6 +311,94 @@ export function DiscordPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Force Resync All Roles */}
+      <Card className="border-border/50 bg-card/50 backdrop-blur">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="w-5 h-5 text-indigo-400" />
+            Force Resync All Roles
+          </CardTitle>
+          <CardDescription>
+            Re-check and update plan + ELO roles for all linked Discord users
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            onClick={resyncAllRoles}
+            disabled={resyncing}
+            variant="outline"
+            className="border-indigo-500/50 hover:bg-indigo-500/20"
+          >
+            {resyncing ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <Users className="w-4 h-4 mr-2" />
+            )}
+            {resyncing ? 'Syncing...' : 'Resync All Users'}
+          </Button>
+
+          {/* Progress bar */}
+          {resyncProgress && resyncProgress.total > 0 && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>{resyncProgress.current} / {resyncProgress.total} users</span>
+                <span>{Math.round((resyncProgress.current / resyncProgress.total) * 100)}%</span>
+              </div>
+              <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                  style={{ width: `${(resyncProgress.current / resyncProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Result summary */}
+          {resyncResult && (
+            <div className="space-y-3 border border-border/50 rounded-lg p-4 bg-muted/20">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <CheckCircle2 className="w-4 h-4 text-green-400" />
+                Sync Complete
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <div className="text-muted-foreground text-xs">Synced</div>
+                  <div className="font-bold text-green-400">{resyncResult.synced}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Changed</div>
+                  <div className="font-bold text-amber-400">{resyncResult.changed}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Not in server</div>
+                  <div className="font-bold text-gray-400">{resyncResult.notInGuild}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground text-xs">Errors</div>
+                  <div className="font-bold text-red-400">{resyncResult.errors}</div>
+                </div>
+              </div>
+              {resyncResult.changes.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-xs text-muted-foreground font-medium">Changes:</div>
+                  {resyncResult.changes.map((c, i) => (
+                    <div key={i} className="text-xs flex items-center gap-2 py-0.5">
+                      <span className="font-medium text-white">{c.user}</span>
+                      {c.added.length > 0 && (
+                        <span className="text-green-400">+{c.added.join(', ')}</span>
+                      )}
+                      {c.removed.length > 0 && (
+                        <span className="text-red-400">-{c.removed.join(', ')}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Quick Actions */}
       <Card className="border-border/50 bg-card/50 backdrop-blur">
         <CardHeader>
