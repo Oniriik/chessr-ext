@@ -8,6 +8,8 @@ import { useEvalBar } from '../../hooks/useEvalBar';
 import { useLinkingCheck } from '../../hooks/useLinkingCheck';
 import { AuthForm } from './AuthForm';
 import { LinkAccountModal } from '../LinkAccountModal';
+import { GiveawayModal } from '../GiveawayModal';
+import { useDiscordStore } from '../../stores/discordStore';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -41,6 +43,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Check if user needs to link their platform account
   const { shouldShowLinkModal } = useLinkingCheck();
 
+  // Giveaway modal state
+  const activeGiveaway = useDiscordStore((s) => s.activeGiveaway);
+  const giveawayDismissed = useDiscordStore((s) => s.giveawayDismissed);
+
   // Show loading while initializing auth
   if (initializing) {
     return (
@@ -70,5 +76,13 @@ export function AuthGuard({ children }: AuthGuardProps) {
     return <LinkAccountModal />;
   }
 
-  return <>{children}</>;
+  // Show giveaway modal if active giveaway and user not in Discord
+  const showGiveaway = activeGiveaway && !giveawayDismissed;
+
+  return (
+    <>
+      {showGiveaway && <GiveawayModal />}
+      {children}
+    </>
+  );
 }

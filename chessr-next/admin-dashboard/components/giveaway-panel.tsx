@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   Ticket,
@@ -28,6 +29,7 @@ import {
 interface GiveawayPeriod {
   id: string
   name: string
+  prizes: string | null
   starts_at: string
   ends_at: string
   active: boolean
@@ -57,6 +59,10 @@ export function GiveawayPanel() {
   // New period form
   const [newName, setNewName] = useState('Giveaway')
   const [newEndsAt, setNewEndsAt] = useState('')
+  const [newPrizes, setNewPrizes] = useState('')
+  const [editingPrizes, setEditingPrizes] = useState(false)
+  const [editPrizes, setEditPrizes] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -81,7 +87,7 @@ export function GiveawayPanel() {
       const res = await fetch('/api/giveaway', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create', name: newName, ends_at: new Date(newEndsAt).toISOString() }),
+        body: JSON.stringify({ action: 'create', name: newName, ends_at: new Date(newEndsAt).toISOString(), prizes: newPrizes || null }),
       })
       if (res.ok) {
         await fetchData()
@@ -90,6 +96,22 @@ export function GiveawayPanel() {
       }
     } finally {
       setCreating(false)
+    }
+  }
+
+  const savePrizes = async () => {
+    if (!activePeriod) return
+    setSaving(true)
+    try {
+      await fetch('/api/giveaway', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'update', id: activePeriod.id, prizes: editPrizes, name: activePeriod.name }),
+      })
+      await fetchData()
+      setEditingPrizes(false)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -159,6 +181,39 @@ export function GiveawayPanel() {
                   <div className="font-bold text-indigo-400">{data?.totalInvites || 0}</div>
                 </div>
               </div>
+              {/* Prizes */}
+              <div className="border border-border/50 rounded-lg p-3 bg-muted/20">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="text-xs text-muted-foreground font-medium">Prizes (shown in extension modal)</div>
+                  {!editingPrizes && (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setEditPrizes(activePeriod.prizes || ''); setEditingPrizes(true); }}>
+                      Edit
+                    </Button>
+                  )}
+                </div>
+                {editingPrizes ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editPrizes}
+                      onChange={(e) => setEditPrizes(e.target.value)}
+                      placeholder="🥇 1x Lifetime&#10;🥈 2x Monthly Premium"
+                      rows={3}
+                      className="text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={savePrizes} disabled={saving}>
+                        {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingPrizes(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-white whitespace-pre-wrap">
+                    {activePeriod.prizes || <span className="text-muted-foreground italic">No prizes set</span>}
+                  </div>
+                )}
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -202,6 +257,16 @@ export function GiveawayPanel() {
                     Start Giveaway
                   </Button>
                 </div>
+              </div>
+              <div>
+                <Label className="text-xs">Prizes (shown in extension modal)</Label>
+                <Textarea
+                  value={newPrizes}
+                  onChange={(e) => setNewPrizes(e.target.value)}
+                  placeholder="🥇 1x Lifetime&#10;🥈 2x Monthly Premium"
+                  rows={3}
+                  className="mt-1"
+                />
               </div>
             </div>
           )}

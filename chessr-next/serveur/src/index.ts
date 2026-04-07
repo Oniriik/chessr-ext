@@ -1423,6 +1423,19 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           .single();
 
 
+        // Fetch active giveaway if user is not in guild
+        let activeGiveaway: { name: string; prizes: string | null; ends_at: string } | null = null;
+        if (!userSettings?.discord_in_guild) {
+          const { data: giveaway } = await supabase
+            .from("giveaway_periods")
+            .select("name, prizes, ends_at")
+            .eq("active", true)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+          if (giveaway) activeGiveaway = giveaway;
+        }
+
         ws.send(
           JSON.stringify({
             type: "auth_success",
@@ -1437,6 +1450,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
             freetrialUsed: userSettings?.freetrial_used || false,
             discordInGuild: userSettings?.discord_in_guild || false,
             betaFlags: resolveUserBetas(userSettings?.beta_flags ?? []),
+            activeGiveaway,
           }),
         );
         return;

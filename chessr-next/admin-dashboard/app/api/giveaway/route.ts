@@ -95,6 +95,7 @@ export async function POST(request: Request) {
           name: body.name || 'Giveaway',
           starts_at: new Date().toISOString(),
           ends_at: body.ends_at,
+          prizes: body.prizes || null,
           active: true,
         })
         .select()
@@ -104,6 +105,18 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 })
       }
 
+      return NextResponse.json({ success: true, period: data })
+    }
+
+    if (action === 'update') {
+      const { data, error } = await supabase
+        .from('giveaway_periods')
+        .update({ prizes: body.prizes, name: body.name })
+        .eq('id', body.id)
+        .select()
+        .single()
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       return NextResponse.json({ success: true, period: data })
     }
 

@@ -184,6 +184,7 @@ class WebSocketManager {
             discordStore.setLinked(!!data.discordLinked, data.discordUsername || null, data.discordAvatar || null);
             discordStore.setFreetrialUsed(!!data.freetrialUsed);
             discordStore.setInGuild(!!data.discordInGuild);
+            discordStore.setActiveGiveaway(data.activeGiveaway || null);
 
             // Update beta flags from server
             useBetaStore.getState().setFlags(data.betaFlags ?? []);
