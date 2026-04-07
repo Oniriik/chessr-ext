@@ -2,7 +2,7 @@ import { Gift, ExternalLink, X } from 'lucide-react';
 import { useDiscordStore } from '../stores/discordStore';
 import { Card } from './ui/card';
 
-const DISCORD_INVITE_URL = 'https://discord.gg/chessr';
+const DISCORD_INVITE_URL = 'https://discord.gg/72j4dUadTu';
 const GIVEAWAY_DISMISSED_KEY = 'chessr_giveaway_dismissed';
 
 export function GiveawayModal() {
