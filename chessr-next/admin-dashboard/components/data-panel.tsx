@@ -181,15 +181,14 @@ export function DataPanel() {
 
   const displayPeriod = isCustom ? 'custom' : period
 
-  const rawActivityData = data?.timeline.activity.map((d) => ({
-    ...d,
-    label: formatTime(d.time, displayPeriod),
-  })) || []
-
   const activityData = useMemo(() => {
-    if (!cumulative) return rawActivityData
+    const raw = data?.timeline.activity.map((d) => ({
+      ...d,
+      label: formatTime(d.time, displayPeriod),
+    })) || []
+    if (!cumulative) return raw
     let cKomodo = 0, cMaia = 0, cAnalyses = 0, cReviews = 0, cProfile = 0
-    return rawActivityData.map(d => ({
+    return raw.map(d => ({
       ...d,
       komodo: (cKomodo += d.komodo),
       maia: (cMaia += d.maia),
@@ -197,21 +196,20 @@ export function DataPanel() {
       reviews: (cReviews += d.reviews),
       profileAnalyses: (cProfile += d.profileAnalyses),
     }))
-  }, [rawActivityData, cumulative])
-
-  const rawActiveUsersData = data?.timeline.activeUsers.map((d) => ({
-    ...d,
-    label: formatTime(d.time, displayPeriod),
-  })) || []
+  }, [data?.timeline.activity, displayPeriod, cumulative])
 
   const activeUsersData = useMemo(() => {
-    if (!cumulative) return rawActiveUsersData
+    const raw = data?.timeline.activeUsers.map((d) => ({
+      ...d,
+      label: formatTime(d.time, displayPeriod),
+    })) || []
+    if (!cumulative) return raw
     let cUsers = 0
-    return rawActiveUsersData.map(d => ({
+    return raw.map(d => ({
       ...d,
       count: (cUsers += d.count),
     }))
-  }, [rawActiveUsersData, cumulative])
+  }, [data?.timeline.activeUsers, displayPeriod, cumulative])
 
   return (
     <div className="space-y-6">
