@@ -43,6 +43,7 @@ chrome.runtime.onConnect.addListener((port) => {
     });
 
     port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError; // suppress bfcache warning
       contentPorts.delete(tabId);
       if (lastActiveTabId === tabId) {
         // Pick another tab if available
@@ -69,6 +70,7 @@ chrome.runtime.onConnect.addListener((port) => {
     });
 
     port.onDisconnect.addListener(() => {
+      void chrome.runtime.lastError; // suppress bfcache warning
       streamerPort = null;
       broadcastToContentPorts({ type: 'streamer_status', isOpen: false });
     });
@@ -76,10 +78,8 @@ chrome.runtime.onConnect.addListener((port) => {
 
 });
 
-// Open streamer page when extension icon is clicked
-chrome.action.onClicked.addListener(() => {
-  chrome.tabs.create({ url: chrome.runtime.getURL('streamer.html') });
-});
+// Extension icon click — no action (sidebar is injected via content script)
+chrome.action.onClicked.addListener(() => {});
 
 // Handle messages from content scripts and billing page
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

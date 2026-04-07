@@ -47,6 +47,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Giveaway modal state
   const activeGiveaway = useDiscordStore((s) => s.activeGiveaway);
   const giveawayDismissed = useDiscordStore((s) => s.giveawayDismissed);
+  const updateRequired = useVersionStore((s) => s.updateRequired);
 
   // Show loading while initializing auth
   if (initializing) {
@@ -78,7 +79,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
   }
 
   // Show giveaway modal if active giveaway and user not in Discord (and no update required)
-  const updateRequired = useVersionStore((s) => s.updateRequired);
   const showGiveaway = activeGiveaway && !giveawayDismissed && !updateRequired;
 
   return (
