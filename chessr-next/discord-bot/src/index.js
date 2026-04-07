@@ -1602,15 +1602,60 @@ client.on('guildMemberAdd', async (member) => {
     newInvites.forEach(inv => inviteCache.set(inv.code, inv.uses));
 
     if (usedInvite && usedInvite.inviter) {
-      await supabase.from('invite_events').insert({
-        inviter_discord_id: usedInvite.inviter.id,
-        inviter_username: usedInvite.inviter.username,
-        invited_discord_id: member.id,
-        invited_username: member.user.username,
-        invite_code: usedInvite.code,
-        still_in_guild: true,
-      });
-      console.log(`[Invites] ${usedInvite.inviter.username} invited ${member.user.username} (code: ${usedInvite.code})`);
+      // Check if this person was already invited (leave/rejoin)
+      const { data: existing } = await supabase
+        .from('invite_events')
+        .select('id')
+        .eq('invited_discord_id', member.id)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        // Just mark them as back in guild
+        await supabase
+          .from('invite_events')
+          .update({ still_in_guild: true })
+          .eq('invited_discord_id', member.id);
+        console.log(`[Invites] ${member.user.username} rejoined — updated still_in_guild (no new ticket)`);
+      } else {
+        await supabase.from('invite_events').insert({
+          inviter_discord_id: usedInvite.inviter.id,
+          inviter_username: usedInvite.inviter.username,
+          invited_discord_id: member.id,
+          invited_username: member.user.username,
+          invite_code: usedInvite.code,
+          still_in_guild: true,
+        });
+        console.log(`[Invites] ${usedInvite.inviter.username} invited ${member.user.username} (code: ${usedInvite.code})`);
+
+        // DM the inviter about their new ticket
+        try {
+          const inviter = await client.users.fetch(usedInvite.inviter.id);
+          // Count total invites for this user
+          const { data: allInvites } = await supabase
+            .from('invite_events')
+            .select('id')
+            .eq('inviter_discord_id', usedInvite.inviter.id)
+            .eq('still_in_guild', true);
+          const totalInvites = allInvites?.length || 1;
+
+          await inviter.send({
+            embeds: [new EmbedBuilder()
+              .setColor(0x6366f1)
+              .setTitle('🎟️ +1 Giveaway Ticket!')
+              .setDescription([
+                `**${member.user.username}** joined using your invite!`,
+                '',
+                `You now have **${totalInvites}** invite${totalInvites > 1 ? 's' : ''} → **${1 + totalInvites} tickets** for the giveaway 🎁`,
+                '',
+                'Keep inviting to increase your chances!',
+              ].join('\n'))
+              .setFooter({ text: 'Chessr.io Giveaway', iconURL: 'https://chessr.io/chessr-logo.png' })
+              .setTimestamp()],
+          });
+        } catch (dmErr) {
+          console.log(`[Invites] Could not DM inviter ${usedInvite.inviter.username} (DMs closed)`);
+        }
+      }
     } else {
       console.log(`[Invites] Could not determine inviter for ${member.user.username}`);
     }
