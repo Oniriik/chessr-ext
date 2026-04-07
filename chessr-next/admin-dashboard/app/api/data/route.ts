@@ -122,7 +122,7 @@ export async function GET(request: Request) {
 
     // Fetch all activity rows in period (paginate to bypass row limit)
     const rows: { event_type: string; created_at: string; user_id: string }[] = []
-    const PAGE_SIZE = 5000
+    const PAGE_SIZE = 1000
     let from = 0
     const MAX_ROWS = 100000
 
