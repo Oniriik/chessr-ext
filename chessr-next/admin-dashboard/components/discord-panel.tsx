@@ -248,6 +248,7 @@ export function DiscordPanel() {
 
     try {
       const res = await fetch('/api/discord/resync-all', { method: 'POST' })
+
       const reader = res.body?.getReader()
       if (!reader) throw new Error('No response stream')
 
@@ -259,18 +260,23 @@ export function DiscordPanel() {
         if (done) break
         buffer += decoder.decode(value, { stream: true })
 
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
+        // Parse SSE format: "data: {...}\n\n"
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() || ''
 
-        for (const line of lines) {
-          if (!line.trim()) continue
-          const msg = JSON.parse(line)
-          if (msg.type === 'progress' || msg.type === 'start') {
-            setResyncProgress({ current: msg.current || 0, total: msg.total })
-          }
-          if (msg.type === 'done') {
-            setResyncResult(msg)
-          }
+        for (const part of parts) {
+          const line = part.replace(/^data: /, '').trim()
+          if (!line) continue
+          try {
+            const msg = JSON.parse(line)
+            if (msg.type === 'start') {
+              setResyncProgress({ current: 0, total: msg.total })
+            } else if (msg.type === 'progress') {
+              setResyncProgress({ current: msg.current, total: msg.total })
+            } else if (msg.type === 'done') {
+              setResyncResult(msg)
+            }
+          } catch { /* skip */ }
         }
       }
     } catch (err) {

@@ -5,6 +5,10 @@ import { sendDiscordEmbed } from '@/lib/discord-notify'
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID
 
+// Force Node.js runtime for proper streaming
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 function getRoleName(roleId: string) {
   const plan = Object.entries(PLAN_ROLES).find(([, id]) => id === roleId)
   if (plan) return PLAN_NAMES[plan[0]] || plan[0]
@@ -20,7 +24,6 @@ export async function POST() {
 
   const supabase = getServiceRoleClient()
 
-  // Fetch all linked users
   const { data: linkedUsers } = await supabase
     .from('user_settings')
     .select('user_id, plan, discord_id, discord_username')
@@ -33,15 +36,18 @@ export async function POST() {
   const allPlanRoleIds = Object.values(PLAN_ROLES)
   const allEloRoleIds = ELO_BRACKETS.map((b) => b.roleId)
 
-  // Stream progress via SSE-like newline-delimited JSON
   const encoder = new TextEncoder()
-  const stream = new ReadableStream({
-    async start(controller) {
-      const send = (data: Record<string, unknown>) => {
-        controller.enqueue(encoder.encode(JSON.stringify(data) + '\n'))
-      }
+  const { readable, writable } = new TransformStream()
+  const writer = writable.getWriter()
 
-      send({ type: 'start', total: linkedUsers.length })
+  const send = async (data: Record<string, unknown>) => {
+    await writer.write(encoder.encode(`data: ${JSON.stringify(data)}\n\n`))
+  }
+
+  // Run the sync in the background, writing to the stream
+  ;(async () => {
+    try {
+      await send({ type: 'start', total: linkedUsers.length })
 
       let synced = 0
       let changed = 0
@@ -52,7 +58,6 @@ export async function POST() {
       for (let i = 0; i < linkedUsers.length; i++) {
         const user = linkedUsers[i]
         try {
-          // Fetch guild member
           const memberRes = await fetch(
             `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${user.discord_id}`,
             { headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` } },
@@ -64,8 +69,7 @@ export async function POST() {
               .update({ discord_in_guild: false })
               .eq('user_id', user.user_id)
             notInGuild++
-            send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'not_in_guild' })
-            // Rate limit
+            await send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'not_in_guild' })
             await new Promise((r) => setTimeout(r, 300))
             continue
           }
@@ -78,12 +82,10 @@ export async function POST() {
           const member = await memberRes.json()
           const currentRoles: string[] = member.roles || []
 
-          // Plan role
           const targetPlanRole = PLAN_ROLES[user.plan]
           const planToRemove = currentRoles.filter((r) => allPlanRoleIds.includes(r) && r !== targetPlanRole)
           const planToAdd = targetPlanRole && !currentRoles.includes(targetPlanRole) ? [targetPlanRole] : []
 
-          // ELO role
           const { data: accounts } = await supabase
             .from('linked_accounts')
             .select('rating_bullet, rating_blitz, rating_rapid')
@@ -107,7 +109,6 @@ export async function POST() {
           const toRemove = [...planToRemove, ...eloToRemove]
           const toAdd = [...planToAdd, ...eloToAdd]
 
-          // Apply changes
           for (const roleId of toRemove) {
             await fetch(
               `https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/members/${user.discord_id}/roles/${roleId}`,
@@ -121,7 +122,6 @@ export async function POST() {
             )
           }
 
-          // Update sync timestamp
           await supabase
             .from('user_settings')
             .update({ discord_roles_synced_at: new Date().toISOString() })
@@ -137,7 +137,6 @@ export async function POST() {
               removed: toRemove.map(getRoleName),
             })
 
-            // Send Discord notification
             const fields = [
               { name: '🎮 Discord', value: `<@${user.discord_id}>`, inline: true },
             ]
@@ -154,20 +153,18 @@ export async function POST() {
               fields,
             })
 
-            send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'changed', added: toAdd.map(getRoleName), removed: toRemove.map(getRoleName) })
+            await send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'changed', added: toAdd.map(getRoleName), removed: toRemove.map(getRoleName) })
           } else {
-            send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'ok' })
+            await send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'ok' })
           }
 
-          // Rate limit between users
           await new Promise((r) => setTimeout(r, 300))
         } catch (err) {
           errors++
-          send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'error', error: String(err) })
+          await send({ type: 'progress', current: i + 1, total: linkedUsers.length, user: user.discord_username, status: 'error', error: String(err) })
         }
       }
 
-      // Send summary to Discord
       if (changed > 0) {
         const summaryLines = changes.map(
           (c) => `**${c.user}**: ${c.added.length > 0 ? `+${c.added.join(', ')}` : ''}${c.removed.length > 0 ? ` -${c.removed.join(', ')}` : ''}`,
@@ -182,15 +179,18 @@ export async function POST() {
         })
       }
 
-      send({ type: 'done', synced, changed, notInGuild, errors, changes })
-      controller.close()
-    },
-  })
+      await send({ type: 'done', synced, changed, notInGuild, errors, changes })
+    } finally {
+      await writer.close()
+    }
+  })()
 
-  return new Response(stream, {
+  return new Response(readable, {
     headers: {
-      'Content-Type': 'application/x-ndjson',
-      'Cache-Control': 'no-cache',
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   })
 }
