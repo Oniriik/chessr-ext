@@ -124,7 +124,7 @@ export async function GET(request: Request) {
     const rows: { event_type: string; created_at: string; user_id: string }[] = []
     const PAGE_SIZE = 1000
     let from = 0
-    const MAX_ROWS = 100000
+    const MAX_ROWS = 500000
 
     while (from < MAX_ROWS) {
       const { data, error } = await supabase
