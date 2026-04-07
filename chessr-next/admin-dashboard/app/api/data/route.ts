@@ -23,12 +23,16 @@ function bucketize(
   const komodoMap = new Map<number, number>()
   const maiaMap = new Map<number, number>()
   const analysesMap = new Map<number, number>()
+  const reviewsMap = new Map<number, number>()
+  const profileAnalysesMap = new Map<number, number>()
   const usersMap = new Map<number, Set<string>>()
 
   for (let t = Math.floor(since / bucketMs) * bucketMs; t <= now; t += bucketMs) {
     komodoMap.set(t, 0)
     maiaMap.set(t, 0)
     analysesMap.set(t, 0)
+    reviewsMap.set(t, 0)
+    profileAnalysesMap.set(t, 0)
     usersMap.set(t, new Set())
   }
 
@@ -45,6 +49,12 @@ function bucketize(
       usersMap.get(bucket)?.add(row.user_id)
     } else if (row.event_type === 'analysis') {
       analysesMap.set(bucket, (analysesMap.get(bucket) || 0) + 1)
+    } else if (row.event_type === 'game_review') {
+      reviewsMap.set(bucket, (reviewsMap.get(bucket) || 0) + 1)
+      usersMap.get(bucket)?.add(row.user_id)
+    } else if (row.event_type === 'profile_analysis') {
+      profileAnalysesMap.set(bucket, (profileAnalysesMap.get(bucket) || 0) + 1)
+      usersMap.get(bucket)?.add(row.user_id)
     }
   }
 
@@ -56,6 +66,8 @@ function bucketize(
     komodo: komodoMap.get(t) || 0,
     maia: maiaMap.get(t) || 0,
     analyses: analysesMap.get(t) || 0,
+    reviews: reviewsMap.get(t) || 0,
+    profileAnalyses: profileAnalysesMap.get(t) || 0,
   }))
 
   const activeUsers = times.map((t) => ({
@@ -139,6 +151,8 @@ export async function GET(request: Request) {
     const komodoSuggestions = rows.filter((r) => r.event_type === 'suggestion').length
     const maiaSuggestions = rows.filter((r) => r.event_type === 'maia_suggestion').length
     const analyses = rows.filter((r) => r.event_type === 'analysis').length
+    const gameReviews = rows.filter((r) => r.event_type === 'game_review').length
+    const profileAnalyses = rows.filter((r) => r.event_type === 'profile_analysis').length
     const uniqueUsers = new Set(
       rows.filter((r) => r.event_type === 'suggestion' || r.event_type === 'maia_suggestion').map((r) => r.user_id)
     )
@@ -207,6 +221,8 @@ export async function GET(request: Request) {
         komodoSuggestions,
         maiaSuggestions,
         analyses,
+        gameReviews,
+        profileAnalyses,
         activeUsers: uniqueUsers.size,
       },
       timeline,

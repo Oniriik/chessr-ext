@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { RefreshCw, Zap, Activity, Users, TrendingUp, Calendar, MessageSquare } from 'lucide-react'
+import { RefreshCw, Zap, Activity, Users, TrendingUp, Calendar, MessageSquare, Eye, Shield } from 'lucide-react'
 import {
   AreaChart,
   Area,
@@ -35,10 +35,12 @@ interface DataResponse {
     komodoSuggestions: number
     maiaSuggestions: number
     analyses: number
+    gameReviews: number
+    profileAnalyses: number
     activeUsers: number
   }
   timeline: {
-    activity: { time: string; komodo: number; maia: number; analyses: number }[]
+    activity: { time: string; komodo: number; maia: number; analyses: number; reviews: number; profileAnalyses: number }[]
     activeUsers: { time: string; count: number }[]
   }
   topUsers: TopUser[]
@@ -151,6 +153,22 @@ export function DataPanel() {
       bgColor: 'bg-purple-500/10',
     },
     {
+      title: 'Game Reviews',
+      value: data?.period.gameReviews?.toLocaleString() ?? '---',
+      description: periodLabel,
+      icon: Eye,
+      color: 'text-amber-400',
+      bgColor: 'bg-amber-500/10',
+    },
+    {
+      title: 'Profile Analyses',
+      value: data?.period.profileAnalyses?.toLocaleString() ?? '---',
+      description: periodLabel,
+      icon: Shield,
+      color: 'text-rose-400',
+      bgColor: 'bg-rose-500/10',
+    },
+    {
       title: 'Active Users',
       value: data?.period.activeUsers?.toLocaleString() ?? '---',
       description: 'Users who made a suggestion',
@@ -259,6 +277,14 @@ export function DataPanel() {
                       <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
                     </linearGradient>
+                    <linearGradient id="gradReviews" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradProfileAnalyses" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f43f5e" stopOpacity={0} />
+                    </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
                   <XAxis
@@ -305,6 +331,22 @@ export function DataPanel() {
                     name="Analyses"
                     stroke="#a855f7"
                     fill="url(#gradAnalyses)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="reviews"
+                    name="Game Reviews"
+                    stroke="#f59e0b"
+                    fill="url(#gradReviews)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="profileAnalyses"
+                    name="Profile Analyses"
+                    stroke="#f43f5e"
+                    fill="url(#gradProfileAnalyses)"
                     strokeWidth={2}
                   />
                 </AreaChart>
