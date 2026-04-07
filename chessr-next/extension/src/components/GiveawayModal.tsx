@@ -3,11 +3,21 @@ import { useDiscordStore } from '../stores/discordStore';
 import { Card } from './ui/card';
 
 const DISCORD_INVITE_URL = 'https://discord.gg/chessr';
+const GIVEAWAY_DISMISSED_KEY = 'chessr_giveaway_dismissed';
 
 export function GiveawayModal() {
   const { activeGiveaway, dismissGiveaway } = useDiscordStore();
 
   if (!activeGiveaway) return null;
+
+  // Check if already dismissed for this giveaway
+  const dismissedId = localStorage.getItem(GIVEAWAY_DISMISSED_KEY);
+  if (dismissedId === activeGiveaway.name) return null;
+
+  const handleDismiss = () => {
+    localStorage.setItem(GIVEAWAY_DISMISSED_KEY, activeGiveaway.name);
+    dismissGiveaway();
+  };
 
   const endsAt = new Date(activeGiveaway.ends_at);
   const now = new Date();
@@ -19,7 +29,7 @@ export function GiveawayModal() {
         {/* Header */}
         <div className="tw-bg-gradient-to-b tw-from-indigo-500/30 tw-to-transparent tw-p-5 tw-text-center tw-relative">
           <button
-            onClick={dismissGiveaway}
+            onClick={handleDismiss}
             className="tw-absolute tw-top-3 tw-right-3 tw-text-muted-foreground hover:tw-text-foreground tw-transition-colors"
           >
             <X className="tw-w-4 tw-h-4" />
@@ -46,10 +56,14 @@ export function GiveawayModal() {
         )}
 
         {/* Description */}
-        <div className="tw-px-5 tw-pb-3">
+        <div className="tw-px-5 tw-pb-3 tw-space-y-1.5">
           <p className="tw-text-xs tw-text-muted-foreground tw-leading-relaxed">
-            Join our Discord server to participate. Every member gets a ticket — invite friends for bonus tickets!
+            Join our Discord to participate in the giveaway!
           </p>
+          <div className="tw-text-xs tw-text-muted-foreground tw-leading-relaxed tw-space-y-0.5">
+            <p>🎟️ Every member gets <span className="tw-text-foreground tw-font-medium">1 ticket</span></p>
+            <p>📨 Each invite = <span className="tw-text-foreground tw-font-medium">+1 bonus ticket</span></p>
+          </div>
         </div>
 
         {/* CTA */}
@@ -67,7 +81,7 @@ export function GiveawayModal() {
             <ExternalLink className="tw-w-3.5 tw-h-3.5" />
           </a>
           <button
-            onClick={dismissGiveaway}
+            onClick={handleDismiss}
             className="tw-w-full tw-py-2 tw-text-xs tw-text-muted-foreground hover:tw-text-foreground tw-transition-colors"
           >
             Maybe later
