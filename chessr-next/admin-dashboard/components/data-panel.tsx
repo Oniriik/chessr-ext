@@ -186,9 +186,11 @@ export function DataPanel() {
       ...d,
       label: formatTime(d.time, displayPeriod),
     })) || []
-    if (!cumulative) return raw
+    // Filter out empty buckets in non-cumulative mode
+    const filtered = cumulative ? raw : raw.filter(d => d.komodo > 0 || d.maia > 0 || d.analyses > 0 || d.reviews > 0 || d.profileAnalyses > 0)
+    if (!cumulative) return filtered
     let cKomodo = 0, cMaia = 0, cAnalyses = 0, cReviews = 0, cProfile = 0
-    return raw.map(d => ({
+    return filtered.map(d => ({
       ...d,
       komodo: (cKomodo += d.komodo),
       maia: (cMaia += d.maia),
@@ -203,9 +205,10 @@ export function DataPanel() {
       ...d,
       label: formatTime(d.time, displayPeriod),
     })) || []
-    if (!cumulative) return raw
+    const filtered = cumulative ? raw : raw.filter(d => d.count > 0)
+    if (!cumulative) return filtered
     let cUsers = 0
-    return raw.map(d => ({
+    return filtered.map(d => ({
       ...d,
       count: (cUsers += d.count),
     }))
