@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useEngineStore } from '../stores/engineStore';
+import { useSuggestionStore } from '../stores/suggestionStore';
 import { usePlatform } from '../contexts/PlatformContext';
 import { getRealHref } from '../content/anonymousBlur';
 import { logger } from '../lib/logger';
@@ -87,6 +88,7 @@ export function useGameDetection() {
 
     // Reset state when URL changes
     reset();
+    useSuggestionStore.getState().clearSuggestions();
     moveListObserver.current?.disconnect();
     documentObserver.current?.disconnect();
     lastMoveCount.current = 0;
@@ -147,6 +149,7 @@ export function useGameDetection() {
         if (currentMoves.length <= 1 && lastMoveCount.current > 1) {
           logger.log('[useGameDetection] Game reset detected');
           reset();
+          useSuggestionStore.getState().clearSuggestions();
           moveListObserver.current?.disconnect();
           lastMoveCount.current = 0;
           if (platformModule.detectGameStarted()) {
@@ -194,6 +197,7 @@ export function useGameDetection() {
           } else if (!platformModule.detectGameStarted()) {
             if (moveListValidityCheck) clearInterval(moveListValidityCheck);
             reset();
+            useSuggestionStore.getState().clearSuggestions();
             startDocumentObserver();
           }
         }
