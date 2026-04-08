@@ -133,6 +133,41 @@
       }
       return;
     }
+
+    if (e.data?.type === 'chessr:checkPremoveSetting') {
+      fetch('https://www.chess.com/service/settings/users/me', {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' }
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var enabled = data?.['gameplay.live.premoves'];
+          window.postMessage({ type: 'chessr:premoveSettingResult', enabled: !!enabled }, '*');
+        })
+        .catch(function () {
+          window.postMessage({ type: 'chessr:premoveSettingResult', enabled: null }, '*');
+        });
+      return;
+    }
+
+    if (e.data?.type === 'chessr:enablePremoveSetting') {
+      fetch('https://www.chess.com/service/settings/users/me', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-chesscom-no-csrf': '1'
+        },
+        body: JSON.stringify({ 'gameplay.live.premoves': true })
+      })
+        .then(function () {
+          window.postMessage({ type: 'chessr:premoveSettingUpdated', success: true }, '*');
+        })
+        .catch(function () {
+          window.postMessage({ type: 'chessr:premoveSettingUpdated', success: false }, '*');
+        });
+      return;
+    }
   });
 
   setInterval(poll, 300);

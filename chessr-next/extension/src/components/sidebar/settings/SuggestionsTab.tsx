@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { useOpeningStore } from '../../../stores/openingStore';
@@ -6,6 +6,37 @@ import { usePlatform } from '../../../contexts/PlatformContext';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
 import { Slider } from '../../ui/slider';
+
+function useChesscomPremoveSetting(isChesscom: boolean) {
+  const [premovesEnabled, setPremovesEnabled] = useState<boolean | null>(null);
+  const [enabling, setEnabling] = useState(false);
+
+  useEffect(() => {
+    if (!isChesscom) return;
+
+    window.postMessage({ type: 'chessr:checkPremoveSetting' }, '*');
+
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'chessr:premoveSettingResult') {
+        setPremovesEnabled(e.data.enabled);
+      }
+      if (e.data?.type === 'chessr:premoveSettingUpdated') {
+        setEnabling(false);
+        if (e.data.success) setPremovesEnabled(true);
+      }
+    };
+
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [isChesscom]);
+
+  const enable = useCallback(() => {
+    setEnabling(true);
+    window.postMessage({ type: 'chessr:enablePremoveSetting' }, '*');
+  }, []);
+
+  return { premovesEnabled, enabling, enable };
+}
 
 function ColorPicker({
   label,
@@ -134,6 +165,7 @@ export function SuggestionsTab() {
   const { openingArrowColor, setOpeningArrowColor } = useOpeningStore();
   const { platform } = usePlatform();
   const isChesscom = platform.id === 'chesscom';
+  const { premovesEnabled, enabling, enable: enablePremoves } = useChesscomPremoveSetting(isChesscom);
 
   const colors = [firstArrowColor, secondArrowColor, thirdArrowColor];
   const colorSetters = [setFirstArrowColor, setSecondArrowColor, setThirdArrowColor];
@@ -232,6 +264,21 @@ export function SuggestionsTab() {
               <p className="tw-text-xs tw-text-amber-500">
                 {t('premoveNotAvailable')}
               </p>
+            )}
+
+            {isChesscom && premovesEnabled === false && (
+              <div className="tw-flex tw-items-center tw-justify-between tw-gap-3 tw-p-2.5 tw-rounded-md tw-bg-amber-500/10 tw-border tw-border-amber-500/20">
+                <p className="tw-text-xs tw-text-amber-500">
+                  {t('chesscomPremovesDisabled')}
+                </p>
+                <button
+                  onClick={enablePremoves}
+                  disabled={enabling}
+                  className="tw-text-xs tw-font-medium tw-text-amber-500 tw-bg-amber-500/15 tw-px-2.5 tw-py-1 tw-rounded tw-border-0 tw-cursor-pointer tw-whitespace-nowrap hover:tw-bg-amber-500/25 disabled:tw-opacity-50 disabled:tw-cursor-not-allowed"
+                >
+                  {enabling ? t('enabling') : t('enableIt')}
+                </button>
+              </div>
             )}
 
             {/* Premove modifier key */}

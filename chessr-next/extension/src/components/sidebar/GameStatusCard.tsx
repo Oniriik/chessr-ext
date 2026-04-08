@@ -31,7 +31,7 @@ export function GameStatusCard() {
   const { t } = useTranslation('common');
   const { isGameStarted, playerColor, currentTurn, redetect } = useGameStore();
   const hotkeyMoveEnabled = useSettingsStore((s) => s.hotkeyMoveEnabled);
-  const setShowSettings = useSidebarStore((s) => s.setShowSettings);
+  const openSettingsTab = useSidebarStore((s) => s.openSettingsTab);
 
   // Waiting state - friendly and minimal
   if (!isGameStarted) {
@@ -104,7 +104,7 @@ export function GameStatusCard() {
         {/* Hotkey move banner */}
         {!hotkeyMoveEnabled && (
           <button
-            onClick={() => setShowSettings(true)}
+            onClick={() => openSettingsTab('suggestions')}
             className="tw-mt-2.5 tw-w-full tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2 tw-rounded-md tw-bg-primary/10 tw-border-0 tw-cursor-pointer tw-text-left tw-transition-colors hover:tw-bg-primary/15"
           >
             <Keyboard className="tw-w-3.5 tw-h-3.5 tw-text-primary tw-flex-shrink-0" />
