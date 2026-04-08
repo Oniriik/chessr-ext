@@ -1,8 +1,11 @@
+import { useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../../stores/settingsStore';
 import { useOpeningStore } from '../../../stores/openingStore';
+import { usePlatform } from '../../../contexts/PlatformContext';
 import { Label } from '../../ui/label';
 import { Switch } from '../../ui/switch';
+import { Slider } from '../../ui/slider';
 
 function ColorPicker({
   label,
@@ -14,15 +17,78 @@ function ColorPicker({
   onChange: (color: string) => void;
 }) {
   return (
-    <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+    <div className="tw-flex tw-items-center tw-gap-2">
+      <Label className="tw-text-xs tw-text-muted-foreground">{label}</Label>
+      <input
+        type="color"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="tw-w-8 tw-h-8 tw-rounded-lg tw-border tw-border-border tw-cursor-pointer tw-bg-transparent tw-p-0 [&::-webkit-color-swatch-wrapper]:tw-p-0 [&::-webkit-color-swatch]:tw-rounded-[6px] [&::-webkit-color-swatch]:tw-border-none [&::-moz-color-swatch]:tw-rounded-[6px] [&::-moz-color-swatch]:tw-border-none"
+      />
+    </div>
+  );
+}
+
+function HotkeyInput({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (key: string) => void;
+  label: string;
+}) {
+  const { t } = useTranslation('settings');
+  const [capturing, setCapturing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <div className="tw-flex tw-items-center tw-gap-2">
+      <Label className="tw-text-xs tw-text-muted-foreground">{label}</Label>
+      <input
+        ref={inputRef}
+        readOnly
+        value={capturing ? t('pressAKey') : value.toUpperCase()}
+        onFocus={() => setCapturing(true)}
+        onBlur={() => setCapturing(false)}
+        onKeyDown={(e) => {
+          if (!capturing) return;
+          e.preventDefault();
+          onChange(e.key);
+          setCapturing(false);
+          inputRef.current?.blur();
+        }}
+        className="tw-w-16 tw-h-8 tw-px-2 tw-text-center tw-text-xs tw-font-mono tw-rounded-md tw-border tw-border-input tw-bg-background tw-text-foreground tw-cursor-pointer focus:tw-outline-none focus:tw-ring-1 focus:tw-ring-ring"
+      />
+    </div>
+  );
+}
+
+function SuggestionBlock({
+  label,
+  color,
+  onColorChange,
+  hotkey,
+  onHotkeyChange,
+  showColor,
+}: {
+  label: string;
+  color: string;
+  onColorChange: (color: string) => void;
+  hotkey: string;
+  onHotkeyChange: (key: string) => void;
+  showColor: boolean;
+}) {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="tw-space-y-1.5">
       <Label className="tw-text-sm tw-font-medium">{label}</Label>
-      <div className="tw-relative">
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="tw-w-10 tw-h-10 tw-rounded-md tw-border tw-border-border tw-cursor-pointer tw-bg-transparent"
-        />
+      <div className="tw-flex tw-items-center tw-gap-4">
+        {showColor && (
+          <ColorPicker label={t('color')} value={color} onChange={onColorChange} />
+        )}
+        <HotkeyInput label={t('hotkey')} value={hotkey} onChange={onHotkeyChange} />
       </div>
     </div>
   );
@@ -37,15 +103,43 @@ export function SuggestionsTab() {
     firstArrowColor,
     secondArrowColor,
     thirdArrowColor,
+    hotkeyMoveEnabled,
+    firstHotkey,
+    secondHotkey,
+    thirdHotkey,
+    premoveHotkey,
+    premoveDelayRange,
     setNumberOfSuggestions,
     setUseSameColorForAllArrows,
     setSingleArrowColor,
     setFirstArrowColor,
     setSecondArrowColor,
     setThirdArrowColor,
+    setHotkeyMoveEnabled,
+    setFirstHotkey,
+    setSecondHotkey,
+    setThirdHotkey,
+    setPremoveHotkey,
+    setPremoveDelayRange,
+    humanizeEnabled,
+    pickDelayRange,
+    selectDelayRange,
+    moveDelayRange,
+    setHumanizeEnabled,
+    setPickDelayRange,
+    setSelectDelayRange,
+    setMoveDelayRange,
   } = useSettingsStore();
 
   const { openingArrowColor, setOpeningArrowColor } = useOpeningStore();
+  const { platform } = usePlatform();
+  const isChesscom = platform.id === 'chesscom';
+
+  const colors = [firstArrowColor, secondArrowColor, thirdArrowColor];
+  const colorSetters = [setFirstArrowColor, setSecondArrowColor, setThirdArrowColor];
+  const hotkeys = [firstHotkey, secondHotkey, thirdHotkey];
+  const hotkeySetters = [setFirstHotkey, setSecondHotkey, setThirdHotkey];
+  const labels = [t('firstSuggestion'), t('secondSuggestion'), t('thirdSuggestion')];
 
   return (
     <div className="tw-space-y-6">
@@ -65,10 +159,10 @@ export function SuggestionsTab() {
         </select>
       </div>
 
-      {/* Arrow Colors Section */}
+      {/* Suggestions Section */}
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
         <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
-          {t('arrowColors')}
+          {t('suggestions')}
         </Label>
 
         {/* Use Same Color Toggle */}
@@ -87,39 +181,197 @@ export function SuggestionsTab() {
           />
         </div>
 
-        {/* Color Pickers */}
-        <div className="tw-space-y-3 tw-pt-2">
-          {useSameColorForAllArrows ? (
-            <ColorPicker
-              label={t('arrowColor')}
-              value={singleArrowColor}
-              onChange={setSingleArrowColor}
+        {/* Single color picker when same color is on */}
+        {useSameColorForAllArrows && (
+          <ColorPicker
+            label={t('arrowColor')}
+            value={singleArrowColor}
+            onChange={setSingleArrowColor}
+          />
+        )}
+
+        {/* Per-suggestion blocks */}
+        <div className="tw-space-y-4 tw-pt-2">
+          {Array.from({ length: numberOfSuggestions }, (_, i) => (
+            <SuggestionBlock
+              key={i}
+              label={labels[i]}
+              color={colors[i]}
+              onColorChange={colorSetters[i]}
+              hotkey={hotkeys[i]}
+              onHotkeyChange={hotkeySetters[i]}
+              showColor={!useSameColorForAllArrows}
             />
-          ) : (
-            <>
-              <ColorPicker
-                label={t('firstArrowColor')}
-                value={firstArrowColor}
-                onChange={setFirstArrowColor}
-              />
-              {numberOfSuggestions >= 2 && (
-                <ColorPicker
-                  label={t('secondArrowColor')}
-                  value={secondArrowColor}
-                  onChange={setSecondArrowColor}
-                />
-              )}
-              {numberOfSuggestions >= 3 && (
-                <ColorPicker
-                  label={t('thirdArrowColor')}
-                  value={thirdArrowColor}
-                  onChange={setThirdArrowColor}
-                />
-              )}
-            </>
-          )}
+          ))}
         </div>
       </div>
+
+      {/* Hotkey Move Section */}
+      <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
+        <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
+          {t('hotkeyMove')}
+        </Label>
+        <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+          <div className="tw-space-y-0.5">
+            <Label className="tw-text-sm tw-font-medium">
+              {t('enableHotkeyMove')}
+            </Label>
+            <p className="tw-text-xs tw-text-muted-foreground">
+              {t('enableHotkeyMoveDesc')}
+            </p>
+          </div>
+          <Switch
+            checked={hotkeyMoveEnabled}
+            onCheckedChange={setHotkeyMoveEnabled}
+          />
+        </div>
+
+        {hotkeyMoveEnabled && (
+          <div className={`tw-space-y-4 tw-pt-2 ${!isChesscom ? 'tw-opacity-50 tw-pointer-events-none' : ''}`}>
+            {!isChesscom && (
+              <p className="tw-text-xs tw-text-amber-500">
+                {t('premoveNotAvailable')}
+              </p>
+            )}
+
+            {/* Premove modifier key */}
+            <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+              <div className="tw-space-y-0.5">
+                <Label className="tw-text-sm tw-font-medium">
+                  {t('premoveKey')}
+                </Label>
+                <p className="tw-text-xs tw-text-muted-foreground">
+                  {t('premoveKeyDesc')}
+                </p>
+              </div>
+              <HotkeyInput
+                label=""
+                value={premoveHotkey}
+                onChange={setPremoveHotkey}
+              />
+            </div>
+
+            {/* Premove delay range */}
+            <div>
+              <div className="tw-flex tw-items-center tw-justify-between tw-mb-1.5">
+                <Label className="tw-text-sm tw-font-medium">{t('premoveDelay')}</Label>
+                <span className="tw-text-xs tw-font-mono tw-text-muted-foreground">
+                  {(premoveDelayRange[0] / 1000).toFixed(1)}s – {(premoveDelayRange[1] / 1000).toFixed(1)}s
+                </span>
+              </div>
+              <Slider
+                value={premoveDelayRange}
+                onValueChange={(v) => setPremoveDelayRange(v as [number, number])}
+                min={0}
+                max={3000}
+                step={100}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Humanize Section */}
+      {hotkeyMoveEnabled && (
+        <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">
+          <Label className="tw-text-xs tw-text-muted-foreground tw-uppercase">
+            {t('humanize')}
+          </Label>
+
+          <div className="tw-flex tw-items-center tw-justify-between tw-gap-4">
+            <div className="tw-space-y-0.5">
+              <Label className="tw-text-sm tw-font-medium">
+                {t('humanizeMoves')}
+              </Label>
+              <p className="tw-text-xs tw-text-muted-foreground">
+                {t('humanizeDesc')}
+              </p>
+            </div>
+            <Switch
+              checked={humanizeEnabled}
+              onCheckedChange={setHumanizeEnabled}
+            />
+          </div>
+
+          {!humanizeEnabled && (
+            <p className="tw-text-xs tw-text-amber-500">
+              {t('humanizeWarning')}
+            </p>
+          )}
+
+          {humanizeEnabled && (
+            <div className="tw-space-y-4 tw-pt-2">
+              {/* Pick delay */}
+              <div>
+                <div className="tw-flex tw-items-center tw-justify-between tw-mb-1.5">
+                  <div>
+                    <Label className="tw-text-sm tw-font-medium">{t('pickDelay')}</Label>
+                    <p className="tw-text-xs tw-text-muted-foreground">{t('pickDelayDesc')}</p>
+                  </div>
+                  <span className="tw-text-xs tw-font-mono tw-text-muted-foreground tw-whitespace-nowrap">
+                    {pickDelayRange[0]}–{pickDelayRange[1]}ms
+                  </span>
+                </div>
+                <Slider
+                  value={pickDelayRange}
+                  onValueChange={(v) => setPickDelayRange(v as [number, number])}
+                  min={0}
+                  max={500}
+                  step={10}
+                />
+              </div>
+
+              {/* Select delay */}
+              <div>
+                <div className="tw-flex tw-items-center tw-justify-between tw-mb-1.5">
+                  <div>
+                    <Label className="tw-text-sm tw-font-medium">{t('selectDelay')}</Label>
+                    <p className="tw-text-xs tw-text-muted-foreground">{t('selectDelayDesc')}</p>
+                  </div>
+                  <span className="tw-text-xs tw-font-mono tw-text-muted-foreground tw-whitespace-nowrap">
+                    {selectDelayRange[0]}–{selectDelayRange[1]}ms
+                  </span>
+                </div>
+                <Slider
+                  value={selectDelayRange}
+                  onValueChange={(v) => setSelectDelayRange(v as [number, number])}
+                  min={0}
+                  max={300}
+                  step={10}
+                />
+              </div>
+
+              {/* Move delay */}
+              <div>
+                <div className="tw-flex tw-items-center tw-justify-between tw-mb-1.5">
+                  <div>
+                    <Label className="tw-text-sm tw-font-medium">{t('moveDelay')}</Label>
+                    <p className="tw-text-xs tw-text-muted-foreground">{t('moveDelayDesc')}</p>
+                  </div>
+                  <span className="tw-text-xs tw-font-mono tw-text-muted-foreground tw-whitespace-nowrap">
+                    {moveDelayRange[0]}–{moveDelayRange[1]}ms
+                  </span>
+                </div>
+                <Slider
+                  value={moveDelayRange}
+                  onValueChange={(v) => setMoveDelayRange(v as [number, number])}
+                  min={0}
+                  max={500}
+                  step={10}
+                />
+              </div>
+
+              {/* Total move time */}
+              <div className="tw-flex tw-items-center tw-justify-between tw-pt-2 tw-border-t tw-border-border/50">
+                <Label className="tw-text-xs tw-text-muted-foreground">{t('totalMoveTime')}</Label>
+                <span className="tw-text-xs tw-font-mono tw-text-foreground">
+                  {((pickDelayRange[0] + selectDelayRange[0] + moveDelayRange[0]) / 1000).toFixed(2)}s – {((pickDelayRange[1] + selectDelayRange[1] + moveDelayRange[1]) / 1000).toFixed(2)}s
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Opening Arrow Color Section */}
       <div className="tw-space-y-4 tw-pt-4 tw-border-t tw-border-border">

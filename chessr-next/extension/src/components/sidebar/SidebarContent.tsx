@@ -24,6 +24,7 @@ import { PlanBadge } from '../ui/plan-badge';
 import { UpgradeModal } from '../UpgradeModal';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useContainerWidth } from '../../hooks/useContainerWidth';
+import { useHotkeyMove } from '../../hooks/useHotkeyMove';
 
 /**
  * SIDEBAR COMPONENTS ARCHITECTURE
@@ -144,6 +145,7 @@ function SidebarHeader({
 
 function AuthenticatedContent() {
   const { t } = useTranslation(['common', 'game']);
+  useHotkeyMove();
 
   // Check version on mount
   const { updateRequired, checkVersion } = useVersionStore();

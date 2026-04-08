@@ -34,6 +34,18 @@ interface SettingsState {
   secondArrowColor: string;
   thirdArrowColor: string;
 
+  // Hotkey move
+  hotkeyMoveEnabled: boolean;
+  firstHotkey: string;
+  secondHotkey: string;
+  thirdHotkey: string;
+  premoveHotkey: string;
+  premoveDelayRange: [number, number];
+  humanizeEnabled: boolean;
+  pickDelayRange: [number, number];
+  selectDelayRange: [number, number];
+  moveDelayRange: [number, number];
+
   // Actions
   setLanguage: (language: string) => void;
   setShowGameStatistics: (show: boolean) => void;
@@ -50,6 +62,16 @@ interface SettingsState {
   setFirstArrowColor: (color: string) => void;
   setSecondArrowColor: (color: string) => void;
   setThirdArrowColor: (color: string) => void;
+  setHotkeyMoveEnabled: (enabled: boolean) => void;
+  setFirstHotkey: (key: string) => void;
+  setSecondHotkey: (key: string) => void;
+  setThirdHotkey: (key: string) => void;
+  setPremoveHotkey: (key: string) => void;
+  setPremoveDelayRange: (range: [number, number]) => void;
+  setHumanizeEnabled: (enabled: boolean) => void;
+  setPickDelayRange: (range: [number, number]) => void;
+  setSelectDelayRange: (range: [number, number]) => void;
+  setMoveDelayRange: (range: [number, number]) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -78,6 +100,18 @@ export const useSettingsStore = create<SettingsState>()(
       secondArrowColor: '#3b82f6',
       thirdArrowColor: '#f59e0b',
 
+      // Hotkey move defaults
+      hotkeyMoveEnabled: false,
+      firstHotkey: '1',
+      secondHotkey: '2',
+      thirdHotkey: '3',
+      premoveHotkey: 'Shift',
+      premoveDelayRange: [300, 800] as [number, number],
+      humanizeEnabled: true,
+      pickDelayRange: [50, 150] as [number, number],
+      selectDelayRange: [30, 100] as [number, number],
+      moveDelayRange: [100, 300] as [number, number],
+
       // Actions
       setLanguage: (language) => set({ language }),
       setShowGameStatistics: (show) => set({ showGameStatistics: show }),
@@ -94,6 +128,16 @@ export const useSettingsStore = create<SettingsState>()(
       setFirstArrowColor: (color) => set({ firstArrowColor: color }),
       setSecondArrowColor: (color) => set({ secondArrowColor: color }),
       setThirdArrowColor: (color) => set({ thirdArrowColor: color }),
+      setHotkeyMoveEnabled: (enabled) => set({ hotkeyMoveEnabled: enabled }),
+      setFirstHotkey: (key) => set({ firstHotkey: key }),
+      setSecondHotkey: (key) => set({ secondHotkey: key }),
+      setThirdHotkey: (key) => set({ thirdHotkey: key }),
+      setPremoveHotkey: (key) => set({ premoveHotkey: key }),
+      setPremoveDelayRange: (range) => set({ premoveDelayRange: range }),
+      setHumanizeEnabled: (enabled) => set({ humanizeEnabled: enabled }),
+      setPickDelayRange: (range) => set({ pickDelayRange: range }),
+      setSelectDelayRange: (range) => set({ selectDelayRange: range }),
+      setMoveDelayRange: (range) => set({ moveDelayRange: range }),
     }),
     {
       name: 'chessr-settings',

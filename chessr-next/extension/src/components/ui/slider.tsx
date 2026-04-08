@@ -18,7 +18,9 @@ const Slider = React.forwardRef<
     <SliderPrimitive.Track className="tw-relative tw-h-1.5 tw-w-full tw-grow tw-overflow-hidden tw-rounded-full tw-bg-primary/20">
       <SliderPrimitive.Range className="tw-absolute tw-h-full tw-bg-primary" />
     </SliderPrimitive.Track>
-    <SliderPrimitive.Thumb className="tw-block tw-h-4 tw-w-4 tw-rounded-full tw-border tw-border-primary/50 tw-bg-foreground tw-shadow tw-transition-colors focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-ring disabled:tw-pointer-events-none disabled:tw-opacity-50" />
+    {(props.defaultValue ?? props.value ?? [0]).map((_: unknown, i: number) => (
+      <SliderPrimitive.Thumb key={i} className="tw-block tw-h-4 tw-w-4 tw-rounded-full tw-border tw-border-primary/50 tw-bg-foreground tw-shadow tw-transition-colors focus-visible:tw-outline-none focus-visible:tw-ring-1 focus-visible:tw-ring-ring disabled:tw-pointer-events-none disabled:tw-opacity-50" />
+    ))}
   </SliderPrimitive.Root>
 ))
 Slider.displayName = SliderPrimitive.Root.displayName

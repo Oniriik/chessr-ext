@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { Gamepad2, RefreshCw } from 'lucide-react';
+import { Gamepad2, RefreshCw, Keyboard, Settings } from 'lucide-react';
 import { Card, CardContent } from '../ui/card';
 import { useGameStore } from '../../stores/gameStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { useSidebarStore } from '../../stores/sidebarStore';
 
 interface PieceIndicatorProps {
   color: 'white' | 'black';
@@ -28,6 +30,8 @@ function PieceIndicator({ color, isActive = false, size = 'md' }: PieceIndicator
 export function GameStatusCard() {
   const { t } = useTranslation('common');
   const { isGameStarted, playerColor, currentTurn, redetect } = useGameStore();
+  const hotkeyMoveEnabled = useSettingsStore((s) => s.hotkeyMoveEnabled);
+  const setShowSettings = useSidebarStore((s) => s.setShowSettings);
 
   // Waiting state - friendly and minimal
   if (!isGameStarted) {
@@ -96,6 +100,20 @@ export function GameStatusCard() {
             </span>
           </div>
         </div>
+
+        {/* Hotkey move banner */}
+        {!hotkeyMoveEnabled && (
+          <button
+            onClick={() => setShowSettings(true)}
+            className="tw-mt-2.5 tw-w-full tw-flex tw-items-center tw-gap-2 tw-px-3 tw-py-2 tw-rounded-md tw-bg-primary/10 tw-border-0 tw-cursor-pointer tw-text-left tw-transition-colors hover:tw-bg-primary/15"
+          >
+            <Keyboard className="tw-w-3.5 tw-h-3.5 tw-text-primary tw-flex-shrink-0" />
+            <span className="tw-text-xs tw-text-primary tw-flex-1">
+              {t('hotkeyMoveBanner')}
+            </span>
+            <Settings className="tw-w-3 tw-h-3 tw-text-primary/60" />
+          </button>
+        )}
       </CardContent>
     </Card>
   );

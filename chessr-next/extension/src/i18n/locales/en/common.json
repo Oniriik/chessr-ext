@@ -22,6 +22,8 @@
   "readyToPlay": "Ready to play",
   "startGameToSeeAnalysis": "Start a game to see analysis",
   "refreshDetection": "Refresh detection",
+  "hotkeyMoveBanner": "Enable hotkey move to play suggestions with keyboard",
+  "goToSettings": "Settings",
   "today": "Today",
   "selected_one": "{{count}} selected",
   "selected_other": "{{count}} selected",

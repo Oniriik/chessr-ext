@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chessr",
-  "version": "2.5.1",
+  "version": "2.5.2",
   "description": "Chessr - Chess assistance, done right.",
   "permissions": ["storage", "activeTab", "cookies"],
   "host_permissions": [
@@ -21,6 +21,12 @@
     {
       "matches": ["*://chess.com/*", "*://*.chess.com/*"],
       "js": ["pageContext.js"],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://lichess.org/*"],
+      "js": ["pageContextLichess.js"],
       "run_at": "document_idle",
       "world": "MAIN"
     }
