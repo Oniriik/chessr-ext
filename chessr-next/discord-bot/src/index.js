@@ -1934,6 +1934,28 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  // ─── GET /guild-members ───
+  if (req.method === 'GET' && url.pathname === '/guild-members') {
+    try {
+      const guild = await client.guilds.fetch(config.guildId);
+      const members = await guild.members.fetch();
+      const result = members
+        .filter(m => !m.user.bot)
+        .map(m => ({
+          discord_id: m.user.id,
+          discord_username: m.user.username,
+          discord_avatar: m.user.avatar,
+          discord_in_guild: true,
+        }));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ members: result }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
   // ─── POST /send-dm-batch ───
   if (req.method === 'POST' && req.url === '/send-dm-batch') {
     let body = '';
