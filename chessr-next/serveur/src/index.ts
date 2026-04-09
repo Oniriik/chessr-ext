@@ -1400,13 +1400,6 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         isAuthenticated = true;
         userId = user.id;
 
-        // Store the connection
-        clients.set(userId, {
-          ws,
-          user: { id: user.id, email: user.email || "" },
-        });
-        clientAlive.set(userId, true);
-
         // Store IP and resolve country (fire and forget)
         storeUserIp(user.id, clientIp);
 
@@ -1418,9 +1411,17 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
         const { data: userSettings } = await supabase
           .from("user_settings")
-          .select("discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild, beta_flags")
+          .select("plan, discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild, beta_flags")
           .eq("user_id", user.id)
           .single();
+
+        // Store the connection with plan info
+        clients.set(userId, {
+          ws,
+          user: { id: user.id, email: user.email || "" },
+          plan: userSettings?.plan || 'free',
+        });
+        clientAlive.set(userId, true);
 
 
         // Fetch active giveaway if user is not in guild

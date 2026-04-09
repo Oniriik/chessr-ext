@@ -16,7 +16,20 @@ export interface Client {
     id: string;
     email: string;
   };
+  plan?: string; // 'free' | 'freetrial' | 'premium' | 'lifetime' | 'beta'
   engine?: string; // 'default' | 'maia2'
+}
+
+const FREE_LIMITS = {
+  maxElo: 2000,
+  maxMultiPv: 1,
+  allowVariety: false,
+  allowArmageddon: false,
+  allowUnlimitedStrength: false,
+};
+
+function isPremiumPlan(plan?: string): boolean {
+  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
 }
 
 export interface SuggestionMessage {
@@ -157,24 +170,33 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
     return;
   }
 
+  // Enforce plan limits
+  const premium = isPremiumPlan(client.plan);
+  const effectiveElo = premium ? (targetElo || 1500) : Math.min(targetElo || 1500, FREE_LIMITS.maxElo);
+  const effectiveMultiPv = premium ? (multiPv || 1) : Math.min(multiPv || 1, FREE_LIMITS.maxMultiPv);
+  const effectiveVariety = premium ? variety : (FREE_LIMITS.allowVariety ? variety : 0);
+  const effectiveArmageddon = premium ? armageddon : (FREE_LIMITS.allowArmageddon ? armageddon : 'off');
+  const effectiveLimitStrength = premium ? limitStrength : true; // Free users always limited
+  const effectiveContempt = premium ? contempt : undefined;
+
   const modeLabel = puzzleMode ? 'puzzle' : 'game';
   logStart({
     requestId,
     email: client.user.email,
     type: 'suggestion',
-    params: `mode=${modeLabel}, elo=${targetElo || 1500}, pv=${multiPv || 1}${contempt !== undefined ? `, ambition=${contempt}` : ''}${variety ? `, variety=${variety}` : ''}${limitStrength === false && searchMode === 'nodes' && searchNodes ? `, nodes=${searchNodes}` : ''}${limitStrength === false && searchMode === 'depth' && searchDepth ? `, depth=${searchDepth}` : ''}${limitStrength === false && searchMode === 'movetime' && searchMovetime ? `, movetime=${searchMovetime}ms` : ''}`,
+    params: `mode=${modeLabel}, elo=${effectiveElo}, pv=${effectiveMultiPv}${effectiveContempt !== undefined ? `, ambition=${effectiveContempt}` : ''}${effectiveVariety ? `, variety=${effectiveVariety}` : ''}${!premium ? ', plan=free' : ''}${effectiveLimitStrength === false && searchMode === 'nodes' && searchNodes ? `, nodes=${searchNodes}` : ''}${effectiveLimitStrength === false && searchMode === 'depth' && searchDepth ? `, depth=${searchDepth}` : ''}${effectiveLimitStrength === false && searchMode === 'movetime' && searchMovetime ? `, movetime=${searchMovetime}ms` : ''}`,
   });
 
   // Prepare config (standard search with MultiPV)
-  const pvCount = Math.min(3, Math.max(1, multiPv || 1));
+  const pvCount = Math.min(3, Math.max(1, effectiveMultiPv));
   const config = getEngineConfig({
-    targetElo: targetElo || 1500,
-    personality: personality || 'Default',
+    targetElo: effectiveElo,
+    personality: premium ? (personality || 'Default') : 'Default',
     multiPv: pvCount,
-    contempt: contempt,
-    variety: variety,
-    limitStrength: limitStrength,
-    armageddon: armageddon,
+    contempt: effectiveContempt,
+    variety: effectiveVariety,
+    limitStrength: effectiveLimitStrength,
+    armageddon: effectiveArmageddon as 'off' | 'white' | 'black' | undefined,
     puzzleMode: puzzleMode,
   });
 
@@ -189,7 +211,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
 
       // Build search options based on mode
       const searchOptions: { nodes?: number; depth?: number; movetime?: number; moves?: string[] } = { moves };
-      if (limitStrength === false && searchMode) {
+      if (effectiveLimitStrength === false && searchMode) {
         // Puzzle mode: no limits. Game mode: cap depth to 20 to avoid blocking shared engines.
         const maxDepth = puzzleMode ? 30 : 20;
         const maxMovetime = puzzleMode ? 5000 : 3000;

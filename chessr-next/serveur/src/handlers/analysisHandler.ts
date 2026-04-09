@@ -20,6 +20,7 @@ export interface Client {
     id: string;
     email: string;
   };
+  plan?: string;
 }
 
 export interface AnalysisMessage {
