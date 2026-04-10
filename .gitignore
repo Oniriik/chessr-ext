@@ -22,6 +22,12 @@ chessr-next/extension/chessr.zip
 chessr-next/extension/chessr/
 chessr-next/extension/build/*.zip
 
+# Third-party/cracked extensions
+chessr-2.6.0-minted/
+Mephisto-master/
+ChessAssist-v28.5*/
+BetterMint/
+
 # Environment files
 .env
 .env.*

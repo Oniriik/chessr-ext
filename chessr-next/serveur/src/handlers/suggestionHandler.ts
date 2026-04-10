@@ -18,6 +18,7 @@ export interface Client {
   };
   plan?: string; // 'free' | 'freetrial' | 'premium' | 'lifetime' | 'beta'
   engine?: string; // 'default' | 'maia2'
+  onCrackDetected?: (reason: string) => void;
 }
 
 const FREE_LIMITS = {
@@ -173,6 +174,21 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
 
   // Enforce plan limits
   const premium = isPremiumPlan(client.plan);
+
+  // Detect cracked extension: free user requesting premium features
+  if (!premium && !puzzleMode) {
+    const requestedElo = targetElo || 1500;
+    const isSuspicious = requestedElo > FREE_LIMITS.maxElo
+      || (variety && variety > 0)
+      || (armageddon && armageddon !== 'off')
+      || (contempt !== undefined)
+      || (limitStrength === false)
+      || (personality && !FREE_LIMITS.allowedPersonalities.includes(personality));
+    if (isSuspicious && client.onCrackDetected) {
+      client.onCrackDetected(`Premium features requested on free plan: elo=${requestedElo}, personality=${personality || 'Default'}, variety=${variety || 0}, armageddon=${armageddon || 'off'}, limitStrength=${limitStrength}`);
+    }
+  }
+
   const effectiveElo = premium ? (targetElo || 1500) : Math.min(targetElo || 1500, FREE_LIMITS.maxElo);
   const effectiveMultiPv = premium ? (multiPv || 1) : Math.min(multiPv || 1, FREE_LIMITS.maxMultiPv);
   const effectiveVariety = premium ? variety : (FREE_LIMITS.allowVariety ? variety : 0);

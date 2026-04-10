@@ -133,6 +133,88 @@ async function storeFingerprint(userId: string, fingerprint: string | null) {
   }
 }
 
+// Expected manifest integrity hash (SHA-256 of manifest.json)
+// Set this to the hash of your official manifest after building
+const EXPECTED_MANIFEST_HASH = process.env.MANIFEST_HASH || '';
+const flaggedIntegrity = new Set<string>();
+const CRACK_DETECTION_CHANNEL_ID = '1477490743588159488';
+
+async function reportCrackDetected(
+  reason: string,
+  userId: string,
+  email: string,
+): Promise<void> {
+  if (!DISCORD_BOT_TOKEN) return;
+
+  // Get user details
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("plan, discord_id, discord_username")
+    .eq("user_id", userId)
+    .single();
+
+  const { data: fps } = await supabase
+    .from("user_fingerprints")
+    .select("fingerprint")
+    .eq("user_id", userId)
+    .limit(3);
+
+  const { data: ips } = await supabase
+    .from("user_ips")
+    .select("ip, country")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(3);
+
+  const fingerprints = fps?.map(f => f.fingerprint).join(', ') || 'None';
+  const ipList = ips?.map(i => `${i.ip} (${i.country || '?'})`).join(', ') || 'None';
+  const discord = settings?.discord_username
+    ? `${settings.discord_username} (<@${settings.discord_id}>)`
+    : 'Not linked';
+
+  try {
+    await fetch(`https://discord.com/api/v10/channels/${CRACK_DETECTION_CHANNEL_ID}/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bot ${DISCORD_BOT_TOKEN}`,
+      },
+      body: JSON.stringify({
+        embeds: [{
+          title: "\ud83d\udea8 Crack Detected",
+          color: 0xef4444,
+          fields: [
+            { name: "Reason", value: reason, inline: false },
+            { name: "Email", value: email, inline: true },
+            { name: "Plan", value: settings?.plan || 'free', inline: true },
+            { name: "Discord", value: discord, inline: true },
+            { name: "IPs", value: ipList, inline: false },
+            { name: "Fingerprints", value: fingerprints, inline: false },
+            { name: "User ID", value: `\`${userId}\``, inline: false },
+          ],
+          timestamp: new Date().toISOString(),
+        }],
+      }),
+    });
+  } catch {}
+}
+
+async function storeIntegrityHash(userId: string, hash: string, email: string) {
+  if (!hash) return;
+  // Flag if hash doesn't match expected (potential cracked extension)
+  if (EXPECTED_MANIFEST_HASH && hash !== EXPECTED_MANIFEST_HASH && !flaggedIntegrity.has(userId)) {
+    flaggedIntegrity.add(userId);
+    console.warn(`[Integrity] Mismatch for ${userId}: got ${hash.substring(0, 12)}…, expected ${EXPECTED_MANIFEST_HASH.substring(0, 12)}…`);
+    try {
+      await supabase
+        .from("user_settings")
+        .update({ integrity_flag: hash })
+        .eq("user_id", userId);
+    } catch {}
+    reportCrackDetected(`Manifest integrity mismatch: \`${hash.substring(0, 16)}…\``, userId, email);
+  }
+}
+
 // Ban status cache (TTL 60s to avoid DB call on every message)
 const BAN_CACHE_TTL = 60_000;
 const banCache = new Map<
@@ -1415,11 +1497,19 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           .eq("user_id", user.id)
           .single();
 
-        // Store the connection with plan info
+        // Store the connection with plan info + crack detection callback
+        const userEmail = user.email || "";
+        const userIdForClosure = user.id;
+        const crackReported = new Set<string>();
         clients.set(userId, {
           ws,
-          user: { id: user.id, email: user.email || "" },
+          user: { id: user.id, email: userEmail },
           plan: userSettings?.plan || 'free',
+          onCrackDetected: (reason: string) => {
+            if (crackReported.has(userIdForClosure)) return;
+            crackReported.add(userIdForClosure);
+            reportCrackDetected(reason, userIdForClosure, userEmail);
+          },
         });
         clientAlive.set(userId, true);
 
@@ -1466,6 +1556,10 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       // Handle fingerprint (sent separately after auth to avoid timeout)
       if (message.type === "fingerprint" && message.fingerprint) {
         storeFingerprint(userId, message.fingerprint);
+        // Store integrity hash if present (silent crack detection)
+        if (message.ih) {
+          storeIntegrityHash(userId, message.ih, clients.get(userId)?.user?.email || '');
+        }
         return;
       }
 
