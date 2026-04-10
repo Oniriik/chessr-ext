@@ -23,6 +23,7 @@ export interface Client {
 const FREE_LIMITS = {
   maxElo: 2000,
   maxMultiPv: 3,
+  allowedPersonalities: ['Default', 'Aggressive'],
   allowVariety: false,
   allowArmageddon: false,
   allowUnlimitedStrength: false,
@@ -191,7 +192,7 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
   const pvCount = Math.min(3, Math.max(1, effectiveMultiPv));
   const config = getEngineConfig({
     targetElo: effectiveElo,
-    personality: premium ? (personality || 'Default') : 'Default',
+    personality: premium ? (personality || 'Default') : (FREE_LIMITS.allowedPersonalities.includes(personality || 'Default') ? (personality || 'Default') : 'Default'),
     multiPv: pvCount,
     contempt: effectiveContempt,
     variety: effectiveVariety,
