@@ -22,7 +22,7 @@ export interface Client {
 
 const FREE_LIMITS = {
   maxElo: 2000,
-  maxMultiPv: 1,
+  maxMultiPv: 3,
   allowVariety: false,
   allowArmageddon: false,
   allowUnlimitedStrength: false,
