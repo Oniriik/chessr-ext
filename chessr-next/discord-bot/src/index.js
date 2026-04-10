@@ -531,6 +531,16 @@ const commands = [
   new SlashCommandBuilder()
     .setName('giveaway-leaderboard')
     .setDescription('Show the top inviters for the current giveaway'),
+  new SlashCommandBuilder()
+    .setName('clear')
+    .setDescription('Delete messages in this channel (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addIntegerOption(opt =>
+      opt.setName('count')
+        .setDescription('Number of messages to delete (1-100)')
+        .setRequired(true)
+        .setMinValue(1)
+        .setMaxValue(100)),
 ];
 
 async function registerCommands() {
@@ -1341,6 +1351,29 @@ async function handleTicketInfo(interaction) {
 
 // =============================================================================
 // Interaction Handler (commands + buttons)
+async function handleClear(interaction) {
+  const count = interaction.options.getInteger('count');
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const deleted = await interaction.channel.bulkDelete(count, true);
+    await interaction.editReply({ content: `Deleted ${deleted.size} messages.` });
+  } catch (err) {
+    // bulkDelete fails for messages older than 14 days, fallback to individual delete
+    try {
+      const messages = await interaction.channel.messages.fetch({ limit: count });
+      let deletedCount = 0;
+      for (const msg of messages.values()) {
+        await msg.delete().catch(() => {});
+        deletedCount++;
+      }
+      await interaction.editReply({ content: `Deleted ${deletedCount} messages.` });
+    } catch (fallbackErr) {
+      await interaction.editReply({ content: `Failed to delete messages: ${fallbackErr.message}` });
+    }
+  }
+}
+
 // =============================================================================
 
 client.on('interactionCreate', async (interaction) => {
@@ -1384,6 +1417,8 @@ client.on('interactionCreate', async (interaction) => {
       await handleGiveaway(interaction);
     } else if (interaction.commandName === 'giveaway-leaderboard') {
       await handleGiveawayLeaderboard(interaction);
+    } else if (interaction.commandName === 'clear') {
+      await handleClear(interaction);
     }
   } catch (err) {
     console.error(`[Commands] Error in /${interaction.commandName}:`, err.message);
