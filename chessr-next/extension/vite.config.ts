@@ -82,5 +82,8 @@ export default defineConfig({
     rollupOptions: cfg.rollupOptions,
     cssCodeSplit: true,
   },
+  esbuild: {
+    drop: ['console'],
+  },
   publicDir: cfg.publicDir,
 });

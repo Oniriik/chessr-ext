@@ -2,13 +2,13 @@
  * suggestionHandler - WebSocket message handler for suggestion requests
  */
 
-import type { WebSocket } from 'ws';
-import { EnginePool } from '../engine/EnginePool.js';
-import { getEngineConfig, SEARCH_NODES } from '../engine/KomodoConfig.js';
-import { labelSuggestions } from '../engine/MoveLabeler.js';
-import { SuggestionQueue } from '../queue/SuggestionQueue.js';
-import { logStart, logEnd, logError } from '../utils/logger.js';
-import { logActivity } from '../utils/activityLogger.js';
+import type { WebSocket } from "ws";
+import { EnginePool } from "../engine/EnginePool.js";
+import { getEngineConfig, SEARCH_NODES } from "../engine/KomodoConfig.js";
+import { labelSuggestions } from "../engine/MoveLabeler.js";
+import { SuggestionQueue } from "../queue/SuggestionQueue.js";
+import { logStart, logEnd, logError } from "../utils/logger.js";
+import { logActivity } from "../utils/activityLogger.js";
 
 export interface Client {
   ws: WebSocket;
@@ -24,18 +24,23 @@ export interface Client {
 const FREE_LIMITS = {
   maxElo: 2000,
   maxMultiPv: 3,
-  allowedPersonalities: ['Default', 'Aggressive'],
+  allowedPersonalities: ["Default", "Aggressive"],
   allowVariety: false,
   allowArmageddon: false,
   allowUnlimitedStrength: false,
 };
 
 function isPremiumPlan(plan?: string): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
+  return (
+    plan === "premium" ||
+    plan === "lifetime" ||
+    plan === "beta" ||
+    plan === "freetrial"
+  );
 }
 
 export interface SuggestionMessage {
-  type: 'suggestion';
+  type: "suggestion";
   requestId: string;
   fen: string;
   moves?: string[]; // UCI format moves (e2e4, g1f3, etc.) to replay game context
@@ -46,8 +51,8 @@ export interface SuggestionMessage {
   variety?: number; // Move variety (0-10), maps to Komodo Variety
   puzzleMode?: boolean; // True for puzzle suggestions (max power, no ELO limit)
   limitStrength?: boolean; // Whether to limit engine strength (default true)
-  armageddon?: 'off' | 'white' | 'black'; // Armageddon mode
-  searchMode?: 'nodes' | 'depth' | 'movetime'; // Search control mode
+  armageddon?: "off" | "white" | "black"; // Armageddon mode
+  searchMode?: "nodes" | "depth" | "movetime"; // Search control mode
   searchNodes?: number; // Custom node limit (100k-5M, only when limitStrength=false)
   searchDepth?: number; // Custom depth limit (1-30, only when limitStrength=false)
   searchMovetime?: number; // Custom movetime in ms (500-5000, only when limitStrength=false)
@@ -100,7 +105,7 @@ function startProcessingLoop(): void {
 
       if (!engine) {
         // Pool was shut down
-        request.callback(new Error('Engine pool unavailable'));
+        request.callback(new Error("Engine pool unavailable"));
         queue.markDone(request.userId);
         setTimeout(processNext, 100);
         return;
@@ -109,7 +114,9 @@ function startProcessingLoop(): void {
       try {
         // Check if request is still valid (not superseded)
         if (!queue.isRequestValid(request.requestId, request.userId)) {
-          console.log(`[SuggestionHandler] Request ${request.requestId} superseded, skipping`);
+          console.log(
+            `[SuggestionHandler] Request ${request.requestId} superseded, skipping`,
+          );
           enginePool?.release(engine);
           queue.markDone(request.userId);
           setTimeout(processNext, 0);
@@ -128,8 +135,13 @@ function startProcessingLoop(): void {
         enginePool?.release(engine);
       }
     } catch (error) {
-      console.error(`[SuggestionHandler] Error processing ${request.requestId}:`, error);
-      request.callback(error instanceof Error ? error : new Error(String(error)));
+      console.error(
+        `[SuggestionHandler] Error processing ${request.requestId}:`,
+        error,
+      );
+      request.callback(
+        error instanceof Error ? error : new Error(String(error)),
+      );
     } finally {
       queue.markDone(request.userId);
     }
@@ -145,17 +157,36 @@ function startProcessingLoop(): void {
 /**
  * Handle suggestion request message
  */
-export function handleSuggestionRequest(message: SuggestionMessage, client: Client): void {
-  const { requestId, fen, moves, targetElo, personality, multiPv, contempt, variety, puzzleMode, limitStrength, armageddon, searchMode, searchNodes, searchDepth, searchMovetime } = message;
+export function handleSuggestionRequest(
+  message: SuggestionMessage,
+  client: Client,
+): void {
+  const {
+    requestId,
+    fen,
+    moves,
+    targetElo,
+    personality,
+    multiPv,
+    contempt,
+    variety,
+    puzzleMode,
+    limitStrength,
+    armageddon,
+    searchMode,
+    searchNodes,
+    searchDepth,
+    searchMovetime,
+  } = message;
 
   // Validate required fields
   if (!requestId || !fen) {
     client.ws.send(
       JSON.stringify({
-        type: 'suggestion_error',
+        type: "suggestion_error",
         requestId,
-        error: 'Missing required fields: requestId or fen',
-      })
+        error: "Missing required fields: requestId or fen",
+      }),
     );
     return;
   }
@@ -164,10 +195,10 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
   if (!isValidFen(fen)) {
     client.ws.send(
       JSON.stringify({
-        type: 'suggestion_error',
+        type: "suggestion_error",
         requestId,
-        error: 'Invalid FEN',
-      })
+        error: "Invalid FEN",
+      }),
     );
     return;
   }
@@ -178,42 +209,61 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
   // Detect cracked extension: free user requesting premium features
   if (!premium && !puzzleMode) {
     const requestedElo = targetElo || 1500;
-    const isSuspicious = requestedElo > FREE_LIMITS.maxElo
-      || (variety && variety > 0)
-      || (armageddon && armageddon !== 'off')
-      || (contempt !== undefined)
-      || (limitStrength === false)
-      || (personality && !FREE_LIMITS.allowedPersonalities.includes(personality));
+    const isSuspicious =
+      requestedElo > FREE_LIMITS.maxElo ||
+      (variety && variety > 0) ||
+      (armageddon && armageddon !== "off") ||
+      contempt !== undefined ||
+      limitStrength === false ||
+      (personality && !FREE_LIMITS.allowedPersonalities.includes(personality));
     if (isSuspicious && client.onCrackDetected) {
-      client.onCrackDetected(`Premium features requested on free plan: elo=${requestedElo}, personality=${personality || 'Default'}, variety=${variety || 0}, armageddon=${armageddon || 'off'}, limitStrength=${limitStrength}`);
+      client.onCrackDetected(
+        `Premium features requested on free plan: elo=${requestedElo}, personality=${personality || "Default"}, variety=${variety || 0}, armageddon=${armageddon || "off"}, limitStrength=${limitStrength}`,
+      );
     }
   }
 
-  const effectiveElo = premium ? (targetElo || 1500) : Math.min(targetElo || 1500, FREE_LIMITS.maxElo);
-  const effectiveMultiPv = premium ? (multiPv || 1) : Math.min(multiPv || 1, FREE_LIMITS.maxMultiPv);
-  const effectiveVariety = premium ? variety : (FREE_LIMITS.allowVariety ? variety : 0);
-  const effectiveArmageddon = premium ? armageddon : (FREE_LIMITS.allowArmageddon ? armageddon : 'off');
+  const effectiveElo = premium
+    ? targetElo || 1500
+    : Math.min(targetElo || 1500, FREE_LIMITS.maxElo);
+  const effectiveMultiPv = premium
+    ? multiPv || 1
+    : Math.min(multiPv || 1, FREE_LIMITS.maxMultiPv);
+  const effectiveVariety = premium
+    ? variety
+    : FREE_LIMITS.allowVariety
+      ? variety
+      : 0;
+  const effectiveArmageddon = premium
+    ? armageddon
+    : FREE_LIMITS.allowArmageddon
+      ? armageddon
+      : "off";
   const effectiveLimitStrength = premium ? limitStrength : true; // Free users always limited
   const effectiveContempt = premium ? contempt : undefined;
 
-  const modeLabel = puzzleMode ? 'puzzle' : 'game';
+  const modeLabel = puzzleMode ? "puzzle" : "game";
   logStart({
     requestId,
     email: client.user.email,
-    type: 'suggestion',
-    params: `mode=${modeLabel}, elo=${effectiveElo}, pv=${effectiveMultiPv}${effectiveContempt !== undefined ? `, ambition=${effectiveContempt}` : ''}${effectiveVariety ? `, variety=${effectiveVariety}` : ''}${!premium ? ', plan=free' : ''}${effectiveLimitStrength === false && searchMode === 'nodes' && searchNodes ? `, nodes=${searchNodes}` : ''}${effectiveLimitStrength === false && searchMode === 'depth' && searchDepth ? `, depth=${searchDepth}` : ''}${effectiveLimitStrength === false && searchMode === 'movetime' && searchMovetime ? `, movetime=${searchMovetime}ms` : ''}`,
+    type: "suggestion",
+    params: `mode=${modeLabel}, elo=${effectiveElo}, pv=${effectiveMultiPv}${effectiveContempt !== undefined ? `, ambition=${effectiveContempt}` : ""}${effectiveVariety ? `, variety=${effectiveVariety}` : ""}${!premium ? ", plan=free" : ""}${effectiveLimitStrength === false && searchMode === "nodes" && searchNodes ? `, nodes=${searchNodes}` : ""}${effectiveLimitStrength === false && searchMode === "depth" && searchDepth ? `, depth=${searchDepth}` : ""}${effectiveLimitStrength === false && searchMode === "movetime" && searchMovetime ? `, movetime=${searchMovetime}ms` : ""}`,
   });
 
   // Prepare config (standard search with MultiPV)
   const pvCount = Math.min(3, Math.max(1, effectiveMultiPv));
   const config = getEngineConfig({
     targetElo: effectiveElo,
-    personality: premium ? (personality || 'Default') : (FREE_LIMITS.allowedPersonalities.includes(personality || 'Default') ? (personality || 'Default') : 'Default'),
+    personality: premium
+      ? personality || "Default"
+      : FREE_LIMITS.allowedPersonalities.includes(personality || "Default")
+        ? personality || "Default"
+        : "Default",
     multiPv: pvCount,
     contempt: effectiveContempt,
     variety: effectiveVariety,
     limitStrength: effectiveLimitStrength,
-    armageddon: effectiveArmageddon as 'off' | 'white' | 'black' | undefined,
+    armageddon: effectiveArmageddon as "off" | "white" | "black" | undefined,
     puzzleMode: puzzleMode,
   });
 
@@ -227,17 +277,28 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       await engine.configure(config);
 
       // Build search options based on mode
-      const searchOptions: { nodes?: number; depth?: number; movetime?: number; moves?: string[] } = { moves };
+      const searchOptions: {
+        nodes?: number;
+        depth?: number;
+        movetime?: number;
+        moves?: string[];
+      } = { moves };
       if (effectiveLimitStrength === false && searchMode) {
         // Puzzle mode: no limits. Game mode: cap depth to 20 to avoid blocking shared engines.
         const maxDepth = puzzleMode ? 30 : 20;
         const maxMovetime = puzzleMode ? 5000 : 3000;
-        if (searchMode === 'depth' && searchDepth) {
+        if (searchMode === "depth" && searchDepth) {
           searchOptions.depth = Math.max(1, Math.min(maxDepth, searchDepth));
-        } else if (searchMode === 'movetime' && searchMovetime) {
-          searchOptions.movetime = Math.max(500, Math.min(maxMovetime, searchMovetime));
+        } else if (searchMode === "movetime" && searchMovetime) {
+          searchOptions.movetime = Math.max(
+            500,
+            Math.min(maxMovetime, searchMovetime),
+          );
         } else {
-          searchOptions.nodes = Math.max(100_000, Math.min(5_000_000, searchNodes || SEARCH_NODES));
+          searchOptions.nodes = Math.max(
+            100_000,
+            Math.min(5_000_000, searchNodes || SEARCH_NODES),
+          );
         }
       } else {
         searchOptions.nodes = SEARCH_NODES;
@@ -248,7 +309,8 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       const suggestions = labelSuggestions(rawSuggestions);
 
       // Position eval = best move's eval (in pawns, not centipawns)
-      const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
+      const positionEval =
+        suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
 
       // Mate score from best move (null if not a mate)
       const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
@@ -257,9 +319,21 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
       const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
 
       // Max depth reached across all suggestions
-      const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map(s => s.depth)) : 0;
+      const maxDepth =
+        suggestions.length > 0
+          ? Math.max(...suggestions.map((s) => s.depth))
+          : 0;
 
-      return { fen, personality: personality || 'Default', suggestions, positionEval, mateIn, winRate, puzzleMode: !!puzzleMode, maxDepth };
+      return {
+        fen,
+        personality: personality || "Default",
+        suggestions,
+        positionEval,
+        mateIn,
+        winRate,
+        puzzleMode: !!puzzleMode,
+        maxDepth,
+      };
     },
 
     callback: (error, result) => {
@@ -270,15 +344,15 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
         logError({
           requestId,
           email: client.user.email,
-          type: 'suggestion',
-          error: error.message || 'Engine error',
+          type: "suggestion",
+          error: error.message || "Engine error",
         });
         client.ws.send(
           JSON.stringify({
-            type: 'suggestion_error',
+            type: "suggestion_error",
             requestId,
-            error: error.message || 'Engine error',
-          })
+            error: error.message || "Engine error",
+          }),
         );
         return;
       }
@@ -287,13 +361,13 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
         logEnd({
           requestId,
           email: client.user.email,
-          type: 'suggestion',
+          type: "suggestion",
           result: `${result.suggestions.length} suggestions, eval=${result.positionEval}, depth=${result.maxDepth}`,
         });
 
         client.ws.send(
           JSON.stringify({
-            type: 'suggestion_result',
+            type: "suggestion_result",
             requestId,
             fen: result.fen,
             personality: result.personality,
@@ -302,11 +376,11 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
             winRate: result.winRate,
             suggestions: result.suggestions,
             puzzleMode: result.puzzleMode,
-          })
+          }),
         );
 
         // Log activity for admin dashboard metrics
-        logActivity(client.user.id, 'suggestion');
+        logActivity(client.user.id, "suggestion");
       }
     },
   });
@@ -316,11 +390,11 @@ export function handleSuggestionRequest(message: SuggestionMessage, client: Clie
  * Basic FEN validation
  */
 function isValidFen(fen: string): boolean {
-  if (typeof fen !== 'string') return false;
-  const parts = fen.split(' ');
+  if (typeof fen !== "string") return false;
+  const parts = fen.split(" ");
   if (parts.length < 4) return false;
   // Check board has 8 ranks
-  const ranks = parts[0].split('/');
+  const ranks = parts[0].split("/");
   return ranks.length === 8;
 }
 

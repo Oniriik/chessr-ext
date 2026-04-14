@@ -3,6 +3,8 @@
  * Colored prefix [chessr.io] with level-based colors
  */
 
+const IS_PROD = import.meta.env.MODE === 'production';
+
 const CHESSR_BLUE = '#3c83f6';
 
 const STYLES = {
@@ -15,6 +17,7 @@ const STYLES = {
 } as const;
 
 function formatLog(level: keyof typeof STYLES, message: string, data: unknown[]) {
+  if (IS_PROD) return;
   const style = STYLES[level];
   if (data.length > 0) {
     console.log(`%c[chessr.io]%c ${message}`, STYLES.prefix, style, ...data);
