@@ -431,7 +431,7 @@ export function handlePaddleWebhook(req: IncomingMessage, res: ServerResponse) {
 // Used by the extension to open chessr.io/checkout without needing the extension billing page
 
 const BILLING_TOKEN_SECRET = PADDLE_WEBHOOK_SECRET; // reuse existing secret for HMAC
-const BILLING_TOKEN_TTL = 30 * 60 * 1000; // 30 minutes
+const BILLING_TOKEN_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (temporary for Paddle verification)
 
 function signBillingToken(userId: string, customerId: string): string {
   const ts = Date.now().toString();
