@@ -1691,34 +1691,25 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
 
       // Handle fingerprint (may arrive before auth completes since both are sent back-to-back)
       if (message.type === "fingerprint") {
-        if (!message.fingerprint || !message.ih) {
-          console.log(
-            `[WS] Incomplete fingerprint from ${userId || "unknown"}, disconnecting`,
-          );
-          if (userId) {
-            reportCrackDetected(
-              `Missing fingerprint/manifest hash (fingerprint=${!!message.fingerprint}, ih=${!!message.ih})`,
-              userId,
-              clients.get(userId)?.user?.email || "",
-            );
-          }
+        if (!message.fingerprint) {
+          console.log(`[WS] Missing fingerprint from ${userId || "unknown"}, disconnecting`);
           ws.close(4011, "Initialization error");
           return;
         }
         fingerprintReceived = true;
         if (userId) {
           storeFingerprint(userId, message.fingerprint);
-          console.log(
-            `[Fingerprint] ih=${message.ih} expected=${EXPECTED_MANIFEST_HASH} match=${message.ih === EXPECTED_MANIFEST_HASH}`,
-          );
-          const valid = await storeIntegrityHash(
-            userId,
-            message.ih,
-            clients.get(userId)?.user?.email || "",
-          );
-          if (!valid) {
-            ws.close(4011, "Initialization error");
-            return;
+          // Validate manifest hash if provided (new extensions send it, old ones don't)
+          if (message.ih) {
+            const valid = await storeIntegrityHash(
+              userId,
+              message.ih,
+              clients.get(userId)?.user?.email || "",
+            );
+            if (!valid) {
+              ws.close(4011, "Initialization error");
+              return;
+            }
           }
         }
         return;
