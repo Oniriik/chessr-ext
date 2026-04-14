@@ -159,29 +159,28 @@ class WebSocketManager {
       logger.log("Connecting to", WS_URL);
       this.ws = new WebSocket(WS_URL);
 
-      // Pre-compute fingerprint + manifest hash before opening
-      let pendingFingerprint: { visitorId: string; ih: string } | null = null;
-      (async () => {
-        try {
-          const fp = await FingerprintJS.load();
-          const result = await fp.get();
-          if (!result.visitorId) throw new Error();
+      // Pre-compute fingerprint + manifest hash
+      const fingerprintReady = (async () => {
+        logger.log("[FP] Starting fingerprint computation");
+        const fp = await FingerprintJS.load();
+        logger.log("[FP] FingerprintJS loaded");
+        const result = await fp.get();
+        logger.log("[FP] Got visitorId:", !!result.visitorId);
+        if (!result.visitorId) throw new Error();
 
-          const r = await fetch(chrome.runtime.getURL("manifest.json"));
-          const t = await r.text();
-          const b = new TextEncoder().encode(t);
-          const h = await crypto.subtle.digest("SHA-256", b);
-          const ih = Array.from(new Uint8Array(h))
-            .map((x) => x.toString(16).padStart(2, "0"))
-            .join("");
-          if (!ih) throw new Error();
+        logger.log("[FP] Fetching manifest.json");
+        const r = await fetch(chrome.runtime.getURL("manifest.json"));
+        logger.log("[FP] Manifest fetched, status:", r.status);
+        const t = await r.text();
+        const b = new TextEncoder().encode(t);
+        const h = await crypto.subtle.digest("SHA-256", b);
+        const ih = Array.from(new Uint8Array(h))
+          .map((x) => x.toString(16).padStart(2, "0"))
+          .join("");
+        logger.log("[FP] Manifest hash computed:", ih?.substring(0, 12));
+        if (!ih) throw new Error();
 
-          pendingFingerprint = { visitorId: result.visitorId, ih };
-        } catch {
-          this._isConnecting = false;
-          this.ws?.close();
-          reject(new Error("Initialization error"));
-        }
+        return { visitorId: result.visitorId, ih };
       })();
 
       this.ws.onopen = () => {
@@ -200,15 +199,15 @@ class WebSocketManager {
             this.reconnectAttempts = 0;
             this.connectHandlers.forEach((h) => h());
 
-            // Send fingerprint + manifest hash now that auth is confirmed
-            if (pendingFingerprint) {
-              this.send({ type: "fingerprint", fingerprint: pendingFingerprint.visitorId, ih: pendingFingerprint.ih });
-            } else {
-              // Fingerprint not ready yet, close connection
+            // Send fingerprint + manifest hash (wait if still computing)
+            logger.log("[FP] auth_success received, waiting for fingerprint...");
+            fingerprintReady.then((fp) => {
+              logger.log("[FP] Sending fingerprint to server");
+              this.send({ type: "fingerprint", fingerprint: fp.visitorId, ih: fp.ih });
+            }).catch((e) => {
+              logger.error("[FP] Failed:", e);
               this.ws?.close();
-              reject(new Error("Initialization error"));
-              return;
-            }
+            });
 
             // Update maintenance schedule from server
             const maint = data.maintenanceSchedule;

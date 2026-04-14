@@ -23,10 +23,14 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   const { isConnected, init: initWebSocket, connect: connectWebSocket } = useWebSocketStore();
 
-  // Check version on mount (before login)
+  // Check version on mount — sign out if update required to avoid manifest mismatch
   useEffect(() => {
-    checkVersion();
-  }, [checkVersion]);
+    checkVersion().then(() => {
+      if (useVersionStore.getState().updateRequired && user) {
+        useAuthStore.getState().signOut();
+      }
+    });
+  }, [checkVersion, user]);
 
   // Ensure auth is initialized regardless of which route/page we're on
   useEffect(() => {

@@ -1657,8 +1657,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           if (giveaway) activeGiveaway = giveaway;
         }
 
-        // Require fingerprint + manifest hash within 10s
-        let fingerprintReceived = false;
+        // Require fingerprint within 10s (computed client-side after auth_success)
         const fingerprintTimeout = setTimeout(() => {
           if (!fingerprintReceived) {
             console.log(

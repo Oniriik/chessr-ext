@@ -82,7 +82,7 @@ export default defineConfig({
     rollupOptions: cfg.rollupOptions,
     cssCodeSplit: true,
   },
-  esbuild: {
+  esbuild: isWatch ? {} : {
     drop: ['console'],
   },
   publicDir: cfg.publicDir,

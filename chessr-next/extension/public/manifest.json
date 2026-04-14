@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Chessr",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Chessr - Chess assistance, done right!",
   "permissions": ["storage", "activeTab", "cookies", "declarativeNetRequest"],
   "host_permissions": [
