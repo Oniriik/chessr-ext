@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AuthGuard } from '../auth';
 import { useAuthStore } from '../../stores/authStore';
-import { useVersionStore } from '../../stores/versionStore';
 import { useSidebarStore } from '../../stores/sidebarStore';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
@@ -18,7 +17,6 @@ import { EloSettings } from './EloSettings';
 import { MaiaSettings, MaiaConnectionCard } from './MaiaSettings';
 import { OpeningRepertoireSelector } from './OpeningRepertoireSelector';
 import { useEngineStore } from '../../stores/engineStore';
-import { UpdateRequiredCard } from './UpdateRequiredCard';
 import { SettingsView } from './settings';
 import { PlanBadge } from '../ui/plan-badge';
 import { UpgradeModal } from '../UpgradeModal';
@@ -147,34 +145,10 @@ function AuthenticatedContent() {
   const { t } = useTranslation(['common', 'game']);
   useHotkeyMove();
 
-  // Check version on mount
-  const { updateRequired, checkVersion } = useVersionStore();
-  useEffect(() => {
-    checkVersion();
-  }, [checkVersion]);
-
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
   const compactBadge = containerWidth > 0 && containerWidth < 350;
   const showSettings = useSidebarStore((s) => s.showSettings);
   const setShowSettings = useSidebarStore((s) => s.setShowSettings);
-
-  // If update required, show only the update card (blocks everything else)
-  if (updateRequired) {
-    return (
-      <div className="tw-h-full tw-flex tw-flex-col" ref={containerRef}>
-        <Card className="tw-p-4 tw-text-foreground tw-h-full tw-flex tw-flex-col">
-          <SidebarHeader
-            compactBadge={compactBadge}
-            showSettings={false}
-            onSettingsToggle={() => {}}
-          />
-          <div className="tw-flex-1 tw-flex tw-flex-col tw-justify-center">
-            <UpdateRequiredCard />
-          </div>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="tw-h-full tw-flex tw-flex-col" ref={containerRef}>

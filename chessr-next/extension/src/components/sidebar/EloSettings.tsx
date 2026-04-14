@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../ui/card';
 import { Slider } from '../ui/slider';
@@ -265,6 +265,13 @@ function UnlockEloSection() {
     searchDepth, setSearchDepth, searchMovetime, setSearchMovetime,
   } = useEngineStore();
   const targetElo = getTargetElo();
+
+  // Reset disableLimitStrength when ELO drops below threshold
+  useEffect(() => {
+    if (targetElo < 3000 && disableLimitStrength) {
+      setDisableLimitStrength(false);
+    }
+  }, [targetElo, disableLimitStrength, setDisableLimitStrength]);
 
   // Only show when target ELO is high enough
   if (targetElo < 3000) {

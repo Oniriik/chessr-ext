@@ -496,11 +496,13 @@ export async function handleDiscordCallback(
       }
     }
 
-    // Update user_settings
+    // Upsert user_settings (insert if row missing, e.g. trigger didn't fire on signup)
     const { error: updateError } = await supabase
       .from('user_settings')
-      .update(updateData)
-      .eq('user_id', userId);
+      .upsert(
+        { user_id: userId, plan: 'free', settings: {}, ...updateData },
+        { onConflict: 'user_id', ignoreDuplicates: false },
+      );
 
     if (updateError) {
       console.error('[Discord] Update failed:', updateError.message);

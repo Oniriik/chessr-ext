@@ -11,6 +11,7 @@ import { LinkAccountModal } from '../LinkAccountModal';
 import { GiveawayModal } from '../GiveawayModal';
 import { useDiscordStore } from '../../stores/discordStore';
 import { useVersionStore } from '../../stores/versionStore';
+import { UpdateRequiredCard } from '../sidebar/UpdateRequiredCard';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -18,8 +19,14 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const { user, initializing, initialize } = useAuthStore();
+  const { updateRequired, checkVersion } = useVersionStore();
 
   const { isConnected, init: initWebSocket, connect: connectWebSocket } = useWebSocketStore();
+
+  // Check version on mount (before login)
+  useEffect(() => {
+    checkVersion();
+  }, [checkVersion]);
 
   // Ensure auth is initialized regardless of which route/page we're on
   useEffect(() => {
@@ -47,7 +54,6 @@ export function AuthGuard({ children }: AuthGuardProps) {
   // Giveaway modal state
   const activeGiveaway = useDiscordStore((s) => s.activeGiveaway);
   const giveawayDismissed = useDiscordStore((s) => s.giveawayDismissed);
-  const updateRequired = useVersionStore((s) => s.updateRequired);
 
   // Show loading while initializing auth
   if (initializing) {
@@ -56,6 +62,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
         <Loader2 className="tw-w-6 tw-h-6 tw-animate-spin tw-text-primary" />
       </div>
     );
+  }
+
+  // Block everything if update required
+  if (updateRequired) {
+    return <UpdateRequiredCard />;
   }
 
   // Show auth form if not logged in

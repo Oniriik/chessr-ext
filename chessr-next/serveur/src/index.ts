@@ -76,7 +76,7 @@ const MAX_STOCKFISH_INSTANCES = parseInt(
 
 // Version info for extension update checks
 const VERSION_INFO = {
-  minVersion: "2.6.0",
+  minVersion: "2.6.1",
   downloadUrl: "https://download.chessr.io",
 };
 
@@ -135,9 +135,9 @@ async function storeFingerprint(userId: string, fingerprint: string | null) {
 
 // Expected manifest integrity hash (SHA-256 of manifest.json)
 // Set this to the hash of your official manifest after building
-const EXPECTED_MANIFEST_HASH = process.env.MANIFEST_HASH || '';
+const EXPECTED_MANIFEST_HASH = process.env.MANIFEST_HASH || "";
 const flaggedIntegrity = new Set<string>();
-const CRACK_DETECTION_CHANNEL_ID = '1477490743588159488';
+const CRACK_DETECTION_CHANNEL_ID = "1477490743588159488";
 
 async function reportCrackDetected(
   reason: string,
@@ -166,53 +166,73 @@ async function reportCrackDetected(
     .order("created_at", { ascending: false })
     .limit(3);
 
-  const fingerprints = fps?.map(f => f.fingerprint).join(', ') || 'None';
-  const ipList = ips?.map(i => `${i.ip} (${i.country || '?'})`).join(', ') || 'None';
+  const fingerprints = fps?.map((f) => f.fingerprint).join(", ") || "None";
+  const ipList =
+    ips?.map((i) => `${i.ip} (${i.country || "?"})`).join(", ") || "None";
   const discord = settings?.discord_username
     ? `${settings.discord_username} (<@${settings.discord_id}>)`
-    : 'Not linked';
+    : "Not linked";
 
   try {
-    await fetch(`https://discord.com/api/v10/channels/${CRACK_DETECTION_CHANNEL_ID}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bot ${DISCORD_BOT_TOKEN}`,
-      },
-      body: JSON.stringify({
-        embeds: [{
-          title: "\ud83d\udea8 Crack Detected",
-          color: 0xef4444,
-          fields: [
-            { name: "Reason", value: reason, inline: false },
-            { name: "Email", value: email, inline: true },
-            { name: "Plan", value: settings?.plan || 'free', inline: true },
-            { name: "Discord", value: discord, inline: true },
-            { name: "IPs", value: ipList, inline: false },
-            { name: "Fingerprints", value: fingerprints, inline: false },
-            { name: "User ID", value: `\`${userId}\``, inline: false },
+    await fetch(
+      `https://discord.com/api/v10/channels/${CRACK_DETECTION_CHANNEL_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        },
+        body: JSON.stringify({
+          embeds: [
+            {
+              title: "\ud83d\udea8 Crack Detected",
+              color: 0xef4444,
+              fields: [
+                { name: "Reason", value: reason, inline: false },
+                { name: "Email", value: email, inline: true },
+                { name: "Plan", value: settings?.plan || "free", inline: true },
+                { name: "Discord", value: discord, inline: true },
+                { name: "IPs", value: ipList, inline: false },
+                { name: "Fingerprints", value: fingerprints, inline: false },
+                { name: "User ID", value: `\`${userId}\``, inline: false },
+              ],
+              timestamp: new Date().toISOString(),
+            },
           ],
-          timestamp: new Date().toISOString(),
-        }],
-      }),
-    });
+        }),
+      },
+    );
   } catch {}
 }
 
-async function storeIntegrityHash(userId: string, hash: string, email: string) {
-  if (!hash) return;
+async function storeIntegrityHash(
+  userId: string,
+  hash: string,
+  email: string,
+): Promise<boolean> {
+  if (!hash) return false;
   // Flag if hash doesn't match expected (potential cracked extension)
-  if (EXPECTED_MANIFEST_HASH && hash !== EXPECTED_MANIFEST_HASH && !flaggedIntegrity.has(userId)) {
-    flaggedIntegrity.add(userId);
-    console.warn(`[Integrity] Mismatch for ${userId}: got ${hash.substring(0, 12)}…, expected ${EXPECTED_MANIFEST_HASH.substring(0, 12)}…`);
-    try {
-      await supabase
-        .from("user_settings")
-        .update({ integrity_flag: hash })
-        .eq("user_id", userId);
-    } catch {}
-    reportCrackDetected(`Manifest integrity mismatch: \`${hash.substring(0, 16)}…\``, userId, email);
+  if (EXPECTED_MANIFEST_HASH && hash !== EXPECTED_MANIFEST_HASH) {
+    if (!flaggedIntegrity.has(userId)) {
+      flaggedIntegrity.add(userId);
+      console.warn(
+        `[Integrity] Mismatch for ${userId}: got ${hash.substring(0, 12)}…, expected ${EXPECTED_MANIFEST_HASH.substring(0, 12)}…`,
+      );
+      try {
+        await supabase
+          .from("user_settings")
+          .update({ integrity_flag: hash })
+          .eq("user_id", userId);
+      } catch {}
+      reportCrackDetected(
+        `Manifest integrity mismatch: \`${hash.substring(0, 16)}…\``,
+        userId,
+        email,
+      );
+    }
+    return false; // mismatch
   }
+  return true; // ok
 }
 
 // Ban status cache (TTL 60s to avoid DB call on every message)
@@ -227,7 +247,10 @@ let maintenanceStart: number = 0; // Unix epoch seconds, 0 = none
 let maintenanceEnd: number = 0;
 let maintenanceLastChecked: number = 0;
 
-async function getMaintenanceSchedule(): Promise<{ start: number; end: number }> {
+async function getMaintenanceSchedule(): Promise<{
+  start: number;
+  end: number;
+}> {
   if (Date.now() - maintenanceLastChecked < BAN_CACHE_TTL) {
     return { start: maintenanceStart, end: maintenanceEnd };
   }
@@ -236,8 +259,14 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
       .from("global_stats")
       .select("key, value")
       .in("key", ["maintenance_schedule", "maintenance_schedule_end"]);
-    maintenanceStart = Number(data?.find((r: { key: string }) => r.key === "maintenance_schedule")?.value || 0);
-    maintenanceEnd = Number(data?.find((r: { key: string }) => r.key === "maintenance_schedule_end")?.value || 0);
+    maintenanceStart = Number(
+      data?.find((r: { key: string }) => r.key === "maintenance_schedule")
+        ?.value || 0,
+    );
+    maintenanceEnd = Number(
+      data?.find((r: { key: string }) => r.key === "maintenance_schedule_end")
+        ?.value || 0,
+    );
     maintenanceLastChecked = Date.now();
   } catch {
     // keep last known values
@@ -247,8 +276,12 @@ async function getMaintenanceSchedule(): Promise<{ start: number; end: number }>
 
 // Discord Bot API for notifications
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const DISCORD_NOTIFICATION_CHANNEL_ID = process.env.DISCORD_CHANNEL_ADMIN || process.env.DISCORD_NOTIFICATION_CHANNEL_ID || "1477490743588159488";
-const DISCORD_SIGNUP_CHANNEL_ID = process.env.DISCORD_CHANNEL_SIGNUP || "1476547865039077416";
+const DISCORD_NOTIFICATION_CHANNEL_ID =
+  process.env.DISCORD_CHANNEL_ADMIN ||
+  process.env.DISCORD_NOTIFICATION_CHANNEL_ID ||
+  "1477490743588159488";
+const DISCORD_SIGNUP_CHANNEL_ID =
+  process.env.DISCORD_CHANNEL_SIGNUP || "1476547865039077416";
 
 async function checkBanStatus(
   userId: string,
@@ -374,39 +407,42 @@ async function reportBlockedSignup(
   }
 
   try {
-    await fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bot ${DISCORD_BOT_TOKEN}`,
-      },
-      body: JSON.stringify({
-        embeds: [
-          {
-            title: "\u26a0\ufe0f Blocked Signup Attempt",
-            color: 0xef4444,
-            fields: [
-              { name: "\ud83d\udce7 Email", value: email, inline: true },
-              {
-                name: "\ud83c\udf0d Country",
-                value: countryText,
-                inline: true,
+    await fetch(
+      `https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        },
+        body: JSON.stringify({
+          embeds: [
+            {
+              title: "\u26a0\ufe0f Blocked Signup Attempt",
+              color: 0xef4444,
+              fields: [
+                { name: "\ud83d\udce7 Email", value: email, inline: true },
+                {
+                  name: "\ud83c\udf0d Country",
+                  value: countryText,
+                  inline: true,
+                },
+                {
+                  name: "\ud83d\udd12 IP",
+                  value: cleanIp || "Unknown",
+                  inline: true,
+                },
+              ],
+              timestamp: new Date().toISOString(),
+              footer: {
+                text: "Chessr.io",
+                icon_url: "https://chessr.io/chessr-logo.png",
               },
-              {
-                name: "\ud83d\udd12 IP",
-                value: cleanIp || "Unknown",
-                inline: true,
-              },
-            ],
-            timestamp: new Date().toISOString(),
-            footer: {
-              text: "Chessr.io",
-              icon_url: "https://chessr.io/chessr-logo.png",
             },
-          },
-        ],
-      }),
-    });
+          ],
+        }),
+      },
+    );
   } catch (e) {
     console.error("[Discord] Failed to send blocked signup notification:", e);
   }
@@ -437,9 +473,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         const { fingerprint, email } = JSON.parse(body);
 
         const clientIp =
-          (req.headers["x-forwarded-for"] as string)
-            ?.split(",")[0]
-            ?.trim() ||
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
           req.socket.remoteAddress ||
           null;
         const cleanIp = cleanIpAddress(clientIp);
@@ -447,7 +481,9 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         // Resolve current user ID from email (if account already exists) to exclude self-matches
         let currentUserId: string | null = null;
         if (email) {
-          const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+          const {
+            data: { users },
+          } = await supabase.auth.admin.listUsers({ perPage: 1000 });
           const existing = users?.find((u: any) => u.email === email);
           currentUserId = existing?.id || null;
         }
@@ -468,7 +504,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           if (fpMatches && fpMatches.length > 0) {
             blocked = true;
             reason = "Shared Fingerprint";
-            matchedUserIds = fpMatches.map(r => r.user_id);
+            matchedUserIds = fpMatches.map((r) => r.user_id);
           }
         }
 
@@ -484,7 +520,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           if (ipMatches && ipMatches.length > 0) {
             blocked = true;
             reason = "Shared IP";
-            matchedUserIds = ipMatches.map(r => r.user_id);
+            matchedUserIds = ipMatches.map((r) => r.user_id);
           }
         }
 
@@ -492,9 +528,12 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           // Send Discord notification (fire-and-forget)
           (async () => {
             try {
-              if (!DISCORD_BOT_TOKEN || !DISCORD_NOTIFICATION_CHANNEL_ID) return;
+              if (!DISCORD_BOT_TOKEN || !DISCORD_NOTIFICATION_CHANNEL_ID)
+                return;
 
-              const { country } = cleanIp ? await resolveIpCountry(cleanIp) : { country: null };
+              const { country } = cleanIp
+                ? await resolveIpCountry(cleanIp)
+                : { country: null };
 
               // Fetch associated accounts
               const uniqueUserIds = [...new Set(matchedUserIds)];
@@ -506,8 +545,11 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
                   .in("user_id", uniqueUserIds);
                 const accounts: string[] = [];
                 for (const s of settings || []) {
-                  const { data: authData } = await supabase.auth.admin.getUserById(s.user_id);
-                  accounts.push(`${authData?.user?.email || s.user_id} (${s.plan})`);
+                  const { data: authData } =
+                    await supabase.auth.admin.getUserById(s.user_id);
+                  accounts.push(
+                    `${authData?.user?.email || s.user_id} (${s.plan})`,
+                  );
                 }
                 linkedAccountsText = accounts.join("\n");
               }
@@ -515,27 +557,56 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
               const fields = [
                 { name: "📧 Email", value: email || "unknown", inline: true },
                 { name: "🔑 Reason", value: reason, inline: true },
-                { name: "🌍 Country", value: country || "Unknown", inline: true },
+                {
+                  name: "🌍 Country",
+                  value: country || "Unknown",
+                  inline: true,
+                },
               ];
-              if (fingerprint) fields.push({ name: "🖥️ Fingerprint", value: `\`${fingerprint}\``, inline: false });
-              if (cleanIp) fields.push({ name: "🔒 IP", value: cleanIp, inline: true });
-              if (linkedAccountsText) fields.push({ name: "⚠️ Linked Accounts", value: linkedAccountsText, inline: false });
+              if (fingerprint)
+                fields.push({
+                  name: "🖥️ Fingerprint",
+                  value: `\`${fingerprint}\``,
+                  inline: false,
+                });
+              if (cleanIp)
+                fields.push({ name: "🔒 IP", value: cleanIp, inline: true });
+              if (linkedAccountsText)
+                fields.push({
+                  name: "⚠️ Linked Accounts",
+                  value: linkedAccountsText,
+                  inline: false,
+                });
 
-              await fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
-                body: JSON.stringify({
-                  embeds: [{
-                    title: "🚫 Signup Blocked — Multi-Account",
-                    color: 0xef4444,
-                    fields,
-                    timestamp: new Date().toISOString(),
-                    footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
-                  }],
-                }),
-              });
+              await fetch(
+                `https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+                  },
+                  body: JSON.stringify({
+                    embeds: [
+                      {
+                        title: "🚫 Signup Blocked — Multi-Account",
+                        color: 0xef4444,
+                        fields,
+                        timestamp: new Date().toISOString(),
+                        footer: {
+                          text: "Chessr.io",
+                          icon_url: "https://chessr.io/chessr-logo.png",
+                        },
+                      },
+                    ],
+                  }),
+                },
+              );
             } catch (e) {
-              console.error("[Discord] Failed to send blocked signup notification:", e);
+              console.error(
+                "[Discord] Failed to send blocked signup notification:",
+                e,
+              );
             }
           })();
 
@@ -569,34 +640,50 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         }
 
         const clientIp =
-          (req.headers["x-forwarded-for"] as string)
-            ?.split(",")[0]
-            ?.trim() ||
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
           req.socket.remoteAddress ||
           null;
         const cleanIp = cleanIpAddress(clientIp);
-        const { country } = cleanIp ? await resolveIpCountry(cleanIp) : { country: null };
+        const { country } = cleanIp
+          ? await resolveIpCountry(cleanIp)
+          : { country: null };
 
         const fields = [
           { name: "📧 Email", value: email || "unknown", inline: true },
-          { name: "📛 Ban Reason", value: banReason || "No reason", inline: true },
+          {
+            name: "📛 Ban Reason",
+            value: banReason || "No reason",
+            inline: true,
+          },
           { name: "🌍 Country", value: country || "Unknown", inline: true },
         ];
-        if (cleanIp) fields.push({ name: "🔒 IP", value: cleanIp, inline: true });
+        if (cleanIp)
+          fields.push({ name: "🔒 IP", value: cleanIp, inline: true });
 
-        await fetch(`https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bot ${DISCORD_BOT_TOKEN}` },
-          body: JSON.stringify({
-            embeds: [{
-              title: "🔒 Banned Login Attempt",
-              color: 0xef4444,
-              fields,
-              timestamp: new Date().toISOString(),
-              footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
-            }],
-          }),
-        });
+        await fetch(
+          `https://discord.com/api/v10/channels/${DISCORD_NOTIFICATION_CHANNEL_ID}/messages`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+            },
+            body: JSON.stringify({
+              embeds: [
+                {
+                  title: "🔒 Banned Login Attempt",
+                  color: 0xef4444,
+                  fields,
+                  timestamp: new Date().toISOString(),
+                  footer: {
+                    text: "Chessr.io",
+                    icon_url: "https://chessr.io/chessr-logo.png",
+                  },
+                },
+              ],
+            }),
+          },
+        );
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
@@ -630,9 +717,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         reportedSignups.add(userId);
 
         const clientIp =
-          (req.headers["x-forwarded-for"] as string)
-            ?.split(",")[0]
-            ?.trim() ||
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
           req.socket.remoteAddress ||
           null;
 
@@ -650,7 +735,10 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         if (country) {
           await supabase
             .from("user_settings")
-            .update({ signup_country: country, signup_country_code: countryCode })
+            .update({
+              signup_country: country,
+              signup_country_code: countryCode,
+            })
             .eq("user_id", userId);
         }
 
@@ -683,7 +771,9 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
 
           const otherAccounts: string[] = [];
           for (const settings of otherSettings || []) {
-            const { data: authData } = await supabase.auth.admin.getUserById(settings.user_id);
+            const { data: authData } = await supabase.auth.admin.getUserById(
+              settings.user_id,
+            );
             const otherEmail = authData?.user?.email || settings.user_id;
             otherAccounts.push(`${otherEmail} (${settings.plan})`);
           }
@@ -704,30 +794,50 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
             { name: "🔑 IP", value: cleanIp || "Unknown", inline: true },
           ];
           if (fingerprint) {
-            fields.push({ name: "🖥️ Fingerprint", value: `\`${fingerprint}\``, inline: false });
+            fields.push({
+              name: "🖥️ Fingerprint",
+              value: `\`${fingerprint}\``,
+              inline: false,
+            });
           }
           if (otherAccountsText) {
-            fields.push({ name: "⚠️ Other accounts (same IP/fingerprint)", value: otherAccountsText, inline: false });
+            fields.push({
+              name: "⚠️ Other accounts (same IP/fingerprint)",
+              value: otherAccountsText,
+              inline: false,
+            });
           }
-          fetch(`https://discord.com/api/v10/channels/${DISCORD_SIGNUP_CHANNEL_ID}/messages`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bot ${DISCORD_BOT_TOKEN}`,
+          fetch(
+            `https://discord.com/api/v10/channels/${DISCORD_SIGNUP_CHANNEL_ID}/messages`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+              },
+              body: JSON.stringify({
+                embeds: [
+                  {
+                    title: "🎉 New User Signup",
+                    color: otherAccountsText ? 0xffa500 : 0x10b981,
+                    fields,
+                    timestamp: new Date().toISOString(),
+                    footer: {
+                      text: "Chessr.io",
+                      icon_url: "https://chessr.io/chessr-logo.png",
+                    },
+                  },
+                ],
+              }),
             },
-            body: JSON.stringify({
-              embeds: [{
-                title: "🎉 New User Signup",
-                color: otherAccountsText ? 0xffa500 : 0x10b981,
-                fields,
-                timestamp: new Date().toISOString(),
-                footer: { text: "Chessr.io", icon_url: "https://chessr.io/chessr-logo.png" },
-              }],
-            }),
-          }).catch((e) => console.error("[Discord] Failed to send signup notification:", e));
+          ).catch((e) =>
+            console.error("[Discord] Failed to send signup notification:", e),
+          );
         }
 
-        console.log(`[Signup] ${email || userId} from ${country || "unknown"} (${cleanIp || "no IP"})`);
+        console.log(
+          `[Signup] ${email || userId} from ${country || "unknown"} (${cleanIp || "no IP"})`,
+        );
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ ok: true }));
@@ -753,9 +863,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         }
 
         const clientIp =
-          (req.headers["x-forwarded-for"] as string)
-            ?.split(",")[0]
-            ?.trim() ||
+          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
           req.socket.remoteAddress ||
           null;
 
@@ -803,7 +911,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     const connectedUsersList = Array.from(clients.values()).map((client) => ({
       id: client.user.id,
       email: client.user.email,
-      engine: client.engine || 'default',
+      engine: client.engine || "default",
     }));
 
     const stats = {
@@ -908,7 +1016,9 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
           user_id: userId,
           event_type: "explanation",
         });
-        await supabase.rpc("increment_stat", { stat_key: "total_explanations" });
+        await supabase.rpc("increment_stat", {
+          stat_key: "total_explanations",
+        });
 
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
@@ -924,7 +1034,9 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
         res.end(
           JSON.stringify({
             error:
-              err instanceof Error ? err.message : "Failed to generate explanation",
+              err instanceof Error
+                ? err.message
+                : "Failed to generate explanation",
           }),
         );
       }
@@ -1015,9 +1127,10 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
     }
 
     const paddleEnv = process.env.PADDLE_ENVIRONMENT || "sandbox";
-    const paddleJs = paddleEnv === "sandbox"
-      ? "https://sandbox-cdn.paddle.com/paddle/v2/paddle.js"
-      : "https://cdn.paddle.com/paddle/v2/paddle.js";
+    const paddleJs =
+      paddleEnv === "sandbox"
+        ? "https://sandbox-cdn.paddle.com/paddle/v2/paddle.js"
+        : "https://cdn.paddle.com/paddle/v2/paddle.js";
     const clientToken = process.env.PADDLE_CLIENT_TOKEN || "";
 
     res.writeHead(200, { "Content-Type": "text/html" });
@@ -1098,13 +1211,19 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   }
 
   // Paddle preview upgrade by token
-  if (req.url === "/api/paddle/preview-upgrade-by-token" && req.method === "POST") {
+  if (
+    req.url === "/api/paddle/preview-upgrade-by-token" &&
+    req.method === "POST"
+  ) {
     handlePreviewUpgradeByToken(req, res);
     return;
   }
 
   // Paddle upgrade lifetime by token
-  if (req.url === "/api/paddle/upgrade-lifetime-by-token" && req.method === "POST") {
+  if (
+    req.url === "/api/paddle/upgrade-lifetime-by-token" &&
+    req.method === "POST"
+  ) {
     handleUpgradeLifetimeByToken(req, res);
     return;
   }
@@ -1437,6 +1556,8 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
   let clientSource: string | null = null; // 'app' or 'extension'
 
   // Set a timeout for authentication (10 seconds)
+  let fingerprintReceived = false;
+
   const authTimeout = setTimeout(() => {
     if (!isAuthenticated) {
       console.log("Authentication timeout, closing connection");
@@ -1486,14 +1607,20 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         storeUserIp(user.id, clientIp);
 
         clientSource = message.source || null; // 'app' or 'extension'
-        logConnection(user.email || userId, 'connected', clientSource || undefined);
+        logConnection(
+          user.email || userId,
+          "connected",
+          clientSource || undefined,
+        );
 
         // Get maintenance schedule and Discord status for the client
         const maintenance = await getMaintenanceSchedule();
 
         const { data: userSettings } = await supabase
           .from("user_settings")
-          .select("plan, discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild, beta_flags")
+          .select(
+            "plan, discord_id, discord_username, discord_avatar, freetrial_used, discord_in_guild, beta_flags",
+          )
           .eq("user_id", user.id)
           .single();
 
@@ -1504,7 +1631,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         clients.set(userId, {
           ws,
           user: { id: user.id, email: userEmail },
-          plan: userSettings?.plan || 'free',
+          plan: userSettings?.plan || "free",
           onCrackDetected: (reason: string) => {
             if (crackReported.has(userIdForClosure)) return;
             crackReported.add(userIdForClosure);
@@ -1513,9 +1640,12 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         });
         clientAlive.set(userId, true);
 
-
         // Fetch active giveaway if user is not in guild
-        let activeGiveaway: { name: string; prizes: string | null; ends_at: string } | null = null;
+        let activeGiveaway: {
+          name: string;
+          prizes: string | null;
+          ends_at: string;
+        } | null = null;
         if (!userSettings?.discord_in_guild) {
           const { data: giveaway } = await supabase
             .from("giveaway_periods")
@@ -1526,6 +1656,18 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
             .single();
           if (giveaway) activeGiveaway = giveaway;
         }
+
+        // Require fingerprint + manifest hash within 10s
+        let fingerprintReceived = false;
+        const fingerprintTimeout = setTimeout(() => {
+          if (!fingerprintReceived) {
+            console.log(
+              `[WS] Fingerprint timeout for ${userEmail}, disconnecting`,
+            );
+            ws.close(4011, "Initialization error");
+          }
+        }, 10_000);
+        ws.once("close", () => clearTimeout(fingerprintTimeout));
 
         ws.send(
           JSON.stringify({
@@ -1547,27 +1689,49 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         return;
       }
 
+      // Handle fingerprint (may arrive before auth completes since both are sent back-to-back)
+      if (message.type === "fingerprint") {
+        if (!message.fingerprint || !message.ih) {
+          console.log(
+            `[WS] Incomplete fingerprint from ${userId || "unknown"}, disconnecting`,
+          );
+          if (userId) {
+            reportCrackDetected(
+              `Missing fingerprint/manifest hash (fingerprint=${!!message.fingerprint}, ih=${!!message.ih})`,
+              userId,
+              clients.get(userId)?.user?.email || "",
+            );
+          }
+          ws.close(4011, "Initialization error");
+          return;
+        }
+        fingerprintReceived = true;
+        if (userId) {
+          storeFingerprint(userId, message.fingerprint);
+          console.log(
+            `[Fingerprint] ih=${message.ih} expected=${EXPECTED_MANIFEST_HASH} match=${message.ih === EXPECTED_MANIFEST_HASH}`,
+          );
+          const valid = await storeIntegrityHash(
+            userId,
+            message.ih,
+            clients.get(userId)?.user?.email || "",
+          );
+          if (!valid) {
+            ws.close(4011, "Initialization error");
+            return;
+          }
+        }
+        return;
+      }
+
       // All other messages require authentication
       if (!isAuthenticated || !userId) {
         ws.send(JSON.stringify({ type: "error", error: "Not authenticated" }));
         return;
       }
 
-      // Handle fingerprint (sent separately after auth to avoid timeout)
-      if (message.type === "fingerprint" && message.fingerprint) {
-        storeFingerprint(userId, message.fingerprint);
-        // Store integrity hash if present (silent crack detection)
-        if (message.ih) {
-          storeIntegrityHash(userId, message.ih, clients.get(userId)?.user?.email || '');
-        }
-        return;
-      }
-
       // Check ban status before processing requests
-      if (
-        message.type === "suggestion" ||
-        message.type === "analyze"
-      ) {
+      if (message.type === "suggestion" || message.type === "analyze") {
         const banStatus = await checkBanStatus(userId);
         if (banStatus.banned) {
           ws.send(
@@ -1591,17 +1755,11 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       // Handle message types
       switch (message.type) {
         case "suggestion":
-          handleSuggestionRequest(
-            message as SuggestionMessage,
-            client,
-          );
+          handleSuggestionRequest(message as SuggestionMessage, client);
           break;
 
         case "analyze":
-          handleAnalysisRequest(
-            message as AnalysisMessage,
-            client,
-          );
+          handleAnalysisRequest(message as AnalysisMessage, client);
           break;
 
         case "get_linked_accounts":
@@ -1609,32 +1767,19 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           break;
 
         case "link_account":
-          handleLinkAccount(
-            message as LinkAccountMessage,
-            client,
-          );
+          handleLinkAccount(message as LinkAccountMessage, client);
           break;
 
         case "unlink_account":
-          handleUnlinkAccount(
-            message as UnlinkAccountMessage,
-            client,
-          );
+          handleUnlinkAccount(message as UnlinkAccountMessage, client);
           break;
 
-
         case "get_opening":
-          handleOpeningRequest(
-            message as OpeningMessage,
-            client,
-          );
+          handleOpeningRequest(message as OpeningMessage, client);
           break;
 
         case "init_discord_link":
-          handleInitDiscordLink(
-            message as InitDiscordLinkMessage,
-            client,
-          );
+          handleInitDiscordLink(message as InitDiscordLinkMessage, client);
           break;
 
         case "unlink_discord":
@@ -1642,7 +1787,7 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           break;
 
         case "engine_update":
-          client.engine = message.engine || 'default';
+          client.engine = message.engine || "default";
           break;
 
         case "log_maia_suggestion":
@@ -1650,23 +1795,54 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
           break;
 
         case "chesscom_review":
-          if (!clientSource) clientSource = 'app';
-          logStart({ requestId: message.gameId || userId!, email: client.user.email, type: 'game-review', params: `gameId=${message.gameId}` });
-          handleChesscomReview(message, ws, userId, supabase, client.user.email);
+          if (!clientSource) clientSource = "app";
+          logStart({
+            requestId: message.gameId || userId!,
+            email: client.user.email,
+            type: "game-review",
+            params: `gameId=${message.gameId}`,
+          });
+          handleChesscomReview(
+            message,
+            ws,
+            userId,
+            supabase,
+            client.user.email,
+          );
           break;
 
         case "profile_analysis_start": {
-          if (!clientSource) clientSource = 'app';
-          const modesStr = message.modes ? `modes=${message.modes.join(',')} x${message.gamesPerMode}` : `last ${message.gamesCount || 10}`;
-          logStart({ requestId: message.analysisId || userId!, email: client.user.email, type: 'profile-analysis', params: `${message.platformUsername} (${modesStr})` });
-          handleProfileAnalysis(message as ProfileAnalysisStartMessage, ws, userId);
+          if (!clientSource) clientSource = "app";
+          const modesStr = message.modes
+            ? `modes=${message.modes.join(",")} x${message.gamesPerMode}`
+            : `last ${message.gamesCount || 10}`;
+          logStart({
+            requestId: message.analysisId || userId!,
+            email: client.user.email,
+            type: "profile-analysis",
+            params: `${message.platformUsername} (${modesStr})`,
+          });
+          handleProfileAnalysis(
+            message as ProfileAnalysisStartMessage,
+            ws,
+            userId,
+          );
           break;
         }
 
         case "profile_analysis_subscribe":
-          if (!clientSource) clientSource = 'app';
-          logStart({ requestId: message.analysisId || userId!, email: client.user.email, type: 'profile-analysis', params: `subscribe ${message.analysisId?.slice(0, 8)}` });
-          handleProfileAnalysisSubscribe(message as ProfileAnalysisSubscribeMessage, ws, userId);
+          if (!clientSource) clientSource = "app";
+          logStart({
+            requestId: message.analysisId || userId!,
+            email: client.user.email,
+            type: "profile-analysis",
+            params: `subscribe ${message.analysisId?.slice(0, 8)}`,
+          });
+          handleProfileAnalysisSubscribe(
+            message as ProfileAnalysisSubscribeMessage,
+            ws,
+            userId,
+          );
           break;
 
         default:
@@ -1697,8 +1873,12 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
       handleProfileAnalysisDisconnect(ws);
       clients.delete(userId);
       clientAlive.delete(userId);
-      if (clientSource !== 'app') {
-        logConnection(client?.user.email || userId, 'disconnected', clientSource || undefined);
+      if (clientSource !== "app") {
+        logConnection(
+          client?.user.email || userId,
+          "disconnected",
+          clientSource || undefined,
+        );
       }
     }
   });

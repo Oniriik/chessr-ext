@@ -3,22 +3,26 @@
  * Handles connection, authentication and reconnection
  */
 
-import { useAuthStore } from '../stores/authStore';
-import { useGameStore } from '../stores/gameStore';
-import { useSuggestionStore } from '../stores/suggestionStore';
-import { usePuzzleStore } from '../stores/puzzleStore';
-import { useAccuracyStore } from '../stores/accuracyStore';
-import { useLinkedAccountsStore, type LinkedAccount, type LinkErrorCode } from '../stores/linkedAccountsStore';
-import { useMaintenanceStore } from '../stores/maintenanceStore';
-import { useDiscordStore } from '../stores/discordStore';
-import { useBetaStore } from '../stores/betaStore';
-import { logger } from './logger';
-import FingerprintJS from '@fingerprintjs/fingerprintjs';
+import { useAuthStore } from "../stores/authStore";
+import { useGameStore } from "../stores/gameStore";
+import { useSuggestionStore } from "../stores/suggestionStore";
+import { usePuzzleStore } from "../stores/puzzleStore";
+import { useAccuracyStore } from "../stores/accuracyStore";
+import {
+  useLinkedAccountsStore,
+  type LinkedAccount,
+  type LinkErrorCode,
+} from "../stores/linkedAccountsStore";
+import { useMaintenanceStore } from "../stores/maintenanceStore";
+import { useDiscordStore } from "../stores/discordStore";
+import { useBetaStore } from "../stores/betaStore";
+import { logger } from "./logger";
+import FingerprintJS from "@fingerprintjs/fingerprintjs";
 
 type MessageHandler = (data: unknown) => void;
 type ConnectionHandler = () => void;
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+const WS_URL = import.meta.env.VITE_WS_URL || "ws://localhost:8080";
 const MAX_RECONNECT_ATTEMPTS = 5;
 
 class WebSocketManager {
@@ -60,7 +64,7 @@ class WebSocketManager {
     this.visibilityHandler = () => {
       this.checkActivity();
     };
-    document.addEventListener('visibilitychange', this.visibilityHandler);
+    document.addEventListener("visibilitychange", this.visibilityHandler);
 
     // Subscribe to game store changes
     let prevIsGameStarted = useGameStore.getState().isGameStarted;
@@ -85,7 +89,7 @@ class WebSocketManager {
     this.authStoreUnsubscribe = useAuthStore.subscribe((state) => {
       if (prevUser && !state.user) {
         // User signed out - disconnect WebSocket
-        logger.log('User signed out, disconnecting WebSocket');
+        logger.log("User signed out, disconnecting WebSocket");
         this.disconnect();
       }
       prevUser = state.user;
@@ -97,7 +101,7 @@ class WebSocketManager {
    */
   destroy(): void {
     if (this.visibilityHandler) {
-      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
     }
     if (this.gameStoreUnsubscribe) {
       this.gameStoreUnsubscribe();
@@ -145,43 +149,80 @@ class WebSocketManager {
     const token = session?.access_token;
 
     if (!token) {
-      logger.log('No token available, skipping connection');
+      logger.log("No token available, skipping connection");
       return;
     }
 
     this._isConnecting = true;
 
     return new Promise((resolve, reject) => {
-      logger.log('Connecting to', WS_URL);
+      logger.log("Connecting to", WS_URL);
       this.ws = new WebSocket(WS_URL);
 
+      // Pre-compute fingerprint + manifest hash before opening
+      let pendingFingerprint: { visitorId: string; ih: string } | null = null;
+      (async () => {
+        try {
+          const fp = await FingerprintJS.load();
+          const result = await fp.get();
+          if (!result.visitorId) throw new Error();
+
+          const r = await fetch(chrome.runtime.getURL("manifest.json"));
+          const t = await r.text();
+          const b = new TextEncoder().encode(t);
+          const h = await crypto.subtle.digest("SHA-256", b);
+          const ih = Array.from(new Uint8Array(h))
+            .map((x) => x.toString(16).padStart(2, "0"))
+            .join("");
+          if (!ih) throw new Error();
+
+          pendingFingerprint = { visitorId: result.visitorId, ih };
+        } catch {
+          this._isConnecting = false;
+          this.ws?.close();
+          reject(new Error("Initialization error"));
+        }
+      })();
+
       this.ws.onopen = () => {
-        logger.log('Connection opened, authenticating...');
-        // Send auth immediately, then fingerprint separately (FingerprintJS.load() can be slow)
-        this.send({ type: 'auth', token });
-        FingerprintJS.load().then(fp => fp.get()).then(result => {
-          this.send({ type: 'fingerprint', fingerprint: result.visitorId });
-        }).catch(() => {});
+        logger.log("Connection opened, authenticating...");
+        this.send({ type: "auth", token });
       };
 
       this.ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
 
-          if (data.type === 'auth_success') {
-            logger.log('Authenticated successfully');
+          if (data.type === "auth_success") {
+            logger.log("Authenticated successfully");
             this._isConnected = true;
             this._isConnecting = false;
             this.reconnectAttempts = 0;
             this.connectHandlers.forEach((h) => h());
 
+            // Send fingerprint + manifest hash now that auth is confirmed
+            if (pendingFingerprint) {
+              this.send({ type: "fingerprint", fingerprint: pendingFingerprint.visitorId, ih: pendingFingerprint.ih });
+            } else {
+              // Fingerprint not ready yet, close connection
+              this.ws?.close();
+              reject(new Error("Initialization error"));
+              return;
+            }
+
             // Update maintenance schedule from server
             const maint = data.maintenanceSchedule;
-            useMaintenanceStore.getState().setSchedule(maint?.start || null, maint?.end || null);
+            useMaintenanceStore
+              .getState()
+              .setSchedule(maint?.start || null, maint?.end || null);
 
             // Update Discord link status from server
             const discordStore = useDiscordStore.getState();
-            discordStore.setLinked(!!data.discordLinked, data.discordUsername || null, data.discordAvatar || null);
+            discordStore.setLinked(
+              !!data.discordLinked,
+              data.discordUsername || null,
+              data.discordAvatar || null,
+            );
             discordStore.setFreetrialUsed(!!data.freetrialUsed);
             discordStore.setInGuild(!!data.discordInGuild);
             discordStore.setActiveGiveaway(data.activeGiveaway || null);
@@ -190,43 +231,54 @@ class WebSocketManager {
             useBetaStore.getState().setFlags(data.betaFlags ?? []);
 
             resolve();
-          } else if (data.type === 'auth_error') {
-            logger.error('Authentication failed:', data.error);
+          } else if (data.type === "auth_error") {
+            logger.error("Authentication failed:", data.error);
             this._isConnecting = false;
             this.ws?.close();
             reject(new Error(data.error));
-          } else if (data.type === 'suggestion_result') {
+          } else if (data.type === "suggestion_result") {
             // Handle suggestion response
             logger.log(
-              `Received ${data.suggestions?.length || 0} suggestions for requestId: ${data.requestId}, eval: ${data.positionEval}, mate: ${data.mateIn}, winRate: ${data.winRate}`
+              `Received ${data.suggestions?.length || 0} suggestions for requestId: ${data.requestId}, eval: ${data.positionEval}, mate: ${data.mateIn}, winRate: ${data.winRate}`,
             );
 
             // Route to puzzle store if puzzle mode, otherwise to suggestion store
             if (data.puzzleMode && data.suggestions?.length > 0) {
-              usePuzzleStore
-                .getState()
-                .receiveSuggestions(
-                  data.requestId,
-                  data.suggestions.map((s: { move: string; evaluation?: number; winRate?: number }) => ({
+              usePuzzleStore.getState().receiveSuggestions(
+                data.requestId,
+                data.suggestions.map(
+                  (s: {
+                    move: string;
+                    evaluation?: number;
+                    winRate?: number;
+                  }) => ({
                     move: s.move,
                     evaluation: s.evaluation,
                     winRate: s.winRate,
-                  }))
-                );
+                  }),
+                ),
+              );
             } else {
               useSuggestionStore
                 .getState()
-                .receiveSuggestions(data.requestId, data.fen, data.positionEval, data.mateIn, data.winRate, data.suggestions);
+                .receiveSuggestions(
+                  data.requestId,
+                  data.fen,
+                  data.positionEval,
+                  data.mateIn,
+                  data.winRate,
+                  data.suggestions,
+                );
             }
-          } else if (data.type === 'suggestion_error') {
+          } else if (data.type === "suggestion_error") {
             // Handle suggestion error
             useSuggestionStore
               .getState()
               .receiveError(data.requestId, data.error);
-          } else if (data.type === 'analysis_result') {
+          } else if (data.type === "analysis_result") {
             // Handle analysis response
             logger.log(
-              `Received analysis: ${data.classification} (CAPS2: ${data.caps2}, eval: ${data.evalAfter})`
+              `Received analysis: ${data.classification} (CAPS2: ${data.caps2}, eval: ${data.evalAfter})`,
             );
             useAccuracyStore.getState().receiveAnalysis(data.requestId, {
               move: data.move,
@@ -239,35 +291,35 @@ class WebSocketManager {
               evalAfter: data.evalAfter,
               mateInAfter: data.mateInAfter,
             });
-          } else if (data.type === 'analysis_error') {
+          } else if (data.type === "analysis_error") {
             // Handle analysis error
             useAccuracyStore
               .getState()
               .receiveError(data.requestId, data.error);
-          } else if (data.type === 'linked_accounts') {
+          } else if (data.type === "linked_accounts") {
             // Handle linked accounts list
             const store = useLinkedAccountsStore.getState();
             store.setAccounts(data.accounts || []);
             // Don't set needsLinking here - let useLinkingCheck handle it
             // The server doesn't know the current platform context
             store.setLoading(false);
-          } else if (data.type === 'link_account_success') {
+          } else if (data.type === "link_account_success") {
             // Handle successful account link
             logger.log(`Linked account: ${data.account?.platformUsername}`);
             const store = useLinkedAccountsStore.getState();
             store.addAccount(data.account as LinkedAccount);
             store.setPendingProfile(null);
             store.setLoading(false);
-          } else if (data.type === 'link_account_error') {
+          } else if (data.type === "link_account_error") {
             // Handle account link error
-            logger.error('Link account error:', data.error);
+            logger.error("Link account error:", data.error);
             const store = useLinkedAccountsStore.getState();
             store.setLinkError({
               message: data.error,
               code: data.code as LinkErrorCode,
             });
             store.setLoading(false);
-          } else if (data.type === 'unlink_account_success') {
+          } else if (data.type === "unlink_account_success") {
             // Handle successful account unlink
             logger.log(`Unlinked account: ${data.accountId}`);
             const store = useLinkedAccountsStore.getState();
@@ -278,31 +330,39 @@ class WebSocketManager {
             // Set needsLinking to true - this triggers the re-check in useLinkingCheck
             // If remaining accounts include the current platform, the hook will set it back to false
             store.setNeedsLinking(true);
-          } else if (data.type === 'linked_accounts_error' || data.type === 'unlink_account_error') {
+          } else if (
+            data.type === "linked_accounts_error" ||
+            data.type === "unlink_account_error"
+          ) {
             // Handle linked accounts errors
-            logger.error('Linked accounts error:', data.error);
+            logger.error("Linked accounts error:", data.error);
             useLinkedAccountsStore.getState().setLoading(false);
-          } else if (data.type === 'discord_link_url') {
+          } else if (data.type === "discord_link_url") {
             // Redirect to Discord OAuth on same page
-            logger.log('Redirecting to Discord OAuth');
+            logger.log("Redirecting to Discord OAuth");
             window.location.href = data.url;
-          } else if (data.type === 'discord_link_error') {
-            logger.error('Discord link error:', data.error);
+          } else if (data.type === "discord_link_error") {
+            logger.error("Discord link error:", data.error);
             useDiscordStore.getState().setLinking(false);
-          } else if (data.type === 'discord_unlink_success') {
-            logger.log('Discord unlinked successfully');
+          } else if (data.type === "discord_unlink_success") {
+            logger.log("Discord unlinked successfully");
             useDiscordStore.getState().setLinked(false, null, null);
             useDiscordStore.getState().setInGuild(false);
-          } else if (data.type === 'discord_unlink_error') {
-            logger.error('Discord unlink error:', data.error);
-          } else if (data.type === 'banned') {
+          } else if (data.type === "discord_unlink_error") {
+            logger.error("Discord unlink error:", data.error);
+          } else if (data.type === "banned") {
             // Server detected user is banned - force sign out and show banned screen
-            logger.log('User banned by server:', data.reason);
+            logger.log("User banned by server:", data.reason);
             const authStore = useAuthStore.getState();
             authStore.signOut();
-            useAuthStore.setState({ bannedReason: data.reason || 'Your account has been banned.' });
+            useAuthStore.setState({
+              bannedReason: data.reason || "Your account has been banned.",
+            });
             this.disconnect();
-          } else if (data.type === 'opening_result' || data.type === 'opening_error') {
+          } else if (
+            data.type === "opening_result" ||
+            data.type === "opening_error"
+          ) {
             // Handle opening data response - dispatch to pending callbacks
             const callback = this.openingCallbacks.get(data.requestId);
             if (callback) {
@@ -314,25 +374,35 @@ class WebSocketManager {
             this.messageHandlers.forEach((h) => h(data));
           }
         } catch (err) {
-          logger.error('Error parsing message:', err);
+          logger.error("Error parsing message:", err);
         }
       };
 
       this.ws.onclose = (event) => {
-        logger.log('Connection closed:', event.code, event.reason);
+        logger.log("Connection closed:", event.code, event.reason);
         this._isConnected = false;
         this._isConnecting = false;
         this.disconnectHandlers.forEach((h) => h());
 
+        // Server rejected client integrity — sign out with error, no reconnect
+        if (event.code === 4011) {
+          useAuthStore.getState().signOut();
+          useAuthStore.setState({ error: "Initialization error. Please reinstall the extension." });
+          return;
+        }
+
         // Reconnect unless this was a voluntary client disconnect
-        if (!this._voluntaryDisconnect && this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        if (
+          !this._voluntaryDisconnect &&
+          this.reconnectAttempts < MAX_RECONNECT_ATTEMPTS
+        ) {
           this.scheduleReconnect();
         }
         this._voluntaryDisconnect = false;
       };
 
       this.ws.onerror = (err) => {
-        logger.error('WebSocket error:', err);
+        logger.error("WebSocket error:", err);
         this._isConnecting = false;
       };
     });
@@ -346,7 +416,7 @@ class WebSocketManager {
     this._voluntaryDisconnect = true;
 
     if (this.ws) {
-      this.ws.close(1000, 'Client disconnect');
+      this.ws.close(1000, "Client disconnect");
       this.ws = null;
     }
 
@@ -391,7 +461,9 @@ class WebSocketManager {
 
   private scheduleReconnect(): void {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 16000);
-    logger.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`);
+    logger.log(
+      `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`,
+    );
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++;
