@@ -12,7 +12,6 @@ const BLUR_CLASS = 'chessr-anon-blur';
 const USERNAME_SELECTORS = '.user-username, .user-tagline-username, .cc-user-username-component, .user-username-component, .game-overview-player, .battle-player-username, .modal-game-over-user-username';
 
 // Blur state
-let domObserver: MutationObserver | null = null;
 let currentUsername: string | null = null;
 let blurActive = false;
 let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -136,41 +135,18 @@ function unblurAll() {
   });
 }
 
-function startObserver() {
-  if (domObserver) return;
-
-  domObserver = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
-        for (const node of mutation.addedNodes) {
-          if (node instanceof HTMLElement) {
-            if (node.closest('.chessr-mount, #chessr-root')) continue;
-            blurMatchingElements(node);
-          }
-        }
-      } else if (mutation.type === 'attributes') {
-        const target = mutation.target;
-        if (target instanceof HTMLElement && !target.closest('.chessr-mount, #chessr-root')) {
-          if (target.matches(USERNAME_SELECTORS) && !target.classList.contains(BLUR_CLASS)) {
-            target.classList.add(BLUR_CLASS);
-          }
-        }
+/**
+ * Process added DOM nodes for blur (called by the merged observer in content/index.tsx)
+ */
+export function processBlurMutations(mutations: MutationRecord[]) {
+  if (!blurActive) return;
+  for (const mutation of mutations) {
+    for (const node of mutation.addedNodes) {
+      if (node instanceof HTMLElement) {
+        if (node.closest('.chessr-mount, #chessr-root')) continue;
+        blurMatchingElements(node);
       }
     }
-  });
-
-  domObserver.observe(document.body, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['class'],
-  });
-}
-
-function stopObserver() {
-  if (domObserver) {
-    domObserver.disconnect();
-    domObserver = null;
   }
 }
 
@@ -180,7 +156,6 @@ function enableBlur() {
 
   currentUsername = detectUsername();
   blurMatchingElements();
-  startObserver();
 
   if (!currentUsername) {
     let retries = 0;
@@ -206,7 +181,6 @@ function disableBlur() {
     retryTimer = null;
   }
 
-  stopObserver();
   unblurAll();
   currentUsername = null;
 }

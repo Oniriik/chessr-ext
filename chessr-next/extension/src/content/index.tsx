@@ -1,8 +1,8 @@
 import { createRoot, Root } from 'react-dom/client';
 import { getPlatformContext, MountPoint, RouteId } from '../platforms';
 import { PlatformProvider } from '../contexts/PlatformContext';
-import { initAnonymousBlur, rescanAnonymousBlur, getRealHref } from './anonymousBlur';
-import { initTitleSimulator, rescanTitleSimulator } from './titleSimulator';
+import { initAnonymousBlur, rescanAnonymousBlur, processBlurMutations, getRealHref } from './anonymousBlur';
+import { initTitleSimulator, rescanTitleSimulator, processTitleMutations } from './titleSimulator';
 import { initStreamerBridge } from '../lib/streamerBridge';
 import { useDiscordStore } from '../stores/discordStore';
 import { logger } from '../lib/logger';
@@ -182,7 +182,7 @@ initTitleSimulator();
 let lastUrl = getRealHref();
 let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
-const observer = new MutationObserver(() => {
+const observer = new MutationObserver((mutations) => {
   const currentReal = getRealHref();
   if (currentReal !== lastUrl) {
     lastUrl = currentReal;
@@ -196,6 +196,10 @@ const observer = new MutationObserver(() => {
       updateMounts();
     }, 500);
   }
+
+  // Delegate to blur and title handlers (replaces their individual observers)
+  processBlurMutations(mutations);
+  processTitleMutations();
 });
 
 observer.observe(document.body, { childList: true, subtree: true });

@@ -457,7 +457,7 @@ function PuzzleHeader() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => window.open(chrome.runtime.getURL('streamer.html'), '_blank')}
+          onClick={() => chrome.runtime.sendMessage({ type: 'open_streamer' })}
           className="tw-h-8 tw-w-8"
           title="Streamer Mode"
         >

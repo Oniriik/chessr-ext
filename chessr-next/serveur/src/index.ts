@@ -133,9 +133,13 @@ async function storeFingerprint(userId: string, fingerprint: string | null) {
   }
 }
 
-// Expected manifest integrity hash (SHA-256 of manifest.json)
-// Set this to the hash of your official manifest after building
-const EXPECTED_MANIFEST_HASH = process.env.MANIFEST_HASH || "";
+// Valid manifest integrity hashes (SHA-256 of manifest.json)
+// MANIFEST_HASH = current version, MANIFEST_HASH_PREV = previous versions (comma-separated)
+const VALID_MANIFEST_HASHES = new Set(
+  [process.env.MANIFEST_HASH, ...(process.env.MANIFEST_HASH_PREV || "").split(",")]
+    .map((h) => h?.trim())
+    .filter(Boolean),
+);
 const flaggedIntegrity = new Set<string>();
 const CRACK_DETECTION_CHANNEL_ID = "1477490743588159488";
 
@@ -211,12 +215,12 @@ async function storeIntegrityHash(
   email: string,
 ): Promise<boolean> {
   if (!hash) return false;
-  // Flag if hash doesn't match expected (potential cracked extension)
-  if (EXPECTED_MANIFEST_HASH && hash !== EXPECTED_MANIFEST_HASH) {
+  // Flag if hash doesn't match any valid manifest hash (potential cracked extension)
+  if (VALID_MANIFEST_HASHES.size > 0 && !VALID_MANIFEST_HASHES.has(hash)) {
     if (!flaggedIntegrity.has(userId)) {
       flaggedIntegrity.add(userId);
       console.warn(
-        `[Integrity] Mismatch for ${userId}: got ${hash.substring(0, 12)}…, expected ${EXPECTED_MANIFEST_HASH.substring(0, 12)}…`,
+        `[Integrity] Mismatch for ${userId}: got ${hash.substring(0, 12)}…`,
       );
       try {
         await supabase

@@ -175,31 +175,67 @@ export function useGameDetection() {
 
       // Check every second if the move list element was replaced
       if (moveListValidityCheck) clearInterval(moveListValidityCheck);
+      let recovering = false;
       moveListValidityCheck = setInterval(() => {
+        if (recovering) return;
         const stillConnected = currentMoveListEl?.isConnected;
         if (!stillConnected) {
           logger.warn('[useGameDetection] Move list disconnected, recovering...');
           moveListObserver.current?.disconnect();
-          const newMoveList = document.querySelector(config.moveListSelector);
-          if (newMoveList) {
-            currentMoveListEl = newMoveList;
-            const newMoves = newMoveList.querySelectorAll(config.moveSelector);
-            lastMoveCount.current = newMoves.length;
-            syncFromDOM();
-            moveListObserver.current = new MutationObserver(() => {
-              const currentMoves = newMoveList.querySelectorAll(config.moveSelector);
-              if (currentMoves.length !== lastMoveCount.current) {
-                lastMoveCount.current = currentMoves.length;
-                syncFromDOM();
+          recovering = true;
+
+          // Wait 300ms for chess.com to mount the new game before acting
+          setTimeout(() => {
+            recovering = false;
+            const newMoveList = document.querySelector(config.moveListSelector);
+            if (newMoveList) {
+              currentMoveListEl = newMoveList;
+              const newMoves = newMoveList.querySelectorAll(config.moveSelector);
+
+              // New game detected (move count dropped) — reset state
+              if (newMoves.length <= 1 && lastMoveCount.current > 1) {
+                reset();
+                useSuggestionStore.getState().clearSuggestions();
+                setGameStarted(true);
+                setPlayerColor(platformModule.detectPlayerColor());
+                detectFromDOM();
               }
-            });
-            moveListObserver.current.observe(newMoveList, { childList: true, subtree: true });
-          } else if (!platformModule.detectGameStarted()) {
-            if (moveListValidityCheck) clearInterval(moveListValidityCheck);
-            reset();
-            useSuggestionStore.getState().clearSuggestions();
-            startDocumentObserver();
-          }
+
+              lastMoveCount.current = newMoves.length;
+              syncFromDOM();
+              moveListObserver.current = new MutationObserver(() => {
+                const currentMoves = newMoveList.querySelectorAll(config.moveSelector);
+
+                // Detect game reset within same move list element
+                if (currentMoves.length <= 1 && lastMoveCount.current > 1) {
+                  logger.log('[useGameDetection] Game reset detected');
+                  reset();
+                  useSuggestionStore.getState().clearSuggestions();
+                  moveListObserver.current?.disconnect();
+                  lastMoveCount.current = 0;
+                  if (platformModule.detectGameStarted()) {
+                    setGameStarted(true);
+                    setPlayerColor(platformModule.detectPlayerColor());
+                    startMoveListObserver();
+                  } else {
+                    startDocumentObserver();
+                  }
+                  return;
+                }
+
+                if (currentMoves.length !== lastMoveCount.current) {
+                  lastMoveCount.current = currentMoves.length;
+                  syncFromDOM();
+                }
+              });
+              moveListObserver.current.observe(newMoveList, { childList: true, subtree: true });
+            } else if (!platformModule.detectGameStarted()) {
+              if (moveListValidityCheck) clearInterval(moveListValidityCheck);
+              reset();
+              useSuggestionStore.getState().clearSuggestions();
+              startDocumentObserver();
+            }
+          }, 300);
         }
       }, 1000);
     };

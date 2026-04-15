@@ -239,6 +239,7 @@ export function useArrowRenderer() {
 
   // Callback for resize events
   const handleResize = useCallback(() => {
+    rendererRef.current?.clearMeasureCache();
     setResizeCounter((c) => c + 1);
   }, []);
 
@@ -607,10 +608,10 @@ export function useArrowRenderer() {
       });
     }
 
-    // Force browser repaint — Chrome can defer SVG paints in content scripts
+    // Trigger repaint without forcing synchronous layout
     const svg = overlayRef.current?.getSVG();
     if (svg) {
-      void svg.getBoundingClientRect();
+      requestAnimationFrame(() => { svg.style.opacity = '1'; });
     }
   }, [
     suggestions,

@@ -86,6 +86,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'open_billing') {
     chrome.tabs.create({ url: chrome.runtime.getURL('billing.html') });
   }
+  if (message.type === 'open_streamer') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('streamer.html') });
+  }
   if (message.type === 'plan_updated') {
     // Relay to all content script tabs so they refresh the plan
     broadcastToContentPorts(message);

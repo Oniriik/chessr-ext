@@ -66,10 +66,27 @@ console.log(`Manifest hash: ${manifestHash}`);
 const serverEnvPath = join(import.meta.dirname, '..', '..', 'serveur', '.env');
 try {
   let envContent = readFileSync(serverEnvPath, 'utf8');
-  if (envContent.includes('MANIFEST_HASH=')) {
-    envContent = envContent.replace(/MANIFEST_HASH=.*/, `MANIFEST_HASH=${manifestHash}`);
+
+  // Move current hash to MANIFEST_HASH_PREV before updating
+  const currentMatch = envContent.match(/^MANIFEST_HASH=(.+)$/m);
+  const currentHash = currentMatch?.[1]?.trim();
+  if (currentHash && currentHash !== manifestHash) {
+    const prevMatch = envContent.match(/^MANIFEST_HASH_PREV=(.+)$/m);
+    const prevHashes = prevMatch?.[1]?.split(',').map(h => h.trim()).filter(Boolean) || [];
+    if (!prevHashes.includes(currentHash)) prevHashes.unshift(currentHash);
+    // Keep last 5 hashes
+    const newPrev = prevHashes.slice(0, 5).join(',');
+    if (prevMatch) {
+      envContent = envContent.replace(/^MANIFEST_HASH_PREV=.*/m, `MANIFEST_HASH_PREV=${newPrev}`);
+    } else {
+      envContent += `\nMANIFEST_HASH_PREV=${newPrev}`;
+    }
+  }
+
+  if (envContent.match(/^MANIFEST_HASH=/m)) {
+    envContent = envContent.replace(/^MANIFEST_HASH=.*/m, `MANIFEST_HASH=${manifestHash}`);
   } else {
-    envContent += `\nMANIFEST_HASH=${manifestHash}\n`;
+    envContent += `\nMANIFEST_HASH=${manifestHash}`;
   }
   writeFileSync(serverEnvPath, envContent);
   console.log(`Updated serveur/.env MANIFEST_HASH`);

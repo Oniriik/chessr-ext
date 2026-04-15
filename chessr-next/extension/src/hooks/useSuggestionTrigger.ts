@@ -2,7 +2,7 @@
  * useSuggestionTrigger - Auto-trigger suggestions when it's player's turn
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGameStore } from '../stores/gameStore';
 import { useEngineStore } from '../stores/engineStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -41,6 +41,22 @@ export function useSuggestionTrigger() {
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFen = useRef<string | null>(null);
+  const [visibilityTick, setVisibilityTick] = useState(0);
+
+  // Re-trigger suggestions when tab becomes visible and position changed
+  useEffect(() => {
+    const handler = () => {
+      if (!document.hidden && isGameStarted && chessInstance) {
+        const currentFen = chessInstance.fen();
+        if (currentFen !== lastFen.current) {
+          lastFen.current = null;
+          setVisibilityTick((c) => c + 1);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, [isGameStarted, chessInstance]);
 
   // Always connect Maia WS when a game starts (needed for auto-move bridge
   // even when using server engine). Only disconnect when no game is active.
@@ -175,6 +191,7 @@ export function useSuggestionTrigger() {
     requestSuggestions,
     send,
     plan,
+    visibilityTick,
   ]);
 
   // Clear last FEN when game resets

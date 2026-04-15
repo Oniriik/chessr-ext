@@ -24,7 +24,6 @@ const TITLE_FULL_NAMES: Record<string, string> = {
 
 let titleEnabled = false;
 let titleText = 'GM';
-let domObserver: MutationObserver | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function removeMockTitles() {
@@ -133,39 +132,28 @@ function injectMockTitle() {
   injectProfileBadge(targetLower);
 }
 
-function startObserver() {
-  if (domObserver) return;
-
-  domObserver = new MutationObserver(() => {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(injectMockTitle, 100);
-  });
-
-  domObserver.observe(document.body, { childList: true, subtree: true });
-}
-
-function stopObserver() {
-  if (domObserver) {
-    domObserver.disconnect();
-    domObserver = null;
-  }
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
-  }
+/**
+ * Schedule a debounced title injection (called by the merged observer in content/index.tsx)
+ */
+export function processTitleMutations() {
+  if (!titleEnabled) return;
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(injectMockTitle, 100);
 }
 
 function enable() {
   if (titleEnabled) return;
   titleEnabled = true;
   injectMockTitle();
-  startObserver();
 }
 
 function disable() {
   if (!titleEnabled) return;
   titleEnabled = false;
-  stopObserver();
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+  }
   removeMockTitles();
 }
 

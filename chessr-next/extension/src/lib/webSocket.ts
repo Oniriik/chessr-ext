@@ -43,6 +43,7 @@ class WebSocketManager {
   private reconnectAttempts = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  private _initialized = false;
   private visibilityHandler: (() => void) | null = null;
   private gameStoreUnsubscribe: (() => void) | null = null;
   private puzzleStoreUnsubscribe: (() => void) | null = null;
@@ -60,6 +61,9 @@ class WebSocketManager {
    * Initialize event listeners for activity detection
    */
   init(): void {
+    if (this._initialized) return;
+    this._initialized = true;
+
     // Listen for tab visibility changes
     this.visibilityHandler = () => {
       this.checkActivity();
@@ -113,6 +117,7 @@ class WebSocketManager {
       this.authStoreUnsubscribe();
     }
     this.disconnect();
+    this._initialized = false;
   }
 
   /**

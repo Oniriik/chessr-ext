@@ -49,9 +49,13 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["icons/*", "manifest.json"],
+      "resources": ["icons/*", "assets/*", "manifest.json"],
       "matches": ["*://chess.com/*", "*://*.chess.com/*", "*://lichess.org/*", "*://worldchess.com/*", "*://*.worldchess.com/*"],
       "use_dynamic_url": true
+    },
+    {
+      "resources": ["streamer.html", "billing.html"],
+      "matches": ["<all_urls>"]
     }
   ],
   "declarative_net_request": {

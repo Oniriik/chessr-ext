@@ -42,9 +42,39 @@ export class ArrowRenderer {
   private hoveredIndex: number | null = null; // 0-based index of hovered suggestion (from sidebar)
   private pendingPvCircles: { to: string; color: string; textColor: string; moveNumber: number }[] = []; // Store circle data to draw on top after all arrows
   private pvSquareCount: Map<string, number> = new Map(); // Track how many circles per square for stacking
+  private textMeasureCache: Map<string, { width: number; height: number }> = new Map();
 
   constructor(overlay: OverlayManager) {
     this.overlay = overlay;
+  }
+
+  /**
+   * Measure text dimensions with caching to avoid repeated getBBox() reflows
+   */
+  private measureText(layer: SVGGElement, text: string, fontSize: number, fontWeight: string): { width: number; height: number } {
+    const key = `${text}|${fontSize}|${fontWeight}`;
+    const cached = this.textMeasureCache.get(key);
+    if (cached) return cached;
+
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    el.setAttribute('font-size', fontSize.toString());
+    el.setAttribute('font-weight', fontWeight);
+    el.setAttribute('font-family', 'system-ui, -apple-system, sans-serif');
+    el.textContent = text;
+    layer.appendChild(el);
+    const bbox = el.getBBox();
+    layer.removeChild(el);
+
+    const result = { width: bbox.width, height: bbox.height };
+    this.textMeasureCache.set(key, result);
+    return result;
+  }
+
+  /**
+   * Clear text measurement cache (call on overlay resize)
+   */
+  clearMeasureCache(): void {
+    this.textMeasureCache.clear();
   }
 
   /**
@@ -313,9 +343,7 @@ export class ArrowRenderer {
     textElement.setAttribute('fill', 'white');
     textElement.textContent = `#${rank}`;
 
-    layer.appendChild(textElement);
-    const bbox = textElement.getBBox();
-    layer.removeChild(textElement);
+    const bbox = this.measureText(layer, `#${rank}`, fontSize, 'bold');
 
     const rectHeight = bbox.height + padding * 2;
     const rectX = position.x - bbox.width - padding * 2;
@@ -393,9 +421,7 @@ export class ArrowRenderer {
     textElement.setAttribute('fill', textColor);
     textElement.textContent = text;
 
-    layer.appendChild(textElement);
-    const bbox = textElement.getBBox();
-    layer.removeChild(textElement);
+    const bbox = this.measureText(layer, text, fontSize, 'bold');
 
     const rectHeight = bbox.height + padding * 2;
     // Position from left edge
@@ -446,10 +472,7 @@ export class ArrowRenderer {
     textElement.setAttribute('fill', textColor);
     textElement.textContent = text;
 
-    // Measure text
-    layer.appendChild(textElement);
-    const bbox = textElement.getBBox();
-    layer.removeChild(textElement);
+    const bbox = this.measureText(layer, text, fontSize, 'bold');
 
     const rectHeight = bbox.height + padding * 2;
     const rectX = position.x - bbox.width - padding * 2;
@@ -938,10 +961,7 @@ export class ArrowRenderer {
     textElement.setAttribute('fill', 'white');
     textElement.textContent = badges[0];
 
-    // Measure text
-    layer.appendChild(textElement);
-    const bbox = textElement.getBBox();
-    layer.removeChild(textElement);
+    const bbox = this.measureText(layer, badges[0], fontSize, 'bold');
 
     const rectHeight = bbox.height + padding * 2;
     const rectX = squareRight - squarePadding - bbox.width - padding * 2;

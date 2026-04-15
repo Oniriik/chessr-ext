@@ -205,7 +205,7 @@ export function GeneralTab() {
             variant="outline"
             className="tw-w-full tw-justify-start tw-gap-2"
             onClick={() => {
-              window.open(chrome.runtime.getURL('streamer.html'), '_blank');
+              chrome.runtime.sendMessage({ type: 'open_streamer' });
             }}
           >
             <Monitor className="tw-h-4 tw-w-4" />
