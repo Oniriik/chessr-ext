@@ -1718,6 +1718,12 @@ wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
         return;
       }
 
+      // Allow chesscom_review without auth (internal app → server calls)
+      if (message.type === "chesscom_review") {
+        handleChesscomReview(message, ws, null, null);
+        return;
+      }
+
       // All other messages require authentication
       if (!isAuthenticated || !userId) {
         ws.send(JSON.stringify({ type: "error", error: "Not authenticated" }));

@@ -11,7 +11,7 @@ import { useUpgradeModal } from '../UpgradeModal';
 import { usePuzzleStore, type PuzzleSearchMode, type PuzzleEngine } from '../../stores/puzzleStore';
 import { useWebSocketStore } from '../../stores/webSocketStore';
 import { useMaiaWebSocketStore } from '../../stores/maiaWebSocketStore';
-import { extractFenFromBoard as chesscomExtractFen, getPlayerColorFromDOM as chesscomGetPlayerColor } from '../../lib/chesscom/extractFenFromBoard';
+import { getPlayerColorFromDOM as chesscomGetPlayerColor } from '../../lib/chesscom/extractFenFromBoard';
 import { extractFenFromBoard as lichessExtractFen, getPlayerColorFromDOM as lichessGetPlayerColor, detectPuzzleStarted as lichessDetectStarted, detectPuzzleSolved as lichessDetectSolved } from '../../lib/lichess/puzzleFen';
 import { usePuzzleSuggestionTrigger } from '../../hooks/usePuzzleSuggestionTrigger';
 import { usePuzzleArrowRenderer } from '../../hooks/usePuzzleArrowRenderer';
@@ -80,15 +80,7 @@ function usePuzzleDetection() {
         setStarted(newIsStarted, newPlayerColor);
       }
 
-      if (newIsStarted) {
-        const fen = chesscomExtractFen();
-        if (fen) {
-          const fenPosition = fen.split(' ')[0];
-          const fenTurn = fen.split(' ')[1];
-          logger.log(`[puzzle-detect] FEN extracted: turn=${fenTurn}, position=${fenPosition.substring(0, 20)}...`);
-        }
-        setFen(fen);
-      }
+      // Chess.com FEN comes from pageContext.js via chessr:boardFen message
     }
   }, [isStarted, isSolved, playerColor, isLichess, setStarted, setSolved, setFen]);
 
@@ -96,7 +88,7 @@ function usePuzzleDetection() {
     // Initial detection
     detect();
 
-    // Observe DOM changes for puzzle state
+    // Observe DOM changes for puzzle state (started/solved/playerColor)
     const observer = new MutationObserver(() => {
       detect();
     });
@@ -105,11 +97,23 @@ function usePuzzleDetection() {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ['class', 'style'],
+      attributeFilter: ['class'],
     });
 
-    return () => observer.disconnect();
-  }, [detect]);
+    // Chess.com: listen for FEN from pageContext.js bridge (uses game.getFEN())
+    const handleBoardFen = (e: MessageEvent) => {
+      if (e.data?.type === 'chessr:boardFen' && e.data.fen && !isLichess) {
+        logger.log(`[puzzle-detect] FEN from pageContext: ${e.data.fen}`);
+        setFen(e.data.fen);
+      }
+    };
+    window.addEventListener('message', handleBoardFen);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('message', handleBoardFen);
+    };
+  }, [detect, isLichess, setFen]);
 
   return { isStarted, isSolved, playerColor };
 }
