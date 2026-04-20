@@ -42,3 +42,24 @@ server/engine/
 
 # Syzygy tablebases (too large for git)
 server/syzygy/
+
+# Claude Code local
+.claude/
+.superpowers/
+
+# WXT cache
+.wxt/
+
+# Competitor extensions reverse-engineered locally
+ChessHv3/
+
+# Build artifacts
+chessr-next/extension/dist.zip
+chessr-next/scripts/calibration/_tmp_*.py
+
+# Brainstorm / plans / specs output
+**/brainstorm/
+**/docs/superpowers/
+
+# Proprietary engine binaries (Dragon + Stockfish) — transfer to server via scp
+chessr-next/serveurv3/engines/

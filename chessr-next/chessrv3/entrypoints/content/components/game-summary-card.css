@@ -1,0 +1,112 @@
+.gsc {
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--card-bg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ─── Players row ─── */
+.gsc-players {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.gsc-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.gsc-player--right {
+  flex-direction: row-reverse;
+  text-align: right;
+  justify-self: end;
+}
+
+.gsc-info {
+  min-width: 0;
+}
+
+.gsc-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: hsl(var(--muted));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.gsc-avatar-wrap {
+  padding: 2px;
+  border-radius: 10px;
+  background: transparent;
+  flex-shrink: 0;
+}
+.gsc-avatar-wrap--winner {
+  background: #22c55e;
+}
+.gsc-avatar-wrap--loser {
+  opacity: 0.65;
+}
+.gsc-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.gsc-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 9ch;
+}
+.gsc-rating {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+}
+
+/* ─── Result ─── */
+.gsc-result {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+.gsc-result--win {
+  color: #22c55e;
+}
+.gsc-result--loss {
+  color: #f87171;
+}
+.gsc-result--draw {
+  color: hsl(var(--muted-foreground));
+}
+
+/* ─── Metadata pills ─── */
+.gsc-pills {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.gsc-pill {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: hsl(var(--muted));
+  font-size: 9px;
+  color: hsl(var(--muted-foreground));
+  font-weight: 500;
+}

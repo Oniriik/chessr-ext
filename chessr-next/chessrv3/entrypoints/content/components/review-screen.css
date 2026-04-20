@@ -1,0 +1,223 @@
+.review-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+/* ─── Banner ─── */
+.rv-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+.rv-banner-title { display: block; font-size: 12px; font-weight: 700; color: hsl(var(--foreground)); }
+.rv-banner-sub { display: block; font-size: 9px; color: hsl(var(--muted-foreground)); margin-top: 1px; }
+
+/* ─── Loading ─── */
+.review-loading { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 4px 0; }
+.review-progress-track { width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.review-progress-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #22c55e, #3b82f6); transition: width 0.3s ease; }
+.review-progress-text { font-size: 10px; color: hsl(var(--muted-foreground)); font-variant-numeric: tabular-nums; }
+.review-error { font-size: 10px; color: #f87171; text-align: center; padding: 8px; border-radius: 8px; background: rgba(248,113,113,0.08); }
+
+/* ─── Card ─── */
+.rv-card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* ─── Top section (players, rating, accuracy, phases) ─── */
+.rv-section {
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 3-column grid — same as the app */
+.rv-grid {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+}
+.rv-grid--sm { gap: 2px; }
+
+/* Consistent grid for all rows */
+.rv-grid-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  align-items: center;
+  justify-items: center;
+}
+
+.rv-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}
+
+.rv-center-label {
+  font-size: 8px;
+  color: hsl(var(--muted-foreground) / 0.5);
+  text-align: center;
+  white-space: nowrap;
+}
+.rv-center-label--sm { font-size: 8px; }
+
+/* Game Rating badge */
+.rv-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+
+/* Accuracy badge */
+.rv-acc-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: hsl(var(--muted) / 0.5);
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+}
+.rv-acc-box--win {
+  background: rgba(34,197,94,0.15);
+  color: #22c55e;
+}
+
+/* Phase accuracy */
+.rv-phase-section {
+  padding-top: 4px;
+  margin-top: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rv-phase-val {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+  text-align: center;
+}
+
+/* ─── Classifications section ─── */
+.rv-cls-section {
+}
+
+.rv-cls-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 1fr;
+  align-items: center;
+  justify-items: center;
+  padding: 5px 14px;
+}
+
+.rv-cls-num {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.rv-cls-num--r {}
+
+.rv-cls-icon {
+  position: relative;
+  cursor: default;
+}
+
+.rv-cls-icon[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.85);
+  color: var(--tt-color, #e4e4e7);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.rv-cls-icon[data-tooltip]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Expand button */
+.rv-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: hsl(var(--muted-foreground) / 0.3);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.rv-expand-btn:hover { color: hsl(var(--foreground)); }
+
+/* ─── Move quality bar ─── */
+.rv-bar-section {
+  padding: 10px 14px 12px;
+}
+.rv-bar-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.rv-bar-title { font-size: 8px; font-weight: 600; color: hsl(var(--muted-foreground)); text-transform: uppercase; letter-spacing: 0.04em; }
+.rv-bar-count { font-size: 8px; color: hsl(var(--muted-foreground) / 0.4); }
+.rv-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 1px; }
+.rv-bar-seg { min-width: 3px; }
+
+/* ─── CTA ─── */
+.review-cta {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 12px; border: none; border-radius: 10px;
+  background: hsl(var(--primary)); color: #fff; font-size: 13px; font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  cursor: pointer; transition: background 0.15s ease;
+}
+.review-cta:hover { background: hsl(217, 91%, 50%); }
+.review-cta--ghost {
+  background: transparent; border: 1px solid rgba(255,255,255,0.1);
+  color: hsl(var(--muted-foreground)); font-size: 11px; padding: 10px;
+}
+.review-cta--ghost:hover { background: rgba(255,255,255,0.04); }
+.review-cta--upgrade {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a1917;
+  flex-direction: column;
+}
+.review-cta--upgrade:hover { background: linear-gradient(135deg, #f59e0b, #d97706); }

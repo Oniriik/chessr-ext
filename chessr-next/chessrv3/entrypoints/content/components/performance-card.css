@@ -1,0 +1,160 @@
+.perf-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+
+.perf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.perf-header-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+}
+
+.perf-header-moves {
+  font-size: 10px;
+  color: hsl(var(--primary) / 0.8);
+}
+
+.perf-header-moves--idle {
+  color: hsl(var(--muted-foreground));
+}
+
+.perf-body {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.perf-accuracy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  min-width: 72px;
+}
+
+.perf-accuracy--idle {
+  background: hsl(var(--muted));
+  outline: 1px solid hsl(var(--border));
+}
+
+.perf-accuracy-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 1px;
+}
+
+.perf-accuracy-number {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-width: 2.2ch;
+  text-align: right;
+}
+
+.perf-accuracy-number--idle {
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.perf-accuracy-pct {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.perf-accuracy-status {
+  margin-top: 3px;
+  height: 14px;
+  overflow: hidden;
+}
+
+.perf-accuracy-trend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.perf-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px 8px;
+}
+
+.perf-cls {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3px 0;
+  border-radius: 4px;
+  line-height: 1.2;
+  transition: background 0.15s ease;
+  cursor: default;
+}
+
+.perf-cls::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(2px);
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border));
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.perf-cls:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.perf-cls--active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.perf-cls-count {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 1.5ch;
+  text-align: center;
+}
+
+.perf-cls-label {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+}
+
+.perf-accuracy-trend-placeholder {
+  font-size: 10px;
+  visibility: hidden;
+}

@@ -1,0 +1,95 @@
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.panel-header-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.panel-header-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: hsl(var(--foreground));
+}
+
+.panel-header-title-dot {
+  color: #3b82f6;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.plan-badge-skeleton {
+  width: 52px;
+  height: 16px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+.plan-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.plan-badge-upgrade {
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.plan-badge-upgrade:hover {
+  background: rgba(251, 191, 36, 0.28);
+}
+
+.panel-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.panel-header-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.panel-header-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: hsl(var(--foreground));
+}
+
+.panel-header-btn--active {
+  color: #a855f7;
+}

@@ -1,0 +1,235 @@
+.srow {
+  border-radius: 8px;
+  border-left: 3px solid transparent;
+  overflow: hidden;
+}
+
+.srow-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 8px 8px 12px;
+}
+
+.srow-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.srow-rank {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.srow-hotkey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.srow-move {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: monospace;
+  color: hsl(var(--foreground));
+}
+
+.srow-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.srow-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 24px;
+}
+
+.srow-right > * {
+  display: flex;
+  align-items: center;
+}
+
+.srow-right svg {
+  display: block;
+}
+
+.srow-eval {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: monospace;
+  color: hsl(var(--foreground));
+  line-height: 24px;
+}
+
+.srow-wr {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  line-height: 24px;
+}
+
+/* Principal variation */
+
+.srow-pv {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 6px 12px;
+}
+
+.srow-pv-moves {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 3px;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.srow-pv-move {
+  font-size: 9px;
+  font-family: monospace;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.srow-pv-move--dark {
+  background: #27272a;
+  color: #a1a1aa;
+}
+
+.srow-pv-move--light {
+  background: #e4e4e7;
+  color: #27272a;
+}
+
+.srow-pv-more {
+  font-size: 9px;
+  font-family: monospace;
+  font-weight: 600;
+  padding: 1px 4px;
+  white-space: nowrap;
+  color: #71717a;
+}
+
+/* PV eye button */
+
+.srow-pv-eye {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: hsl(var(--muted-foreground) / 0.4);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.srow-pv-eye:hover {
+  color: hsl(var(--foreground));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.srow-pv-eye--active {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.15);
+}
+
+/* Explain button */
+
+.srow-explain {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.srow-explain:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.srow-explain--active {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+}
+
+.srow-explain--active:hover {
+  background: rgba(139, 92, 246, 0.3);
+}
+
+.srow-explain--locked {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.srow-explain--locked:hover {
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+
+.srow-explain-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid hsl(var(--border));
+  border-top-color: #a78bfa;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Explanation panel */
+
+.srow-explanation {
+  padding: 6px 12px 10px;
+  border-top: 1px solid hsl(var(--border) / 0.3);
+}
+
+.srow-explanation-loading {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground) / 0.6);
+}
+
+.srow-explanation-text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.srow-explanation-bold {
+  font-weight: 600;
+  color: #a78bfa;
+}
+
+.srow-explanation-error {
+  margin: 0;
+  font-size: 11px;
+  color: #f87171;
+}

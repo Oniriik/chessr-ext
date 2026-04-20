@@ -1,0 +1,394 @@
+.am-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ─── Mode switch ─── */
+.am-mode-wrap { display: flex; flex-direction: column; gap: 6px; }
+
+.am-mode {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+}
+
+.am-mode-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.am-mode-btn {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  padding: 10px 6px;
+  border: none;
+  background: transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+  color: #a1a1aa;
+}
+.am-mode-btn:hover { color: #e4e4e7; }
+
+.am-mode-btn .am-mode-name { font-size: 12px; font-weight: 700; }
+.am-mode-btn .am-mode-desc { font-size: 8px; color: #71717a; letter-spacing: 0.02em; }
+
+.am-mode-btn.hot.active  { color: #60a5fa; }
+.am-mode-btn.auto.active { color: #c084fc; }
+.am-mode-btn.off.active  { color: #e4e4e7; }
+
+.am-mode-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ─── Card ─── */
+.am-card {
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.am-card--tight {
+  padding: 10px 12px;
+  gap: 6px;
+}
+
+/* Card top — just the title (no right slot), appears above sublabel rows */
+.am-card-top {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+/* Sublabel — secondary label inside a card that already has a main title */
+.am-card-sublabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.85);
+}
+
+.am-card-hint {
+  font-size: 9px;
+  color: hsl(var(--muted-foreground) / 0.6);
+  letter-spacing: 0.02em;
+}
+
+/* Example block inside the Hotkeys card */
+.am-card-example {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.am-card-example-title {
+  font-size: 8px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.am-card-example-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: hsl(var(--foreground) / 0.75);
+  flex-wrap: wrap;
+}
+
+.am-card-example-combo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.am-card-example-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.am-card-example-row em {
+  font-style: normal;
+  color: hsl(var(--muted-foreground) / 0.7);
+  font-size: 9px;
+}
+
+.am-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  min-width: 18px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+  line-height: 1;
+}
+
+.am-kbd-plus {
+  color: hsl(var(--muted-foreground) / 0.5);
+  font-weight: 600;
+}
+
+/* Compact inline hotkey slots — [● key] [● key] [● key] */
+.am-hotkey-slots {
+  display: flex;
+  gap: 6px;
+}
+
+.am-hotkey-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.am-hotkey-slot .am-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.am-hotkey-slot .am-key {
+  padding: 1px 6px;
+  min-width: 18px;
+  font-size: 10px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.am-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.am-card-head-left { display: flex; align-items: center; gap: 8px; }
+
+.am-card-title {
+  font-size: 10px;
+  font-weight: 700;
+  color: #a1a1aa;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.am-card-sub {
+  font-size: 9px;
+  color: #71717a;
+  line-height: 1.4;
+}
+
+/* ─── Row (label + value) ─── */
+.am-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+.am-row + .am-row { border-top: 1px solid rgba(255, 255, 255, 0.04); }
+
+.am-row-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #e4e4e7;
+  font-weight: 600;
+}
+
+/* Row description — smaller, muted, sentence-style (for toggles like Auto-rematch) */
+.am-row-desc {
+  font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  line-height: 1.35;
+}
+
+.am-row-label-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.am-row-label-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e4e4e7;
+}
+
+.am-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ─── Key input ─── */
+.am-key {
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: #e4e4e7;
+  min-width: 36px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.am-key:hover { border-color: rgba(255, 255, 255, 0.15); }
+.am-key.capturing {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+.am-key--disabled,
+.am-key--disabled:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.04);
+}
+
+.am-preset--disabled,
+.am-preset--disabled:hover {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.04);
+  color: #71717a;
+}
+
+.am-upgrade-note {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  color: #fbbf24;
+  font-size: 10px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ─── Slider rows ─── */
+.am-slider-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 2px;
+}
+.am-slider-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.am-slider-label { font-size: 10px; color: #e4e4e7; font-weight: 600; }
+.am-slider-val {
+  font-size: 10px;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stacked two-slider range (min + max) */
+.am-range {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ─── Move weight row ─── */
+.am-weight-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+.am-weight-slider { min-width: 0; }
+.am-weight-val {
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ─── Stacked probability bar ─── */
+.am-stack-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 1px;
+  margin-top: 4px;
+}
+
+/* ─── Presets ─── */
+.am-presets {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.am-preset {
+  flex: 1;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 9px;
+  color: #a1a1aa;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.am-preset:hover { background: rgba(255, 255, 255, 0.07); color: #e4e4e7; }
+.am-preset.active {
+  background: var(--preset-tint, rgba(168, 85, 247, 0.15));
+  border-color: var(--preset-border, rgba(168, 85, 247, 0.35));
+  color: var(--preset-color, #c084fc);
+}
+
+/* ─── Off hint ─── */
+.am-off-hint {
+  text-align: center;
+  padding: 20px;
+  font-size: 11px;
+  color: #71717a;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}

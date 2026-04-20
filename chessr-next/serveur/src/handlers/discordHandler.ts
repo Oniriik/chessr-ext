@@ -348,12 +348,21 @@ export async function handleDiscordCallback(
       return;
     }
 
-    // Get current user settings
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('plan, freetrial_used')
-      .eq('user_id', userId)
-      .single();
+    // Get current user settings + active subscription (prevents freetrial overriding a paid plan)
+    const [{ data: settings }, { data: activeSub }] = await Promise.all([
+      supabase
+        .from('user_settings')
+        .select('plan, freetrial_used')
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('subscriptions')
+        .select('status, plan')
+        .eq('user_id', userId)
+        .in('status', ['active', 'trialing'])
+        .limit(1)
+        .single(),
+    ]);
 
     // Build update payload
     const updateData: Record<string, unknown> = {
@@ -366,8 +375,10 @@ export async function handleDiscordCallback(
 
     // Activate free trial if eligible
     // Check both user-level flag AND Discord-level history (prevents re-link abuse)
+    // Also skip if user has an active Paddle subscription (prevents overriding paid plans)
     let planChanged = false;
-    if (settings?.plan === 'free' && !settings?.freetrial_used) {
+    const hasPaidSub = activeSub && ['premium', 'lifetime'].includes(activeSub.plan);
+    if (settings?.plan === 'free' && !settings?.freetrial_used && !hasPaidSub) {
       // Check if this Discord account was already used for a freetrial on ANY Chessr account
       const { data: discordHistory } = await supabase
         .from('discord_freetrial_history')
@@ -496,13 +507,22 @@ export async function handleDiscordCallback(
       }
     }
 
-    // Upsert user_settings (insert if row missing, e.g. trigger didn't fire on signup)
-    const { error: updateError } = await supabase
-      .from('user_settings')
-      .upsert(
-        { user_id: userId, plan: 'free', settings: {}, ...updateData },
-        { onConflict: 'user_id', ignoreDuplicates: false },
-      );
+    // Update or insert user_settings
+    // Use update for existing rows to avoid overwriting plan with defaults
+    let updateError: { message: string } | null = null;
+    if (settings) {
+      const { error } = await supabase
+        .from('user_settings')
+        .update(updateData)
+        .eq('user_id', userId);
+      updateError = error;
+    } else {
+      // No row exists (signup trigger didn't fire) — insert with defaults
+      const { error } = await supabase
+        .from('user_settings')
+        .insert({ user_id: userId, plan: 'free', settings: {}, ...updateData });
+      updateError = error;
+    }
 
     if (updateError) {
       console.error('[Discord] Update failed:', updateError.message);

@@ -1,0 +1,49 @@
+.cslider {
+  position: relative;
+  height: 20px;
+  cursor: pointer;
+  touch-action: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.cslider--disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.cslider-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  opacity: 0.45;
+}
+
+.cslider-fill {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  opacity: 1;
+}
+
+.cslider-thumb {
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: box-shadow 0.15s;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+}
+
+.cslider-thumb:hover {
+  transform: translate(-50%, -50%) scale(1.15);
+}

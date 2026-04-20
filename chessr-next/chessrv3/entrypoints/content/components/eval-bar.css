@@ -1,0 +1,42 @@
+.eval-bar {
+  position: absolute;
+  width: 20px;
+  display: none;
+  flex-direction: column;
+  justify-content: flex-end;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #27272a;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.eval-bar-fill {
+  width: 100%;
+  background: #e4e4e7;
+  transition: height 0.5s ease;
+  border-radius: 0 0 4px 4px;
+}
+
+.eval-bar-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 8px;
+  font-weight: 700;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+  pointer-events: none;
+}
+
+.eval-bar-text--top {
+  top: 2px;
+  color: #e4e4e7;
+}
+
+.eval-bar-text--bottom {
+  bottom: 2px;
+  color: #27272a;
+}
