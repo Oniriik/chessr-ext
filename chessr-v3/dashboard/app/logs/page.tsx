@@ -26,19 +26,29 @@ export default function LogsPage() {
     })();
   }, [router]);
 
-  // Connect to SSE stream via our proxy
+  // Connect to SSE stream via our proxy (pass access token as query param —
+  // EventSource can't set custom headers and Supabase stores session in
+  // localStorage, not cookies).
   useEffect(() => {
     if (!userEmail) return;
-    const es = new EventSource('/api/logs/stream');
-    es.onopen = () => { setConnected(true); setError(null); };
-    es.onmessage = (ev) => {
-      setLines((prev) => {
-        const next = [...prev, ev.data.replace(ANSI_RE, '')];
-        return next.length > 5000 ? next.slice(-5000) : next;
-      });
-    };
-    es.onerror = () => { setConnected(false); setError('Stream disconnected'); };
-    return () => es.close();
+    let es: EventSource | null = null;
+    let cancelled = false;
+    (async () => {
+      const supabase = getSupabase();
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token || cancelled) return;
+      es = new EventSource(`/api/logs/stream?token=${encodeURIComponent(token)}`);
+      es.onopen = () => { setConnected(true); setError(null); };
+      es.onmessage = (ev) => {
+        setLines((prev) => {
+          const next = [...prev, ev.data.replace(ANSI_RE, '')];
+          return next.length > 5000 ? next.slice(-5000) : next;
+        });
+      };
+      es.onerror = () => { setConnected(false); setError('Stream disconnected'); };
+    })();
+    return () => { cancelled = true; es?.close(); };
   }, [userEmail]);
 
   // Auto-scroll to bottom when new lines arrive (unless user scrolled up)

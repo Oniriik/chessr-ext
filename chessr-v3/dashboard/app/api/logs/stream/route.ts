@@ -11,13 +11,16 @@ import { canAccessDashboard, type UserRole } from '@/lib/roles';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  const authHeader = req.headers.get('authorization') || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  const url = new URL(req.url);
+  const qToken = url.searchParams.get('token') || '';
 
-  // Cookie fallback (Supabase SSR cookie)
+  const authHeader = req.headers.get('authorization') || '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  // Cookie fallback (when Supabase SSR adapter sets cookies)
   const cookie = req.headers.get('cookie') || '';
   const m = cookie.match(/sb-access-token=([^;]+)/);
-  const accessToken = token || (m ? decodeURIComponent(m[1]) : '');
+  const accessToken = bearerToken || qToken || (m ? decodeURIComponent(m[1]) : '');
 
   if (!accessToken) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
