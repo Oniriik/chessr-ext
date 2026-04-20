@@ -25,8 +25,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Next's standalone output + public/static assets
-COPY --from=build /app/public ./public
+# Next's standalone output + static assets (no public/ dir in this project)
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 
