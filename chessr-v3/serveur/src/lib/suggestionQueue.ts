@@ -47,7 +47,21 @@ export function startSuggestionWorker(
   );
 
   worker.on('failed', (job, err) => {
-    console.error(`[Queue] Job ${job?.id} failed:`, err.message);
+    const d = job?.data;
+    if (!d) {
+      console.error(`[Queue] Job ${job?.id} failed: ${err.message}`);
+      return;
+    }
+    const searchDesc = d.search
+      ? `${d.search.mode}:${d.search.nodes ?? d.search.depth ?? d.search.movetime}`
+      : 'default';
+    console.error(
+      `[Queue] Job ${job.id} failed: ${err.message} ` +
+        `userId=${d.userId} req=${d.requestId} ` +
+        `elo=${d.targetElo} mpv=${d.multiPv} limitStr=${d.limitStrength} ` +
+        `search=${searchDesc} moves=${d.moves?.length ?? 0} ` +
+        `fen="${d.fen}"`,
+    );
   });
 
   return worker;

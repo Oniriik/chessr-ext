@@ -11,10 +11,12 @@ import { accountRoutes } from './routes/accounts.js';
 import { explanationRoutes } from './routes/explanation.js';
 import { adminLogsRoutes } from './routes/adminLogs.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
+import { startSysMetrics } from './lib/sysMetrics.js';
 import { startEngine } from './engine/worker.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
+startSysMetrics();
 
 const app = new Hono();
 const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });

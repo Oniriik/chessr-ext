@@ -20,7 +20,14 @@ async function process(job: Job<SuggestionJob>): Promise<SuggestionResult> {
 
   try {
     await engine.configure(getEngineConfig({ targetElo, personality, multiPv, limitStrength }));
-    const raw = await engine.search(fen, multiPv, { moves, search });
+    let raw;
+    try {
+      raw = await engine.search(fen, multiPv, { moves, search });
+    } catch (err: any) {
+      sendToClient(userId, { type: 'suggestion_error', requestId, error: err?.message || 'search-failed' });
+      logEnd(userId, requestId, 'suggestion', `fail:${err?.message || 'unknown'}`);
+      throw err;
+    }
     const labeled = labelSuggestions(raw, fen);
 
     const result: SuggestionResult = {
