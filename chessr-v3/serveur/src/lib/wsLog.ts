@@ -41,6 +41,8 @@ const C = {
   start: '\x1b[32m',        // green
   end:   '\x1b[90m',        // gray
   type:  '\x1b[36m',        // cyan
+  connected:    '\x1b[32m', // green
+  disconnected: '\x1b[31m', // red
 };
 
 function fmt(email: string, requestId: string | undefined, phase: Phase, type: string, extra?: string): string {
@@ -64,6 +66,18 @@ export async function logStart(
   const email = await resolveEmail(userId);
   if (requestId) startedAt.set(requestId, performance.now());
   console.log(fmt(email, requestId, 'START', type, extra));
+}
+
+export async function logConnected(userId: string, clientCount?: number): Promise<void> {
+  const email = await resolveEmail(userId);
+  const count = clientCount != null ? ` (${clientCount} clients)` : '';
+  console.log(`[${C.email}${email}${C.reset}] [${C.connected}CONNECTED${C.reset}]${count}`);
+}
+
+export async function logDisconnected(userId: string, clientCount?: number): Promise<void> {
+  const email = await resolveEmail(userId);
+  const count = clientCount != null ? ` (${clientCount} clients)` : '';
+  console.log(`[${C.email}${email}${C.reset}] [${C.disconnected}DISCONNECTED${C.reset}]${count}`);
 }
 
 export async function logEnd(

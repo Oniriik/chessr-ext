@@ -5,7 +5,7 @@ import { suggestionQueue, type SuggestionResult } from '../lib/suggestionQueue.j
 import { handleChesscomReview, type ReviewMessage } from '../handlers/chesscomReview.js';
 import { normalizeSearchOptions } from '../engine/searchOptions.js';
 import { isUserPremium } from '../lib/premium.js';
-import { logStart } from '../lib/wsLog.js';
+import { logStart, logConnected, logDisconnected } from '../lib/wsLog.js';
 
 type WSApp = {
   app: Hono;
@@ -34,7 +34,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
       return {
         onOpen(_event, ws) {
           clients.set(userId, ws);
-          console.log(`[WS] Connected: ${userId} (${clients.size} clients)`);
+          logConnected(userId, clients.size);
           // Beta gate: only premium users may use the server.
           isUserPremium(userId).then((premium) => {
             if (!premium) {
@@ -112,7 +112,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
         onClose() {
           clients.delete(userId);
           verifiedPremium.delete(userId);
-          console.log(`[WS] Disconnected: ${userId} (${clients.size} clients)`);
+          logDisconnected(userId, clients.size);
         },
       };
     }),
