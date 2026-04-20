@@ -22,8 +22,6 @@ export function getEngineConfig(params: EngineParams): Record<string, string> {
     MultiPV: pv.toString(),
     'UCI LimitStrength': limit ? 'true' : 'false',
     'UCI Elo': elo.toString(),
-    'Use LMR': 'true',
-    'Null Move Pruning': 'true',
     Threads: '1',
     Hash: '256',
   };
