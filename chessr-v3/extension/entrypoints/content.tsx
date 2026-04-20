@@ -122,11 +122,16 @@ export default defineContentScript({
       }, 300);
     });
 
-    // Connect WS and load settings when user is authenticated
+    // Connect WS and load settings on login transition only (auth store fires on
+    // every state change — plan fetch, session refresh — so we dedupe on userId).
+    let lastLoggedInUserId: string | null = null;
     useAuthStore.subscribe((state) => {
-      if (state.user && !state.initializing) {
-        connectWs(state.user.id);
-        useSettingsStore.getState().loadFromCloud(state.user.id);
+      if (state.initializing) return;
+      const uid = state.user?.id ?? null;
+      if (uid && uid !== lastLoggedInUserId) {
+        lastLoggedInUserId = uid;
+        connectWs(uid);
+        useSettingsStore.getState().loadFromCloud(uid);
         if (!analysisEngine) {
           const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
           const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
@@ -136,6 +141,9 @@ export default defineContentScript({
             analysisEngine = null;
           });
         }
+      }
+      if (!uid && lastLoggedInUserId) {
+        lastLoggedInUserId = null;
       }
     });
 
