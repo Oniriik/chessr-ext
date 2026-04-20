@@ -9,7 +9,12 @@ import { registerWsRoute } from './routes/ws.js';
 import { discordRoutes } from './routes/discord.js';
 import { accountRoutes } from './routes/accounts.js';
 import { explanationRoutes } from './routes/explanation.js';
+import { adminLogsRoutes } from './routes/adminLogs.js';
+import { installConsoleCapture } from './lib/logBuffer.js';
 import { startEngine } from './engine/worker.js';
+
+// Capture stdout before any other log fires so the dashboard sees boot events
+installConsoleCapture();
 
 const app = new Hono();
 const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -23,6 +28,7 @@ registerHealthRoutes(app);
 app.route('/', discordRoutes);
 app.route('/', accountRoutes);
 app.route('/', explanationRoutes);
+app.route('/', adminLogsRoutes);
 registerWsRoute({ app, upgradeWebSocket });
 
 // Start
