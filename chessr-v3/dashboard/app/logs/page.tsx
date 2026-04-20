@@ -81,6 +81,10 @@ export default function LogsPage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <strong style={{ fontSize: 14 }}>Chessr v3 <span style={{ color: 'var(--accent)' }}>/ admin</span></strong>
+          <nav style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+            <a href="/logs" style={{ color: 'var(--fg)', textDecoration: 'underline' }}>Logs</a>
+            <a href="/users">Connected users</a>
+          </nav>
           <span style={{
             fontSize: 10,
             fontWeight: 700,

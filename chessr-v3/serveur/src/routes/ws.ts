@@ -14,6 +14,11 @@ type WSApp = {
 
 const clients = new Map<string, WSContext>();
 const verifiedPremium = new Set<string>();
+const connectedAt = new Map<string, number>();
+
+export function getConnectedUsers(): Array<{ userId: string; connectedAt: number }> {
+  return Array.from(connectedAt.entries()).map(([userId, ts]) => ({ userId, connectedAt: ts }));
+}
 
 // Listen for completed suggestion jobs and send results back to clients
 suggestionQueue.on('completed', (event) => {
@@ -34,6 +39,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
       return {
         onOpen(_event, ws) {
           clients.set(userId, ws);
+          connectedAt.set(userId, Date.now());
           logConnected(userId, clients.size);
           // Beta gate: only premium users may use the server.
           isUserPremium(userId).then((premium) => {
@@ -42,6 +48,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
               ws.send(JSON.stringify({ type: 'beta_gate', reason: 'Chessr is in beta — premium only.' }));
               ws.close(1008, 'premium-only');
               clients.delete(userId);
+              connectedAt.delete(userId);
               verifiedPremium.delete(userId);
             } else {
               verifiedPremium.add(userId);
@@ -51,6 +58,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
             console.warn(`[WS] Premium check failed for ${userId}`, err);
             ws.close(1011, 'server-error');
             clients.delete(userId);
+            connectedAt.delete(userId);
             verifiedPremium.delete(userId);
           });
         },
@@ -111,6 +119,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
 
         onClose() {
           clients.delete(userId);
+          connectedAt.delete(userId);
           verifiedPremium.delete(userId);
           logDisconnected(userId, clients.size);
         },
