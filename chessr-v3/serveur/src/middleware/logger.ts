@@ -9,6 +9,7 @@ const SILENCED_PATHS = new Set([
   '/discord/status',
   '/admin/logs/stream',
   '/admin/users/connected',
+  '/admin/metrics',
 ]);
 
 export async function loggerMiddleware(c: Context, next: Next) {

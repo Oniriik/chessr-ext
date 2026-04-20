@@ -9,14 +9,14 @@ import UnlinkIcon from './icons/UnlinkIcon';
 import ChesscomIcon from './icons/ChesscomIcon';
 import LichessIcon from './icons/LichessIcon';
 import { useSettingsStore } from '../stores/settingsStore';
-import { SERVER_URL } from '../lib/config';
+import { SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
 import { useEngineStore } from '../stores/engineStore';
 import './settings-screen.css';
 
-const serverRegion = import.meta.env.DEV ? 'Local dev' : 'EU West — Falkenstein, DE';
+const serverRegion = SERVER_LABEL[BUILD_ENV];
 
 type Tab = 'account' | 'general' | 'engine' | 'suggestions';
 

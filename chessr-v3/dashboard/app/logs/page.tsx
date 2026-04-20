@@ -3,9 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
-
-// Strip ANSI color codes so the browser renders clean lines.
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+import { ansiToReact } from '@/lib/ansi';
 
 export default function LogsPage() {
   const router = useRouter();
@@ -42,7 +40,7 @@ export default function LogsPage() {
       es.onopen = () => { setConnected(true); setError(null); };
       es.onmessage = (ev) => {
         setLines((prev) => {
-          const next = [...prev, ev.data.replace(ANSI_RE, '')];
+          const next = [...prev, ev.data];
           return next.length > 5000 ? next.slice(-5000) : next;
         });
       };
@@ -71,7 +69,7 @@ export default function LogsPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <header style={{
         display: 'flex',
         alignItems: 'center',
@@ -82,6 +80,7 @@ export default function LogsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <strong style={{ fontSize: 14 }}>Chessr v3 <span style={{ color: 'var(--accent)' }}>/ admin</span></strong>
           <nav style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+            <a href="/metrics">Metrics</a>
             <a href="/logs" style={{ color: 'var(--fg)', textDecoration: 'underline' }}>Logs</a>
             <a href="/users">Connected users</a>
           </nav>
@@ -142,7 +141,7 @@ export default function LogsPage() {
               Waiting for log events…
             </div>
           ) : (
-            lines.map((l, i) => <div key={i}>{l}</div>)
+            lines.map((l, i) => <div key={i}>{ansiToReact(l)}</div>)
           )}
         </div>
       </main>

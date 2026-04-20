@@ -1,6 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { stream } from 'hono/streaming';
 import { getRecentLines, subscribe } from '../lib/logBuffer.js';
+import { getLatestMetrics } from '../lib/sysMetrics.js';
 import { getConnectedUsers } from './ws.js';
 import { supabase } from '../lib/supabase.js';
 
@@ -28,6 +29,12 @@ async function resolveEmail(userId: string): Promise<string | null> {
     return null;
   }
 }
+
+// GET /admin/metrics — current CPU / RAM / load for the host + process
+adminLogsRoutes.get('/admin/metrics', (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  return c.json(getLatestMetrics());
+});
 
 // GET /admin/users/connected — list currently connected WS users with email + connect time
 adminLogsRoutes.get('/admin/users/connected', async (c) => {

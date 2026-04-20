@@ -6,11 +6,10 @@
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt --browser firefox",
-    "build": "wxt build && node scripts/postbuild.js",
-    "build:beta": "wxt build --mode beta && node scripts/postbuild.js",
+    "build": "wxt zip",
+    "build:beta": "wxt zip --mode beta",
+    "deploy:beta": "wxt zip --mode beta && bash scripts/upload-beta.sh",
     "build:firefox": "wxt build --browser firefox",
-    "zip": "wxt zip",
-    "zip:beta": "wxt zip --mode beta",
     "postinstall": "wxt prepare && node scripts/copy-stockfish.js"
   },
   "author": "",

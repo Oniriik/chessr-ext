@@ -13,6 +13,32 @@ function readCpuTimes() {
 
 let prev = readCpuTimes();
 
+export interface SysSample {
+  ts: number;
+  cpuPct: number;
+  memUsed: number;
+  memTotal: number;
+  memPct: number;
+  rss: number;
+  load1: number;
+  cpuCount: number;
+}
+
+let latest: SysSample = {
+  ts: Date.now(),
+  cpuPct: 0,
+  memUsed: 0,
+  memTotal: os.totalmem(),
+  memPct: 0,
+  rss: 0,
+  load1: 0,
+  cpuCount: os.cpus().length,
+};
+
+export function getLatestMetrics(): SysSample {
+  return latest;
+}
+
 function formatMb(bytes: number) {
   return (bytes / 1024 / 1024).toFixed(0);
 }
@@ -35,13 +61,23 @@ export function startSysMetrics(intervalMs = 5000) {
     const memPct = (usedMem / totalMem) * 100;
 
     const rss = process.memoryUsage.rss();
+    const load1 = os.loadavg()[0];
 
-    const load = os.loadavg()[0].toFixed(2);
+    latest = {
+      ts: Date.now(),
+      cpuPct,
+      memUsed: usedMem,
+      memTotal: totalMem,
+      memPct,
+      rss,
+      load1,
+      cpuCount: os.cpus().length,
+    };
 
     console.log(
       `\x1b[90m[SYS]\x1b[0m cpu=${cpuPct.toFixed(1)}% ` +
         `mem=${formatGb(usedMem)}/${formatGb(totalMem)}GB (${memPct.toFixed(0)}%) ` +
-        `rss=${formatMb(rss)}MB load1=${load}`,
+        `rss=${formatMb(rss)}MB load1=${load1.toFixed(2)}`,
     );
   }, intervalMs).unref();
 }

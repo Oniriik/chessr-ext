@@ -1,37 +1,57 @@
-import { defineConfig } from 'wxt';
+import { defineConfig } from "wxt";
+import { runPostbuild } from "./scripts/postbuild.js";
+
+const isBeta = process.argv.includes("beta");
+const displayName = isBeta ? "[BETA] Chessr.io" : "Chessr.io";
 
 export default defineConfig({
-  modules: ['@wxt-dev/module-react'],
-  manifest: {
-    name: 'Chessr — Chess Companion',
-    description: 'Real-time chess assistant. Get move suggestions, analyze positions, and improve your game on Chess.com and Lichess.',
-    version: '3.0.0',
-    icons: {
-      16: '/icons/icon16.png',
-      48: '/icons/icon48.png',
-      128: '/icons/icon128.png',
+  modules: ["@wxt-dev/module-react"],
+  zip: {
+    name: displayName,
+    artifactTemplate: "{{name}} v{{version}}.zip",
+  },
+  hooks: {
+    "build:done": async () => {
+      await runPostbuild();
     },
-    permissions: ['storage', 'activeTab', 'declarativeNetRequest'],
+  },
+  manifest: {
+    name: isBeta
+      ? "[BETA] Chessr.io — Chess assist done right!"
+      : "Chessr.io — Chess assist done right!",
+    description: isBeta ? "Chessr.io v3 BETA" : "Chessr.io v3",
+    version: "3.0.0",
+    icons: {
+      16: "/icons/icon16.png",
+      48: "/icons/icon48.png",
+      128: "/icons/icon128.png",
+    },
+    permissions: ["storage", "activeTab", "declarativeNetRequest"],
     declarative_net_request: {
       rule_resources: [
         {
-          id: 'ruleset_1',
+          id: "ruleset_1",
           enabled: true,
-          path: '/rules.json',
+          path: "/rules.json",
         },
       ],
     },
     host_permissions: [
-      '*://chess.com/*',
-      '*://*.chess.com/*',
-      '*://lichess.org/*',
-      '*://*.lichess.org/*',
-      '*://app.chessr.io/*',
+      "*://chess.com/*",
+      "*://*.chess.com/*",
+      "*://lichess.org/*",
+      "*://*.lichess.org/*",
+      "*://app.chessr.io/*",
     ],
     web_accessible_resources: [
       {
-        resources: ['/icons/*', '/engine/*', '/icons/cls-*.svg'],
-        matches: ['*://chess.com/*', '*://*.chess.com/*', '*://lichess.org/*', '*://*.lichess.org/*'],
+        resources: ["/icons/*", "/engine/*", "/icons/cls-*.svg"],
+        matches: [
+          "*://chess.com/*",
+          "*://*.chess.com/*",
+          "*://lichess.org/*",
+          "*://*.lichess.org/*",
+        ],
       },
     ],
   },

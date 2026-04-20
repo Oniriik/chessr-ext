@@ -25,7 +25,7 @@ export function getEngineConfig(params: EngineParams): Record<string, string> {
     'Use LMR': 'true',
     'Null Move Pruning': 'true',
     Threads: '1',
-    Hash: '512',
+    Hash: '256',
   };
 
   if (params.contempt !== undefined) {
