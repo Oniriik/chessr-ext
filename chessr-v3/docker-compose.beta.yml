@@ -1,0 +1,59 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - chessr
+
+  serveur:
+    build:
+      context: ./serveur
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./serveur/.env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    volumes:
+      # Mount engine binaries as read-only (they live on the host, outside git)
+      - ./serveur/engines:/app/engines:ro
+    networks:
+      - chessr
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro
+    depends_on:
+      - serveur
+    networks:
+      - chessr
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    # Renew loop: check every 12h, reload nginx if cert rotated
+    entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook "nginx -s reload 2>/dev/null || true"; sleep 12h & wait $${!}; done;'
+    networks:
+      - chessr
+
+volumes:
+  redis-data:
+
+networks:
+  chessr:
+    driver: bridge
