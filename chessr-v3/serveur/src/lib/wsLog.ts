@@ -33,9 +33,26 @@ async function resolveEmail(userId: string): Promise<string> {
   }
 }
 
+// ANSI colors
+const C = {
+  reset: '\x1b[0m',
+  email: '\x1b[96m',        // bright cyan (light blue)
+  req:   '\x1b[95m',        // bright magenta (violet)
+  start: '\x1b[32m',        // green
+  end:   '\x1b[90m',        // gray
+  type:  '\x1b[38;5;213m',  // pink (256-color)
+};
+
 function fmt(email: string, requestId: string | undefined, phase: Phase, type: string, extra?: string): string {
-  const req = (requestId || '—').padEnd(18).slice(0, 18);
-  return `[${email} | ${req} | ${phase.padEnd(5)} | ${type}]${extra ? ' ' + extra : ''}`;
+  const req = requestId || '—';
+  const phaseColor = phase === 'START' ? C.start : C.end;
+  const parts = [
+    `[${C.email}${email}${C.reset}]`,
+    `[${C.req}${req}${C.reset}]`,
+    `[${phaseColor}${phase}${C.reset}]`,
+    `[${C.type}${type}${C.reset}]`,
+  ];
+  return parts.join(' ') + (extra ? ' ' + extra : '');
 }
 
 export async function logStart(
