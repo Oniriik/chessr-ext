@@ -527,6 +527,6 @@ The audit step will go row-by-row with the `interface-design:audit` skill.
 ## 7. References
 
 - Brainstorm mockup: `.superpowers/brainstorm/43482-1776599937/auto-move-tab.html` (the Auto Move tab, source of the premium language).
-- Review screen: `chessr-next/chessrv3/entrypoints/content/components/ReviewScreen.tsx` (already aligned — canonical example of 3-col grid + avatar + player stats).
-- Slider: `chessr-next/chessrv3/entrypoints/content/components/Slider.tsx` (canonical slider implementation).
-- CSS vars: `chessr-next/chessrv3/entrypoints/content/app.css` (token source).
+- Review screen: `chessr-v3/extension/entrypoints/content/components/ReviewScreen.tsx` (already aligned — canonical example of 3-col grid + avatar + player stats).
+- Slider: `chessr-v3/extension/entrypoints/content/components/Slider.tsx` (canonical slider implementation).
+- CSS vars: `chessr-v3/extension/entrypoints/content/app.css` (token source).

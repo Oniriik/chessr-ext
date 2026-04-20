@@ -62,4 +62,4 @@ chessr-next/scripts/calibration/_tmp_*.py
 **/docs/superpowers/
 
 # Proprietary engine binaries (Dragon + Stockfish) — transfer to server via scp
-chessr-next/serveurv3/engines/
+chessr-v3/serveur/engines/
