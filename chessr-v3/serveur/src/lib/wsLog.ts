@@ -40,7 +40,7 @@ const C = {
   req:   '\x1b[95m',        // bright magenta (violet)
   start: '\x1b[32m',        // green
   end:   '\x1b[90m',        // gray
-  type:  '\x1b[38;5;213m',  // pink (256-color)
+  type:  '\x1b[36m',        // cyan
 };
 
 function fmt(email: string, requestId: string | undefined, phase: Phase, type: string, extra?: string): string {
