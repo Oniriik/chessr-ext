@@ -56,6 +56,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/certbot/conf:/etc/letsencrypt:ro
       - ./nginx/certbot/www:/var/www/certbot:ro
+      - ./downloads:/var/www/downloads:ro
     depends_on:
       - serveur
       - dashboard
