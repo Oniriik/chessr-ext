@@ -25,6 +25,27 @@ services:
     networks:
       - chessr
 
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SERVEUR_URL: ${NEXT_PUBLIC_SERVEUR_URL}
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Server-only vars (not inlined by Next, read at runtime)
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - SERVEUR_ADMIN_TOKEN=${SERVEUR_ADMIN_TOKEN}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - NEXT_PUBLIC_SERVEUR_URL=${NEXT_PUBLIC_SERVEUR_URL}
+    networks:
+      - chessr
+
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -37,6 +58,7 @@ services:
       - ./nginx/certbot/www:/var/www/certbot:ro
     depends_on:
       - serveur
+      - dashboard
     networks:
       - chessr
 
