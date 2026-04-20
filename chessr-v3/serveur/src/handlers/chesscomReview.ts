@@ -12,6 +12,7 @@
 import { WebSocket } from 'ws';
 import { Chess } from 'chess.js';
 import { supabase } from '../lib/supabase.js';
+import { logEnd } from '../lib/wsLog.js';
 
 const REMEMBERME_COOKIE = `CHESSCOM_REMEMBERME=${process.env.CHESSCOM_REMEMBERME || ''}`;
 const DAILY_LIMIT = 5;
@@ -310,7 +311,6 @@ export async function handleChesscomReview(
     }
 
     // Step 8: Send result
-    console.log(`[Review] Done: ${gameId} (${gameData.headers.White} vs ${gameData.headers.Black})`);
     send({
       type: 'chesscom_review_result',
       requestId,
@@ -321,8 +321,10 @@ export async function handleChesscomReview(
         Result: gameData.headers.Result || null,
       },
     });
+    if (userId) logEnd(userId, requestId, 'review', `gameId=${gameId} ${gameData.headers.White}/${gameData.headers.Black}`);
   } catch (error) {
     console.error(`[Review] Error: ${gameId}`, error);
     send({ type: 'chesscom_review_error', requestId, error: error instanceof Error ? error.message : 'Unknown error' });
+    if (userId) logEnd(userId, requestId, 'review', `error=${error instanceof Error ? error.message : 'Unknown'}`);
   }
 }

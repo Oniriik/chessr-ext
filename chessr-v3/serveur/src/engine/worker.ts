@@ -4,6 +4,7 @@ import { sendToClient } from '../routes/ws.js';
 import { EnginePool } from './pool.js';
 import { getEngineConfig } from './config.js';
 import { labelSuggestions } from './labeler.js';
+import { logEnd } from '../lib/wsLog.js';
 
 const pool = new EnginePool(2);
 
@@ -13,6 +14,7 @@ async function process(job: Job<SuggestionJob>): Promise<SuggestionResult> {
   const engine = await pool.acquire();
   if (!engine) {
     sendToClient(userId, { type: 'suggestion_error', requestId, error: 'No engine available' });
+    logEnd(userId, requestId, 'suggestion', 'no-engine');
     throw new Error('No engine available');
   }
 
@@ -38,6 +40,8 @@ async function process(job: Job<SuggestionJob>): Promise<SuggestionResult> {
     };
 
     sendToClient(userId, { type: 'suggestion_result', ...result });
+    const topDepth = labeled[0]?.depth ?? 0;
+    logEnd(userId, requestId, 'suggestion', `d${topDepth} n=${labeled.length}`);
     return result;
   } finally {
     pool.release(engine);

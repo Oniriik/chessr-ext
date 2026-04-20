@@ -5,6 +5,7 @@ import { suggestionQueue, type SuggestionResult } from '../lib/suggestionQueue.j
 import { handleChesscomReview, type ReviewMessage } from '../handlers/chesscomReview.js';
 import { normalizeSearchOptions } from '../engine/searchOptions.js';
 import { isUserPremium } from '../lib/premium.js';
+import { logStart } from '../lib/wsLog.js';
 
 type WSApp = {
   app: Hono;
@@ -72,7 +73,8 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
                     ? { mode: msg.searchMode, nodes: msg.searchNodes, depth: msg.searchDepth, movetime: msg.searchMovetime }
                     : null),
                 );
-                console.log(`[WS] ${userId}: suggestion request — fen=${msg.fen}, elo=${msg.targetElo}, multiPv=${msg.multiPv}, search=${search ? `${search.mode}:${search.nodes ?? search.depth ?? search.movetime}` : 'default'}`);
+                const searchDesc = search ? `${search.mode}:${search.nodes ?? search.depth ?? search.movetime}` : 'default';
+                logStart(userId, msg.requestId, 'suggestion', `elo=${msg.targetElo} mpv=${msg.multiPv} search=${searchDesc}`);
                 suggestionQueue.add('suggestion', {
                   requestId: msg.requestId,
                   userId,
@@ -88,7 +90,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
               }
 
               case 'chesscom_review':
-                console.log(`[WS] ${userId}: review request — gameId=${msg.gameId}`);
+                logStart(userId, msg.requestId, 'review', `gameId=${msg.gameId}`);
                 handleChesscomReview(
                   msg as ReviewMessage,
                   (data) => sendToClient(userId, data),
