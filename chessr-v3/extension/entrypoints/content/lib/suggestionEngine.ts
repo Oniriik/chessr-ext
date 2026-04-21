@@ -219,9 +219,30 @@ export class SuggestionEngine {
       const resolve = this.activeResolve;
       const fen = this.activeFen!;
       const mp = this.activeMultiPv;
-      const raws = Array.from(this.activeResults.values())
+      let raws = Array.from(this.activeResults.values())
         .sort((a, b) => a.multipv - b.multipv)
         .slice(0, mp);
+
+      // Book move fallback: when Komodo plays from its opening book it emits
+      // `bestmove X` WITHOUT any prior `info` lines. Synthesise a single-move
+      // suggestion so the arrow still renders (eval/depth unknown, flag depth=0).
+      if (raws.length === 0) {
+        const bestMove = line.split(/\s+/)[1];
+        if (bestMove && bestMove !== '(none)' && bestMove.length >= 4) {
+          raws = [{
+            multipv: 1,
+            move: bestMove,
+            evaluation: 0,
+            depth: 0,
+            winRate: 50,
+            drawRate: 0,
+            lossRate: 50,
+            mateScore: null,
+            pv: [bestMove],
+          }];
+        }
+      }
+
       if (this.activeTimer) { clearTimeout(this.activeTimer); this.activeTimer = null; }
       if (this.activeListener && this.worker) this.worker.removeEventListener('message', this.activeListener);
       this.activeListener = null;

@@ -39,11 +39,16 @@ function isPremiumPlan(plan: string | undefined): boolean {
 }
 
 function requestSuggestion(fen: string, force = false) {
+  const hasUser = !!useAuthStore.getState().user;
+  const engineReady = suggestionEngine?.ready ?? false;
+  const dedup = !force && fen === lastRequestedFen;
+  console.log('[Chessr][debug] requestSuggestion', { force, dedup, hasUser, engineReady, fen: fen.slice(0, 18) + '…' });
+
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
 
-  if (!useAuthStore.getState().user) return;
-  if (!suggestionEngine?.ready) return;
+  if (!hasUser) return;
+  if (!engineReady) return;
 
   // Debounce: when moves come rapid-fire (game review, bot auto-move),
   // only the last position in the window triggers a real search.
@@ -53,16 +58,18 @@ function requestSuggestion(fen: string, force = false) {
   const delay = force ? 0 : SUGGESTION_DEBOUNCE_MS;
   suggestionDebounce = setTimeout(() => {
     suggestionDebounce = null;
+    console.log('[Chessr][debug] debounce fired, calling runSuggestionSearch');
     runSuggestionSearch(fen);
   }, delay);
 }
 
 function runSuggestionSearch(fen: string) {
-  if (!suggestionEngine?.ready) return;
+  if (!suggestionEngine?.ready) { console.log('[Chessr][debug] runSuggestionSearch bail: engine not ready'); return; }
 
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   currentRequestId = requestId;
   useSuggestionStore.getState().setLoading(true, requestId);
+  console.log('[Chessr][debug] engine.search start', requestId);
 
   const engine = useEngineStore.getState();
   const effectiveElo = engine.getEffectiveElo();
@@ -88,19 +95,21 @@ function runSuggestionSearch(fen: string) {
     ...(engine.variety > 0 ? { variety: engine.variety } : {}),
     search,
   }).then((suggestions) => {
-    if (requestId !== currentRequestId) return;
+    console.log('[Chessr][debug] engine.search resolved', requestId, 'n=', suggestions.length);
+    if (requestId !== currentRequestId) { console.log('[Chessr][debug] stale result, ignored'); return; }
     useSuggestionStore.getState().setSuggestions(suggestions, requestId);
     animationGate.markEvent('suggestions');
   }).catch((err) => {
     // Search got cancelled (newer request came in, or game ended). Silent.
-    if (err?.name === 'AbortError') return;
+    if (err?.name === 'AbortError') { console.log('[Chessr][debug] engine.search aborted', requestId); return; }
     console.error('[Chessr] suggestion error:', err);
     if (requestId === currentRequestId) useSuggestionStore.getState().setLoading(false, requestId);
   });
 }
 
 /** Reset all pending suggestion state — used on game end / new game. */
-function resetSuggestionState() {
+function resetSuggestionState(reason?: string) {
+  console.log('[Chessr][debug] resetSuggestionState', reason ?? '');
   if (suggestionDebounce) { clearTimeout(suggestionDebounce); suggestionDebounce = null; }
   currentRequestId = null;
   lastRequestedFen = null;
@@ -150,7 +159,29 @@ export default defineContentScript({
 
     // Re-request suggestions when engine settings change (debounced)
     let engineDebounce: ReturnType<typeof setTimeout> | null = null;
-    useEngineStore.subscribe(() => {
+    // Only re-fire when a UCI-impacting setting actually changes. Filtering out
+    // no-op mutations (e.g. setCapabilities after engine init, which updates
+    // UI gating but doesn't alter the search params) avoids a spurious search
+    // right after login.
+    useEngineStore.subscribe((state, prev) => {
+      const changed =
+        state.targetEloAuto !== prev.targetEloAuto ||
+        state.targetEloManual !== prev.targetEloManual ||
+        state.autoEloBoost !== prev.autoEloBoost ||
+        state.userElo !== prev.userElo ||
+        state.opponentElo !== prev.opponentElo ||
+        state.personality !== prev.personality ||
+        state.dynamism !== prev.dynamism ||
+        state.dynamismAuto !== prev.dynamismAuto ||
+        state.kingSafety !== prev.kingSafety ||
+        state.kingSafetyAuto !== prev.kingSafetyAuto ||
+        state.variety !== prev.variety ||
+        state.limitStrength !== prev.limitStrength ||
+        state.searchMode !== prev.searchMode ||
+        state.searchNodes !== prev.searchNodes ||
+        state.searchDepth !== prev.searchDepth ||
+        state.searchMovetime !== prev.searchMovetime;
+      if (!changed) return;
       if (engineDebounce) clearTimeout(engineDebounce);
       engineDebounce = setTimeout(() => {
         const { fen, isPlaying, playerColor, turn } = useGameStore.getState();
@@ -208,7 +239,7 @@ export default defineContentScript({
       if (!uid && lastLoggedInUserId) {
         lastLoggedInUserId = null;
         disconnectWs();
-        resetSuggestionState();
+        resetSuggestionState('logout');
         if (suggestionEngine) { suggestionEngine.destroy(); suggestionEngine = null; }
         if (analysisEngine) { analysisEngine.destroy(); analysisEngine = null; }
       }
@@ -221,13 +252,13 @@ export default defineContentScript({
       // Clear on new game or game over — cancel in-flight search too so a
       // late response doesn't repopulate arrows after the game ended.
       if (!isPlaying || gameOver) {
-        resetSuggestionState();
+        resetSuggestionState('game-over-or-not-playing');
         return;
       }
 
       if (!playerColor || !turn || !fen || playerColor !== turn) {
         clearArrows();
-        resetSuggestionState();
+        resetSuggestionState('not-player-turn');
         return;
       }
 
@@ -346,7 +377,7 @@ export default defineContentScript({
           break;
         case 'chessr:newGame':
           reset();
-          resetSuggestionState();
+          resetSuggestionState('chessr:newGame');
           suggestionEngine?.newGame().catch(() => { /* engine gone */ });
           useAnalysisStore.getState().reset();
           useExplanationStore.getState().clear();
@@ -368,10 +399,18 @@ export default defineContentScript({
     window.addEventListener('chessr:rescan', () => {
       console.log('[Chessr] rescan triggered');
       window.postMessage({ type: 'chessr:requestState' }, '*');
-      const { fen, isPlaying, playerColor, turn, gameOver } = useGameStore.getState();
+      const gs = useGameStore.getState();
+      const user = useAuthStore.getState().user;
+      console.log('[Chessr][debug] gameStore:', {
+        isPlaying: gs.isPlaying, gameOver: gs.gameOver, fen: gs.fen, playerColor: gs.playerColor, turn: gs.turn,
+        engineReady: suggestionEngine?.ready, hasUser: !!user, lastRequestedFen,
+      });
+      const { fen, isPlaying, playerColor, turn, gameOver } = gs;
       if (isPlaying && !gameOver && fen && playerColor === turn) {
         lastRequestedFen = null;
         requestSuggestion(fen, true);
+      } else {
+        console.log('[Chessr][debug] rescan bail: not in a player-turn state');
       }
     });
 
