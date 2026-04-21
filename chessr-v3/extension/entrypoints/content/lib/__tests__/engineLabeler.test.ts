@@ -31,6 +31,24 @@ describe('labelSuggestions', () => {
     assert.ok(res.labels.includes('promotion:q'));
   });
 
+  it('stacks promotion with check when the promoted piece gives check', () => {
+    // White pawn e7, white king h1, black king e1. Pawn promotes to queen
+    // on e8 → queen checks the black king down the e-file.
+    const fen = '8/4P3/8/8/8/8/8/4k2K w - - 0 1';
+    const [res] = labelSuggestions([{ ...base, move: 'e7e8q' }], fen);
+    assert.ok(res.labels.includes('check'), 'expected check label');
+    assert.ok(res.labels.includes('promotion:q'), 'expected promotion:q to stack with check');
+  });
+
+  it('stacks promotion with mate when the promotion delivers checkmate', () => {
+    // Black king on a8 boxed in by white king on c7; white pawn on b7 promotes
+    // to queen on b8 → mate (no escape for the black king).
+    const fen = 'k7/1PK5/8/8/8/8/8/8 w - - 0 1';
+    const [res] = labelSuggestions([{ ...base, move: 'b7b8q' }], fen);
+    assert.ok(res.labels.includes('mate'), 'expected mate label');
+    assert.ok(res.labels.includes('promotion:q'), 'expected promotion:q to stack with mate');
+  });
+
   it('flips mate interpretation by side-to-move', () => {
     // Black to move, mateScore=-3 means black delivers mate.
     const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR b KQkq - 0 1';

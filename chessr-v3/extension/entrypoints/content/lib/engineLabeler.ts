@@ -32,17 +32,28 @@ export function labelSuggestions(suggestions: Suggestion[], fen: string): Labele
       });
       if (!result) return { ...s, labels: [] };
 
-      if (chess.isCheckmate()) return { ...s, labels: ['mate'] };
+      // Promotion label stacks with every other state — a promotion coup can
+      // simultaneously be check, mate, or a capture, and the UI needs to
+      // know the promoted piece so the right badge is rendered.
+      const promo: MoveLabel | null = result.promotion
+        ? (`promotion:${result.promotion}` as MoveLabel)
+        : null;
+
+      if (chess.isCheckmate()) {
+        return { ...s, labels: promo ? ['mate', promo] : ['mate'] };
+      }
 
       const playerMates = s.mateScore !== null && (
         (isWhiteToMove && s.mateScore > 0) ||
         (!isWhiteToMove && s.mateScore < 0)
       );
-      if (playerMates) return { ...s, labels: ['mate'] };
+      if (playerMates) {
+        return { ...s, labels: promo ? ['mate', promo] : ['mate'] };
+      }
 
       const labels: MoveLabel[] = [];
       if (result.captured) labels.push('capture');
-      if (result.promotion) labels.push(`promotion:${result.promotion}` as MoveLabel);
+      if (promo) labels.push(promo);
       if (chess.isCheck()) labels.push('check');
       return { ...s, labels };
     } catch (e) {
