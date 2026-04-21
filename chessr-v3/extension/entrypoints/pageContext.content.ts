@@ -293,19 +293,30 @@ export default defineContentScript({
 
     let titleDebounce: ReturnType<typeof setTimeout> | null = null;
 
+    function readUserText(el: Element | null | undefined): string | null {
+      if (!el) return null;
+      // Strip any injected chessr mock-title badge before reading text,
+      // otherwise "GM" gets concatenated with the username.
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.querySelectorAll(`.${TITLE_CLASS}`).forEach((n) => n.remove());
+      const t = clone.textContent?.trim();
+      return t || null;
+    }
+
     function getChessComUsername(): string | null {
-      const profileLink = document.querySelector('[data-user-activity-key="profile"] .sidebar-link-text');
-      if (profileLink?.textContent?.trim()) return profileLink.textContent.trim();
-      const navLinkName = document.querySelector('.nav-link-name');
-      if (navLinkName?.textContent?.trim()) return navLinkName.textContent.trim();
-      const navHeader = document.querySelector('.nav-user-header-username');
-      if (navHeader?.textContent?.trim()) return navHeader.textContent.trim();
+      // href is badge-proof — prefer it.
       const profileAnchor = document.querySelector('a[data-user-activity-key="profile"]') as HTMLAnchorElement | null;
       if (profileAnchor?.href) {
         const parts = profileAnchor.href.split('/').filter(Boolean);
         const last = parts[parts.length - 1];
         if (last) return last;
       }
+      const fromSidebar = readUserText(document.querySelector('[data-user-activity-key="profile"] .sidebar-link-text'));
+      if (fromSidebar) return fromSidebar;
+      const fromNavLink = readUserText(document.querySelector('.nav-link-name'));
+      if (fromNavLink) return fromNavLink;
+      const fromHeader = readUserText(document.querySelector('.nav-user-header-username'));
+      if (fromHeader) return fromHeader;
       if (!document.documentElement.classList.contains('user-logged-in')) return null;
       return null;
     }

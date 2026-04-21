@@ -16,33 +16,48 @@ export function detectCurrentUsername(): { platform: Platform; username: string 
   return null;
 }
 
+/**
+ * Read an element's textContent while ignoring Chessr's own mock-title badge
+ * (`.chessr-mock-title`), which pageContext may inject INSIDE the username
+ * element. Without stripping, a "GM" badge would produce "GMfoobar" instead of
+ * "foobar" and break chess.com API lookups.
+ */
+function readUsernameText(el: Element | null | undefined): string | null {
+  if (!el) return null;
+  const clone = el.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll('.chessr-mock-title').forEach((n) => n.remove());
+  const text = clone.textContent?.trim();
+  return text || null;
+}
+
 function getChessComUsername(): string | null {
-  // Sidebar profile link
-  const profileLink = document.querySelector('[data-user-activity-key="profile"] .sidebar-link-text');
-  if (profileLink?.textContent) return profileLink.textContent.trim();
-
-  // Nav link name
-  const navLinkName = document.querySelector('.nav-link-name');
-  if (navLinkName?.textContent?.trim()) return navLinkName.textContent.trim();
-
-  // Nav user popover
-  const navPopover = document.querySelector('[data-test-element="nav-user-popover"]');
-  if (navPopover?.textContent?.trim()) return navPopover.textContent.trim();
-
-  // Nav user header
-  const navHeader = document.querySelector('.nav-user-header-username');
-  if (navHeader?.textContent?.trim()) return navHeader.textContent.trim();
-
-  // Profile link href
+  // Profile link href — most reliable (immune to DOM badge injection).
   const profileAnchor = document.querySelector('a[data-user-activity-key="profile"]') as HTMLAnchorElement | null;
   if (profileAnchor?.href) {
     const username = profileAnchor.href.split('/').pop();
     if (username) return username;
   }
 
+  // Sidebar profile link text (stripped of any injected title badge)
+  const sidebarLink = document.querySelector('[data-user-activity-key="profile"] .sidebar-link-text');
+  const fromSidebar = readUsernameText(sidebarLink);
+  if (fromSidebar) return fromSidebar;
+
+  // Nav link name
+  const fromNavLink = readUsernameText(document.querySelector('.nav-link-name'));
+  if (fromNavLink) return fromNavLink;
+
+  // Nav user popover
+  const fromPopover = readUsernameText(document.querySelector('[data-test-element="nav-user-popover"]'));
+  if (fromPopover) return fromPopover;
+
+  // Nav user header
+  const fromHeader = readUsernameText(document.querySelector('.nav-user-header-username'));
+  if (fromHeader) return fromHeader;
+
   // Profile dropdown
-  const profileDropdown = document.querySelector('.home-username-font');
-  if (profileDropdown?.textContent) return profileDropdown.textContent.trim();
+  const fromDropdown = readUsernameText(document.querySelector('.home-username-font'));
+  if (fromDropdown) return fromDropdown;
 
   // Body data attribute
   if (document.body.dataset.username) return document.body.dataset.username;
