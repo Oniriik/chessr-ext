@@ -1,9 +1,7 @@
 import type { Hono } from 'hono';
 import type { WSContext } from 'hono/ws';
 import type { createNodeWebSocket } from '@hono/node-ws';
-import { suggestionQueue, type SuggestionResult } from '../lib/suggestionQueue.js';
 import { handleChesscomReview, type ReviewMessage } from '../handlers/chesscomReview.js';
-import { normalizeSearchOptions } from '../engine/searchOptions.js';
 import { isUserPremium } from '../lib/premium.js';
 import { logStart, logConnected, logDisconnected } from '../lib/wsLog.js';
 
@@ -19,11 +17,6 @@ const connectedAt = new Map<string, number>();
 export function getConnectedUsers(): Array<{ userId: string; connectedAt: number }> {
   return Array.from(connectedAt.entries()).map(([userId, ts]) => ({ userId, connectedAt: ts }));
 }
-
-// Listen for completed suggestion jobs and send results back to clients
-suggestionQueue.on('completed', (event) => {
-  // This doesn't work on Queue — we handle it via the worker in index.ts
-});
 
 export function sendToClient(userId: string, data: any) {
   const ws = clients.get(userId);
@@ -75,27 +68,8 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
             }
 
             switch (msg.type) {
-              case 'suggestion': {
-                const search = normalizeSearchOptions(
-                  msg.search ?? (msg.searchMode
-                    ? { mode: msg.searchMode, nodes: msg.searchNodes, depth: msg.searchDepth, movetime: msg.searchMovetime }
-                    : null),
-                );
-                const searchDesc = search ? `${search.mode}:${search.nodes ?? search.depth ?? search.movetime}` : 'default';
-                logStart(userId, msg.requestId, 'suggestion', `elo=${msg.targetElo} mpv=${msg.multiPv} search=${searchDesc}`);
-                suggestionQueue.add('suggestion', {
-                  requestId: msg.requestId,
-                  userId,
-                  fen: msg.fen,
-                  moves: msg.moves || [],
-                  targetElo: msg.targetElo || 1500,
-                  personality: msg.personality || 'Default',
-                  multiPv: msg.multiPv || 3,
-                  limitStrength: msg.limitStrength ?? true,
-                  ...(search ? { search } : {}),
-                }, { priority: msg.priority || 0 });
-                break;
-              }
+              // Suggestions are now handled entirely client-side by the
+              // extension (Dragon WASM). No server-side engine handler.
 
               case 'chesscom_review':
                 logStart(userId, msg.requestId, 'review', `gameId=${msg.gameId}`);

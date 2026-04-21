@@ -12,7 +12,6 @@ import { explanationRoutes } from './routes/explanation.js';
 import { adminLogsRoutes } from './routes/adminLogs.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
-import { startEngine } from './engine/worker.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -41,4 +40,3 @@ const server = serve({ fetch: app.fetch, port }, () => {
 });
 
 injectWebSocket(server);
-startEngine().catch((err) => console.error('[Engine] Failed to start:', err));

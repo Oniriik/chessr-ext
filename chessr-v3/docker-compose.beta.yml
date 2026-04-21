@@ -1,12 +1,4 @@
 services:
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redis-data:/data
-    networks:
-      - chessr
-
   serveur:
     build:
       context: ./serveur
@@ -14,14 +6,6 @@ services:
     restart: unless-stopped
     env_file:
       - ./serveur/.env
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      - redis
-    volumes:
-      # Mount engine binaries as read-only (they live on the host, outside git)
-      - ./serveur/engines:/app/engines:ro
     networks:
       - chessr
 
@@ -73,9 +57,6 @@ services:
     entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook "nginx -s reload 2>/dev/null || true"; sleep 12h & wait $${!}; done;'
     networks:
       - chessr
-
-volumes:
-  redis-data:
 
 networks:
   chessr:
