@@ -184,6 +184,7 @@ export default defineContentScript({
           suggestionEngine = new SuggestionEngine();
           suggestionEngine.init(jsUrl, wasmUrl, bookUrl).then(() => {
             const s = suggestionEngine!.supportedOptions;
+            console.log('[Chessr] Dragon UCI options (' + s.size + '):', Array.from(s).sort());
             useEngineStore.getState().setCapabilities({
               hasPersonality: s.has('Personality'),
               hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),
