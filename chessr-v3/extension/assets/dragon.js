@@ -369,12 +369,12 @@
     function isDataURI(filename) {
       return filename.startsWith(dataURIPrefix);
     }
-    var wasmBinaryFile =
-      "chrome-extension://fake/lib/dragon3.3.wasm";
-    // wasmBinaryFile = Module.wasmBinaryFile || "explanation-engine.wasm";
-    // if (!isDataURI(wasmBinaryFile)) {
-    //   wasmBinaryFile = Module.wasmBinaryFile || locateFile(wasmBinaryFile);
-    // }
+    // Restored Emscripten resolution: pick up Module.wasmBinaryFile (set from
+    // WasmPath, which Chessr passes via self.location.hash on the Blob Worker).
+    var wasmBinaryFile = Module.wasmBinaryFile || "dragon.wasm";
+    if (!isDataURI(wasmBinaryFile)) {
+      wasmBinaryFile = Module.wasmBinaryFile || locateFile(wasmBinaryFile);
+    }
     function getBinary(file) {
       try {
         if (file == wasmBinaryFile && wasmBinary) {
@@ -5719,7 +5719,7 @@ function komodoTepCLICompleter(line) {
     (typeof window === "undefined" || typeof window.document === "undefined")
   ) {
     if (self && self.location && self.location.hash) {
-      komodoTep = KOMODO_TEP(self.location.hash.substr(1));
+      komodoTep = KOMODO_TEP(decodeURIComponent(self.location.hash.substr(1)));
     } else {
       komodoTep = KOMODO_TEP();
     }

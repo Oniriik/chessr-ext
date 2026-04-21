@@ -2,7 +2,7 @@ import ReactDOM from 'react-dom/client';
 import App from './content/App';
 import { useGameStore, toColor, type Color } from './content/stores/gameStore';
 import { useSuggestionStore } from './content/stores/suggestionStore';
-import { connectWs } from './content/lib/websocket';
+import { connectWs, disconnectWs } from './content/lib/websocket';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
 import { renderArrows, clearArrows } from './content/lib/arrows';
@@ -38,6 +38,11 @@ function isPremiumPlan(plan: string | undefined): boolean {
 function requestSuggestion(fen: string, force = false) {
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
+
+  // Don't compute suggestions for non-authenticated users (previously gated
+  // server-side by the WS premium check; now gated locally since we no longer
+  // talk to the server for suggestions).
+  if (!useAuthStore.getState().user) return;
 
   // Guard BEFORE flipping the loading flag — otherwise the store stays in
   // "loading" forever if Dragon init hasn't resolved yet.
@@ -174,6 +179,10 @@ export default defineContentScript({
       }
       if (!uid && lastLoggedInUserId) {
         lastLoggedInUserId = null;
+        disconnectWs();
+        if (suggestionEngine) { suggestionEngine.destroy(); suggestionEngine = null; }
+        if (analysisEngine) { analysisEngine.destroy(); analysisEngine = null; }
+        useSuggestionStore.getState().clear();
       }
     });
 
