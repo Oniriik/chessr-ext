@@ -10,6 +10,7 @@
     "build:beta": "wxt zip --mode beta",
     "deploy:beta": "wxt zip --mode beta && bash scripts/upload-beta.sh",
     "build:firefox": "wxt build --browser firefox",
+    "test": "tsx --test entrypoints/content/lib/__tests__/*.test.ts",
     "postinstall": "wxt prepare && node scripts/copy-engines.js"
   },
   "author": "",
@@ -31,6 +32,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "javascript-obfuscator": "^5.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }
 }
