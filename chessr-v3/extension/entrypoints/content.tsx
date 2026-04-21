@@ -39,16 +39,11 @@ function isPremiumPlan(plan: string | undefined): boolean {
 }
 
 function requestSuggestion(fen: string, force = false) {
-  const hasUser = !!useAuthStore.getState().user;
-  const engineReady = suggestionEngine?.ready ?? false;
-  const dedup = !force && fen === lastRequestedFen;
-  console.log('[Chessr][debug] requestSuggestion', { force, dedup, hasUser, engineReady, fen: fen.slice(0, 18) + '…' });
-
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
 
-  if (!hasUser) return;
-  if (!engineReady) return;
+  if (!useAuthStore.getState().user) return;
+  if (!suggestionEngine?.ready) return;
 
   // Debounce: when moves come rapid-fire (game review, bot auto-move),
   // only the last position in the window triggers a real search.
@@ -58,18 +53,16 @@ function requestSuggestion(fen: string, force = false) {
   const delay = force ? 0 : SUGGESTION_DEBOUNCE_MS;
   suggestionDebounce = setTimeout(() => {
     suggestionDebounce = null;
-    console.log('[Chessr][debug] debounce fired, calling runSuggestionSearch');
     runSuggestionSearch(fen);
   }, delay);
 }
 
 function runSuggestionSearch(fen: string) {
-  if (!suggestionEngine?.ready) { console.log('[Chessr][debug] runSuggestionSearch bail: engine not ready'); return; }
+  if (!suggestionEngine?.ready) return;
 
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   currentRequestId = requestId;
   useSuggestionStore.getState().setLoading(true, requestId);
-  console.log('[Chessr][debug] engine.search start', requestId);
 
   const engine = useEngineStore.getState();
   const effectiveElo = engine.getEffectiveElo();
@@ -95,21 +88,19 @@ function runSuggestionSearch(fen: string) {
     ...(engine.variety > 0 ? { variety: engine.variety } : {}),
     search,
   }).then((suggestions) => {
-    console.log('[Chessr][debug] engine.search resolved', requestId, 'n=', suggestions.length);
-    if (requestId !== currentRequestId) { console.log('[Chessr][debug] stale result, ignored'); return; }
+    if (requestId !== currentRequestId) return;
     useSuggestionStore.getState().setSuggestions(suggestions, requestId);
     animationGate.markEvent('suggestions');
   }).catch((err) => {
     // Search got cancelled (newer request came in, or game ended). Silent.
-    if (err?.name === 'AbortError') { console.log('[Chessr][debug] engine.search aborted', requestId); return; }
+    if (err?.name === 'AbortError') return;
     console.error('[Chessr] suggestion error:', err);
     if (requestId === currentRequestId) useSuggestionStore.getState().setLoading(false, requestId);
   });
 }
 
 /** Reset all pending suggestion state — used on game end / new game. */
-function resetSuggestionState(reason?: string) {
-  console.log('[Chessr][debug] resetSuggestionState', reason ?? '');
+function resetSuggestionState() {
   if (suggestionDebounce) { clearTimeout(suggestionDebounce); suggestionDebounce = null; }
   currentRequestId = null;
   lastRequestedFen = null;
@@ -239,7 +230,7 @@ export default defineContentScript({
       if (!uid && lastLoggedInUserId) {
         lastLoggedInUserId = null;
         disconnectWs();
-        resetSuggestionState('logout');
+        resetSuggestionState();
         if (suggestionEngine) { suggestionEngine.destroy(); suggestionEngine = null; }
         if (analysisEngine) { analysisEngine.destroy(); analysisEngine = null; }
       }
@@ -252,13 +243,13 @@ export default defineContentScript({
       // Clear on new game or game over — cancel in-flight search too so a
       // late response doesn't repopulate arrows after the game ended.
       if (!isPlaying || gameOver) {
-        resetSuggestionState('game-over-or-not-playing');
+        resetSuggestionState();
         return;
       }
 
       if (!playerColor || !turn || !fen || playerColor !== turn) {
         clearArrows();
-        resetSuggestionState('not-player-turn');
+        resetSuggestionState();
         return;
       }
 
@@ -377,7 +368,7 @@ export default defineContentScript({
           break;
         case 'chessr:newGame':
           reset();
-          resetSuggestionState('chessr:newGame');
+          resetSuggestionState();
           suggestionEngine?.newGame().catch(() => { /* engine gone */ });
           useAnalysisStore.getState().reset();
           useExplanationStore.getState().clear();

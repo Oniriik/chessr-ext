@@ -69,6 +69,18 @@ describe('buildEngineSetOptions', () => {
     assert.equal(buildEngineSetOptions({ ...base, dynamism: -10, kingSafety: 999 }, supported)['King Safety'], '200');
   });
 
+  it('disables OwnBook when multiPv > 1 (book cannot return alternatives)', () => {
+    const supported = new Set(['MultiPV', 'OwnBook']);
+    assert.equal(buildEngineSetOptions({ ...base, multiPv: 1 }, supported).OwnBook, 'true');
+    assert.equal(buildEngineSetOptions({ ...base, multiPv: 3 }, supported).OwnBook, 'false');
+  });
+
+  it('omits OwnBook when the engine does not advertise it', () => {
+    const supported = new Set(['MultiPV']);
+    const out = buildEngineSetOptions({ ...base, multiPv: 3 }, supported);
+    assert.ok(!('OwnBook' in out));
+  });
+
   it('omits dynamism / kingSafety / variety when value not provided', () => {
     const supported = new Set(['MultiPV', 'UCI Elo', 'UCI LimitStrength', 'Dynamism', 'King Safety', 'Variety']);
     const out = buildEngineSetOptions(

@@ -41,6 +41,14 @@ export function buildEngineSetOptions(
 
   if (supported.has('MultiPV')) out.MultiPV = String(pv);
 
+  // The opening book only ever returns ONE book move, regardless of MultiPV.
+  // When the user wants more than one arrow, turn the book off for this search
+  // so Komodo actually computes `pv` alternatives. At MultiPV=1 we keep the
+  // book on so opening positions get a near-instant suggestion.
+  if (supported.has('OwnBook')) {
+    out.OwnBook = pv > 1 ? 'false' : 'true';
+  }
+
   if (supported.has('Personality')) {
     out.Personality = params.personality || 'Default';
   }
