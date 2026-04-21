@@ -2,12 +2,13 @@ import ReactDOM from 'react-dom/client';
 import App from './content/App';
 import { useGameStore, toColor, type Color } from './content/stores/gameStore';
 import { useSuggestionStore } from './content/stores/suggestionStore';
-import { connectWs, sendWs, onWsMessage } from './content/lib/websocket';
+import { connectWs } from './content/lib/websocket';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
 import { renderArrows, clearArrows } from './content/lib/arrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { AnalysisEngine } from './content/lib/analysisEngine';
+import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { analyzeLastMove } from './content/lib/moveAnalysis';
 import { useAnalysisStore } from './content/stores/analysisStore';
 import { useExplanationStore } from './content/stores/explanationStore';
@@ -17,6 +18,8 @@ import { useEvalStore } from './content/stores/evalStore';
 import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
 let lastRequestedFen: string | null = null;
 let analysisEngine: AnalysisEngine | null = null;
+let suggestionEngine: SuggestionEngine | null = null;
+let currentRequestId: string | null = null;
 let previousFen: string | null = null;
 let playerMoveCount = 0;
 
@@ -36,7 +39,12 @@ function requestSuggestion(fen: string, force = false) {
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
 
+  // Guard BEFORE flipping the loading flag — otherwise the store stays in
+  // "loading" forever if Dragon init hasn't resolved yet.
+  if (!suggestionEngine?.ready) return;
+
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  currentRequestId = requestId;
   useSuggestionStore.getState().setLoading(true, requestId);
 
   const engine = useEngineStore.getState();
@@ -50,9 +58,7 @@ function requestSuggestion(fen: string, force = false) {
     ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
     : FREE_DEFAULTS;
 
-  sendWs({
-    type: 'suggestion',
-    requestId,
+  suggestionEngine.search({
     fen,
     moves: [],
     targetElo: effectiveElo,
@@ -62,6 +68,13 @@ function requestSuggestion(fen: string, force = false) {
     ...(engine.ambitionAuto ? {} : { contempt: engine.ambition }),
     ...(engine.variety > 0 ? { variety: engine.variety } : {}),
     search,
+  }).then((suggestions) => {
+    if (requestId !== currentRequestId) return;
+    useSuggestionStore.getState().setSuggestions(suggestions, requestId);
+    animationGate.markEvent('suggestions');
+  }).catch((err) => {
+    console.error('[Chessr] suggestion error:', err);
+    if (requestId === currentRequestId) useSuggestionStore.getState().setLoading(false, requestId);
   });
 }
 
@@ -76,13 +89,8 @@ export default defineContentScript({
     // Auto Move: install hotkey listener + auto-play scheduler
     installHotkeyListener();
     installAutoPlayScheduler();
-    // Listen for WS responses
-    onWsMessage((data) => {
-      if (data.type === 'suggestion_result') {
-        useSuggestionStore.getState().setSuggestions(data.suggestions, data.requestId);
-        animationGate.markEvent('suggestions');
-      }
-    });
+    // Suggestions are now served by the local SuggestionEngine; no WS
+    // message dispatch needed here.
 
     // Render arrows when suggestions change (with animation)
     useSuggestionStore.subscribe((state) => {
@@ -139,6 +147,28 @@ export default defineContentScript({
           analysisEngine.init(jsUrl, wasmUrl).catch((err) => {
             console.error('[Chessr] Failed to init analysis engine:', err);
             analysisEngine = null;
+          });
+        }
+        if (!suggestionEngine) {
+          const jsUrl = browser.runtime.getURL('/engine/dragon.js');
+          const wasmUrl = browser.runtime.getURL('/engine/dragon.wasm');
+          suggestionEngine = new SuggestionEngine();
+          suggestionEngine.init(jsUrl, wasmUrl).then(() => {
+            const s = suggestionEngine!.supportedOptions;
+            useEngineStore.getState().setCapabilities({
+              hasPersonality: s.has('Personality'),
+              hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),
+              hasContempt: s.has('Contempt'),
+              hasVariety: s.has('Variety'),
+            });
+            // If a game is already in play when init completes, re-fire once.
+            const { fen, isPlaying, playerColor, turn } = useGameStore.getState();
+            if (isPlaying && fen && playerColor === turn) {
+              requestSuggestion(fen, true);
+            }
+          }).catch((err) => {
+            console.error('[Chessr] Failed to init suggestion engine:', err);
+            suggestionEngine = null;
           });
         }
       }

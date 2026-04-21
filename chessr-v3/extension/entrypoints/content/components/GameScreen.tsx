@@ -396,6 +396,7 @@ function EloSection() {
   const searchPinned = useLayoutStore((s) => s.pinned.includes('search'));
   const forcePinned = useLayoutStore((s) => s.pinned.includes('force'));
   const togglePin = useLayoutStore((s) => s.togglePin);
+  if (!engine.capabilities.hasUciElo) return null;
   return (
     <div className="engine-section">
       <div className="engine-section-header">
@@ -516,6 +517,7 @@ function PersonalitySection() {
   const personalities = engine.getPersonalities(plan);
   const premium = isPremium(plan);
   const allPersonalities = Object.keys(PERSONALITY_INFO) as Personality[];
+  if (!engine.capabilities.hasPersonality) return null;
   return (
     <div className="engine-section">
       <div className="engine-section-header">
@@ -551,6 +553,7 @@ function AmbitionSection() {
   const premium = isPremium(plan);
   const info = getAmbitionLabel(engine.ambition);
   const sliderDisabled = !premium || engine.ambitionAuto;
+  if (!engine.capabilities.hasContempt) return null;
   return (
     <div className="engine-section">
       <div className="engine-section-header">
@@ -574,6 +577,7 @@ function VarietySection() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
+  if (!engine.capabilities.hasVariety) return null;
   return (
     <div className="engine-section">
       <div className="engine-section-header">

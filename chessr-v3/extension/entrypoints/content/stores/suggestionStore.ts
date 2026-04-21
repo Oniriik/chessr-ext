@@ -1,18 +1,8 @@
 import { create } from 'zustand';
+import type { LabeledSuggestion, MoveLabel } from '../lib/engineLabeler';
 
-export type MoveLabel = 'check' | 'mate' | 'capture' | 'promotion';
-
-export interface Suggestion {
-  move: string;
-  evaluation: number;
-  winRate: number;
-  drawRate: number;
-  lossRate: number;
-  depth: number;
-  mateScore: number | null;
-  pv: string[];
-  labels: MoveLabel[];
-}
+export type { MoveLabel };
+export type Suggestion = LabeledSuggestion;
 
 interface SuggestionState {
   suggestions: Suggestion[];

@@ -1,6 +1,7 @@
 import gsap from 'gsap';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
+import type { LabeledSuggestion } from './engineLabeler';
 
 const DRAW_DURATION = 0.3;
 
@@ -10,7 +11,7 @@ let defs: SVGDefsElement | null = null;
 let squareSize = 0;
 let flipped = false;
 let resizeObserver: ResizeObserver | null = null;
-let lastSuggestions: { move: string; label?: string | null; mateScore?: number | null }[] = [];
+let lastSuggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore'>[] = [];
 
 function getBoard(): HTMLElement | null {
   return document.querySelector('wc-chess-board') as HTMLElement | null;
@@ -246,7 +247,7 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
   return path;
 }
 
-export function renderArrows(suggestions: { move: string; label?: string | null; mateScore?: number | null }[], isFlipped: boolean, animate = true) {
+export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore'>[], isFlipped: boolean, animate = true) {
   const board = getBoard();
   if (!board) return;
 
