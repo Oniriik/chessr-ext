@@ -8,6 +8,17 @@ import type { Plan } from './authStore';
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
 
+export interface EngineCapabilities {
+  hasPersonality: boolean;
+  hasUciElo: boolean;
+  hasContempt: boolean;
+  hasVariety: boolean;
+}
+
+const CAPABILITIES_PERMISSIVE: EngineCapabilities = {
+  hasPersonality: true, hasUciElo: true, hasContempt: true, hasVariety: true,
+};
+
 export const PERSONALITY_INFO: Record<Personality, { label: string; desc: string }> = {
   Default:    { label: 'Engine',     desc: 'Plays like an engine with minimal errors.' },
   Aggressive: { label: 'Aggressive', desc: 'Attacks relentlessly, prefers active pieces.' },
@@ -60,6 +71,9 @@ interface EngineState {
   searchDepth: number;
   searchMovetime: number;
 
+  capabilities: EngineCapabilities;
+  setCapabilities: (c: EngineCapabilities) => void;
+
   setTargetEloAuto: (v: boolean) => void;
   setTargetEloManual: (v: number) => void;
   setAutoEloBoost: (v: number) => void;
@@ -103,6 +117,8 @@ function isPremium(plan: Plan): boolean {
 
 export const useEngineStore = create<EngineState>()((set, get) => ({
   ...ENGINE_DEFAULTS,
+  capabilities: CAPABILITIES_PERMISSIVE,
+  setCapabilities: (c) => set({ capabilities: c }),
 
   setTargetEloAuto: (v) => set({ targetEloAuto: v }),
   setTargetEloManual: (v) => set({ targetEloManual: Math.max(400, Math.min(3500, v)) }),
