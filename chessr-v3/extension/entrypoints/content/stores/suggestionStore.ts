@@ -28,13 +28,15 @@ export const useSuggestionStore = create<SuggestionState>((set, get) => ({
   requestId: null,
 
   setSuggestions: (suggestions, requestId) => {
-    // Skip the store update (and the arrow-rendering subscriber that fires off
-    // it) when the incoming suggestions list is identical to the current one
-    // in both order and move set. Prevents the same arrows from being
-    // re-animated every time the engine re-evaluates an unchanged position.
     const prev = get().suggestions;
-    if (sameMoveSet(prev, suggestions)) {
-      // Still need to clear the loading flag and record the latest requestId.
+    const same = sameMoveSet(prev, suggestions);
+    console.log('[Chessr][dbg] store.setSuggestions', {
+      rid: requestId,
+      same,
+      prev: prev.map((s) => s.move),
+      next: suggestions.map((s) => s.move),
+    });
+    if (same) {
       set({ loading: false, requestId });
       return;
     }

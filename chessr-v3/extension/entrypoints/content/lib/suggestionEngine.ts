@@ -127,6 +127,7 @@ export class SuggestionEngine {
       this.worker!.addEventListener('message', this.activeListener);
 
       const opts = buildEngineSetOptions(params, this._supportedOptions);
+      console.log('[Chessr][dbg] setoption payload', opts);
       for (const [k, v] of Object.entries(opts)) this.sendRaw(`setoption name ${k} value ${v}`);
 
       this.sendRaw('isready');
@@ -219,7 +220,14 @@ export class SuggestionEngine {
       const resolve = this.activeResolve;
       const fen = this.activeFen!;
       const mp = this.activeMultiPv;
-      let raws = Array.from(this.activeResults.values())
+      const allRaws = Array.from(this.activeResults.values());
+      console.log('[Chessr][dbg] bestmove received', {
+        line,
+        infoCount: allRaws.length,
+        moves: allRaws.map((s) => `${s.move}(pv${s.multipv}/d${s.depth})`),
+        multiPvWanted: mp,
+      });
+      let raws = allRaws
         .sort((a, b) => a.multipv - b.multipv)
         .slice(0, mp);
 

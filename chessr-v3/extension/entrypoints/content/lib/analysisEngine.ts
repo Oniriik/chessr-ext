@@ -3,7 +3,7 @@
  * to bypass host page CSP. Single analysis at a time, depth 14.
  */
 
-const ANALYSIS_DEPTH = 14;
+const ANALYSIS_DEPTH = 12;
 const HASH_MB = 32;
 
 export interface AnalysisResult {
@@ -15,11 +15,13 @@ export interface AnalysisResult {
 export class AnalysisEngine {
   private worker: Worker | null = null;
   private _ready = false;
+  private _disposed = false;
   private pendingResolve: ((result: AnalysisResult) => void) | null = null;
   private pendingReject: ((err: Error) => void) | null = null;
   private currentResult: AnalysisResult | null = null;
 
-  get ready() { return this._ready; }
+  get ready() { return this._ready && !this._disposed; }
+  get disposed() { return this._disposed; }
 
   async init(jsUrl: string, wasmUrl: string): Promise<void> {
     console.log('[Chessr] Engine init, jsUrl:', jsUrl, 'wasmUrl:', wasmUrl);
@@ -41,6 +43,27 @@ export class AnalysisEngine {
     const blobUrl = URL.createObjectURL(blob);
     this.worker = new Worker(blobUrl + '#' + encodeURIComponent(wasmUrl));
 
+    // If Stockfish traps (RuntimeError: unreachable) the worker's WASM memory
+    // is corrupted — every subsequent UCI command triggers another trap.
+    // Mark the engine permanently disposed so future `analyze()` calls bail
+    // instantly instead of bouncing more postMessages off the dead worker.
+    // Re-init (new AnalysisEngine) is the caller's concern.
+    const onWorkerError = (e: ErrorEvent | Event) => {
+      if (this._disposed) return;
+      const msg = (e as ErrorEvent).message || 'Stockfish worker crashed';
+      console.warn('[Chessr] Stockfish worker crashed:', msg);
+      this._disposed = true;
+      this._ready = false;
+      const reject = this.pendingReject;
+      this.pendingResolve = null;
+      this.pendingReject = null;
+      reject?.(new Error(msg));
+      try { this.worker?.terminate(); } catch { /* ignore */ }
+      this.worker = null;
+    };
+    this.worker.addEventListener('error', onWorkerError);
+    this.worker.addEventListener('messageerror', onWorkerError);
+
     // UCI init sequence
     await this.uciCommand('uci', 'uciok');
     this.sendRaw(`setoption name Hash value ${HASH_MB}`);
@@ -53,21 +76,38 @@ export class AnalysisEngine {
   }
 
   async analyze(fen: string): Promise<AnalysisResult> {
+    if (this._disposed) throw new Error('Engine disposed');
     if (!this.worker || !this._ready) {
       throw new Error('Engine not initialized');
     }
 
-    // Cancel any in-flight analysis
+    // Cancel any in-flight analysis and wait for the stop's bestmove to drain
+    // the UCI output queue. Capped at 2s — if the Worker is stuck (WASM trap)
+    // we bail rather than hang forever.
     if (this.pendingResolve) {
       this.sendRaw('stop');
-      await new Promise<void>((resolve) => {
-        const oldResolve = this.pendingResolve!;
-        this.pendingResolve = () => {
-          oldResolve(this.currentResult!);
-          resolve();
-        };
-      });
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          const oldResolve = this.pendingResolve!;
+          this.pendingResolve = () => {
+            oldResolve(this.currentResult!);
+            resolve();
+          };
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+      ]);
+      if (this._disposed) throw new Error('Engine disposed during cancel');
     }
+
+    // Synchronise on isready/readyok BEFORE posting the new position+go.
+    // Without this, Stockfish occasionally traps mid-cleanup when the next
+    // `position` lands before its internal search loop has fully unwound.
+    // Cap at 2s so a dead worker doesn't wedge us.
+    await Promise.race([
+      this.waitForToken('readyok', () => this.sendRaw('isready')),
+      new Promise<void>((resolve) => setTimeout(resolve, 2000)),
+    ]);
+    if (this._disposed) throw new Error('Engine disposed during isready');
 
     return new Promise<AnalysisResult>((resolve, reject) => {
       this.pendingResolve = resolve;
@@ -99,6 +139,20 @@ export class AnalysisEngine {
     });
   }
 
+  private waitForToken(token: string, trigger?: () => void): Promise<void> {
+    return new Promise((resolve) => {
+      const onMessage = (e: MessageEvent) => {
+        const line = typeof e.data === 'string' ? e.data : '';
+        if (line.includes(token)) {
+          this.worker!.removeEventListener('message', onMessage);
+          resolve();
+        }
+      };
+      this.worker!.addEventListener('message', onMessage);
+      trigger?.();
+    });
+  }
+
   destroy(): void {
     if (this.worker) {
       this.sendRaw('quit');
@@ -114,7 +168,15 @@ export class AnalysisEngine {
   }
 
   private sendRaw(cmd: string) {
-    this.worker?.postMessage(cmd);
+    if (this._disposed) return;
+    try {
+      this.worker?.postMessage(cmd);
+    } catch {
+      // Worker is terminated or in bad state — mark disposed so the engine
+      // gets re-init on next attempt.
+      this._disposed = true;
+      this._ready = false;
+    }
   }
 
   private uciCommand(cmd: string, waitFor: string): Promise<void> {

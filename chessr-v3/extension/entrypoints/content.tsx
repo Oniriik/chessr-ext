@@ -25,6 +25,15 @@ let playerMoveCount = 0;
 
 const SUGGESTION_DEBOUNCE_MS = 150;
 let suggestionDebounce: ReturnType<typeof setTimeout> | null = null;
+// Key of the last successfully-issued search (fen + full option snapshot).
+// Lets us skip firing a redundant search when multiple stores fan out
+// "something changed" notifications that don't actually affect the query.
+let lastSearchKey: string | null = null;
+
+// Deferred handler for chess.com's sometimes-spurious chessr:newGame. See
+// the message handler below.
+let newGameResetTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingNewGameFen: string | null = null;
 
 function parseMoveNumber(fen: string): number {
   const parts = fen.split(' ');
@@ -60,10 +69,6 @@ function requestSuggestion(fen: string, force = false) {
 function runSuggestionSearch(fen: string) {
   if (!suggestionEngine?.ready) return;
 
-  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  currentRequestId = requestId;
-  useSuggestionStore.getState().setLoading(true, requestId);
-
   const engine = useEngineStore.getState();
   const effectiveElo = engine.getEffectiveElo();
   const premium = isPremiumPlan(useAuthStore.getState().plan);
@@ -75,25 +80,49 @@ function runSuggestionSearch(fen: string) {
     ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
     : FREE_DEFAULTS;
 
-  suggestionEngine.search({
+  const params = {
     fen,
-    moves: [],
+    moves: [] as string[],
     targetElo: effectiveElo,
     personality: engine.personality,
     multiPv: useSettingsStore.getState().numArrows,
     limitStrength,
-    // Auto mode: leave the option unset so Komodo uses its own default
     ...(engine.dynamismAuto ? {} : { dynamism: engine.dynamism }),
     ...(engine.kingSafetyAuto ? {} : { kingSafety: engine.kingSafety }),
     ...(engine.variety > 0 ? { variety: engine.variety } : {}),
     search,
-  }).then((suggestions) => {
+  };
+
+  // Dedup: if nothing about the query has actually changed since the last
+  // search, multiple stores fanning out "maybe you want to re-search" events
+  // shouldn't re-hit the engine — especially important with UCI_LimitStrength
+  // which intentionally injects move-variance and would flicker different
+  // arrows for identical inputs.
+  const key = JSON.stringify(params);
+  if (key === lastSearchKey) {
+    console.log('[Chessr][dbg] search skipped (same params as last)');
+    return;
+  }
+  lastSearchKey = key;
+
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  currentRequestId = requestId;
+  useSuggestionStore.getState().setLoading(true, requestId);
+  console.log('[Chessr][dbg] search start', { rid: requestId, multiPv: params.multiPv, fen: fen.slice(0, 22) + '…' });
+
+  suggestionEngine.search(params).then((suggestions) => {
+    console.log('[Chessr][dbg] search resolved', {
+      rid: requestId, n: suggestions.length,
+      moves: suggestions.map((s) => s.move),
+      depths: suggestions.map((s) => s.depth),
+      stale: requestId !== currentRequestId,
+    });
     if (requestId !== currentRequestId) return;
     useSuggestionStore.getState().setSuggestions(suggestions, requestId);
     animationGate.markEvent('suggestions');
   }).catch((err) => {
     // Search got cancelled (newer request came in, or game ended). Silent.
-    if (err?.name === 'AbortError') return;
+    if (err?.name === 'AbortError') { console.log('[Chessr][dbg] search aborted', requestId); return; }
     console.error('[Chessr] suggestion error:', err);
     if (requestId === currentRequestId) useSuggestionStore.getState().setLoading(false, requestId);
   });
@@ -104,6 +133,7 @@ function resetSuggestionState() {
   if (suggestionDebounce) { clearTimeout(suggestionDebounce); suggestionDebounce = null; }
   currentRequestId = null;
   lastRequestedFen = null;
+  lastSearchKey = null;
   suggestionEngine?.cancel().catch(() => { /* already cancelled / not running */ });
   useSuggestionStore.getState().clear();
 }
@@ -324,7 +354,22 @@ export default defineContentScript({
           const pc = useGameStore.getState().playerColor;
           const evalWhite = pc === 'black' ? -result.evaluation / 100 : result.evaluation / 100;
           useEvalStore.getState().setEval(evalWhite);
-        }).catch(() => {}); // silent fail
+        }).catch(() => {
+          // If Stockfish crashed the `ready` flag will have been cleared
+          // by the engine's error handler — re-init so the next move's
+          // eval bar update can still work.
+          if (!analysisEngine?.ready) {
+            try { analysisEngine?.destroy(); } catch { /* ignore */ }
+            analysisEngine = null;
+            const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
+            const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
+            analysisEngine = new AnalysisEngine();
+            analysisEngine.init(jsUrl, wasmUrl).catch((err) => {
+              console.error('[Chessr] Stockfish re-init failed:', err);
+              analysisEngine = null;
+            });
+          }
+        });
       }
     });
 
@@ -341,6 +386,16 @@ export default defineContentScript({
         case 'chessr:mode': {
           const isGameMode = data.name === 'playing';
           const currentlyPlaying = useGameStore.getState().isPlaying;
+
+          // If a pending newGame reset is queued and this mode event confirms
+          // we're back to playing on the SAME fen that was current before
+          // newGame fired, the newGame was spurious — cancel the reset.
+          if (isGameMode && newGameResetTimer && data.fen && pendingNewGameFen && data.fen === pendingNewGameFen) {
+            clearTimeout(newGameResetTimer);
+            newGameResetTimer = null;
+            pendingNewGameFen = null;
+            console.log('[Chessr][dbg] spurious chessr:newGame cancelled (fen unchanged)');
+          }
           // Only set playing to true, never back to false from mode changes
           // (game end is handled by gameOver flag, new game by chessr:newGame)
           if (isGameMode && !currentlyPlaying) setPlaying(true);
@@ -349,7 +404,14 @@ export default defineContentScript({
           // briefly return stale game-over state (carried over from the previous
           // game reusing the same object). Trust `name === 'playing'` as ground
           // truth and ignore stale game-over flags.
-          const gameOver = isGameMode ? false : (data.gameOver ?? false);
+          //
+          // Additionally, chess.com sometimes emits a passive-observing frame
+          // with `gameOver: true` but no definitive `result` — the game then
+          // immediately resumes on the same position (a transient UI quirk).
+          // Only accept gameOver=true when the result field confirms it, so
+          // we don't wipe the engine state on these false alarms.
+          const definitiveResult = !!data.result && data.result !== '*';
+          const gameOver = isGameMode ? false : (!!data.gameOver && definitiveResult);
           const gameEnd = isGameMode ? null : data.gameEnd;
           if (data.fen) setMove(data.fen, gameOver, toColor(data.turn) as Color, gameEnd);
           if (!isGameMode && data.result && data.result !== '*') {
@@ -366,16 +428,29 @@ export default defineContentScript({
             useGameStore.getState().setGameOver(data.result);
           }
           break;
-        case 'chessr:newGame':
-          reset();
-          resetSuggestionState();
-          suggestionEngine?.newGame().catch(() => { /* engine gone */ });
-          useAnalysisStore.getState().reset();
-          useExplanationStore.getState().clear();
-          useEvalStore.getState().reset();
-          previousFen = null;
-          playerMoveCount = 0;
+        case 'chessr:newGame': {
+          // chess.com occasionally emits a transient newGame on the same
+          // position (right after a spurious `gameOver`). Debounce: remember
+          // the FEN we saw before the event and defer the reset. If a
+          // chessr:mode playing on the SAME fen lands within the window,
+          // cancel the reset — the game in fact continues.
+          const fenAtNewGame = useGameStore.getState().fen;
+          pendingNewGameFen = fenAtNewGame;
+          if (newGameResetTimer) clearTimeout(newGameResetTimer);
+          newGameResetTimer = setTimeout(() => {
+            newGameResetTimer = null;
+            pendingNewGameFen = null;
+            reset();
+            resetSuggestionState();
+            suggestionEngine?.newGame().catch(() => { /* engine gone */ });
+            useAnalysisStore.getState().reset();
+            useExplanationStore.getState().clear();
+            useEvalStore.getState().reset();
+            previousFen = null;
+            playerMoveCount = 0;
+          }, 200);
           break;
+        }
         case 'chessr:ratings':
           if (data.playerRating) useEngineStore.getState().setUserElo(data.playerRating);
           if (data.opponentRating) useEngineStore.getState().setOpponentElo(data.opponentRating);
