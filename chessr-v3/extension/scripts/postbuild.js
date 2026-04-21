@@ -5,18 +5,31 @@
 
 import { transformSync } from 'esbuild';
 import JavaScriptObfuscator from 'javascript-obfuscator';
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 
 export async function runPostbuild() {
   const outputRoot = join(import.meta.dirname, '..', '.output');
   if (!existsSync(outputRoot)) return;
 
-  // Skip dev builds so console.log / debug instrumentation survives when
-  // running `npm run dev`. Only obfuscate + strip for prod / beta outputs.
-  const distDirs = readdirSync(outputRoot)
+  // Only process the directory that was just (re-)built. Without this the
+  // hook also re-obfuscates stale outputs from previous `wxt build` runs,
+  // which can crash the obfuscator on huge accumulated bundles.
+  // Heuristic: pick the chrome-mv3* dir whose mtime is the freshest, but
+  // always skip chrome-mv3-dev so console.log / debug logs survive dev runs.
+  const candidates = readdirSync(outputRoot)
     .filter((d) => d.startsWith('chrome-mv3') && !d.endsWith('-dev'))
-    .map((d) => join(outputRoot, d));
+    .map((d) => {
+      const p = join(outputRoot, d);
+      return { path: p, mtime: statSync(p).mtimeMs };
+    })
+    .sort((a, b) => b.mtime - a.mtime);
+  // Keep every candidate built within the last 5 seconds of the newest one —
+  // covers the case where wxt writes several related outputs in quick
+  // succession (e.g. chrome-mv3 + chrome-mv3-beta via separate scripts).
+  const distDirs = candidates.length
+    ? candidates.filter((c) => candidates[0].mtime - c.mtime < 5_000).map((c) => c.path)
+    : [];
 
   for (const distDir of distDirs) {
     const jsFiles = [
