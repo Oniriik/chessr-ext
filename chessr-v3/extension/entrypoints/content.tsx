@@ -2,7 +2,7 @@ import ReactDOM from 'react-dom/client';
 import App from './content/App';
 import { useGameStore, toColor, type Color } from './content/stores/gameStore';
 import { useSuggestionStore } from './content/stores/suggestionStore';
-import { connectWs, disconnectWs } from './content/lib/websocket';
+import { connectWs, disconnectWs, sendWs } from './content/lib/websocket';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
 import { renderArrows, clearArrows } from './content/lib/arrows';
@@ -111,6 +111,18 @@ function runSuggestionSearch(fen: string) {
   useSuggestionStore.getState().setLoading(true, requestId);
   console.log('[Chessr][dbg] search start', { rid: requestId, multiPv: params.multiPv, fen: fen.slice(0, 22) + '…' });
 
+  // Telemetry: log the search on the server (same format as the old
+  // server-side engine) — compute is now local but we still want the audit
+  // trail for stats / debugging / per-user rate analysis.
+  const searchDesc = params.search
+    ? `${params.search.mode}:${params.search.nodes ?? params.search.depth ?? params.search.movetime}`
+    : 'default';
+  sendWs({
+    type: 'suggestion_log_start',
+    requestId,
+    extra: `elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`,
+  });
+
   suggestionEngine.search(params).then((suggestions) => {
     console.log('[Chessr][dbg] search resolved', {
       rid: requestId, n: suggestions.length,
@@ -121,11 +133,26 @@ function runSuggestionSearch(fen: string) {
     if (requestId !== currentRequestId) return;
     useSuggestionStore.getState().setSuggestions(suggestions, requestId);
     animationGate.markEvent('suggestions');
+    const topDepth = suggestions[0]?.depth ?? 0;
+    sendWs({
+      type: 'suggestion_log_end',
+      requestId,
+      extra: `d${topDepth} n=${suggestions.length}`,
+    });
   }).catch((err) => {
     // Search got cancelled (newer request came in, or game ended). Silent.
-    if (err?.name === 'AbortError') { console.log('[Chessr][dbg] search aborted', requestId); return; }
+    if (err?.name === 'AbortError') {
+      console.log('[Chessr][dbg] search aborted', requestId);
+      sendWs({ type: 'suggestion_log_end', requestId, extra: 'aborted' });
+      return;
+    }
     console.error('[Chessr] suggestion error:', err);
     if (requestId === currentRequestId) useSuggestionStore.getState().setLoading(false, requestId);
+    sendWs({
+      type: 'suggestion_log_end',
+      requestId,
+      extra: `fail:${err?.message || 'unknown'}`,
+    });
   });
 }
 

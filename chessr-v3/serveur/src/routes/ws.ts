@@ -3,7 +3,7 @@ import type { WSContext } from 'hono/ws';
 import type { createNodeWebSocket } from '@hono/node-ws';
 import { handleChesscomReview, type ReviewMessage } from '../handlers/chesscomReview.js';
 import { isUserPremium } from '../lib/premium.js';
-import { logStart, logConnected, logDisconnected } from '../lib/wsLog.js';
+import { logStart, logEnd, logConnected, logDisconnected } from '../lib/wsLog.js';
 
 type WSApp = {
   app: Hono;
@@ -68,8 +68,17 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
             }
 
             switch (msg.type) {
-              // Suggestions are now handled entirely client-side by the
-              // extension (Dragon WASM). No server-side engine handler.
+              // Suggestions are computed client-side (Dragon WASM) now, but
+              // the extension still reports their start/end to the server
+              // for observability — same wsLog format the engine handler
+              // used to produce.
+              case 'suggestion_log_start':
+                logStart(userId, msg.requestId, 'suggestion', msg.extra);
+                break;
+
+              case 'suggestion_log_end':
+                logEnd(userId, msg.requestId, 'suggestion', msg.extra);
+                break;
 
               case 'chesscom_review':
                 logStart(userId, msg.requestId, 'review', `gameId=${msg.gameId}`);
