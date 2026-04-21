@@ -132,22 +132,25 @@ export class SuggestionEngine {
     this._ready = false;
   }
 
-  private async cancel(): Promise<void> {
+  /**
+   * Cancel any in-flight search. The rejected caller receives an AbortError,
+   * letting content.tsx silently ignore cancellations without risking stale
+   * arrows from the old request being set on the store.
+   *
+   * Public so the content script can call it on game end / new game transitions.
+   */
+  async cancel(): Promise<void> {
     if (!this.activeResolve) return;
     if (this.cancelling) return this.cancelling;
 
-    // Swap-resolve trick:
-    //   1. We've sent `stop` to the Worker; UCI will emit one final `bestmove`.
-    //   2. `onSearchLine` will see that `bestmove` and invoke `activeResolve`.
-    //   3. We replace `activeResolve` with a wrapper that (a) forwards empty
-    //      suggestions to the original caller (content.tsx ignores via
-    //      requestId mismatch) and (b) unblocks the `cancel()` awaiter.
-    // Guarantees the UCI buffer is fully drained before the next `search()`
-    // starts sending new `setoption`/`position`/`go` commands.
+    // Swap trick: we've sent `stop`; UCI will emit one final `bestmove` that
+    // would normally call activeResolve. Replace activeResolve to instead
+    // REJECT the original caller (with AbortError) and unblock cancel().
+    // Guarantees the UCI buffer is drained before the next search starts.
     this.cancelling = new Promise<void>((resolve) => {
-      const prevResolve = this.activeResolve!;
+      const prevReject = this.activeReject!;
       this.activeResolve = () => {
-        prevResolve([]);
+        prevReject(new DOMException('Suggestion search cancelled', 'AbortError'));
         resolve();
       };
       this.sendRaw('stop');

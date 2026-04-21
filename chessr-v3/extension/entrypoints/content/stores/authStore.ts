@@ -37,22 +37,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await new Promise((r) => setTimeout(r, 100));
 
-      supabase.auth.onAuthStateChange((event, session) => {
-        console.log('[Chessr][auth] onAuthStateChange', event, 'user=', session?.user?.id ?? null);
+      supabase.auth.onAuthStateChange((_event, session) => {
         set({ session, user: session?.user ?? null });
       });
 
       const { data: { session }, error } = await supabase.auth.getSession();
-      console.log('[Chessr][auth] getSession →', { hasSession: !!session, userId: session?.user?.id ?? null, error: error?.message });
       if (error) throw error;
 
       if (!session) {
         const stored = await chrome.storage.local.get('chessr-auth');
         const value = stored['chessr-auth'];
-        console.log('[Chessr][auth] fallback chrome.storage.local[chessr-auth] →', {
-          present: !!value,
-          type: typeof value,
-        });
         if (value) {
           try {
             const parsed = JSON.parse(value);
@@ -62,15 +56,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 refresh_token: parsed.refresh_token,
               });
               if (data.session) {
-                console.log('[Chessr][auth] fallback restored session for', data.session.user.id);
                 await get().fetchPlan(data.session.user.id);
                 set({ session: data.session, user: data.session.user, initializing: false });
                 return;
               }
             }
-          } catch (e) {
-            console.log('[Chessr][auth] fallback JSON.parse failed', e);
-          }
+          } catch {}
         }
       }
 

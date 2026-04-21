@@ -23,6 +23,9 @@ let currentRequestId: string | null = null;
 let previousFen: string | null = null;
 let playerMoveCount = 0;
 
+const SUGGESTION_DEBOUNCE_MS = 150;
+let suggestionDebounce: ReturnType<typeof setTimeout> | null = null;
+
 function parseMoveNumber(fen: string): number {
   const parts = fen.split(' ');
   return parseInt(parts[5] || '1', 10);
@@ -39,17 +42,23 @@ function requestSuggestion(fen: string, force = false) {
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
 
-  const user = useAuthStore.getState().user;
-  const engineReady = suggestionEngine?.ready ?? false;
-  console.log('[Chessr][requestSuggestion]', {
-    hasUser: !!user,
-    userId: user?.id ?? null,
-    engineReady,
-    fen: fen.slice(0, 20) + '…',
-  });
+  if (!useAuthStore.getState().user) return;
+  if (!suggestionEngine?.ready) return;
 
-  if (!user) return;
-  if (!engineReady) return;
+  // Debounce: when moves come rapid-fire (game review, bot auto-move),
+  // only the last position in the window triggers a real search.
+  // `force` bypasses the debounce for one-shot catch-ups (init-complete
+  // re-fire, chessr:rescan).
+  if (suggestionDebounce) clearTimeout(suggestionDebounce);
+  const delay = force ? 0 : SUGGESTION_DEBOUNCE_MS;
+  suggestionDebounce = setTimeout(() => {
+    suggestionDebounce = null;
+    runSuggestionSearch(fen);
+  }, delay);
+}
+
+function runSuggestionSearch(fen: string) {
+  if (!suggestionEngine?.ready) return;
 
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   currentRequestId = requestId;
@@ -81,9 +90,20 @@ function requestSuggestion(fen: string, force = false) {
     useSuggestionStore.getState().setSuggestions(suggestions, requestId);
     animationGate.markEvent('suggestions');
   }).catch((err) => {
+    // Search got cancelled (newer request came in, or game ended). Silent.
+    if (err?.name === 'AbortError') return;
     console.error('[Chessr] suggestion error:', err);
     if (requestId === currentRequestId) useSuggestionStore.getState().setLoading(false, requestId);
   });
+}
+
+/** Reset all pending suggestion state — used on game end / new game. */
+function resetSuggestionState() {
+  if (suggestionDebounce) { clearTimeout(suggestionDebounce); suggestionDebounce = null; }
+  currentRequestId = null;
+  lastRequestedFen = null;
+  suggestionEngine?.cancel().catch(() => { /* already cancelled / not running */ });
+  useSuggestionStore.getState().clear();
 }
 
 export default defineContentScript({
@@ -183,9 +203,9 @@ export default defineContentScript({
       if (!uid && lastLoggedInUserId) {
         lastLoggedInUserId = null;
         disconnectWs();
+        resetSuggestionState();
         if (suggestionEngine) { suggestionEngine.destroy(); suggestionEngine = null; }
         if (analysisEngine) { analysisEngine.destroy(); analysisEngine = null; }
-        useSuggestionStore.getState().clear();
       }
     });
 
@@ -193,17 +213,16 @@ export default defineContentScript({
     useGameStore.subscribe((state, prev) => {
       const { isPlaying, fen, playerColor, turn, gameOver } = state;
 
-      // Clear on new game or game over
+      // Clear on new game or game over — cancel in-flight search too so a
+      // late response doesn't repopulate arrows after the game ended.
       if (!isPlaying || gameOver) {
-        lastRequestedFen = null;
-        useSuggestionStore.getState().clear();
+        resetSuggestionState();
         return;
       }
 
       if (!playerColor || !turn || !fen || playerColor !== turn) {
         clearArrows();
-        useSuggestionStore.getState().clear();
-        lastRequestedFen = null;
+        resetSuggestionState();
         return;
       }
 
@@ -322,7 +341,7 @@ export default defineContentScript({
           break;
         case 'chessr:newGame':
           reset();
-          useSuggestionStore.getState().clear();
+          resetSuggestionState();
           useAnalysisStore.getState().reset();
           useExplanationStore.getState().clear();
           useEvalStore.getState().reset();
