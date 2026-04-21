@@ -33,6 +33,11 @@ export class SuggestionEngine {
   private activeResults: Map<string, Suggestion> = new Map();
   private cancelling: Promise<void> | null = null;
 
+  // Fullmove number of the last searched FEN — used as a safety net to detect
+  // a game rewind or a new game the host forgot to signal, in which case we
+  // implicitly fire ucinewgame before the search proceeds.
+  private lastFullmove: number | null = null;
+
   get ready() { return this._ready; }
   get supportedOptions(): ReadonlySet<string> { return this._supportedOptions; }
 
@@ -97,6 +102,16 @@ export class SuggestionEngine {
 
     if (this.activeResolve) await this.cancel();
 
+    // Safety net: if fullmove number regressed, the host likely didn't emit
+    // chessr:newGame (e.g., puzzle retry, daily-bot restart, SPA edge case).
+    // Reset engine state so residual transposition data for the previous game
+    // doesn't skew this new game's analysis.
+    const currentFullmove = parseFullmove(params.fen);
+    if (this.lastFullmove !== null && currentFullmove < this.lastFullmove) {
+      await this.newGame();
+    }
+    this.lastFullmove = currentFullmove;
+
     return new Promise<LabeledSuggestion[]>((resolve, reject) => {
       this.activeResolve = resolve;
       this.activeReject = reject;
@@ -132,6 +147,7 @@ export class SuggestionEngine {
    */
   async newGame(): Promise<void> {
     if (!this.worker || !this._ready) return;
+    this.lastFullmove = null;
     this.sendRaw('ucinewgame');
     await this.waitForToken('readyok', () => this.sendRaw('isready'));
   }
@@ -239,6 +255,13 @@ export class SuggestionEngine {
       p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
     });
   }
+}
+
+/** FEN fullmove (field 6, 1-indexed, increments after black's move). */
+function parseFullmove(fen: string): number {
+  const parts = fen.split(' ');
+  const n = parseInt(parts[5] ?? '1', 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
 function parseInfo(line: string): Suggestion | null {
