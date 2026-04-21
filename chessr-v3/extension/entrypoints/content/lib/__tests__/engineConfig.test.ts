@@ -7,19 +7,21 @@ const base: EngineParams = {
   personality: 'Default',
   multiPv: 3,
   limitStrength: true,
-  contempt: 20,
+  dynamism: 130,
+  kingSafety: 80,
   variety: 4,
 };
 
 describe('buildEngineSetOptions', () => {
   it('emits all options when all are supported (space-form UCI)', () => {
-    const supported = new Set(['MultiPV', 'Personality', 'UCI LimitStrength', 'UCI Elo', 'Contempt', 'Variety']);
+    const supported = new Set(['MultiPV', 'Personality', 'UCI LimitStrength', 'UCI Elo', 'Dynamism', 'King Safety', 'Variety']);
     const out = buildEngineSetOptions(base, supported);
     assert.equal(out.MultiPV, '3');
     assert.equal(out.Personality, 'Default');
     assert.equal(out['UCI LimitStrength'], 'true');
     assert.equal(out['UCI Elo'], '1800');
-    assert.equal(out.Contempt, '20');
+    assert.equal(out.Dynamism, '130');
+    assert.equal(out['King Safety'], '80');
     assert.equal(out.Variety, '4');
   });
 
@@ -46,11 +48,12 @@ describe('buildEngineSetOptions', () => {
     assert.equal(buildEngineSetOptions({ ...base, targetElo: 9999 }, supported)['Skill Level'], '100');
   });
 
-  it('skips Personality / Contempt / Variety when unsupported', () => {
+  it('skips Personality / Dynamism / King Safety / Variety when unsupported', () => {
     const supported = new Set(['MultiPV', 'UCI Elo', 'UCI LimitStrength']);
     const out = buildEngineSetOptions(base, supported);
     assert.ok(!('Personality' in out));
-    assert.ok(!('Contempt' in out));
+    assert.ok(!('Dynamism' in out));
+    assert.ok(!('King Safety' in out));
     assert.ok(!('Variety' in out));
   });
 
@@ -60,10 +63,20 @@ describe('buildEngineSetOptions', () => {
     assert.equal(buildEngineSetOptions({ ...base, targetElo: 5000, multiPv: 10 }, supported).MultiPV, '3');
   });
 
-  it('omits contempt / variety when value not provided', () => {
-    const supported = new Set(['MultiPV', 'UCI Elo', 'UCI LimitStrength', 'Contempt', 'Variety']);
-    const out = buildEngineSetOptions({ ...base, contempt: undefined, variety: undefined }, supported);
-    assert.ok(!('Contempt' in out));
+  it('clamps Dynamism and King Safety to [0, 200]', () => {
+    const supported = new Set(['MultiPV', 'Dynamism', 'King Safety']);
+    assert.equal(buildEngineSetOptions({ ...base, dynamism: -10, kingSafety: 999 }, supported).Dynamism, '0');
+    assert.equal(buildEngineSetOptions({ ...base, dynamism: -10, kingSafety: 999 }, supported)['King Safety'], '200');
+  });
+
+  it('omits dynamism / kingSafety / variety when value not provided', () => {
+    const supported = new Set(['MultiPV', 'UCI Elo', 'UCI LimitStrength', 'Dynamism', 'King Safety', 'Variety']);
+    const out = buildEngineSetOptions(
+      { ...base, dynamism: undefined, kingSafety: undefined, variety: undefined },
+      supported,
+    );
+    assert.ok(!('Dynamism' in out));
+    assert.ok(!('King Safety' in out));
     assert.ok(!('Variety' in out));
   });
 });

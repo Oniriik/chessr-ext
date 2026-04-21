@@ -13,7 +13,7 @@ export interface LayoutConfig {
 
 const DEFAULTS: LayoutConfig = {
   gameOrder: ['performance', 'suggestions'],
-  engineOrder: ['elo', 'personality', 'ambition', 'variety'],
+  engineOrder: ['elo', 'personality', 'dynamism', 'kingsafety', 'variety'],
   pinned: [],
   widgetPosition: { x: 20, y: 20 },
 };
@@ -54,11 +54,15 @@ export const useLayoutStore = create<LayoutState>()((set, get) => ({
   setWidgetPosition: (x, y) => set({ widgetPosition: { x, y } }),
 
   loadFromCloud: (config) => {
-    // Ensure new components are added if missing from saved config
+    // Merge saved order with current defaults:
+    //   - drop any ID that's no longer part of the valid set (e.g. 'ambition'
+    //     removed when the Contempt slider was replaced by Dynamism + King Safety)
+    //   - append missing defaults to the tail so new controls become visible
     const mergeOrder = (saved: string[] | undefined, defaults: string[]) => {
-      if (!saved) return defaults;
-      const missing = defaults.filter((id) => !saved.includes(id));
-      return [...saved, ...missing];
+      const validSet = new Set(defaults);
+      const base = (saved ?? []).filter((id) => validSet.has(id));
+      const missing = defaults.filter((id) => !base.includes(id));
+      return [...base, ...missing];
     };
 
     set({

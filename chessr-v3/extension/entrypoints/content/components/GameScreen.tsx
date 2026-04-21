@@ -4,7 +4,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
-import { useEngineStore, type Personality, PERSONALITY_INFO, AMBITION_LABELS, getAmbitionLabel } from '../stores/engineStore';
+import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel } from '../stores/engineStore';
 import { useLayoutStore } from '../stores/layoutStore';
 import { animationGate } from '../stores/animationStore';
 import { COMPONENT_REGISTRY } from './ComponentRegistry';
@@ -547,27 +547,59 @@ function PersonalitySection() {
   );
 }
 
-function AmbitionSection() {
+function DynamismSection() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
-  const info = getAmbitionLabel(engine.ambition);
-  const sliderDisabled = !premium || engine.ambitionAuto;
-  if (!engine.capabilities.hasContempt) return null;
+  const info = getDynamismLabel(engine.dynamism);
+  const sliderDisabled = !premium || engine.dynamismAuto;
+  if (!engine.capabilities.hasDynamism) return null;
   return (
     <div className="engine-section">
       <div className="engine-section-header">
-        <span className="engine-section-label">Ambition</span>
-        <button className={`engine-auto-btn ${engine.ambitionAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setAmbitionAuto(!engine.ambitionAuto)}>Auto</button>
+        <span className="engine-section-label">Dynamism</span>
+        <button className={`engine-auto-btn ${engine.dynamismAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setDynamismAuto(!engine.dynamismAuto)}>Auto</button>
       </div>
-      <Slider min={-100} max={100} step={5} value={engine.ambitionAuto ? 0 : engine.ambition} onChange={engine.setAmbition} disabled={sliderDisabled} trackColor="linear-gradient(90deg, #ef4444, #a855f7, #3b82f6, #a855f7, #ef4444)" thumbColorFn={(pct) => {
-        // Center (50%) = blue, edges (0%, 100%) = red, in between = violet
-        const dist = Math.abs(pct - 50) / 50; // 0 at center, 1 at edges
-        return lerpColor('#3b82f6', '#ef4444', dist);
-      }} />
+      <Slider
+        min={0} max={200} step={5}
+        value={engine.dynamismAuto ? 100 : engine.dynamism}
+        onChange={engine.setDynamism}
+        disabled={sliderDisabled}
+        trackColor="linear-gradient(90deg, #3b82f6, #a855f7, #ef4444)"
+        thumbColorFn={(pct) => lerpColor('#3b82f6', '#ef4444', pct / 100)}
+      />
       <div className="engine-desc-row">
-        <span className="engine-desc-label">{info.label} ({engine.ambitionAuto ? 0 : engine.ambition})</span>
-        <span className="engine-desc">{!premium ? 'Unlock with premium' : engine.ambitionAuto ? 'Engine decides based on position' : info.desc}</span>
+        <span className="engine-desc-label">{info.label} ({engine.dynamismAuto ? 100 : engine.dynamism})</span>
+        <span className="engine-desc">{!premium ? 'Unlock with premium' : engine.dynamismAuto ? 'Engine uses its default dynamism' : info.desc}</span>
+      </div>
+    </div>
+  );
+}
+
+function KingSafetySection() {
+  const engine = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
+  const info = getKingSafetyLabel(engine.kingSafety);
+  const sliderDisabled = !premium || engine.kingSafetyAuto;
+  if (!engine.capabilities.hasKingSafety) return null;
+  return (
+    <div className="engine-section">
+      <div className="engine-section-header">
+        <span className="engine-section-label">King Safety</span>
+        <button className={`engine-auto-btn ${engine.kingSafetyAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setKingSafetyAuto(!engine.kingSafetyAuto)}>Auto</button>
+      </div>
+      <Slider
+        min={0} max={200} step={5}
+        value={engine.kingSafetyAuto ? 100 : engine.kingSafety}
+        onChange={engine.setKingSafety}
+        disabled={sliderDisabled}
+        trackColor="linear-gradient(90deg, #ef4444, #a855f7, #22c55e)"
+        thumbColorFn={(pct) => lerpColor('#ef4444', '#22c55e', pct / 100)}
+      />
+      <div className="engine-desc-row">
+        <span className="engine-desc-label">{info.label} ({engine.kingSafetyAuto ? 100 : engine.kingSafety})</span>
+        <span className="engine-desc">{!premium ? 'Unlock with premium' : engine.kingSafetyAuto ? 'Engine uses its default king safety' : info.desc}</span>
       </div>
     </div>
   );
@@ -593,7 +625,8 @@ function VarietySection() {
 const ENGINE_SECTIONS: Record<string, () => React.ReactNode> = {
   elo: () => <EloSection />,
   personality: () => <PersonalitySection />,
-  ambition: () => <AmbitionSection />,
+  dynamism: () => <DynamismSection />,
+  kingsafety: () => <KingSafetySection />,
   variety: () => <VarietySection />,
 };
 

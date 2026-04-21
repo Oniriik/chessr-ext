@@ -54,8 +54,10 @@ function getEnginePayload() {
     targetEloManual: e.targetEloManual,
     autoEloBoost: e.autoEloBoost,
     personality: e.personality,
-    ambitionAuto: e.ambitionAuto,
-    ambition: e.ambition,
+    dynamismAuto: e.dynamismAuto,
+    dynamism: e.dynamism,
+    kingSafetyAuto: e.kingSafetyAuto,
+    kingSafety: e.kingSafety,
     variety: e.variety,
     limitStrength: e.limitStrength,
     searchMode: e.searchMode,
@@ -207,8 +209,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (eng.targetEloManual !== undefined) es.setTargetEloManual(eng.targetEloManual);
           if (eng.autoEloBoost !== undefined) es.setAutoEloBoost(eng.autoEloBoost);
           if (eng.personality !== undefined) es.setPersonality(eng.personality);
-          if (eng.ambitionAuto !== undefined) es.setAmbitionAuto(eng.ambitionAuto);
-          if (eng.ambition !== undefined) es.setAmbition(eng.ambition);
+          if (eng.dynamismAuto !== undefined) es.setDynamismAuto(eng.dynamismAuto);
+          if (eng.dynamism !== undefined) es.setDynamism(eng.dynamism);
+          if (eng.kingSafetyAuto !== undefined) es.setKingSafetyAuto(eng.kingSafetyAuto);
+          if (eng.kingSafety !== undefined) es.setKingSafety(eng.kingSafety);
           if (eng.variety !== undefined) es.setVariety(eng.variety);
           if (eng.limitStrength !== undefined) es.setLimitStrength(eng.limitStrength);
           if (eng.searchMode !== undefined) es.setSearchMode(eng.searchMode);

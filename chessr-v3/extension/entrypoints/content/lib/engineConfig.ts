@@ -7,7 +7,10 @@ export interface EngineParams {
   personality: string;
   multiPv: number;
   limitStrength: boolean;
-  contempt?: number;
+  /** Komodo Dynamism, 0..200 (default 100). Higher = more willing to sacrifice material. */
+  dynamism?: number;
+  /** Komodo King Safety, 0..200 (default 100). Higher = more conservative king. */
+  kingSafety?: number;
   variety?: number;
 }
 
@@ -56,8 +59,11 @@ export function buildEngineSetOptions(
     out['Skill Level'] = String(eloToSkillLevel(elo));
   }
 
-  if (params.contempt !== undefined && supported.has('Contempt')) {
-    out.Contempt = String(clamp(params.contempt, -100, 100));
+  if (params.dynamism !== undefined && supported.has('Dynamism')) {
+    out.Dynamism = String(clamp(params.dynamism, 0, 200));
+  }
+  if (params.kingSafety !== undefined && supported.has('King Safety')) {
+    out['King Safety'] = String(clamp(params.kingSafety, 0, 200));
   }
   if (params.variety !== undefined && supported.has('Variety')) {
     out.Variety = String(clamp(params.variety, 0, 10));

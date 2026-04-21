@@ -82,7 +82,9 @@ function runSuggestionSearch(fen: string) {
     personality: engine.personality,
     multiPv: useSettingsStore.getState().numArrows,
     limitStrength,
-    ...(engine.ambitionAuto ? {} : { contempt: engine.ambition }),
+    // Auto mode: leave the option unset so Komodo uses its own default
+    ...(engine.dynamismAuto ? {} : { dynamism: engine.dynamism }),
+    ...(engine.kingSafetyAuto ? {} : { kingSafety: engine.kingSafety }),
     ...(engine.variety > 0 ? { variety: engine.variety } : {}),
     search,
   }).then((suggestions) => {
@@ -188,7 +190,8 @@ export default defineContentScript({
             useEngineStore.getState().setCapabilities({
               hasPersonality: s.has('Personality'),
               hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),
-              hasContempt: s.has('Contempt'),
+              hasDynamism: s.has('Dynamism'),
+              hasKingSafety: s.has('King Safety'),
               hasVariety: s.has('Variety'),
             });
             // If a game is already in play when init completes, re-fire once.

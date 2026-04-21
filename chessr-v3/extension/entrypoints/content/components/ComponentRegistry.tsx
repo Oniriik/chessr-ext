@@ -7,7 +7,7 @@ import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { useAuthStore } from '../stores/authStore';
-import { useEngineStore, type Personality, PERSONALITY_INFO, getAmbitionLabel } from '../stores/engineStore';
+import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel } from '../stores/engineStore';
 import { useAccuracy, useAccuracyTrend, useMoveAnalyses, computeClassificationCounts } from '../stores/analysisStore';
 import { useAutoMoveStore, formatCountdown } from '../stores/autoMoveStore';
 import { useLayoutStore } from '../stores/layoutStore';
@@ -264,26 +264,53 @@ function FloatingPersonality() {
   );
 }
 
-function FloatingAmbition() {
+function FloatingDynamism() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
-  const info = getAmbitionLabel(engine.ambition);
+  const info = getDynamismLabel(engine.dynamism);
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Ambition</span>
+        <span style={fLabel}>Dynamism</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 9, fontWeight: 600, color: engine.ambitionAuto ? '#71717a' : '#c084fc' }}>{info.label} ({engine.ambitionAuto ? 0 : engine.ambition})</span>
-          <button onClick={() => premium && engine.setAmbitionAuto(!engine.ambitionAuto)} style={{ ...fAutoBtn(engine.ambitionAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>Auto</button>
+          <span style={{ fontSize: 9, fontWeight: 600, color: engine.dynamismAuto ? '#71717a' : '#c084fc' }}>{info.label} ({engine.dynamismAuto ? 100 : engine.dynamism})</span>
+          <button onClick={() => premium && engine.setDynamismAuto(!engine.dynamismAuto)} style={{ ...fAutoBtn(engine.dynamismAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>Auto</button>
         </div>
       </div>
       <Slider
-        min={-100} max={100} step={5}
-        value={engine.ambitionAuto ? 0 : engine.ambition}
-        onChange={engine.setAmbition}
-        disabled={engine.ambitionAuto}
-        trackColor="linear-gradient(90deg, #ef4444, #a855f7, #3b82f6, #a855f7, #ef4444)" thumbColorFn={(pct) => lerpColor('#3b82f6', '#ef4444', Math.abs(pct - 50) / 50)}
+        min={0} max={200} step={5}
+        value={engine.dynamismAuto ? 100 : engine.dynamism}
+        onChange={engine.setDynamism}
+        disabled={engine.dynamismAuto}
+        trackColor="linear-gradient(90deg, #3b82f6, #a855f7, #ef4444)"
+        thumbColorFn={(pct) => lerpColor('#3b82f6', '#ef4444', pct / 100)}
+      />
+    </div>
+  );
+}
+
+function FloatingKingSafety() {
+  const engine = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
+  const info = getKingSafetyLabel(engine.kingSafety);
+  return (
+    <div style={fCard}>
+      <div style={fRow}>
+        <span style={fLabel}>King Safety</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 9, fontWeight: 600, color: engine.kingSafetyAuto ? '#71717a' : '#c084fc' }}>{info.label} ({engine.kingSafetyAuto ? 100 : engine.kingSafety})</span>
+          <button onClick={() => premium && engine.setKingSafetyAuto(!engine.kingSafetyAuto)} style={{ ...fAutoBtn(engine.kingSafetyAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>Auto</button>
+        </div>
+      </div>
+      <Slider
+        min={0} max={200} step={5}
+        value={engine.kingSafetyAuto ? 100 : engine.kingSafety}
+        onChange={engine.setKingSafety}
+        disabled={engine.kingSafetyAuto}
+        trackColor="linear-gradient(90deg, #ef4444, #a855f7, #22c55e)"
+        thumbColorFn={(pct) => lerpColor('#ef4444', '#22c55e', pct / 100)}
       />
     </div>
   );
@@ -453,10 +480,11 @@ export function renderPinnedComponent(id: string): React.ReactNode | null {
     case 'performance': return <CompactPerformance />;
     case 'suggestions': return <FloatingSuggestions />;
     case 'elo': return <FloatingElo />;
+    case 'dynamism': return <FloatingDynamism />;
+    case 'kingsafety': return <FloatingKingSafety />;
     case 'search': return pinned.includes('elo') ? null : <FloatingSearch />;
     case 'force': return pinned.includes('elo') ? null : <FloatingForce />;
     case 'personality': return <FloatingPersonality />;
-    case 'ambition': return <FloatingAmbition />;
     case 'variety': return <FloatingVariety />;
     default: return null;
   }
