@@ -21,6 +21,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@supabase/supabase-js": "^2.103.3",
     "@wxt-dev/module-react": "^1.2.2",
+    "chess.js": "^1.4.0",
     "gsap": "^3.15.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
