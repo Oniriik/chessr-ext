@@ -343,6 +343,7 @@ export default defineContentScript({
         case 'chessr:newGame':
           reset();
           resetSuggestionState();
+          suggestionEngine?.newGame().catch(() => { /* engine gone */ });
           useAnalysisStore.getState().reset();
           useExplanationStore.getState().clear();
           useEvalStore.getState().reset();

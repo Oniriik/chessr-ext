@@ -88,6 +88,8 @@ export class SuggestionEngine {
     }
 
     this._ready = true;
+    // Initial game boundary — clears any residual state from prior init.
+    await this.newGame();
   }
 
   async search(params: SuggestionSearchParams): Promise<LabeledSuggestion[]> {
@@ -115,12 +117,23 @@ export class SuggestionEngine {
       this.sendRaw('isready');
       this.waitForToken('readyok').then(() => {
         if (this.activeResolve !== resolve) return; // cancelled meanwhile
-        this.sendRaw('ucinewgame');
         const movesSuffix = params.moves?.length ? ` moves ${params.moves.join(' ')}` : '';
         this.sendRaw(`position fen ${params.fen}${movesSuffix}`);
         this.sendRaw(buildGoCommand(params.search ?? null, 'dragon'));
       });
     });
+  }
+
+  /**
+   * Signal a new game boundary to the engine. Clears the transposition table
+   * and lets Dragon reset per-game state. Should be called exactly once per
+   * game (at start or on transition), NOT between consecutive positions of
+   * the same game — otherwise analysis cached between moves gets thrown away.
+   */
+  async newGame(): Promise<void> {
+    if (!this.worker || !this._ready) return;
+    this.sendRaw('ucinewgame');
+    await this.waitForToken('readyok', () => this.sendRaw('isready'));
   }
 
   destroy(): void {
