@@ -36,7 +36,7 @@ export class SuggestionEngine {
   get ready() { return this._ready; }
   get supportedOptions(): ReadonlySet<string> { return this._supportedOptions; }
 
-  async init(jsUrl: string, wasmUrl: string): Promise<void> {
+  async init(jsUrl: string, wasmUrl: string, bookUrl?: string): Promise<void> {
     const response = await browser.runtime.sendMessage({
       type: 'fetchExtensionFile',
       path: new URL(jsUrl).pathname,
@@ -47,7 +47,12 @@ export class SuggestionEngine {
 
     const blob = new Blob([response.text], { type: 'application/javascript' });
     this.blobUrl = URL.createObjectURL(blob);
-    this.worker = new Worker(this.blobUrl + '#' + encodeURIComponent(wasmUrl));
+    // Hash fragment carries wasm URL (required) + optional book URL,
+    // separated by '|'. Glue reads both during Worker bootstrap.
+    const hash =
+      encodeURIComponent(wasmUrl) +
+      (bookUrl ? '|' + encodeURIComponent(bookUrl) : '');
+    this.worker = new Worker(this.blobUrl + '#' + hash);
 
     // Phase 1: collect options during `uci` → `uciok`.
     await this.withTimeout(

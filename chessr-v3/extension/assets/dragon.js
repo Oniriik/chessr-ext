@@ -5431,22 +5431,15 @@
             if (callback) callback();
           }
 
-          // ✅ URL dynamique — fonctionne peu importe l'ID de l'extension
-          var bookUrl = "chrome-extension://fake/book/book.bin";
-          if (
-            typeof chrome !== "undefined" &&
-            chrome.runtime &&
-            chrome.runtime.getURL
-          ) {
-            bookUrl = "chrome-extension://fake/book/book.bin"
-          } else {
-            // Fallback : construire depuis self.location (si worker)
-            bookUrl =
-              "chrome-extension://fake/book/book.bin";
-          }
+          // Chessr: the book URL is passed as the 2nd hash-fragment segment
+          // (after the WASM URL), delimited by '|'. Empty string means "no book".
+          var bookUrl = "";
+          try {
+            var _parts = (self.location.hash || "").substr(1).split("|");
+            if (_parts[1]) bookUrl = decodeURIComponent(_parts[1]);
+          } catch (e) {}
 
-        //   console.log("Chargement book depuis:", bookUrl);
-
+          if (!bookUrl) return; // no book configured, skip silently
           fetch(bookUrl)
             .then(function (r) {
               if (!r.ok) throw new Error("HTTP " + r.status);
@@ -5719,7 +5712,9 @@ function komodoTepCLICompleter(line) {
     (typeof window === "undefined" || typeof window.document === "undefined")
   ) {
     if (self && self.location && self.location.hash) {
-      komodoTep = KOMODO_TEP(decodeURIComponent(self.location.hash.substr(1)));
+      // Hash format: #<wasmUrl>|<bookUrl>  (book part optional)
+      var _wasmOnly = self.location.hash.substr(1).split("|")[0];
+      komodoTep = KOMODO_TEP(decodeURIComponent(_wasmOnly));
     } else {
       komodoTep = KOMODO_TEP();
     }

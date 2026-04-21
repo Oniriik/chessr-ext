@@ -180,8 +180,9 @@ export default defineContentScript({
         if (!suggestionEngine) {
           const jsUrl = browser.runtime.getURL('/engine/dragon.js');
           const wasmUrl = browser.runtime.getURL('/engine/dragon.wasm');
+          const bookUrl = browser.runtime.getURL('/engine/book.bin');
           suggestionEngine = new SuggestionEngine();
-          suggestionEngine.init(jsUrl, wasmUrl).then(() => {
+          suggestionEngine.init(jsUrl, wasmUrl, bookUrl).then(() => {
             const s = suggestionEngine!.supportedOptions;
             useEngineStore.getState().setCapabilities({
               hasPersonality: s.has('Personality'),
