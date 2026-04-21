@@ -12,8 +12,10 @@ export async function runPostbuild() {
   const outputRoot = join(import.meta.dirname, '..', '.output');
   if (!existsSync(outputRoot)) return;
 
+  // Skip dev builds so console.log / debug instrumentation survives when
+  // running `npm run dev`. Only obfuscate + strip for prod / beta outputs.
   const distDirs = readdirSync(outputRoot)
-    .filter((d) => d.startsWith('chrome-mv3'))
+    .filter((d) => d.startsWith('chrome-mv3') && !d.endsWith('-dev'))
     .map((d) => join(outputRoot, d));
 
   for (const distDir of distDirs) {
