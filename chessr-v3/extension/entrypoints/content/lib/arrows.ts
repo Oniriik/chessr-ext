@@ -13,6 +13,19 @@ let flipped = false;
 let resizeObserver: ResizeObserver | null = null;
 let lastSuggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore'>[] = [];
 
+// Drawn-arrow registry keyed by `from` square so drag handlers can shorten
+// or hide the matching arrows in real time as the user drags the piece.
+interface DrawnArrow {
+  path: SVGPathElement;
+  fromPt: { x: number; y: number };
+  toPt: { x: number; y: number };   // the shortened tip (where the arrow head sits)
+  corner?: { x: number; y: number }; // only set for knight L-paths
+  segA?: number;                     // length of the first (fromPt→corner) segment
+  segB?: number;                     // length of the second (corner→toPt) segment
+  totalLen: number;
+}
+const arrowsByFrom = new Map<string, DrawnArrow[]>();
+
 function getBoard(): HTMLElement | null {
   return document.querySelector('wc-chess-board') as HTMLElement | null;
 }
@@ -179,6 +192,11 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
   const isKnight = (fileDiff === 1 && rankDiff === 2) || (fileDiff === 2 && rankDiff === 1);
 
   let d: string;
+  let cornerPt: { x: number; y: number } | undefined;
+  let segA: number | undefined;
+  let segB: number | undefined;
+  let totalLen: number;
+  let shortenedTip: { x: number; y: number };
 
   if (isKnight) {
     const ddx = toPt.x - fromPt.x;
@@ -194,6 +212,11 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
     const endY = cornerY + edy * ratio;
 
     d = `M ${fromPt.x} ${fromPt.y} L ${cornerX} ${cornerY} L ${endX} ${endY}`;
+    cornerPt = { x: cornerX, y: cornerY };
+    segA = Math.sqrt((cornerX - fromPt.x) ** 2 + (cornerY - fromPt.y) ** 2);
+    segB = Math.sqrt((endX - cornerX) ** 2 + (endY - cornerY) ** 2);
+    totalLen = segA + segB;
+    shortenedTip = { x: endX, y: endY };
   } else {
     const dx = toPt.x - fromPt.x;
     const dy = toPt.y - fromPt.y;
@@ -203,6 +226,8 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
     const endY = fromPt.y + dy * ratio;
 
     d = `M ${fromPt.x} ${fromPt.y} L ${endX} ${endY}`;
+    totalLen = Math.sqrt((endX - fromPt.x) ** 2 + (endY - fromPt.y) ** 2);
+    shortenedTip = { x: endX, y: endY };
   }
 
   const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -214,6 +239,13 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
   path.setAttribute('fill', 'none');
   path.setAttribute('opacity', '0.85');
   arrowGroup.appendChild(path);
+
+  // Register for drag-progress updates
+  const entry: DrawnArrow = {
+    path, fromPt, toPt: shortenedTip, corner: cornerPt, segA, segB, totalLen,
+  };
+  const existing = arrowsByFrom.get(from);
+  if (existing) existing.push(entry); else arrowsByFrom.set(from, [entry]);
 
   if (animate) {
     const totalLength = path.getTotalLength();
@@ -282,6 +314,7 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
     arrowGroup.innerHTML = '';
   }
   if (defs) defs.innerHTML = '';
+  arrowsByFrom.clear();
 
   const sorted = [...suggestions].map((s, i) => ({ ...s, index: i }));
   sorted.sort((a, b) => {
@@ -297,6 +330,7 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
 
 export function clearArrows() {
   lastSuggestions = [];
+  arrowsByFrom.clear();
   if (!arrowGroup) return;
   const children = Array.from(arrowGroup.children);
   if (!children.length) return;
@@ -316,6 +350,107 @@ export function clearArrows() {
       if (defs) defs.innerHTML = '';
     },
   });
+}
+
+/**
+ * Translate a clientX/clientY pointer position to an algebraic square name
+ * (e.g. "e4") using the overlay's known flipped state and square size, or
+ * null if the pointer lies outside the board.
+ */
+export function cursorToSquare(clientX: number, clientY: number): string | null {
+  const board = getBoard();
+  if (!board || squareSize <= 0) return null;
+  const rect = board.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  if (x < 0 || y < 0 || x >= rect.width || y >= rect.width) return null;
+  const col = Math.floor(x / squareSize);
+  const row = Math.floor(y / squareSize);
+  const file = flipped ? 7 - col : col;
+  const rank = flipped ? row : 7 - row;
+  if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
+  return String.fromCharCode(97 + file) + (rank + 1);
+}
+
+/**
+ * Convert clientX/clientY into the overlay's local coordinate system (the
+ * same basis used by drawArrow / applyProgress). Returns null if the board
+ * isn't mounted yet.
+ */
+export function cursorToOverlayCoords(clientX: number, clientY: number): { x: number; y: number } | null {
+  const board = getBoard();
+  if (!board) return null;
+  const rect = board.getBoundingClientRect();
+  return { x: clientX - rect.left, y: clientY - rect.top };
+}
+
+/**
+ * Return true iff we've drawn at least one arrow starting from `from`.
+ * Drag layer uses this to bail cheaply when the user grabs a non-suggestion piece.
+ */
+export function hasArrowFrom(from: string): boolean {
+  return arrowsByFrom.has(from);
+}
+
+function applyProgress(a: DrawnArrow, progress: number): void {
+  const p = Math.max(0, Math.min(1, progress));
+
+  if (p >= 0.98) {
+    a.path.setAttribute('opacity', '0');
+    return;
+  }
+  a.path.setAttribute('opacity', '0.85');
+
+  let d: string;
+  if (a.corner && a.segA !== undefined && a.segB !== undefined) {
+    // Knight L-path: consume the progress along segment A first, then B.
+    const consumed = a.totalLen * p;
+    if (consumed <= a.segA) {
+      const t = a.segA > 0 ? consumed / a.segA : 0;
+      const sx = a.fromPt.x + (a.corner.x - a.fromPt.x) * t;
+      const sy = a.fromPt.y + (a.corner.y - a.fromPt.y) * t;
+      d = `M ${sx} ${sy} L ${a.corner.x} ${a.corner.y} L ${a.toPt.x} ${a.toPt.y}`;
+    } else {
+      const t = a.segB > 0 ? (consumed - a.segA) / a.segB : 1;
+      const sx = a.corner.x + (a.toPt.x - a.corner.x) * t;
+      const sy = a.corner.y + (a.toPt.y - a.corner.y) * t;
+      d = `M ${sx} ${sy} L ${a.toPt.x} ${a.toPt.y}`;
+    }
+  } else {
+    const sx = a.fromPt.x + (a.toPt.x - a.fromPt.x) * p;
+    const sy = a.fromPt.y + (a.toPt.y - a.fromPt.y) * p;
+    d = `M ${sx} ${sy} L ${a.toPt.x} ${a.toPt.y}`;
+  }
+  a.path.setAttribute('d', d);
+}
+
+/**
+ * Update every arrow originating from `from` based on the pointer position
+ * (overlay-local coordinates). Each arrow shrinks proportionally to how much
+ * cursor distance remains between it and the arrow's own destination.
+ *
+ *   progress = 1 − (dist(cursor, arrow.end) / dist(arrow.start, arrow.end))
+ *
+ * Works intuitively for both straight and L-shaped (knight) arrows. Arrows
+ * that target different squares shrink independently — so when you grab a
+ * piece with 3 multipv arrows, each arrow tracks its own destination.
+ */
+export function updateArrowsForDrag(from: string, cursorX: number, cursorY: number): void {
+  const list = arrowsByFrom.get(from);
+  if (!list) return;
+  for (const a of list) {
+    const total = Math.sqrt((a.toPt.x - a.fromPt.x) ** 2 + (a.toPt.y - a.fromPt.y) ** 2);
+    if (total === 0) { applyProgress(a, 0); continue; }
+    const remaining = Math.sqrt((a.toPt.x - cursorX) ** 2 + (a.toPt.y - cursorY) ** 2);
+    applyProgress(a, 1 - remaining / total);
+  }
+}
+
+/** Restore every arrow originating from `from` to its full drawn length. */
+export function resetArrowDragProgress(from: string): void {
+  const list = arrowsByFrom.get(from);
+  if (!list) return;
+  for (const a of list) applyProgress(a, 0);
 }
 
 /**

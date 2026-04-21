@@ -6,6 +6,7 @@ import { connectWs, disconnectWs } from './content/lib/websocket';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
 import { renderArrows, clearArrows } from './content/lib/arrows';
+import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { AnalysisEngine } from './content/lib/analysisEngine';
 import { SuggestionEngine } from './content/lib/suggestionEngine';
@@ -149,6 +150,8 @@ export default defineContentScript({
     // Auto Move: install hotkey listener + auto-play scheduler
     installHotkeyListener();
     installAutoPlayScheduler();
+    // Shrink suggestion arrows in real time when the user grabs a matching piece.
+    installArrowDrag();
     // Suggestions are now served by the local SuggestionEngine; no WS
     // message dispatch needed here.
 
