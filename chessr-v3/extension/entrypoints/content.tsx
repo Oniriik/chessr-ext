@@ -39,14 +39,17 @@ function requestSuggestion(fen: string, force = false) {
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
 
-  // Don't compute suggestions for non-authenticated users (previously gated
-  // server-side by the WS premium check; now gated locally since we no longer
-  // talk to the server for suggestions).
-  if (!useAuthStore.getState().user) return;
+  const user = useAuthStore.getState().user;
+  const engineReady = suggestionEngine?.ready ?? false;
+  console.log('[Chessr][requestSuggestion]', {
+    hasUser: !!user,
+    userId: user?.id ?? null,
+    engineReady,
+    fen: fen.slice(0, 20) + '…',
+  });
 
-  // Guard BEFORE flipping the loading flag — otherwise the store stays in
-  // "loading" forever if Dragon init hasn't resolved yet.
-  if (!suggestionEngine?.ready) return;
+  if (!user) return;
+  if (!engineReady) return;
 
   const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   currentRequestId = requestId;
