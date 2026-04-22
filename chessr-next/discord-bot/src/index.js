@@ -1986,8 +1986,14 @@ const httpServer = http.createServer(async (req, res) => {
       const cacheStale = !guildMembersCache.payload
         || Date.now() - guildMembersCache.at > MEMBER_CACHE_MS;
       if (cacheStale) {
+        // discord.js only auto-caches members it's seen (READY chunks limited
+        // to ~1k, then add/remove events). After a restart the cache often
+        // has 0..few members — only trust it when it's at least guildSize - 5
+        // (small slack for joins between fetches).
         const cached = guild.members.cache;
-        const members = cached.size > 0 ? cached : await guild.members.fetch();
+        const guildSize = guild.memberCount ?? 0;
+        const useCache = guildSize > 0 && cached.size >= guildSize - 5;
+        const members = useCache ? cached : await guild.members.fetch();
         guildMembersCache.payload = members
           .filter(m => !m.user.bot)
           .map(m => ({
