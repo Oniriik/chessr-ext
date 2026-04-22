@@ -48,7 +48,6 @@ import {
   type InitDiscordLinkMessage,
 } from "./handlers/discordHandler.js";
 import { handleExplainMove } from "./handlers/explanationHandler.js";
-import { handleLicenseVerify } from "./handlers/licenseHandler.js";
 import {
   handlePaddleWebhook,
   handlePaddleCheckout,
@@ -891,18 +890,6 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
   if (req.url === "/version" && req.method === "GET") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(VERSION_INFO));
-    return;
-  }
-
-  // License verification (premium-gate for client-side WASM engines)
-  if (req.url === "/api/license/verify" && req.method === "POST") {
-    handleLicenseVerify(req, res, supabase).catch((err) => {
-      console.error("[license] handler crashed:", err);
-      if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "internal_error" }));
-      }
-    });
     return;
   }
 

@@ -41,9 +41,6 @@ services:
       - PADDLE_PRICE_LIFETIME=${PADDLE_PRICE_LIFETIME}
       - PADDLE_CLIENT_TOKEN=${PADDLE_CLIENT_TOKEN}
       - PADDLE_DISCOUNT_ID=${PADDLE_DISCOUNT_ID}
-      - LICENSE_EMPLOYEES_PATH=/secrets/employees.json
-    volumes:
-      - /opt/chessr/secrets:/secrets:ro
     deploy:
       resources:
         limits:
