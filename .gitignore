@@ -3,6 +3,23 @@ dist/
 *.log
 .DS_Store
 
+# Editor / tool / cache directories
+.playwright-mcp/
+.python-version
+/.venv/
+/.vscode/
+
+# Python venv anywhere in the tree (root, scripts, etc.)
+**/.venv/
+
+# Misc binary artifacts in repo root
+/Book.bin
+/chessr-v3/dragon3.3.wasm
+/chessr-v3/dragon3.3.zip
+
+# graphify temp output
+/graphify-out/
+
 # Extension build artifacts
 extension/chessr-*/
 extension/*.zip
@@ -63,3 +80,42 @@ chessr-next/scripts/calibration/_tmp_*.py
 
 # Proprietary engine binaries (Dragon + Stockfish) — transfer to server via scp
 chessr-v3/serveur/engines/
+
+# ─── maia2-wasm build directory (Maia 2 + Patricia WASM build pipeline) ──
+# Source scripts (export.py, quantize.py, embed_nnue.py, server.js, etc.) are
+# tracked. Heavy outputs / vendored upstream / venv / node_modules are not.
+
+# Python venv + downloaded model checkpoints + ONNX exports
+maia2-wasm/python/.venv/
+maia2-wasm/python/models/
+
+# Vendored upstream sources (re-clone with: git clone --depth=1 …)
+maia2-wasm/python/maia2_src/
+maia2-wasm/patricia-build/src/
+
+# Generated NNUE C arrays (regenerate with: python embed_nnue.py)
+maia2-wasm/patricia-build/wasm/nnue_data.cpp
+
+# Patricia WASM build outputs (rebuild with em++ — see Makefile/README)
+maia2-wasm/patricia-build/wasm/patricia*.js
+maia2-wasm/patricia-build/wasm/patricia*.wasm
+maia2-wasm/patricia-build/wasm/patricia*.wasm.map
+maia2-wasm/patricia-build/wasm/license.build.cpp
+
+# Maia runtime build outputs (rebuild with em++ — see maia-runtime/README.md)
+maia2-wasm/maia-runtime/wasm/weights_data.cpp
+maia2-wasm/maia-runtime/wasm/maia*.js
+maia2-wasm/maia-runtime/wasm/maia*.wasm
+maia2-wasm/maia-runtime/wasm/maia*.wasm.map
+maia2-wasm/maia-runtime/wasm/license.build.cpp
+maia2-wasm/maia-runtime/tests/maia_node*
+maia2-wasm/maia-runtime/tests/reference.json
+
+# Web demo server's npm install + ORT runtime copy
+maia2-wasm/web/node_modules/
+maia2-wasm/web/public/ort/
+maia2-wasm/web/public/models
+
+# Playwright artifacts from the demo
+maia2-wasm/web/.playwright-mcp/
+
