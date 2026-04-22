@@ -13,7 +13,7 @@ import { SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
-import { useEngineStore } from '../stores/engineStore';
+import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
 import './settings-screen.css';
 
 const serverRegion = SERVER_LABEL[BUILD_ENV];
@@ -351,18 +351,39 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
 }
 
 function EngineSettingsTab() {
-  const { autoEloBoost, setAutoEloBoost } = useEngineStore();
+  const { engineId, setEngineId, autoEloBoost, setAutoEloBoost } = useEngineStore();
+  const engineIds = Object.keys(ENGINE_INFO) as EngineId[];
+  const info = ENGINE_INFO[engineId];
 
   return (
     <div className="settings-section">
-      <div className="settings-item">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="settings-item settings-item--column">
+        <div className="settings-item-row">
+          <span className="settings-label">Used engine</span>
+          <select
+            className="settings-select"
+            value={engineId}
+            onChange={(e) => setEngineId(e.target.value as EngineId)}
+          >
+            {engineIds.map((id) => (
+              <option key={id} value={id}>{ENGINE_INFO[id].label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="settings-engine-meta">
+          <span className="settings-engine-elo">ELO range: <strong>{info.eloRange}</strong></span>
+          <span className="settings-engine-desc">{info.desc}</span>
+        </div>
+      </div>
+
+      <div className="settings-item settings-item--column">
+        <div className="settings-item-row">
           <span className="settings-label">Auto ELO Boost</span>
           <span className="settings-slider-value">+{autoEloBoost}</span>
         </div>
         <Slider min={0} max={500} step={10} value={autoEloBoost} onChange={setAutoEloBoost} trackColor="linear-gradient(90deg, #22c55e, #3b82f6)" thumbColor="#22c55e" thumbColorEnd="#3b82f6" />
+        <span className="settings-engine-desc">Added to opponent's ELO when Auto ELO is enabled.</span>
       </div>
-      <span className="settings-hint">Added to opponent's ELO when Auto ELO is enabled</span>
     </div>
   );
 }

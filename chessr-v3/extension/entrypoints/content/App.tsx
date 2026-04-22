@@ -11,7 +11,6 @@ import AuthForm from './components/AuthForm';
 import PanelHeader from './components/PanelHeader';
 import UpdateRequired from './components/UpdateRequired';
 import Skeleton from './components/Skeleton';
-import IdleScreen from './components/IdleScreen';
 import GameScreen, { type GameTab } from './components/GameScreen';
 import SettingsScreen, { type SettingsTab } from './components/SettingsScreen';
 import LinkAccountScreen from './components/LinkAccountScreen';
@@ -179,9 +178,8 @@ export default function App() {
                     const reviewId = getReviewGameId();
                     if (showSettings) return <SettingsScreen activeTab={settingsTab} setActiveTab={setSettingsTab} />;
                     if (reviewId && !isPlaying) return <ReviewScreen gameId={reviewId} />;
-                    if (isPlaying) return <GameScreen activeTab={gameTab} setActiveTab={setGameTab} />;
                     if (reviewId) return <ReviewScreen gameId={reviewId} />;
-                    return <IdleScreen />;
+                    return <GameScreen activeTab={gameTab} setActiveTab={setGameTab} />;
                   })()}
                 </div>
               </>

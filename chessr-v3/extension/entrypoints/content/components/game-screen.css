@@ -768,3 +768,200 @@
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
+
+/* Idle state — shown in GameScreen when no game is detected, so users
+   can still configure engine / auto-move settings and see the panel
+   structure. */
+.game-card--idle {
+  opacity: 0.9;
+}
+
+/* Bicolor piece: diagonal split white / dark — visualizes that no side
+   has been claimed yet (no game running). */
+.game-piece--idle {
+  background: linear-gradient(135deg, #fff 0% 50%, #27272a 50% 100%);
+  box-shadow: inset 0 0 0 1px hsl(var(--border));
+}
+
+.game-card-waiting {
+  font-size: 13px;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+
+.engine-warning {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  margin-top: 4px;
+}
+
+.engine-warning-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.engine-warning-icon {
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fbbf24;
+  color: #1a1a1a;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.engine-warning-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.engine-warning-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.engine-warning-text {
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.engine-warning-link {
+  color: #fbbf24;
+  text-decoration: underline;
+  text-decoration-color: rgba(251, 191, 36, 0.4);
+}
+
+.engine-warning-link:hover {
+  text-decoration-color: #fbbf24;
+}
+
+/* Active-engine tag in the Suggestions header (sits next to "Suggestions"
+   label, before the depth badge). Same compact look as the depth pill so
+   the row reads as a coherent metadata line. */
+.game-suggestions-engine {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.12);
+  letter-spacing: 0.02em;
+}
+
+/* "Fix" sub-row attached to the warning above — same yellow card,
+   separated by a tinted divider so the user reads it as the remediation
+   for the warning rather than a standalone setting. */
+.engine-warning-fix {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(251, 191, 36, 0.3);
+}
+
+.engine-warning-fix-arrow {
+  flex: 0 0 auto;
+  font-size: 14px;
+  color: rgba(251, 191, 36, 0.7);
+  margin-top: 1px;
+  /* Indent so the arrow aligns roughly under the warning icon */
+  margin-left: 4px;
+}
+
+.engine-warning-fix-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.engine-warning-fix-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.engine-warning-fix-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.18);
+  color: #4ade80;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.engine-warning-fix-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+@keyframes game-waiting-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(2.4); opacity: 0; }
+}
+
+.game-waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 16px 24px;
+  text-align: center;
+}
+
+.game-waiting-pulse {
+  position: relative;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+}
+
+.game-waiting-pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  animation: game-waiting-pulse 2s infinite ease-out;
+}
+
+.game-waiting-text {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.game-waiting-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+  max-width: 240px;
+}
+

@@ -101,6 +101,29 @@
   word-break: break-all;
 }
 
+.settings-engine-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-engine-elo {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.settings-engine-elo strong {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-engine-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
 .settings-account-joined {
   font-size: 10px;
   color: hsl(var(--muted-foreground));

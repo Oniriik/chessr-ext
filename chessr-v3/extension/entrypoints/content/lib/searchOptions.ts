@@ -6,7 +6,7 @@
  * non-standard tokens. Today all use the stock UCI `go` syntax.
  */
 
-export type EngineKind = 'dragon' | 'stockfish' | 'torch' | 'maia';
+export type EngineKind = 'dragon' | 'stockfish' | 'torch' | 'maia' | 'patricia';
 
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
 

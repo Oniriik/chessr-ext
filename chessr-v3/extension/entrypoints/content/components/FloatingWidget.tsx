@@ -3,6 +3,7 @@ import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useLayoutStore } from '../stores/layoutStore';
+import { useEngineStore } from '../stores/engineStore';
 import { renderPinnedComponent } from './ComponentRegistry';
 import './floating-widget.css';
 
@@ -31,6 +32,7 @@ function SortableWidgetItem({ id, children }: { id: string; children: React.Reac
 export default function FloatingWidget() {
   const pinned = useLayoutStore((s) => s.pinned);
   const editMode = useLayoutStore((s) => s.editMode);
+  const engineId = useEngineStore((s) => s.engineId);
   const setEditMode = useLayoutStore((s) => s.setEditMode);
   const reorderPinned = useLayoutStore((s) => s.reorderPinned);
   const position = useLayoutStore((s) => s.widgetPosition);
@@ -80,7 +82,7 @@ export default function FloatingWidget() {
 
   if (pinned.length === 0) return null;
 
-  const renderable = pinned.filter((id) => renderPinnedComponent(id) !== null);
+  const renderable = pinned.filter((id) => renderPinnedComponent(id, engineId) !== null);
   if (renderable.length === 0) return null;
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -97,7 +99,7 @@ export default function FloatingWidget() {
       <SortableContext items={renderable} strategy={verticalListSortingStrategy}>
         {renderable.map((id, i) => (
           <SortableWidgetItem key={id} id={id}>
-            {renderPinnedComponent(id)}
+            {renderPinnedComponent(id, engineId)}
           </SortableWidgetItem>
         ))}
       </SortableContext>
@@ -105,7 +107,7 @@ export default function FloatingWidget() {
   ) : (
     renderable.map((id) => (
       <div key={id}>
-        {renderPinnedComponent(id)}
+        {renderPinnedComponent(id, engineId)}
       </div>
     ))
   );

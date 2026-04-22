@@ -4,7 +4,8 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
-import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel } from '../stores/engineStore';
+import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, MAIA_VARIANT_INFO, type MaiaVariant, ENGINE_INFO } from '../stores/engineStore';
+import { PATRICIA_ELO_LEVELS, snapToPatriciaElo } from '../lib/patriciaSuggestionEngine';
 import { useLayoutStore } from '../stores/layoutStore';
 import { animationGate } from '../stores/animationStore';
 import { COMPONENT_REGISTRY } from './ComponentRegistry';
@@ -163,8 +164,9 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
 }
 
 export default function GameScreen({ activeTab, setActiveTab }: { activeTab: GameTab; setActiveTab: (t: GameTab) => void }) {
-  const { playerColor, turn, fen, gameOver, gameEnd, result } = useGameStore();
+  const { isPlaying, playerColor, turn, fen, gameOver, gameEnd, result } = useGameStore();
   const { suggestions, loading } = useSuggestionStore();
+  const activeEngineId = useEngineStore((s) => s.engineId);
   const suggestionsListRef = useRef<HTMLDivElement>(null);
   const mountedRef = useRef(false);
 
@@ -255,18 +257,24 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
   return (
     <div className="game-screen">
       <EditableComponent id="gameinfo">
-        <div className="game-card">
+        <div className={`game-card ${!isPlaying ? 'game-card--idle' : ''}`}>
           <div className="game-card-left">
-            <div className={`game-piece ${playerColor === 'white' ? 'game-piece--white' : 'game-piece--black'} ${isMyTurn ? 'game-piece--active' : ''}`} />
+            <div className={`game-piece ${!isPlaying ? 'game-piece--idle' : playerColor === 'white' ? 'game-piece--white' : 'game-piece--black'} ${isMyTurn ? 'game-piece--active' : ''}`} />
             <div className="game-card-info">
-              <span className="game-card-label">You play</span>
-              <span className="game-card-color">{playerColor === 'white' ? 'White' : 'Black'}</span>
+              {!isPlaying ? (
+                <span className="game-card-waiting">Waiting for game</span>
+              ) : (
+                <>
+                  <span className="game-card-label">You play</span>
+                  <span className="game-card-color">{playerColor === 'white' ? 'White' : 'Black'}</span>
+                </>
+              )}
             </div>
             <button
               type="button"
               className="game-rescan-btn"
               onClick={() => window.dispatchEvent(new Event('chessr:rescan'))}
-              title="Rescan state (re-detect turn, color, refresh suggestions)"
+              title={isPlaying ? 'Rescan state (re-detect turn, color, refresh suggestions)' : 'Try detecting a game'}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 4 23 10 17 10" />
@@ -276,7 +284,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
             </button>
           </div>
           <div className="game-card-right">
-            {autoMoveMode === 'auto' && !gameOver ? (
+            {!isPlaying ? null : autoMoveMode === 'auto' && !gameOver ? (
               <div className="game-turn-pill game-turn-pill--auto">
                 <span className="game-turn-dot" />
                 <span>
@@ -293,7 +301,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                 <span>{gameOver ? getGameStatus(gameEnd, result, playerColor, turn) : isMyTurn ? 'Your turn' : "Opponent's turn"}</span>
               </div>
             )}
-            {autoMoveMode === 'auto' && !gameOver && (
+            {isPlaying && autoMoveMode === 'auto' && !gameOver && (
               <button
                 type="button"
                 className={`game-auto-btn ${autoPaused ? 'game-auto-btn--paused' : ''}`}
@@ -335,16 +343,27 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                         <div className="game-suggestions-header">
                           <div className="game-suggestions-label-group">
                             <span className="game-suggestions-label">Suggestions</span>
-                            {suggestions.length > 0 && suggestions[0]?.depth != null && (
+                            <span className="game-suggestions-engine" title="Active engine — change in Settings → Engine">{ENGINE_INFO[activeEngineId].label}</span>
+                            {isPlaying && suggestions.length > 0 && suggestions[0]?.depth != null && suggestions[0].depth > 0 && (
                               <span className="game-suggestions-depth" title="Search depth reached">depth {suggestions[0].depth}</span>
                             )}
                           </div>
-                          <div className="game-suggestions-legend">
-                            <span>Pos</span>
-                            <span>Win</span>
-                          </div>
+                          {isPlaying && (
+                            <div className="game-suggestions-legend">
+                              <span>Pos</span>
+                              <span>Win</span>
+                            </div>
+                          )}
                         </div>
-                        {suggestions.length > 0 ? (
+                        {!isPlaying ? (
+                          <div className="game-waiting">
+                            <div className="game-waiting-pulse" />
+                            <p className="game-waiting-text">Waiting for game…</p>
+                            <p className="game-waiting-hint">
+                              Start a game and Chessr will activate automatically.
+                            </p>
+                          </div>
+                        ) : suggestions.length > 0 ? (
                           <div ref={suggestionsListRef} className="game-suggestions-list">
                             {suggestions.map((s, i) => (
                               <SuggestionRow key={s.move} suggestion={s} index={i} color={arrowColors[i]} fen={fen || ''} hotkey={autoMoveMode === 'hotkey' ? hotkeys[i] : undefined} />
@@ -631,7 +650,11 @@ const ENGINE_SECTIONS: Record<string, () => React.ReactNode> = {
 };
 
 function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
+  const engineId = useEngineStore((s) => s.engineId);
   const engineOrder = useLayoutStore((s) => s.engineOrder);
+
+  if (engineId === 'maia2') return <Maia2Panel />;
+  if (engineId === 'patricia') return <PatriciaPanel />;
 
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -649,5 +672,274 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
         </div>
       </SortableContext>
     </DndContext>
+  );
+}
+
+function Maia2Panel() {
+  const engine = useEngineStore();
+  const variants = Object.keys(MAIA_VARIANT_INFO) as MaiaVariant[];
+
+  const effectiveOppo = engine.getMaiaEffectiveOppoElo();
+  const effectiveTarget = engine.getMaiaEffectiveTargetElo();
+  const oppoDetected = engine.opponentElo > 0;
+
+  return (
+    <div className="engine-panel">
+      <EditableComponent id="maia-variant">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Variant</span>
+            <select
+              className="engine-select"
+              value={engine.maiaVariant}
+              onChange={(e) => engine.setMaiaVariant(e.target.value as MaiaVariant)}
+            >
+              {variants.map((v) => (
+                <option key={v} value={v}>{MAIA_VARIANT_INFO[v].label}</option>
+              ))}
+            </select>
+          </div>
+          <span className="engine-desc">{MAIA_VARIANT_INFO[engine.maiaVariant].desc}</span>
+        </div>
+      </EditableComponent>
+
+      <EditableComponent id="maia-target-elo">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Target ELO</span>
+            <button
+              className={`engine-auto-btn ${engine.maiaTargetEloAuto ? 'engine-auto-btn--active' : ''}`}
+              onClick={() => engine.setMaiaTargetEloAuto(!engine.maiaTargetEloAuto)}
+            >Auto</button>
+          </div>
+          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveTarget}</span></div>
+          {engine.maiaTargetEloAuto ? (
+            <span className="engine-desc">
+              Opponent {effectiveOppo} + {engine.autoEloBoost} boost
+            </span>
+          ) : (
+            <Slider
+              min={1100} max={2000} step={100}
+              value={engine.maiaTargetEloManual}
+              onChange={engine.setMaiaTargetEloManual}
+              trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+              thumbColor="#22c55e"
+              thumbColorEnd="#3b82f6"
+            />
+          )}
+        </div>
+      </EditableComponent>
+
+      <EditableComponent id="maia-oppo-elo">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Opponent ELO</span>
+            <button
+              className={`engine-auto-btn ${engine.maiaOppoEloAuto ? 'engine-auto-btn--active' : ''}`}
+              onClick={() => engine.setMaiaOppoEloAuto(!engine.maiaOppoEloAuto)}
+            >Auto</button>
+          </div>
+          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveOppo}</span></div>
+          {engine.maiaOppoEloAuto ? (
+            <span className="engine-desc">
+              {oppoDetected ? `Detected from game (${engine.opponentElo})` : `No opponent detected, defaulting to ${engine.maiaOppoEloManual}`}
+            </span>
+          ) : (
+            <Slider
+              min={1100} max={2000} step={100}
+              value={engine.maiaOppoEloManual}
+              onChange={engine.setMaiaOppoEloManual}
+              trackColor="linear-gradient(90deg, #3b82f6, #ef4444)"
+              thumbColor="#3b82f6"
+              thumbColorEnd="#ef4444"
+            />
+          )}
+        </div>
+      </EditableComponent>
+
+      <div className="engine-warning">
+        <div className="engine-warning-head">
+          <span className="engine-warning-icon" aria-hidden>!</span>
+          <div className="engine-warning-body">
+            <span className="engine-warning-title">Heads up — opening play is unreliable</span>
+            <span className="engine-warning-text">
+              Maia 2 was trained with the first 5 moves of each side discarded
+              (10 plies, to skip memorised theory), so its early-opening
+              suggestions can be unusual — knight wanderings in particular.
+            </span>
+          </div>
+        </div>
+
+        <div className="engine-warning-fix">
+          <span className="engine-warning-fix-arrow" aria-hidden>↳</span>
+          <div className="engine-warning-fix-text">
+            <span className="engine-warning-fix-title">
+              Fix <span className="engine-warning-fix-pill">opening book</span>
+            </span>
+            <span className="engine-warning-fix-desc">
+              Used for the first 5 moves / 10 plies.
+            </span>
+          </div>
+          <Toggle
+            checked={engine.maiaUseBook}
+            onChange={engine.setMaiaUseBook}
+          />
+        </div>
+      </div>
+
+      <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
+        Strength comes from the ELO setting — Maia plays in one forward pass, no depth tuning.
+      </span>
+    </div>
+  );
+}
+
+function PatriciaPanel() {
+  const engine = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
+  const editMode = useLayoutStore((s) => s.editMode);
+  const searchPinned = useLayoutStore((s) => s.pinned.includes('patricia-search'));
+  const forcePinned = useLayoutStore((s) => s.pinned.includes('patricia-force'));
+  const togglePin = useLayoutStore((s) => s.togglePin);
+
+  // Patricia's strength is bucketed into 20 ELO paliers (Skill_Level 1..20)
+  // plus "Full strength" (Skill_Level 21). We snap the slider to the closest
+  // palier so the displayed value reflects what the engine actually plays at.
+  const fullStrength = !engine.limitStrength && premium;
+  const rawElo = engine.targetEloAuto ? engine.getEffectiveElo() : engine.targetEloManual;
+  const displayElo = fullStrength ? 'Max' : snapToPatriciaElo(rawElo);
+
+  const handleSliderChange = (v: number) => {
+    const snapped = snapToPatriciaElo(v);
+    if (engine.targetEloAuto) engine.setTargetEloAuto(false);
+    engine.setTargetEloManual(snapped);
+    if (!engine.limitStrength) engine.setLimitStrength(true);
+  };
+
+  return (
+    <div className="engine-panel">
+      <EditableComponent id="patricia-elo">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Target ELO</span>
+            <button
+              className={`engine-auto-btn ${engine.targetEloAuto ? 'engine-auto-btn--active' : ''}`}
+              onClick={() => engine.setTargetEloAuto(!engine.targetEloAuto)}
+            >Auto</button>
+          </div>
+          <div className="engine-elo-display">
+            <span className="engine-elo-value">{displayElo}</span>
+          </div>
+          {engine.targetEloAuto && !fullStrength && (
+            <span className="engine-desc">
+              {engine.opponentElo > 0
+                ? `Opponent ${engine.opponentElo} + ${engine.autoEloBoost} boost → snapped to ${snapToPatriciaElo(engine.opponentElo + engine.autoEloBoost)}`
+                : `${engine.userElo} + ${engine.autoEloBoost} boost → snapped to ${snapToPatriciaElo(engine.userElo + engine.autoEloBoost)}`}
+            </span>
+          )}
+          {!fullStrength && (
+            <Slider
+              min={PATRICIA_ELO_LEVELS[0]}
+              max={PATRICIA_ELO_LEVELS[PATRICIA_ELO_LEVELS.length - 1]}
+              step={1}
+              value={typeof displayElo === 'number' ? displayElo : PATRICIA_ELO_LEVELS[0]}
+              onChange={handleSliderChange}
+              trackColor="linear-gradient(90deg, #22c55e, #3b82f6, #ef4444)"
+              thumbColor="#22c55e"
+              thumbColorEnd="#ef4444"
+            />
+          )}
+          <span className="engine-desc">
+            20 discrete strength paliers (500–3000) + max strength. Slider snaps to the nearest palier.
+          </span>
+
+          {/* "Force search depth" submodule — sets per-move search budget.
+              Lives inside the Target ELO card to mirror Komodo's panel layout. */}
+          <div className="engine-subsection">
+            <div className="engine-section-header">
+              <div className="engine-section-label-group">
+                <span className="engine-section-label" style={{ fontSize: 9 }}>Force search depth</span>
+                {editMode && (
+                  <button
+                    type="button"
+                    className={`engine-sub-pin ${searchPinned ? 'engine-sub-pin--active' : ''}`}
+                    title={searchPinned ? 'Unpin from page' : 'Pin to page'}
+                    onClick={() => togglePin('patricia-search')}
+                  >
+                    📌
+                  </button>
+                )}
+              </div>
+              <select
+                value={engine.searchMode}
+                disabled={!premium}
+                onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
+                className="engine-select"
+              >
+                <option value="nodes">Nodes</option>
+                <option value="depth">Depth</option>
+                <option value="movetime">Move Time</option>
+              </select>
+            </div>
+            <div className="engine-section-header">
+              {engine.searchMode === 'nodes' && (
+                <>
+                  <Slider min={100000} max={5000000} step={100000} value={engine.searchNodes} onChange={engine.setSearchNodes} disabled={!premium}
+                    trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 30%, #a855f7 60%, #ef4444 100%)"
+                    thumbColorFn={(pct) => pct < 30 ? '#3b82f6' : pct < 60 ? lerpColor('#3b82f6', '#a855f7', (pct - 30) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 60) / 40)} />
+                  <span className="engine-hint">{(engine.searchNodes / 1000000) >= 1 ? `${(engine.searchNodes / 1000000).toFixed(1)}M` : `${(engine.searchNodes / 1000).toFixed(0)}k`}</span>
+                </>
+              )}
+              {engine.searchMode === 'depth' && (
+                <>
+                  <Slider min={1} max={30} step={1} value={engine.searchDepth} onChange={engine.setSearchDepth} disabled={!premium}
+                    trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
+                    thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)} />
+                  <span className="engine-hint">{engine.searchDepth}</span>
+                </>
+              )}
+              {engine.searchMode === 'movetime' && (
+                <>
+                  <Slider min={500} max={5000} step={100} value={engine.searchMovetime} onChange={engine.setSearchMovetime} disabled={!premium}
+                    trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 25%, #a855f7 55%, #ef4444 100%)"
+                    thumbColorFn={(pct) => pct < 25 ? '#3b82f6' : pct < 55 ? lerpColor('#3b82f6', '#a855f7', (pct - 25) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 55) / 45)} />
+                  <span className="engine-hint">{(engine.searchMovetime / 1000).toFixed(1)}s</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Full strength toggle — bypass the Skill_Level cap entirely. */}
+          <div className="engine-force-row">
+            <div className="engine-force-text">
+              <div className="engine-section-label-group">
+                <span className="engine-force-label">Full strength</span>
+                {editMode && (
+                  <button
+                    type="button"
+                    className={`engine-sub-pin ${forcePinned ? 'engine-sub-pin--active' : ''}`}
+                    title={forcePinned ? 'Unpin from page' : 'Pin to page'}
+                    onClick={() => togglePin('patricia-force')}
+                  >
+                    📌
+                  </button>
+                )}
+              </div>
+              <span className="engine-force-desc">
+                {premium
+                  ? 'Bypass ELO capping — Patricia plays at max strength.'
+                  : 'Premium — bypass ELO capping for max strength.'}
+              </span>
+            </div>
+            <Toggle
+              checked={fullStrength}
+              onChange={(v) => { if (premium) engine.setLimitStrength(!v); }}
+              disabled={!premium}
+            />
+          </div>
+        </div>
+      </EditableComponent>
+    </div>
   );
 }

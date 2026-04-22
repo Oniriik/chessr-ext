@@ -7,6 +7,31 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
+export type EngineId = 'komodo' | 'maia2' | 'patricia';
+export type MaiaVariant = 'blitz' | 'rapid';
+
+export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string }> = {
+  komodo: {
+    label: 'Komodo',
+    desc:  'Classical engine with deep search and full tuning.',
+    eloRange: '400 – 3500',
+  },
+  maia2:  {
+    label: 'Maia 2',
+    desc:  'Neural network that plays like a human at the chosen ELO.',
+    eloRange: '1100 – 2000',
+  },
+  patricia: {
+    label: 'Patricia',
+    desc:  'Open-source aggressive engine — favours sharp tactical play.',
+    eloRange: '500 – 3000',
+  },
+};
+
+export const MAIA_VARIANT_INFO: Record<MaiaVariant, { label: string; desc: string }> = {
+  blitz: { label: 'Blitz', desc: 'Trained on blitz games — faster, more practical play.' },
+  rapid: { label: 'Rapid', desc: 'Trained on rapid games — slightly more deliberate.' },
+};
 
 export interface EngineCapabilities {
   hasPersonality: boolean;
@@ -74,6 +99,14 @@ export const getDynamismLabel = (v: number) => closestLabel(DYNAMISM_LABELS, v);
 export const getKingSafetyLabel = (v: number) => closestLabel(KING_SAFETY_LABELS, v);
 
 interface EngineState {
+  engineId: EngineId;
+  maiaVariant: MaiaVariant;
+  maiaTargetEloAuto: boolean;
+  maiaTargetEloManual: number;
+  maiaOppoEloAuto: boolean;
+  maiaOppoEloManual: number;
+  maiaUseBook: boolean;
+
   targetEloAuto: boolean;
   targetEloManual: number;
   autoEloBoost: number;
@@ -95,6 +128,16 @@ interface EngineState {
 
   capabilities: EngineCapabilities;
   setCapabilities: (c: EngineCapabilities) => void;
+
+  setEngineId: (v: EngineId) => void;
+  setMaiaVariant: (v: MaiaVariant) => void;
+  setMaiaTargetEloAuto: (v: boolean) => void;
+  setMaiaTargetEloManual: (v: number) => void;
+  setMaiaOppoEloAuto: (v: boolean) => void;
+  setMaiaOppoEloManual: (v: number) => void;
+  setMaiaUseBook: (v: boolean) => void;
+  getMaiaEffectiveTargetElo: () => number;
+  getMaiaEffectiveOppoElo: () => number;
 
   setTargetEloAuto: (v: boolean) => void;
   setTargetEloManual: (v: number) => void;
@@ -119,6 +162,13 @@ interface EngineState {
 }
 
 const ENGINE_DEFAULTS = {
+  engineId: 'komodo' as EngineId,
+  maiaVariant: 'blitz' as MaiaVariant,
+  maiaTargetEloAuto: true,
+  maiaTargetEloManual: 1500,
+  maiaOppoEloAuto: true,
+  maiaOppoEloManual: 1500,
+  maiaUseBook: true,
   targetEloAuto: true,
   targetEloManual: 1650,
   autoEloBoost: 80,
@@ -145,6 +195,31 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
   ...ENGINE_DEFAULTS,
   capabilities: CAPABILITIES_PERMISSIVE,
   setCapabilities: (c) => set({ capabilities: c }),
+
+  setEngineId: (v) => set({ engineId: v }),
+  setMaiaVariant: (v) => set({ maiaVariant: v }),
+  // Maia 2 has 11 discrete ELO buckets (<1100, 1100-1199, …, 1900-1999, ≥2000).
+  // We expose the useful range 1100-2000 and clamp here so any stored value
+  // (cloud or otherwise) snaps into the band where each step actually changes
+  // the model's behaviour.
+  setMaiaTargetEloAuto: (v) => set({ maiaTargetEloAuto: v }),
+  setMaiaTargetEloManual: (v) => set({ maiaTargetEloManual: Math.max(1100, Math.min(2000, v)) }),
+  setMaiaOppoEloAuto: (v) => set({ maiaOppoEloAuto: v }),
+  setMaiaOppoEloManual: (v) => set({ maiaOppoEloManual: Math.max(1100, Math.min(2000, v)) }),
+  setMaiaUseBook: (v) => set({ maiaUseBook: v }),
+
+  getMaiaEffectiveOppoElo: () => {
+    const { maiaOppoEloAuto, maiaOppoEloManual, opponentElo } = get();
+    if (!maiaOppoEloAuto) return maiaOppoEloManual;
+    const detected = opponentElo > 0 ? opponentElo : maiaOppoEloManual;
+    return Math.max(1100, Math.min(2000, detected));
+  },
+  getMaiaEffectiveTargetElo: () => {
+    const { maiaTargetEloAuto, maiaTargetEloManual, autoEloBoost } = get();
+    if (!maiaTargetEloAuto) return maiaTargetEloManual;
+    const oppo = get().getMaiaEffectiveOppoElo();
+    return Math.max(1100, Math.min(2000, oppo + autoEloBoost));
+  },
 
   setTargetEloAuto: (v) => set({ targetEloAuto: v }),
   setTargetEloManual: (v) => set({ targetEloManual: Math.max(400, Math.min(3500, v)) }),

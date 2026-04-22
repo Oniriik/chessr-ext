@@ -7,6 +7,8 @@
 import { buildEngineSetOptions, type EngineParams } from './engineConfig.js';
 import { buildGoCommand, type SearchOptions } from './searchOptions.js';
 import { labelSuggestions, type LabeledSuggestion, type Suggestion } from './engineLabeler.js';
+import type { IEngine, SuggestionSearchParams as IEngineSearchParams } from './engineApi';
+import type { EngineCapabilities } from '../stores/engineStore';
 
 const HASH_MB = 64;
 const SEARCH_TIMEOUT_MS = 30_000;
@@ -18,7 +20,8 @@ export interface SuggestionSearchParams extends EngineParams {
   search?: SearchOptions;
 }
 
-export class SuggestionEngine {
+export class SuggestionEngine implements IEngine {
+  readonly id = 'komodo' as const;
   private worker: Worker | null = null;
   private blobUrl: string | null = null;
   private _ready = false;
@@ -41,7 +44,10 @@ export class SuggestionEngine {
   get ready() { return this._ready; }
   get supportedOptions(): ReadonlySet<string> { return this._supportedOptions; }
 
-  async init(jsUrl: string, wasmUrl: string, bookUrl?: string): Promise<void> {
+  async init(): Promise<void> {
+    const jsUrl = browser.runtime.getURL('/engine/dragon.js');
+    const wasmUrl = browser.runtime.getURL('/engine/dragon.wasm');
+    const bookUrl = browser.runtime.getURL('/engine/book.bin');
     const response = await browser.runtime.sendMessage({
       type: 'fetchExtensionFile',
       path: new URL(jsUrl).pathname,
@@ -97,7 +103,18 @@ export class SuggestionEngine {
     await this.newGame();
   }
 
-  async search(params: SuggestionSearchParams): Promise<LabeledSuggestion[]> {
+  getCapabilities(): EngineCapabilities {
+    const s = this._supportedOptions;
+    return {
+      hasPersonality: s.has('Personality'),
+      hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),
+      hasDynamism: s.has('Dynamism'),
+      hasKingSafety: s.has('King Safety'),
+      hasVariety: s.has('Variety'),
+    };
+  }
+
+  async search(params: IEngineSearchParams): Promise<LabeledSuggestion[]> {
     if (!this.worker || !this._ready) throw new Error('SuggestionEngine not initialised');
 
     if (this.activeResolve) await this.cancel();
@@ -116,7 +133,7 @@ export class SuggestionEngine {
       this.activeResolve = resolve;
       this.activeReject = reject;
       this.activeFen = params.fen;
-      this.activeMultiPv = Math.max(1, Math.min(3, params.multiPv));
+      this.activeMultiPv = Math.max(1, Math.min(3, params.multiPv ?? 1));
       this.activeResults = new Map();
 
       this.activeTimer = setTimeout(() => {
@@ -126,7 +143,7 @@ export class SuggestionEngine {
       this.activeListener = (e: MessageEvent) => this.onSearchLine(typeof e.data === 'string' ? e.data : '');
       this.worker!.addEventListener('message', this.activeListener);
 
-      const opts = buildEngineSetOptions(params, this._supportedOptions);
+      const opts = buildEngineSetOptions(params as EngineParams, this._supportedOptions);
       console.log('[Chessr][dbg] setoption payload', opts);
       for (const [k, v] of Object.entries(opts)) this.sendRaw(`setoption name ${k} value ${v}`);
 

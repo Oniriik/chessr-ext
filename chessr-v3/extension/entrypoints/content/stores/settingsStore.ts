@@ -50,6 +50,13 @@ let currentUserId: string | null = null;
 function getEnginePayload() {
   const e = useEngineStore.getState();
   return {
+    engineId: e.engineId,
+    maiaVariant: e.maiaVariant,
+    maiaTargetEloAuto: e.maiaTargetEloAuto,
+    maiaTargetEloManual: e.maiaTargetEloManual,
+    maiaOppoEloAuto: e.maiaOppoEloAuto,
+    maiaOppoEloManual: e.maiaOppoEloManual,
+    maiaUseBook: e.maiaUseBook,
     targetEloAuto: e.targetEloAuto,
     targetEloManual: e.targetEloManual,
     autoEloBoost: e.autoEloBoost,
@@ -205,6 +212,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if ((cloud as any).engine) {
           const eng = (cloud as any).engine;
           const es = useEngineStore.getState();
+          if (eng.engineId !== undefined) es.setEngineId(eng.engineId);
+          if (eng.maiaVariant !== undefined) es.setMaiaVariant(eng.maiaVariant);
+          if (eng.maiaTargetEloAuto !== undefined) es.setMaiaTargetEloAuto(eng.maiaTargetEloAuto);
+          if (eng.maiaTargetEloManual !== undefined) es.setMaiaTargetEloManual(eng.maiaTargetEloManual);
+          if (eng.maiaOppoEloAuto !== undefined) es.setMaiaOppoEloAuto(eng.maiaOppoEloAuto);
+          if (eng.maiaOppoEloManual !== undefined) es.setMaiaOppoEloManual(eng.maiaOppoEloManual);
+          if (eng.maiaUseBook !== undefined) es.setMaiaUseBook(eng.maiaUseBook);
           if (eng.targetEloAuto !== undefined) es.setTargetEloAuto(eng.targetEloAuto);
           if (eng.targetEloManual !== undefined) es.setTargetEloManual(eng.targetEloManual);
           if (eng.autoEloBoost !== undefined) es.setAutoEloBoost(eng.autoEloBoost);
