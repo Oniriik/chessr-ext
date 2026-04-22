@@ -1,6 +1,6 @@
 {
   "name": "chessrv3",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "Chessr - Chess assistant extension",
   "type": "module",
   "scripts": {
