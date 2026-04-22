@@ -76,18 +76,28 @@ export async function handleLicenseVerify(
   res: ServerResponse,
   supabase: SupabaseClient,
 ): Promise<void> {
+  console.log(
+    "[license] hit from",
+    req.headers["x-forwarded-for"] ?? req.socket.remoteAddress,
+    "ua=",
+    (req.headers["user-agent"] ?? "").toString().slice(0, 60),
+  );
   // ─── 1. Bearer token → user ────────────────────────────────────────
   const authHeader = req.headers["authorization"];
   const token =
     typeof authHeader === "string" && authHeader.startsWith("Bearer ")
       ? authHeader.slice(7)
       : null;
-  if (!token) return send(res, 401, { error: "auth_required" });
+  if (!token) {
+    console.log("[license] denied: auth_required");
+    return send(res, 401, { error: "auth_required" });
+  }
 
   const { data: authData, error: authError } = await supabase.auth.getUser(
     token,
   );
   if (authError || !authData.user) {
+    console.log("[license] denied: bad_token", authError?.message ?? "");
     return send(res, 401, { error: "bad_token" });
   }
   const userId = authData.user.id;
@@ -140,6 +150,7 @@ export async function handleLicenseVerify(
     .single();
   const plan = settings?.plan || "free";
   if (!PREMIUM_PLANS.has(plan)) {
+    console.log(`[license] denied: free_plan user=${userId} engine=${engine}`);
     await logGrant(supabase, {
       userId,
       engine,
@@ -149,6 +160,7 @@ export async function handleLicenseVerify(
     });
     return send(res, 403, { error: "premium_required" });
   }
+  console.log(`[license] grant user=${userId} engine=${engine} plan=${plan}`);
 
   // ─── 4. Sign + return ──────────────────────────────────────────────
   const iat = Math.floor(now / 1000);
