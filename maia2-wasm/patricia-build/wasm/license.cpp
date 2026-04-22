@@ -1,5 +1,8 @@
 #include "license.h"
-#include "monocypher/monocypher.h"
+// monocypher-ed25519.{c,h} = standard Ed25519 + SHA-512 (RFC 8032), matches
+// Node's crypto.sign(null, msg, ed25519_key). The base monocypher.h's
+// crypto_eddsa_* family uses BLAKE2b instead — incompatible with Node.
+#include "monocypher/monocypher-ed25519.h"
 #include "obfs.h"
 
 #include <emscripten/fetch.h>
@@ -201,6 +204,7 @@ bool license_verify(const char* engine) {
       LIC_LOG("verify: missing 'signed_response' in response");
       break;
     }
+    LIC_LOG("verify: b64_cert len=%zu first40=%.40s", strlen(b64_cert), b64_cert);
 
     uint8_t cert_decoded[2048];
     int cert_len = b64url_decode(b64_cert, strlen(b64_cert), cert_decoded, sizeof(cert_decoded));
@@ -208,7 +212,28 @@ bool license_verify(const char* engine) {
     const uint8_t* master_sig = cert_decoded;
     const uint8_t* cert_payload = cert_decoded + 64;
     size_t cert_payload_len = (size_t)cert_len - 64;
-    if (crypto_eddsa_check(master_sig, MASTER_PUBLIC_KEY,
+#ifdef LICENSE_DEBUG
+    {
+      char hexbuf[8 * 2 + 1];
+      static const char H[] = "0123456789abcdef";
+      for (int k = 0; k < 8; k++) {
+        hexbuf[k*2]   = H[MASTER_PUBLIC_KEY[k] >> 4];
+        hexbuf[k*2+1] = H[MASTER_PUBLIC_KEY[k] & 0xF];
+      }
+      hexbuf[16] = '\0';
+      LIC_LOG("verify: cert_decoded len=%d (sig=64, payload=%zu)", cert_len, cert_payload_len);
+      LIC_LOG("verify: MASTER_PUBLIC_KEY[0..8]=%s", hexbuf);
+      char hexsig[16 * 2 + 1];
+      for (int k = 0; k < 16; k++) {
+        hexsig[k*2]   = H[master_sig[k] >> 4];
+        hexsig[k*2+1] = H[master_sig[k] & 0xF];
+      }
+      hexsig[32] = '\0';
+      LIC_LOG("verify: master_sig[0..16]=%s", hexsig);
+      LIC_LOG("verify: cert_payload=%.*s", (int)cert_payload_len, (const char*)cert_payload);
+    }
+#endif
+    if (crypto_ed25519_check(master_sig, MASTER_PUBLIC_KEY,
                            cert_payload, cert_payload_len) != 0) {
       LIC_LOG("verify: master signature on cert FAILED");
       break;
@@ -243,7 +268,7 @@ bool license_verify(const char* engine) {
     const uint8_t* employee_sig = grant_decoded;
     const uint8_t* grant_payload = grant_decoded + 64;
     size_t grant_payload_len = (size_t)grant_len - 64;
-    if (crypto_eddsa_check(employee_sig, employee_pub,
+    if (crypto_ed25519_check(employee_sig, employee_pub,
                            grant_payload, grant_payload_len) != 0) {
       LIC_LOG("verify: employee signature on grant FAILED");
       break;

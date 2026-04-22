@@ -81,6 +81,7 @@ em++ \
   weights_data.cpp \
   "$TMP_LICENSE" \
   ../../patricia-build/wasm/monocypher/monocypher.c \
+  ../../patricia-build/wasm/monocypher/monocypher-ed25519.c \
   $OPT_FLAGS \
   $EXTRA_DEFINES \
   -std=c++20 -DNDEBUG \

@@ -10,6 +10,10 @@ import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { AnalysisEngine } from './content/lib/analysisEngine';
 import { SuggestionEngine } from './content/lib/suggestionEngine';
+import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
+import { PatriciaSuggestionEngine } from './content/lib/patriciaSuggestionEngine';
+import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
+import type { EngineId } from './content/stores/engineStore';
 import { analyzeLastMove } from './content/lib/moveAnalysis';
 import { useAnalysisStore } from './content/stores/analysisStore';
 import { useExplanationStore } from './content/stores/explanationStore';
@@ -19,7 +23,8 @@ import { useEvalStore } from './content/stores/evalStore';
 import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
 let lastRequestedFen: string | null = null;
 let analysisEngine: AnalysisEngine | null = null;
-let suggestionEngine: SuggestionEngine | null = null;
+let suggestionEngine: IEngine | null = null;
+let suggestionEngineSwapInFlight: Promise<void> | null = null;
 let currentRequestId: string | null = null;
 let previousFen: string | null = null;
 let playerMoveCount = 0;
@@ -48,6 +53,50 @@ function isPremiumPlan(plan: string | undefined): boolean {
   return PREMIUM_PLANS.includes(plan ?? '');
 }
 
+async function createEngine(id: EngineId): Promise<IEngine> {
+  let eng: IEngine;
+  switch (id) {
+    case 'maia2':    eng = new MaiaSuggestionEngine(); break;
+    case 'patricia': eng = new PatriciaSuggestionEngine(); break;
+    default:         eng = new SuggestionEngine(); break; // 'komodo'
+  }
+  await eng.init();
+  return eng;
+}
+
+/**
+ * Replace the current suggestion engine with one for the given id.
+ * Cancels any in-flight search, destroys the old instance, then constructs
+ * and inits the new one. Re-fires a suggestion request if a game is live.
+ *
+ * Serialised via `suggestionEngineSwapInFlight` so rapid-fire engine toggles
+ * don't race two inits in parallel.
+ */
+function swapSuggestionEngine(id: EngineId): Promise<void> {
+  const swap = (suggestionEngineSwapInFlight ?? Promise.resolve()).then(async () => {
+    if (suggestionEngine?.id === id && suggestionEngine.ready) return;
+
+    if (suggestionEngine) {
+      try { await suggestionEngine.cancel(); } catch { /* ignore */ }
+      suggestionEngine.destroy();
+      suggestionEngine = null;
+    }
+
+    const fresh = await createEngine(id);
+    suggestionEngine = fresh;
+    useEngineStore.getState().setCapabilities(fresh.getCapabilities());
+    console.log(`[Chessr] suggestion engine ready: ${id}`);
+
+    // Re-fire if a game is live and waiting for our move.
+    const { fen, isPlaying, playerColor, turn } = useGameStore.getState();
+    if (isPlaying && fen && playerColor === turn) {
+      requestSuggestion(fen, true);
+    }
+  });
+  suggestionEngineSwapInFlight = swap;
+  return swap;
+}
+
 function requestSuggestion(fen: string, force = false) {
   if (!force && fen === lastRequestedFen) return;
   lastRequestedFen = fen;
@@ -71,28 +120,61 @@ function runSuggestionSearch(fen: string) {
   if (!suggestionEngine?.ready) return;
 
   const engine = useEngineStore.getState();
-  const effectiveElo = engine.getEffectiveElo();
   const premium = isPremiumPlan(useAuthStore.getState().plan);
+  const numArrows = useSettingsStore.getState().numArrows;
 
-  // Free tier: force defaults + UCI_LimitStrength on, regardless of stored prefs
-  // (user may have been premium previously and still has custom values).
-  const limitStrength = premium ? engine.limitStrength : true;
-  const search = premium
-    ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
-    : FREE_DEFAULTS;
-
-  const params = {
-    fen,
-    moves: [] as string[],
-    targetElo: effectiveElo,
-    personality: engine.personality,
-    multiPv: useSettingsStore.getState().numArrows,
-    limitStrength,
-    ...(engine.dynamismAuto ? {} : { dynamism: engine.dynamism }),
-    ...(engine.kingSafetyAuto ? {} : { kingSafety: engine.kingSafety }),
-    ...(engine.variety > 0 ? { variety: engine.variety } : {}),
-    search,
-  };
+  let params: EngineSearchParams;
+  if (suggestionEngine.id === 'maia2') {
+    params = {
+      fen,
+      moves: [] as string[],
+      multiPv: numArrows,
+      eloSelf: engine.getMaiaEffectiveTargetElo(),
+      eloOppo: engine.getMaiaEffectiveOppoElo(),
+      variant: engine.maiaVariant,
+      useBook: engine.maiaUseBook,
+    };
+  } else if (suggestionEngine.id === 'patricia') {
+    // Patricia shares the classical-engine knobs (targetElo, limitStrength,
+    // search budget) but doesn't accept personality/dynamism/kingsafety/variety.
+    // NOTE: Patricia is single-threaded synchronous WASM. Deep depth budgets
+    // (e.g. depth ≥ 18) carried over from Komodo settings can take 5s+ per
+    // move, which freezes the suggestion UI (no streaming `info` lines). The
+    // user should keep depth ≤ 14 or use movetime/nodes mode for snappy UX.
+    const effectiveElo = engine.getEffectiveElo();
+    const limitStrength = premium ? engine.limitStrength : true;
+    const search = premium
+      ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
+      : FREE_DEFAULTS;
+    params = {
+      fen,
+      moves: [] as string[],
+      targetElo: effectiveElo,
+      multiPv: numArrows,
+      limitStrength,
+      search,
+    };
+  } else {
+    const effectiveElo = engine.getEffectiveElo();
+    // Free tier: force defaults + UCI_LimitStrength on, regardless of stored prefs
+    // (user may have been premium previously and still has custom values).
+    const limitStrength = premium ? engine.limitStrength : true;
+    const search = premium
+      ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
+      : FREE_DEFAULTS;
+    params = {
+      fen,
+      moves: [] as string[],
+      targetElo: effectiveElo,
+      personality: engine.personality,
+      multiPv: numArrows,
+      limitStrength,
+      ...(engine.dynamismAuto ? {} : { dynamism: engine.dynamism }),
+      ...(engine.kingSafetyAuto ? {} : { kingSafety: engine.kingSafety }),
+      ...(engine.variety > 0 ? { variety: engine.variety } : {}),
+      search,
+    };
+  }
 
   // Dedup: if nothing about the query has actually changed since the last
   // search, multiple stores fanning out "maybe you want to re-search" events
@@ -114,13 +196,28 @@ function runSuggestionSearch(fen: string) {
   // Telemetry: log the search on the server (same format as the old
   // server-side engine) — compute is now local but we still want the audit
   // trail for stats / debugging / per-user rate analysis.
-  const searchDesc = params.search
-    ? `${params.search.mode}:${params.search.nodes ?? params.search.depth ?? params.search.movetime}`
-    : 'default';
+  const engineLabel = suggestionEngine.id;
+  const extra = (() => {
+    if (engineLabel === 'maia2') {
+      return `engine=maia2 variant=${params.variant} eloSelf=${params.eloSelf} eloOppo=${params.eloOppo} mpv=${params.multiPv}`;
+    }
+    const searchDesc = params.search
+      ? `${params.search.mode}:${
+          params.search.mode === 'depth' ? params.search.depth
+          : params.search.mode === 'nodes' ? params.search.nodes
+          : params.search.mode === 'movetime' ? params.search.movetime
+          : '?'
+        }`
+      : 'default';
+    if (engineLabel === 'patricia') {
+      return `engine=patricia elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} search=${searchDesc}`;
+    }
+    return `engine=komodo elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`;
+  })();
   sendWs({
     type: 'suggestion_log_start',
     requestId,
-    extra: `elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`,
+    extra,
   });
 
   suggestionEngine.search(params).then((suggestions) => {
@@ -251,7 +348,6 @@ export default defineContentScript({
       if (uid && uid !== lastLoggedInUserId) {
         lastLoggedInUserId = uid;
         connectWs(uid);
-        useSettingsStore.getState().loadFromCloud(uid);
         if (!analysisEngine) {
           const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
           const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
@@ -261,31 +357,17 @@ export default defineContentScript({
             analysisEngine = null;
           });
         }
-        if (!suggestionEngine) {
-          const jsUrl = browser.runtime.getURL('/engine/dragon.js');
-          const wasmUrl = browser.runtime.getURL('/engine/dragon.wasm');
-          const bookUrl = browser.runtime.getURL('/engine/book.bin');
-          suggestionEngine = new SuggestionEngine();
-          suggestionEngine.init(jsUrl, wasmUrl, bookUrl).then(() => {
-            const s = suggestionEngine!.supportedOptions;
-            console.log('[Chessr] Dragon UCI options (' + s.size + '):', Array.from(s).sort());
-            useEngineStore.getState().setCapabilities({
-              hasPersonality: s.has('Personality'),
-              hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),
-              hasDynamism: s.has('Dynamism'),
-              hasKingSafety: s.has('King Safety'),
-              hasVariety: s.has('Variety'),
+        // Wait for cloud settings before instantiating the suggestion engine —
+        // otherwise we'd boot Komodo by default and immediately swap if the
+        // user's cloud preference is Maia 2 (wasted ~1s of init + 16 MB load).
+        useSettingsStore.getState().loadFromCloud(uid).then(() => {
+          if (!suggestionEngine) {
+            const targetEngine = useEngineStore.getState().engineId;
+            swapSuggestionEngine(targetEngine).catch((err) => {
+              console.error('[Chessr] Failed to init suggestion engine:', err);
             });
-            // If a game is already in play when init completes, re-fire once.
-            const { fen, isPlaying, playerColor, turn } = useGameStore.getState();
-            if (isPlaying && fen && playerColor === turn) {
-              requestSuggestion(fen, true);
-            }
-          }).catch((err) => {
-            console.error('[Chessr] Failed to init suggestion engine:', err);
-            suggestionEngine = null;
-          });
-        }
+          }
+        });
       }
       if (!uid && lastLoggedInUserId) {
         lastLoggedInUserId = null;
@@ -294,6 +376,20 @@ export default defineContentScript({
         if (suggestionEngine) { suggestionEngine.destroy(); suggestionEngine = null; }
         if (analysisEngine) { analysisEngine.destroy(); analysisEngine = null; }
       }
+    });
+
+    // Engine switch — when the user picks a different engine in Settings,
+    // tear down the current one and bring up the chosen engine. Only acts
+    // once the user is logged in (suggestionEngine non-null) so we don't
+    // download Maia weights speculatively.
+    let lastEngineId: EngineId = useEngineStore.getState().engineId;
+    useEngineStore.subscribe((state) => {
+      if (state.engineId === lastEngineId) return;
+      lastEngineId = state.engineId;
+      if (!useAuthStore.getState().user) return;
+      swapSuggestionEngine(state.engineId).catch((err) => {
+        console.error('[Chessr] engine swap failed:', err);
+      });
     });
 
     // Request suggestions when it's the player's turn

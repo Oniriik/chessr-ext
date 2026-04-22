@@ -73,6 +73,7 @@ em++ \
   patricia_wasm.cpp \
   "$TMP_LICENSE" \
   monocypher/monocypher.c \
+  monocypher/monocypher-ed25519.c \
   nnue_data.cpp \
   $OPT_FLAGS \
   $EXTRA_DEFINES \
