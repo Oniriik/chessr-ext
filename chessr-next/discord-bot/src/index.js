@@ -100,6 +100,9 @@ const client = new Client({
   partials: [Partials.Channel, Partials.Message],
 });
 
+// 60s in-memory cache for /guild-members — see endpoint comment.
+const guildMembersCache = { payload: null, at: 0 };
+
 // Invite tracking cache: Map<inviteCode, uses>
 const inviteCache = new Map();
 
@@ -1970,20 +1973,33 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // ─── GET /guild-members ───
+  // Cached: a fresh guild.members.fetch() pulls 1000+ members through the
+  // gateway and rate-limits / times out under load → dashboard saw an empty
+  // list. The first call after boot still has to fetch (cache is cold), but
+  // subsequent calls within MEMBER_CACHE_MS reuse the result. Member
+  // add/remove gateway events keep guild.members.cache in sync between
+  // refreshes.
   if (req.method === 'GET' && url.pathname === '/guild-members') {
     try {
       const guild = await client.guilds.fetch(config.guildId);
-      const members = await guild.members.fetch();
-      const result = members
-        .filter(m => !m.user.bot)
-        .map(m => ({
-          discord_id: m.user.id,
-          discord_username: m.user.username,
-          discord_avatar: m.user.avatar,
-          discord_in_guild: true,
-        }));
+      const MEMBER_CACHE_MS = 60_000;
+      const cacheStale = !guildMembersCache.payload
+        || Date.now() - guildMembersCache.at > MEMBER_CACHE_MS;
+      if (cacheStale) {
+        const cached = guild.members.cache;
+        const members = cached.size > 0 ? cached : await guild.members.fetch();
+        guildMembersCache.payload = members
+          .filter(m => !m.user.bot)
+          .map(m => ({
+            discord_id: m.user.id,
+            discord_username: m.user.username,
+            discord_avatar: m.user.avatar,
+            discord_in_guild: true,
+          }));
+        guildMembersCache.at = Date.now();
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ members: result }));
+      res.end(JSON.stringify({ members: guildMembersCache.payload }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
