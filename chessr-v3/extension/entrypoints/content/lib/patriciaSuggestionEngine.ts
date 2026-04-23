@@ -18,7 +18,6 @@ import { buildGoCommand, type SearchOptions } from './searchOptions';
 import { labelSuggestions, type LabeledSuggestion, type Suggestion } from './engineLabeler';
 import type { IEngine, SuggestionSearchParams } from './engineApi';
 import type { EngineCapabilities } from '../stores/engineStore';
-import { useAuthStore } from '../stores/authStore';
 
 const HASH_MB = 32;
 const SEARCH_TIMEOUT_MS = 30_000;
@@ -141,7 +140,6 @@ export class PatriciaSuggestionEngine implements IEngine {
       // The above evaluates the emscripten MODULARIZE factory into 'Module'.
       const PATRICIA_WASM_URL = ${JSON.stringify(wasmUrl)};
       let cmd = null;
-      let setAuthToken = null;
       const lines = [];
       let flushTimer = null;
       function flush() {
@@ -149,12 +147,6 @@ export class PatriciaSuggestionEngine implements IEngine {
         flushTimer = null;
       }
       function dispatchLine(line) {
-        // License-debug logs from the WASM (verbose builds only) — surface in
-        // devtools instead of mixing with UCI output that the main thread parses.
-        if (typeof line === 'string' && line.startsWith('[license]')) {
-          console.log('[patricia worker]', line);
-          return;
-        }
         lines.push(line);
         if (!flushTimer) flushTimer = setTimeout(flush, 0);
       }
@@ -164,20 +156,12 @@ export class PatriciaSuggestionEngine implements IEngine {
         printErr: dispatchLine,
       }).then((mod) => {
         cmd = mod.cwrap('wasm_command', null, ['string']);
-        setAuthToken = mod.cwrap('wasm_set_auth_token', null, ['string']);
         const init = mod.cwrap('wasm_init', null, []);
         init();
         flush();
         postMessage({ __ready: true });
       });
       onmessage = (e) => {
-        // Auth-token push from the main thread — must precede any 'go'
-        // command, otherwise the WASM-side license check has nothing to
-        // send as Bearer header → fetch fails → no suggestions.
-        if (e.data && typeof e.data === 'object' && e.data.__set_auth) {
-          if (setAuthToken) setAuthToken(e.data.token || '');
-          return;
-        }
         if (cmd && typeof e.data === 'string') {
           cmd(e.data);
           flush();
@@ -239,28 +223,7 @@ export class PatriciaSuggestionEngine implements IEngine {
       this.send('isready');
     }), INIT_TIMEOUT_MS, 'patricia isready timeout');
 
-    // Push the Supabase JWT into the WASM. Required before any `go` —
-    // license_verify() inside the WASM won't fire without a Bearer token.
-    this.pushAuthToken();
-
-    // Subscribe to auth changes — token refreshes (~1h cycle in Supabase)
-    // need to be pushed promptly so the next `go` doesn't fail with a stale
-    // expired JWT.
-    this._unsubscribeAuth = useAuthStore.subscribe((state, prev) => {
-      const newTok = state.session?.access_token ?? '';
-      const oldTok = prev.session?.access_token ?? '';
-      if (newTok !== oldTok) this.pushAuthToken();
-    });
-
     this._ready = true;
-  }
-
-  private _unsubscribeAuth: (() => void) | null = null;
-
-  private pushAuthToken(): void {
-    if (!this.worker) return;
-    const token = useAuthStore.getState().session?.access_token ?? '';
-    this.worker.postMessage({ __set_auth: true, token });
   }
 
   async search(params: SuggestionSearchParams): Promise<LabeledSuggestion[]> {
@@ -324,7 +287,6 @@ export class PatriciaSuggestionEngine implements IEngine {
 
   destroy(): void {
     if (this.activeResolve) this.abortActive(new Error('Engine destroyed'));
-    if (this._unsubscribeAuth) { this._unsubscribeAuth(); this._unsubscribeAuth = null; }
     if (this.worker) {
       this.worker.terminate();
       this.worker = null;

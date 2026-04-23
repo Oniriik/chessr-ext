@@ -1,12 +1,10 @@
 /**
  * MaiaSuggestionEngine — runs Maia 2 inference via the custom WASM runtime
- * (built from maia2-wasm/maia-runtime/). The runtime bakes the same
- * Ed25519 license-check chain as Patricia, so a free user cannot bypass
- * the premium gate by patching the JS wrapper.
+ * built from maia2-wasm/maia-runtime/.
  *
  * Worker-resident pipeline (CSP-safe Blob URL pattern, identical to Patricia):
  *   - JS sends FEN + ELO buckets via postMessage
- *   - Worker calls wasm_predict (which itself runs the license check)
+ *   - Worker calls wasm_predict
  *   - Worker reads logits + value back from WASM heap, posts to main thread
  *   - Main thread applies legal-move mask, softmax, polyglot book lookup,
  *     mirrors black-to-move suggestions back to the original frame
@@ -16,9 +14,8 @@ import { Chess } from 'chess.js';
 import type { IEngine, SuggestionSearchParams } from './engineApi';
 import type { LabeledSuggestion, Suggestion } from './engineLabeler';
 import { labelSuggestions } from './engineLabeler';
-import type { EngineCapabilities, MaiaVariant } from '../stores/engineStore';
+import type { EngineCapabilities } from '../stores/engineStore';
 import { PolyglotBook } from './polyglotBook';
-import { useAuthStore } from '../stores/authStore';
 
 const INIT_TIMEOUT_MS = 30_000;
 const PREDICT_TIMEOUT_MS = 10_000;
@@ -67,7 +64,6 @@ export class MaiaSuggestionEngine implements IEngine {
   private currentSearch: { abort: () => void } | null = null;
   private nextRequestId = 1;
   private pending = new Map<number, PendingPredict>();
-  private _unsubscribeAuth: (() => void) | null = null;
 
   get ready(): boolean { return this._ready; }
   getCapabilities(): EngineCapabilities { return MAIA_CAPABILITIES; }
@@ -87,14 +83,6 @@ export class MaiaSuggestionEngine implements IEngine {
 
     // Bring up the Worker that hosts the WASM runtime.
     await this.bootWorker();
-
-    // Push the Supabase JWT (required for the license check inside the WASM).
-    this.pushAuthToken();
-    this._unsubscribeAuth = useAuthStore.subscribe((state, prev) => {
-      const newTok = state.session?.access_token ?? '';
-      const oldTok = prev.session?.access_token ?? '';
-      if (newTok !== oldTok) this.pushAuthToken();
-    });
 
     // Polyglot opening book — non-fatal if it fails. Same instance pattern as
     // before; covers the first ~10-20 ply where Maia is unreliable.
@@ -126,27 +114,22 @@ export class MaiaSuggestionEngine implements IEngine {
       const MAIA_WASM_URL = ${JSON.stringify(wasmUrl)};
       let predict = null;
       let logitsPtr = null, logitsCount = 0, valueOf = null;
-      let setAuth = null;
       Module({
         locateFile: (path) => path.endsWith('.wasm') ? MAIA_WASM_URL : path,
       }).then((mod) => {
         const init = mod.cwrap('wasm_init', null, []);
-        setAuth = mod.cwrap('wasm_set_auth_token', null, ['string']);
         predict = mod.cwrap('wasm_predict', 'number', ['string', 'number', 'number']);
         const lp = mod.cwrap('wasm_logits_ptr', 'number', []);
         valueOf = mod.cwrap('wasm_value', 'number', []);
         logitsCount = mod.cwrap('wasm_logits_count', 'number', [])();
         init();
         logitsPtr = lp();
-        // Capture HEAPF32 reference once — moduleArg.HEAPF32 is recreated when
-        // memory grows, so we re-read it inside each handler.
         self.__maiaModule = mod;
         postMessage({ __ready: true });
       });
       onmessage = (e) => {
         const d = e.data;
         if (!d) return;
-        if (d.__set_auth) { if (setAuth) setAuth(d.token || ''); return; }
         if (d.__predict) {
           if (!predict) { postMessage({ __reply: d.id, ok: false }); return; }
           const ok = predict(d.fen, BigInt(d.eloSelf), BigInt(d.eloOppo));
@@ -191,12 +174,6 @@ export class MaiaSuggestionEngine implements IEngine {
     } else {
       pending.resolve({ logits: d.logits as Float32Array, value: d.value as number });
     }
-  }
-
-  private pushAuthToken(): void {
-    if (!this.worker) return;
-    const token = useAuthStore.getState().session?.access_token ?? '';
-    this.worker.postMessage({ __set_auth: true, token });
   }
 
   private callPredict(fen: string, eloSelf: number, eloOppo: number): Promise<{ logits: Float32Array; value: number }> {
@@ -329,7 +306,6 @@ export class MaiaSuggestionEngine implements IEngine {
   }
 
   destroy(): void {
-    if (this._unsubscribeAuth) { this._unsubscribeAuth(); this._unsubscribeAuth = null; }
     for (const p of this.pending.values()) {
       clearTimeout(p.timer);
       p.reject(new Error('Engine destroyed'));

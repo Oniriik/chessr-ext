@@ -20,7 +20,7 @@ export default defineConfig({
       ? "[BETA] Chessr.io — Chess assist done right!"
       : "Chessr.io — Chess assist done right!",
     description: isBeta ? "Chessr.io v3 BETA" : "Chessr.io v3",
-    version: "3.0.2",
+    version: "3.0.5",
     icons: {
       16: "/icons/icon16.png",
       48: "/icons/icon48.png",

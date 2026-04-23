@@ -1,7 +1,5 @@
 #include "../src/model.h"
 #include "../src/encoding.h"
-#include "../../patricia-build/wasm/license.h"
-#include "../../patricia-build/wasm/obfs.h"
 
 #include <emscripten/emscripten.h>
 
@@ -43,14 +41,8 @@ void wasm_init() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-void wasm_set_auth_token(const char* token) {
-  license_set_auth_token(token);
-}
-
-EMSCRIPTEN_KEEPALIVE
 int wasm_predict(const char* fen, int64_t elo_self, int64_t elo_oppo) {
   if (!ensure_loaded()) return 0;
-  if (!license_verify(OBFS("maia2"))) return 0;
 
   // Maia 2 is white-POV only. If it's black-to-move, mirror the FEN before
   // encoding. The caller (JS) is responsible for mirroring output moves back
