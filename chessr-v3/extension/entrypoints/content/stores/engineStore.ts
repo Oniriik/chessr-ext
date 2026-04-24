@@ -7,7 +7,7 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
-export type EngineId = 'komodo' | 'maia2' | 'patricia';
+export type EngineId = 'komodo' | 'maia2';
 export type MaiaVariant = 'blitz' | 'rapid';
 
 export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string }> = {
@@ -20,11 +20,6 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Maia 2',
     desc:  'Neural network that plays like a human at the chosen ELO.',
     eloRange: '1100 – 2000',
-  },
-  patricia: {
-    label: 'Patricia',
-    desc:  'Open-source aggressive engine — favours sharp tactical play.',
-    eloRange: '500 – 3000',
   },
 };
 

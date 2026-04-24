@@ -5,7 +5,6 @@ import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, MAIA_VARIANT_INFO, type MaiaVariant, ENGINE_INFO } from '../stores/engineStore';
-import { PATRICIA_ELO_LEVELS, snapToPatriciaElo } from '../lib/patriciaSuggestionEngine';
 import { useLayoutStore } from '../stores/layoutStore';
 import { animationGate } from '../stores/animationStore';
 import { COMPONENT_REGISTRY } from './ComponentRegistry';
@@ -654,7 +653,6 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
   const engineOrder = useLayoutStore((s) => s.engineOrder);
 
   if (engineId === 'maia2') return <Maia2Panel />;
-  if (engineId === 'patricia') return <PatriciaPanel />;
 
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -794,152 +792,3 @@ function Maia2Panel() {
   );
 }
 
-function PatriciaPanel() {
-  const engine = useEngineStore();
-  const plan = useAuthStore((s) => s.plan);
-  const premium = isPremium(plan);
-  const editMode = useLayoutStore((s) => s.editMode);
-  const searchPinned = useLayoutStore((s) => s.pinned.includes('patricia-search'));
-  const forcePinned = useLayoutStore((s) => s.pinned.includes('patricia-force'));
-  const togglePin = useLayoutStore((s) => s.togglePin);
-
-  // Patricia's strength is bucketed into 20 ELO paliers (Skill_Level 1..20)
-  // plus "Full strength" (Skill_Level 21). We snap the slider to the closest
-  // palier so the displayed value reflects what the engine actually plays at.
-  const fullStrength = !engine.limitStrength && premium;
-  const rawElo = engine.targetEloAuto ? engine.getEffectiveElo() : engine.targetEloManual;
-  const displayElo = fullStrength ? 'Max' : snapToPatriciaElo(rawElo);
-
-  const handleSliderChange = (v: number) => {
-    const snapped = snapToPatriciaElo(v);
-    if (engine.targetEloAuto) engine.setTargetEloAuto(false);
-    engine.setTargetEloManual(snapped);
-    if (!engine.limitStrength) engine.setLimitStrength(true);
-  };
-
-  return (
-    <div className="engine-panel">
-      <EditableComponent id="patricia-elo">
-        <div className="engine-section">
-          <div className="engine-section-header">
-            <span className="engine-section-label">Target ELO</span>
-            <button
-              className={`engine-auto-btn ${engine.targetEloAuto ? 'engine-auto-btn--active' : ''}`}
-              onClick={() => engine.setTargetEloAuto(!engine.targetEloAuto)}
-            >Auto</button>
-          </div>
-          <div className="engine-elo-display">
-            <span className="engine-elo-value">{displayElo}</span>
-          </div>
-          {engine.targetEloAuto && !fullStrength && (
-            <span className="engine-desc">
-              {engine.opponentElo > 0
-                ? `Opponent ${engine.opponentElo} + ${engine.autoEloBoost} boost → snapped to ${snapToPatriciaElo(engine.opponentElo + engine.autoEloBoost)}`
-                : `${engine.userElo} + ${engine.autoEloBoost} boost → snapped to ${snapToPatriciaElo(engine.userElo + engine.autoEloBoost)}`}
-            </span>
-          )}
-          {!fullStrength && (
-            <Slider
-              min={PATRICIA_ELO_LEVELS[0]}
-              max={PATRICIA_ELO_LEVELS[PATRICIA_ELO_LEVELS.length - 1]}
-              step={1}
-              value={typeof displayElo === 'number' ? displayElo : PATRICIA_ELO_LEVELS[0]}
-              onChange={handleSliderChange}
-              trackColor="linear-gradient(90deg, #22c55e, #3b82f6, #ef4444)"
-              thumbColor="#22c55e"
-              thumbColorEnd="#ef4444"
-            />
-          )}
-          <span className="engine-desc">
-            20 discrete strength paliers (500–3000) + max strength. Slider snaps to the nearest palier.
-          </span>
-
-          {/* "Force search depth" submodule — sets per-move search budget.
-              Lives inside the Target ELO card to mirror Komodo's panel layout. */}
-          <div className="engine-subsection">
-            <div className="engine-section-header">
-              <div className="engine-section-label-group">
-                <span className="engine-section-label" style={{ fontSize: 9 }}>Force search depth</span>
-                {editMode && (
-                  <button
-                    type="button"
-                    className={`engine-sub-pin ${searchPinned ? 'engine-sub-pin--active' : ''}`}
-                    title={searchPinned ? 'Unpin from page' : 'Pin to page'}
-                    onClick={() => togglePin('patricia-search')}
-                  >
-                    📌
-                  </button>
-                )}
-              </div>
-              <select
-                value={engine.searchMode}
-                disabled={!premium}
-                onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
-                className="engine-select"
-              >
-                <option value="nodes">Nodes</option>
-                <option value="depth">Depth</option>
-                <option value="movetime">Move Time</option>
-              </select>
-            </div>
-            <div className="engine-section-header">
-              {engine.searchMode === 'nodes' && (
-                <>
-                  <Slider min={100000} max={5000000} step={100000} value={engine.searchNodes} onChange={engine.setSearchNodes} disabled={!premium}
-                    trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 30%, #a855f7 60%, #ef4444 100%)"
-                    thumbColorFn={(pct) => pct < 30 ? '#3b82f6' : pct < 60 ? lerpColor('#3b82f6', '#a855f7', (pct - 30) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 60) / 40)} />
-                  <span className="engine-hint">{(engine.searchNodes / 1000000) >= 1 ? `${(engine.searchNodes / 1000000).toFixed(1)}M` : `${(engine.searchNodes / 1000).toFixed(0)}k`}</span>
-                </>
-              )}
-              {engine.searchMode === 'depth' && (
-                <>
-                  <Slider min={1} max={30} step={1} value={engine.searchDepth} onChange={engine.setSearchDepth} disabled={!premium}
-                    trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
-                    thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)} />
-                  <span className="engine-hint">{engine.searchDepth}</span>
-                </>
-              )}
-              {engine.searchMode === 'movetime' && (
-                <>
-                  <Slider min={500} max={5000} step={100} value={engine.searchMovetime} onChange={engine.setSearchMovetime} disabled={!premium}
-                    trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 25%, #a855f7 55%, #ef4444 100%)"
-                    thumbColorFn={(pct) => pct < 25 ? '#3b82f6' : pct < 55 ? lerpColor('#3b82f6', '#a855f7', (pct - 25) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 55) / 45)} />
-                  <span className="engine-hint">{(engine.searchMovetime / 1000).toFixed(1)}s</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Full strength toggle — bypass the Skill_Level cap entirely. */}
-          <div className="engine-force-row">
-            <div className="engine-force-text">
-              <div className="engine-section-label-group">
-                <span className="engine-force-label">Full strength</span>
-                {editMode && (
-                  <button
-                    type="button"
-                    className={`engine-sub-pin ${forcePinned ? 'engine-sub-pin--active' : ''}`}
-                    title={forcePinned ? 'Unpin from page' : 'Pin to page'}
-                    onClick={() => togglePin('patricia-force')}
-                  >
-                    📌
-                  </button>
-                )}
-              </div>
-              <span className="engine-force-desc">
-                {premium
-                  ? 'Bypass ELO capping — Patricia plays at max strength.'
-                  : 'Premium — bypass ELO capping for max strength.'}
-              </span>
-            </div>
-            <Toggle
-              checked={fullStrength}
-              onChange={(v) => { if (premium) engine.setLimitStrength(!v); }}
-              disabled={!premium}
-            />
-          </div>
-        </div>
-      </EditableComponent>
-    </div>
-  );
-}

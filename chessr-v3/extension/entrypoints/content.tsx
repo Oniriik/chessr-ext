@@ -11,7 +11,6 @@ import { initEvalBar } from './content/lib/evalBar';
 import { AnalysisEngine } from './content/lib/analysisEngine';
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
-import { PatriciaSuggestionEngine } from './content/lib/patriciaSuggestionEngine';
 import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
 import type { EngineId } from './content/stores/engineStore';
 import { analyzeLastMove } from './content/lib/moveAnalysis';
@@ -56,9 +55,8 @@ function isPremiumPlan(plan: string | undefined): boolean {
 async function createEngine(id: EngineId): Promise<IEngine> {
   let eng: IEngine;
   switch (id) {
-    case 'maia2':    eng = new MaiaSuggestionEngine(); break;
-    case 'patricia': eng = new PatriciaSuggestionEngine(); break;
-    default:         eng = new SuggestionEngine(); break; // 'komodo'
+    case 'maia2': eng = new MaiaSuggestionEngine(); break;
+    default:      eng = new SuggestionEngine(); break; // 'komodo'
   }
   await eng.init();
   return eng;
@@ -134,26 +132,6 @@ function runSuggestionSearch(fen: string) {
       variant: engine.maiaVariant,
       useBook: engine.maiaUseBook,
     };
-  } else if (suggestionEngine.id === 'patricia') {
-    // Patricia shares the classical-engine knobs (targetElo, limitStrength,
-    // search budget) but doesn't accept personality/dynamism/kingsafety/variety.
-    // NOTE: Patricia is single-threaded synchronous WASM. Deep depth budgets
-    // (e.g. depth ≥ 18) carried over from Komodo settings can take 5s+ per
-    // move, which freezes the suggestion UI (no streaming `info` lines). The
-    // user should keep depth ≤ 14 or use movetime/nodes mode for snappy UX.
-    const effectiveElo = engine.getEffectiveElo();
-    const limitStrength = premium ? engine.limitStrength : true;
-    const search = premium
-      ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
-      : FREE_DEFAULTS;
-    params = {
-      fen,
-      moves: [] as string[],
-      targetElo: effectiveElo,
-      multiPv: numArrows,
-      limitStrength,
-      search,
-    };
   } else {
     const effectiveElo = engine.getEffectiveElo();
     // Free tier: force defaults + UCI_LimitStrength on, regardless of stored prefs
@@ -209,9 +187,6 @@ function runSuggestionSearch(fen: string) {
           : '?'
         }`
       : 'default';
-    if (engineLabel === 'patricia') {
-      return `engine=patricia elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} search=${searchDesc}`;
-    }
     return `engine=komodo elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`;
   })();
   sendWs({

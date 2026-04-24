@@ -2,7 +2,7 @@
  * MaiaSuggestionEngine — runs Maia 2 inference via the custom WASM runtime
  * built from maia2-wasm/maia-runtime/.
  *
- * Worker-resident pipeline (CSP-safe Blob URL pattern, identical to Patricia):
+ * Worker-resident pipeline (CSP-safe Blob URL pattern, identical to Komodo):
  *   - JS sends FEN + ELO buckets via postMessage
  *   - Worker calls wasm_predict
  *   - Worker reads logits + value back from WASM heap, posts to main thread

@@ -8,7 +8,6 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { useAuthStore } from '../stores/authStore';
 import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, type EngineId, type MaiaVariant, MAIA_VARIANT_INFO } from '../stores/engineStore';
-import { snapToPatriciaElo, PATRICIA_ELO_LEVELS } from '../lib/patriciaSuggestionEngine';
 import { useAccuracy, useAccuracyTrend, useMoveAnalyses, computeClassificationCounts } from '../stores/analysisStore';
 import { useAutoMoveStore, formatCountdown } from '../stores/autoMoveStore';
 import { useLayoutStore } from '../stores/layoutStore';
@@ -35,11 +34,6 @@ export const COMPONENT_REGISTRY: Record<string, { label: string; engineId?: Engi
   'maia-target-elo': { label: 'Maia Target ELO',   engineId: 'maia2' },
   'maia-oppo-elo':   { label: 'Maia Opponent ELO', engineId: 'maia2' },
   'maia-variant':    { label: 'Maia Variant',      engineId: 'maia2' },
-
-  // Patricia-specific widgets — only render when engineId === 'patricia'.
-  'patricia-elo':    { label: 'Patricia Target ELO',       engineId: 'patricia' },
-  'patricia-search': { label: 'Patricia Force search depth', engineId: 'patricia' },
-  'patricia-force':  { label: 'Patricia Full strength',     engineId: 'patricia' },
 };
 
 function isPremium(plan: string): boolean {
@@ -580,143 +574,6 @@ function FloatingMaiaVariant() {
   );
 }
 
-// ─── Patricia floating widget ─────────────────────────────────────────────
-
-// Patricia search-budget submodule (re-renders the Force-search-depth row).
-// Used standalone (FloatingPatriciaSearch) and embedded in FloatingPatriciaElo
-// when patricia-elo + patricia-search are pinned together.
-function PatriciaSearchSubmodule({ embedded = false }: { embedded?: boolean }) {
-  const engine = useEngineStore();
-  const plan = useAuthStore((s) => s.plan);
-  const premium = isPremium(plan);
-  const wrapperStyle: React.CSSProperties = embedded
-    ? { marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)' }
-    : {};
-  return (
-    <div style={wrapperStyle}>
-      <div style={fRow}>
-        <span style={fLabel}>Force search depth</span>
-        <select
-          value={engine.searchMode}
-          disabled={!premium}
-          onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
-          style={fSelect}
-        >
-          <option value="nodes">Nodes</option>
-          <option value="depth">Depth</option>
-          <option value="movetime">Move Time</option>
-        </select>
-      </div>
-      <div style={{ ...fRow, marginTop: 4 }}>
-        {engine.searchMode === 'nodes' && (
-          <>
-            <Slider min={100000} max={5000000} step={100000} value={engine.searchNodes} onChange={engine.setSearchNodes} disabled={!premium}
-              trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 30%, #a855f7 60%, #ef4444 100%)"
-              thumbColorFn={(pct) => pct < 30 ? '#3b82f6' : pct < 60 ? lerpColor('#3b82f6', '#a855f7', (pct - 30) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 60) / 40)} />
-            <span style={{ fontSize: 9, color: '#71717a', flexShrink: 0 }}>{(engine.searchNodes / 1000000) >= 1 ? `${(engine.searchNodes / 1000000).toFixed(1)}M` : `${(engine.searchNodes / 1000).toFixed(0)}k`}</span>
-          </>
-        )}
-        {engine.searchMode === 'depth' && (
-          <>
-            <Slider min={1} max={30} step={1} value={engine.searchDepth} onChange={engine.setSearchDepth} disabled={!premium}
-              trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
-              thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)} />
-            <span style={{ fontSize: 9, color: '#71717a', flexShrink: 0 }}>{engine.searchDepth}</span>
-          </>
-        )}
-        {engine.searchMode === 'movetime' && (
-          <>
-            <Slider min={500} max={5000} step={100} value={engine.searchMovetime} onChange={engine.setSearchMovetime} disabled={!premium}
-              trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 25%, #a855f7 55%, #ef4444 100%)"
-              thumbColorFn={(pct) => pct < 25 ? '#3b82f6' : pct < 55 ? lerpColor('#3b82f6', '#a855f7', (pct - 25) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 55) / 45)} />
-            <span style={{ fontSize: 9, color: '#71717a', flexShrink: 0 }}>{(engine.searchMovetime / 1000).toFixed(1)}s</span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PatriciaForceSubmodule({ embedded = false }: { embedded?: boolean }) {
-  const engine = useEngineStore();
-  const plan = useAuthStore((s) => s.plan);
-  const premium = isPremium(plan);
-  const wrapperStyle: React.CSSProperties = embedded
-    ? { marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)' }
-    : {};
-  return (
-    <div style={wrapperStyle}>
-      <div style={fRow}>
-        <span style={{ ...fLabel, fontSize: 7 }}>Full strength</span>
-        <Toggle
-          checked={!engine.limitStrength && premium}
-          onChange={(v) => { if (premium) engine.setLimitStrength(!v); }}
-          disabled={!premium}
-        />
-      </div>
-    </div>
-  );
-}
-
-function FloatingPatriciaSearch() {
-  return <div style={fCard}><PatriciaSearchSubmodule /></div>;
-}
-
-function FloatingPatriciaForce() {
-  return <div style={{ ...fCard, ...fRow }}><PatriciaForceSubmodule /></div>;
-}
-
-function FloatingPatriciaElo() {
-  const engine = useEngineStore();
-  const plan = useAuthStore((s) => s.plan);
-  const premium = isPremium(plan);
-  const fullStrength = !engine.limitStrength && premium;
-  const rawElo = engine.targetEloAuto ? engine.getEffectiveElo() : engine.targetEloManual;
-  const displayElo: number | string = fullStrength ? 'Max' : snapToPatriciaElo(rawElo);
-  const autoActive = engine.targetEloAuto;
-  const searchPinned = useLayoutStore((s) => s.pinned.includes('patricia-search'));
-  const forcePinned = useLayoutStore((s) => s.pinned.includes('patricia-force'));
-
-  const handleSliderChange = (v: number) => {
-    const snapped = snapToPatriciaElo(v);
-    if (autoActive) engine.setTargetEloAuto(false);
-    engine.setTargetEloManual(snapped);
-    if (!engine.limitStrength) engine.setLimitStrength(true);
-  };
-
-  return (
-    <div style={fCard}>
-      <div style={fRow}>
-        <span style={fLabel}>Target ELO</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{displayElo}</span>
-          <button onClick={() => engine.setTargetEloAuto(!autoActive)} style={fAutoBtn(autoActive)}>Auto</button>
-        </div>
-      </div>
-      {!fullStrength && (
-        <Slider
-          min={PATRICIA_ELO_LEVELS[0]}
-          max={PATRICIA_ELO_LEVELS[PATRICIA_ELO_LEVELS.length - 1]}
-          step={1}
-          value={typeof displayElo === 'number' ? displayElo : PATRICIA_ELO_LEVELS[0]}
-          onChange={handleSliderChange}
-          trackColor="linear-gradient(90deg, #22c55e, #3b82f6, #ef4444)"
-          thumbColor="#22c55e"
-          thumbColorEnd="#ef4444"
-        />
-      )}
-      {autoActive && !fullStrength && (
-        <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
-          {engine.opponentElo > 0
-            ? `Opp ${engine.opponentElo} + ${engine.autoEloBoost} → ${snapToPatriciaElo(engine.opponentElo + engine.autoEloBoost)}`
-            : `${engine.userElo} + ${engine.autoEloBoost} → ${snapToPatriciaElo(engine.userElo + engine.autoEloBoost)}`}
-        </span>
-      )}
-      {searchPinned && <PatriciaSearchSubmodule embedded />}
-      {forcePinned && <PatriciaForceSubmodule embedded />}
-    </div>
-  );
-}
 
 export function renderPinnedComponent(id: string, engineId?: EngineId): React.ReactNode | null {
   // Engine-scoped widgets only render when the matching engine is active.
@@ -742,9 +599,6 @@ export function renderPinnedComponent(id: string, engineId?: EngineId): React.Re
     case 'maia-target-elo': return <FloatingMaiaTargetElo />;
     case 'maia-oppo-elo': return <FloatingMaiaOppoElo />;
     case 'maia-variant': return <FloatingMaiaVariant />;
-    case 'patricia-elo': return <FloatingPatriciaElo />;
-    case 'patricia-search': return pinned.includes('patricia-elo') ? null : <FloatingPatriciaSearch />;
-    case 'patricia-force': return pinned.includes('patricia-elo') ? null : <FloatingPatriciaForce />;
     default: return null;
   }
 }
