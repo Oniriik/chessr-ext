@@ -35,10 +35,10 @@ let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | nu
  *  Windows AV, SIMD missing) we fall through to a WS-proxied Stockfish
  *  native on the server. */
 async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean; destroy(): void }> {
-  // Same dev affordance as createEngine — set localStorage.chessrForceServer=1
-  // to skip Stockfish WASM and force the server eval endpoint.
-  if (typeof localStorage !== 'undefined' && localStorage.chessrForceServer === '1') {
-    console.log('[Chessr] chessrForceServer=1 → server analysis engine');
+  // Same dev affordance — set localStorage.chessrForceServer to '1', 'all',
+  // or include 'stockfish' in the comma list to skip Stockfish WASM.
+  if (forceServerSet().has('stockfish')) {
+    console.log('[Chessr] chessrForceServer set for stockfish → server analysis engine');
     const srv = new ServerAnalysisEngine();
     await srv.init();
     return srv;
@@ -48,6 +48,9 @@ async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean
   const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
   const wasm = new AnalysisEngine();
   try {
+    if (forceFailSet().has('stockfish')) {
+      throw new Error('chessrFailWasm set for stockfish → simulated init failure');
+    }
     await Promise.race([
       wasm.init(jsUrl, wasmUrl),
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error('stockfish wasm init timeout')), 3000)),
@@ -112,12 +115,39 @@ function newWasmEngine(id: EngineId): IEngine {
   }
 }
 
+/** Parse the chessrForceServer localStorage flag into a Set of engine
+ *  identifiers that should skip WASM. Accepts:
+ *    '1' or 'all' → ['komodo', 'maia2', 'stockfish']
+ *    'komodo'     → ['komodo']
+ *    'komodo,maia2,stockfish' (any subset)
+ *  Anything else / unset → empty Set (no override). */
+function forceServerSet(): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set();
+  const raw = localStorage.chessrForceServer;
+  if (!raw) return new Set();
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'stockfish']);
+  return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
+}
+
+/** Sister flag: simulate a WASM init *failure* so the catch → fallback path
+ *  is exercised (vs forceServerSet which just skips WASM). Same syntax. */
+function forceFailSet(): Set<string> {
+  if (typeof localStorage === 'undefined') return new Set();
+  const raw = localStorage.chessrFailWasm;
+  if (!raw) return new Set();
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'stockfish']);
+  return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
+}
+
 async function createEngine(id: EngineId): Promise<IEngine> {
   // DEV affordance: skip WASM and force the server path. Toggle from
-  // DevTools console: `localStorage.chessrForceServer = '1'` (set), then
-  // reload. To restore: `delete localStorage.chessrForceServer`.
-  if (typeof localStorage !== 'undefined' && localStorage.chessrForceServer === '1') {
-    console.log(`[Chessr] chessrForceServer=1 → server engine for ${id}`);
+  // DevTools console:
+  //   `localStorage.chessrForceServer = '1'`        → all engines
+  //   `localStorage.chessrForceServer = 'komodo'`   → only Komodo
+  //   `localStorage.chessrForceServer = 'maia2,stockfish'` → both
+  // Then reload. To restore: `delete localStorage.chessrForceServer`.
+  if (forceServerSet().has(id)) {
+    console.log(`[Chessr] chessrForceServer set for ${id} → server engine`);
     const srv = new ServerEngine(id);
     await srv.init();
     return srv;
@@ -125,6 +155,11 @@ async function createEngine(id: EngineId): Promise<IEngine> {
 
   const wasmEng = newWasmEngine(id);
   try {
+    // DEV: simulate a WASM init failure to exercise the catch-fallback path.
+    // `localStorage.chessrFailWasm = '<engineId>'` (or '1'/'all').
+    if (forceFailSet().has(id)) {
+      throw new Error(`chessrFailWasm set for ${id} → simulated init failure`);
+    }
     await Promise.race([
       wasmEng.init(),
       new Promise<never>((_, rej) =>
