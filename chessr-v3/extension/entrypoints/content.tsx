@@ -9,8 +9,11 @@ import { renderArrows, clearArrows } from './content/lib/arrows';
 import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { AnalysisEngine } from './content/lib/analysisEngine';
+import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
+import type { AnalysisBackend } from './content/lib/moveAnalysis';
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
+import { ServerEngine } from './content/lib/serverEngine';
 import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
 import type { EngineId } from './content/stores/engineStore';
 import { analyzeLastMove } from './content/lib/moveAnalysis';
@@ -21,7 +24,32 @@ import { animationGate } from './content/stores/animationStore';
 import { useEvalStore } from './content/stores/evalStore';
 import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
 let lastRequestedFen: string | null = null;
-let analysisEngine: AnalysisEngine | null = null;
+let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | null = null;
+
+/** WASM-first analysis engine with server fallback. Same 3s WASM cap as
+ *  suggestion engines — if Stockfish WASM doesn't load quickly (iOS,
+ *  Windows AV, SIMD missing) we fall through to a WS-proxied Stockfish
+ *  native on the server. */
+async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean; destroy(): void }> {
+  const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
+  const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
+  const wasm = new AnalysisEngine();
+  try {
+    await Promise.race([
+      wasm.init(jsUrl, wasmUrl),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('stockfish wasm init timeout')), 3000)),
+    ]);
+    console.log('[Chessr] analysis engine ready (WASM)');
+    return wasm;
+  } catch (err) {
+    console.warn('[Chessr] Stockfish WASM failed, falling back to server', err);
+    try { wasm.destroy(); } catch { /* ignore */ }
+    const srv = new ServerAnalysisEngine();
+    await srv.init();
+    console.log('[Chessr] analysis engine ready (server fallback)');
+    return srv;
+  }
+}
 let suggestionEngine: IEngine | null = null;
 let suggestionEngineSwapInFlight: Promise<void> | null = null;
 let currentRequestId: string | null = null;
@@ -52,14 +80,43 @@ function isPremiumPlan(plan: string | undefined): boolean {
   return PREMIUM_PLANS.includes(plan ?? '');
 }
 
-async function createEngine(id: EngineId): Promise<IEngine> {
-  let eng: IEngine;
+/**
+ * WASM-first engine builder with server fallback.
+ *
+ * Browsers where WASM can't load (iOS Orion, Windows AV strips binaries, old
+ * Chromium without SIMD, low-memory devices) won't get a working WASM init
+ * in 3 seconds. We cap the WASM attempt at 3s, terminate the engine on
+ * failure, and return a ServerEngine that proxies searches to the OVH
+ * native Komodo / Maia instead. Desktop Chrome inits in <1s so there's no
+ * visible regression for working environments.
+ */
+const WASM_INIT_TIMEOUT_MS = 3000;
+
+function newWasmEngine(id: EngineId): IEngine {
   switch (id) {
-    case 'maia2': eng = new MaiaSuggestionEngine(); break;
-    default:      eng = new SuggestionEngine(); break; // 'komodo'
+    case 'maia2': return new MaiaSuggestionEngine();
+    default:      return new SuggestionEngine(); // 'komodo'
   }
-  await eng.init();
-  return eng;
+}
+
+async function createEngine(id: EngineId): Promise<IEngine> {
+  const wasmEng = newWasmEngine(id);
+  try {
+    await Promise.race([
+      wasmEng.init(),
+      new Promise<never>((_, rej) =>
+        setTimeout(() => rej(new Error('wasm init timeout')), WASM_INIT_TIMEOUT_MS)),
+    ]);
+    console.log(`[Chessr] engine ready (WASM): ${id}`);
+    return wasmEng;
+  } catch (err) {
+    console.warn(`[Chessr] WASM engine ${id} failed, falling back to server`, err);
+    try { wasmEng.destroy(); } catch { /* ignore */ }
+    const srv = new ServerEngine(id);
+    await srv.init();
+    console.log(`[Chessr] engine ready (server fallback): ${id}`);
+    return srv;
+  }
 }
 
 /**
@@ -324,13 +381,12 @@ export default defineContentScript({
         lastLoggedInUserId = uid;
         connectWs(uid);
         if (!analysisEngine) {
-          const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
-          const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
-          analysisEngine = new AnalysisEngine();
-          analysisEngine.init(jsUrl, wasmUrl).catch((err) => {
-            console.error('[Chessr] Failed to init analysis engine:', err);
-            analysisEngine = null;
-          });
+          buildAnalysisEngine()
+            .then((eng) => { analysisEngine = eng; })
+            .catch((err) => {
+              console.error('[Chessr] Failed to init analysis engine:', err);
+              analysisEngine = null;
+            });
         }
         // Wait for cloud settings before instantiating the suggestion engine —
         // otherwise we'd boot Komodo by default and immediately swap if the
@@ -462,13 +518,12 @@ export default defineContentScript({
           if (!analysisEngine?.ready) {
             try { analysisEngine?.destroy(); } catch { /* ignore */ }
             analysisEngine = null;
-            const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
-            const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
-            analysisEngine = new AnalysisEngine();
-            analysisEngine.init(jsUrl, wasmUrl).catch((err) => {
-              console.error('[Chessr] Stockfish re-init failed:', err);
-              analysisEngine = null;
-            });
+            buildAnalysisEngine()
+              .then((eng) => { analysisEngine = eng; })
+              .catch((err) => {
+                console.error('[Chessr] Stockfish re-init failed:', err);
+                analysisEngine = null;
+              });
           }
         });
       }

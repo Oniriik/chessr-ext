@@ -3,7 +3,13 @@
  * Ported from serveur/src/handlers/analysisHandler.ts (Chess.com calibrated).
  */
 
-import type { AnalysisEngine } from './analysisEngine';
+import type { AnalysisResult } from './analysisEngine';
+
+/** Structural interface: both the WASM AnalysisEngine and the
+ *  ServerAnalysisEngine fallback implement this subset. */
+export interface AnalysisBackend {
+  analyze(fen: string): Promise<AnalysisResult>;
+}
 
 export type MoveClassification = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
 
@@ -64,7 +70,7 @@ export function computeCAPS2(diff: number, absEval: number): number {
 export async function analyzeLastMove(
   fenBefore: string,
   fenAfter: string,
-  engine: AnalysisEngine,
+  engine: AnalysisBackend,
 ): Promise<MoveAnalysisResult> {
   const before = await engine.analyze(fenBefore);
   const bestEvalPlayerPov = before.evaluation / 100;

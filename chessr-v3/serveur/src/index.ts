@@ -12,6 +12,8 @@ import { explanationRoutes } from './routes/explanation.js';
 import { adminLogsRoutes } from './routes/adminLogs.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
+import { initEnginePool, shutdownEnginePool } from './handlers/suggestionHandler.js';
+import { initStockfishPool, shutdownStockfishPool } from './handlers/analysisHandler.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -40,3 +42,27 @@ const server = serve({ fetch: app.fetch, port }, () => {
 });
 
 injectWebSocket(server);
+
+// Engine pools — Komodo for suggestion fallback, Stockfish for analysis
+// fallback. Failures are non-fatal: the server can still serve telemetry /
+// chesscom_review / health without engines. Extension will just get
+// suggestion_error / analysis_error back.
+const MAX_KOMODO = Number(process.env.MAX_KOMODO_INSTANCES) || 2;
+const MAX_STOCKFISH = Number(process.env.MAX_STOCKFISH_INSTANCES) || 1;
+
+initEnginePool(MAX_KOMODO)
+  .then(() => console.log(`[Engines] Komodo pool ready (${MAX_KOMODO} instances)`))
+  .catch((err) => console.error('[Engines] Komodo pool failed to init — server-side suggestion fallback unavailable:', err));
+
+initStockfishPool(MAX_STOCKFISH)
+  .then(() => console.log(`[Engines] Stockfish pool ready (${MAX_STOCKFISH} instances)`))
+  .catch((err) => console.error('[Engines] Stockfish pool failed to init — server-side analysis fallback unavailable:', err));
+
+// Graceful shutdown
+async function shutdown() {
+  console.log('[Engines] Shutting down pools...');
+  await Promise.allSettled([shutdownEnginePool(), shutdownStockfishPool()]);
+  process.exit(0);
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
