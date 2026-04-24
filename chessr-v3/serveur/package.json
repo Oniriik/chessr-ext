@@ -16,9 +16,11 @@
     "@hono/node-ws": "^1.3.0",
     "@supabase/supabase-js": "^2.103.3",
     "ai": "^6.0.168",
+    "bullmq": "^5.76.1",
     "chess.js": "^1.4.0",
     "dotenv": "^17.4.2",
     "hono": "^4.12.14",
+    "ioredis": "^5.10.1",
     "jose": "^6.2.2"
   },
   "devDependencies": {

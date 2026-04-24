@@ -1,12 +1,38 @@
 /**
- * SuggestionQueue - Request queue with user-based superseding
- * When a user sends a new request, their previous pending request is removed
+ * BullMQ suggestion queue.
+ *
+ * Replaces the in-memory SuggestionQueue class. Producer = WS handler that
+ * calls `enqueueSuggestion(...)` and awaits the result via QueueEvents.
+ * Consumer = Worker that acquires an engine from the in-process EnginePool,
+ * runs the UCI search, and returns the result.
+ *
+ * Supersede-per-user semantics (old requests from the same user dropped when
+ * a new one comes in) is preserved via `removePendingSuggestionsForUser()`
+ * — called by the handler before enqueueing and on disconnect.
  */
 
-import type { EngineManager } from '../engine/EngineManager.js';
-import type { LabeledSuggestion } from '../engine/MoveLabeler.js';
+import { Queue, Worker, QueueEvents, type Job } from 'bullmq';
+import { redis } from './connection.js';
+import { EnginePool } from '../engine/EnginePool.js';
+import { labelSuggestions, type LabeledSuggestion } from '../engine/MoveLabeler.js';
 
-export interface SuggestionResult {
+export interface SuggestionJobData {
+  requestId: string;
+  userId: string;
+  fen: string;
+  pvCount: number;
+  config: Record<string, string>;
+  searchOptions: {
+    nodes?: number;
+    depth?: number;
+    movetime?: number;
+    moves?: string[];
+  };
+  personality: string;
+  puzzleMode: boolean;
+}
+
+export interface SuggestionJobResult {
   fen: string;
   personality: string;
   suggestions: LabeledSuggestion[];
@@ -17,93 +43,107 @@ export interface SuggestionResult {
   maxDepth: number;
 }
 
-export interface SuggestionRequest {
-  requestId: string;
-  userId: string;
-  process: (engine: EngineManager) => Promise<SuggestionResult>;
-  callback: (error: Error | null, result?: SuggestionResult) => void;
+const QUEUE_NAME = 'suggestion';
+
+export const suggestionQueue = new Queue<SuggestionJobData, SuggestionJobResult>(QUEUE_NAME, {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: { count: 1000 },
+    removeOnFail: { count: 100 },
+  },
+});
+
+let queueEvents: QueueEvents | null = null;
+let worker: Worker<SuggestionJobData, SuggestionJobResult> | null = null;
+let pool: EnginePool | null = null;
+
+export async function initSuggestionWorker(maxInstances: number): Promise<void> {
+  if (worker) return;
+
+  pool = new EnginePool(maxInstances);
+  await pool.init();
+
+  queueEvents = new QueueEvents(QUEUE_NAME, { connection: redis });
+  await queueEvents.waitUntilReady();
+
+  worker = new Worker<SuggestionJobData, SuggestionJobResult>(
+    QUEUE_NAME,
+    async (job) => processSuggestionJob(job),
+    { connection: redis, concurrency: maxInstances },
+  );
+
+  worker.on('failed', (job, err) => {
+    console.error(`[SuggestionQueue] job ${job?.id} failed:`, err.message);
+  });
+
+  console.log(`[SuggestionQueue] worker ready (concurrency=${maxInstances})`);
 }
 
-export class SuggestionQueue {
-  private queue: SuggestionRequest[] = [];
-  private processing: Set<string> = new Set();
+async function processSuggestionJob(
+  job: Job<SuggestionJobData, SuggestionJobResult>,
+): Promise<SuggestionJobResult> {
+  if (!pool) throw new Error('Engine pool not initialised');
+  const { fen, pvCount, config, searchOptions, personality, puzzleMode } = job.data;
 
-  /**
-   * Add a request to the queue
-   * Removes any existing pending request from the same user
-   */
-  enqueue(request: SuggestionRequest): void {
-    // Remove any existing pending requests from the same user
-    this.queue = this.queue.filter((r) => r.userId !== request.userId);
-    this.queue.push(request);
-  }
-
-  /**
-   * Get the next request to process
-   * Prioritizes users who don't have a request being processed
-   */
-  dequeue(): SuggestionRequest | null {
-    if (this.queue.length === 0) {
-      return null;
-    }
-
-    // Find first request from a user not currently being processed
-    const index = this.queue.findIndex((r) => !this.processing.has(r.userId));
-
-    if (index === -1) {
-      // All queued users have requests being processed, return first anyway
-      return this.queue.shift() || null;
-    }
-
-    // Remove and return the found request
-    const [request] = this.queue.splice(index, 1);
-    return request;
-  }
-
-  /**
-   * Mark a user's request as being processed
-   */
-  markProcessing(userId: string): void {
-    this.processing.add(userId);
-  }
-
-  /**
-   * Mark a user's request as done processing
-   */
-  markDone(userId: string): void {
-    this.processing.delete(userId);
-  }
-
-  /**
-   * Check if a specific requestId is still valid (not superseded)
-   */
-  isRequestValid(requestId: string, userId: string): boolean {
-    // Check if there's a newer request from this user in the queue
-    const newerRequest = this.queue.find((r) => r.userId === userId);
-    return !newerRequest || newerRequest.requestId === requestId;
-  }
-
-  /**
-   * Cancel all pending requests for a user
-   */
-  cancelForUser(userId: string): void {
-    this.queue = this.queue.filter((r) => r.userId !== userId);
-  }
-
-  /**
-   * Get queue statistics
-   */
-  getStats(): { pending: number; processing: number } {
+  const engine = await pool.acquire();
+  if (!engine) throw new Error('Engine pool unavailable');
+  try {
+    await engine.configure(config);
+    const raw = await engine.search(fen, pvCount, searchOptions);
+    const suggestions = labelSuggestions(raw);
+    const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
+    const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
+    const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
+    const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
     return {
-      pending: this.queue.length,
-      processing: this.processing.size,
+      fen,
+      personality,
+      suggestions,
+      positionEval,
+      mateIn,
+      winRate,
+      puzzleMode,
+      maxDepth,
     };
+  } finally {
+    pool.release(engine);
   }
+}
 
-  /**
-   * Get queue length
-   */
-  get length(): number {
-    return this.queue.length;
+/**
+ * Enqueue + await result. Concurrency throttled by the Worker — when N
+ * workers are busy new jobs wait in Redis.
+ */
+export async function enqueueSuggestion(data: SuggestionJobData): Promise<SuggestionJobResult> {
+  if (!queueEvents) throw new Error('SuggestionQueue not initialised');
+  const jobId = `sug:${data.userId}:${data.requestId}`;
+  const job = await suggestionQueue.add('process', data, { jobId });
+  return job.waitUntilFinished(queueEvents);
+}
+
+/**
+ * Drop any *waiting* job from this user. Jobs already in 'active' state
+ * can't be safely cancelled mid-UCI; they finish then the handler's
+ * requestId check discards the stale reply on its own.
+ */
+export async function removePendingSuggestionsForUser(userId: string): Promise<number> {
+  const waiting = await suggestionQueue.getWaiting(0, 100);
+  let removed = 0;
+  for (const job of waiting) {
+    if (job.data.userId === userId) {
+      try { await job.remove(); removed++; } catch { /* race — already gone */ }
+    }
   }
+  return removed;
+}
+
+export async function shutdownSuggestionWorker(): Promise<void> {
+  const tasks: Promise<unknown>[] = [];
+  if (worker) tasks.push(worker.close());
+  if (queueEvents) tasks.push(queueEvents.close());
+  if (pool) tasks.push(pool.shutdown());
+  await Promise.allSettled(tasks);
+  worker = null;
+  queueEvents = null;
+  pool = null;
 }
