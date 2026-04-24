@@ -9,6 +9,11 @@ import type { AnalysisResult } from './analysisEngine';
  *  ServerAnalysisEngine fallback implement this subset. */
 export interface AnalysisBackend {
   analyze(fen: string): Promise<AnalysisResult>;
+  /** Optional one-shot classification — present on ServerAnalysisEngine to
+   *  collapse the (eval-before + eval-after + math) into a single WS
+   *  round-trip. WASM AnalysisEngine doesn't implement it; the helper
+   *  falls back to two `.analyze()` calls + local math. */
+  classifyMove?(fenBefore: string, fenAfter: string): Promise<MoveAnalysisResult>;
 }
 
 export type MoveClassification = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
@@ -72,6 +77,13 @@ export async function analyzeLastMove(
   fenAfter: string,
   engine: AnalysisBackend,
 ): Promise<MoveAnalysisResult> {
+  // Server fallback: collapse 2 round-trips into 1 by asking the server to
+  // do the classification math itself.
+  if (engine.classifyMove) {
+    return engine.classifyMove(fenBefore, fenAfter);
+  }
+
+  // WASM path: 2 evals + local Chess.com-calibrated math.
   const before = await engine.analyze(fenBefore);
   const bestEvalPlayerPov = before.evaluation / 100;
 

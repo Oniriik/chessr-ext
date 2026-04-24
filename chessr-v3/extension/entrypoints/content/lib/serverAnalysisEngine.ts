@@ -15,8 +15,10 @@
 
 import { sendWs, onWsMessage } from './websocket';
 import type { AnalysisResult } from './analysisEngine';
+import type { MoveAnalysisResult } from './moveAnalysis';
 
 const EVAL_TIMEOUT_MS = 10_000;
+const CLASSIFY_TIMEOUT_MS = 20_000;
 
 export class ServerAnalysisEngine {
   private _ready = true;
@@ -60,6 +62,64 @@ export class ServerAnalysisEngine {
       });
 
       sendWs({ type: 'engine_eval_request', requestId, fen });
+    });
+  }
+
+  /**
+   * Single-shot move classification — sends `analysis_request` (which the
+   * server processes with 2 Stockfish runs + classification math) and
+   * returns the full MoveAnalysisResult. Saves one WS round-trip vs
+   * calling `.analyze()` twice and computing client-side.
+   *
+   * `playerColor` is derived from the side-to-move in fenBefore so the
+   * caller doesn't have to thread it through.
+   */
+  async classifyMove(fenBefore: string, fenAfter: string): Promise<MoveAnalysisResult> {
+    if (this._disposed) throw new Error('ServerAnalysisEngine disposed');
+    const playerColor: 'white' | 'black' = fenBefore.split(' ')[1] === 'b' ? 'black' : 'white';
+    const requestId = `cls-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    return new Promise<MoveAnalysisResult>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        off();
+        reject(new Error('Server classify timeout'));
+      }, CLASSIFY_TIMEOUT_MS);
+
+      const off = onWsMessage((msg) => {
+        if (!msg || msg.requestId !== requestId) return;
+        if (msg.type === 'analysis_response') {
+          clearTimeout(timer);
+          off();
+          resolve({
+            classification: msg.classification,
+            caps2: msg.caps2,
+            diff: msg.diff,
+            wpDiff: msg.wpDiff,
+            evalBefore: msg.evalBefore,
+            evalAfter: msg.evalAfter,
+            bestMove: msg.bestMove,
+          });
+          return;
+        }
+        if (msg.type === 'analysis_error') {
+          clearTimeout(timer);
+          off();
+          reject(new Error(msg.error || 'server classify error'));
+          return;
+        }
+      });
+
+      sendWs({
+        type: 'analysis_request',
+        requestId,
+        fenBefore,
+        fenAfter,
+        // The server still requires `move` for legacy validation. Empty
+        // string is fine — the response carries `bestMove` separately,
+        // and the played move is implicit in the fen diff.
+        move: '_',
+        playerColor,
+      });
     });
   }
 

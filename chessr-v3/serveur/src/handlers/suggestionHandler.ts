@@ -12,7 +12,11 @@ import {
   removePendingSuggestionsForUser,
   type SuggestionJobData,
 } from '../queue/suggestionQueue.js';
-import { logStart, logEnd } from '../lib/wsLog.js';
+// NOTE: per-request logStart/logEnd removed from this handler. The extension
+// drives a single `[suggestion] source=wasm|server` line via
+// suggestion_log_start/end (see content.tsx). Logging here too would
+// duplicate the entry. Engine-side timing breakdown is available via the
+// `[Queues]` snapshot if needed.
 
 export interface SuggestionMessage {
   type: 'suggestion_request';
@@ -66,9 +70,6 @@ export async function handleSuggestionRequest(
   const effectiveMultiPv = multiPv || 1;
   const effectiveLimit = limitStrength;
 
-  logStart(userId, requestId, 'suggestion',
-    `mode=${puzzleMode ? 'puzzle' : 'game'}, elo=${effectiveElo}, pv=${effectiveMultiPv}`);
-
   const pvCount = Math.min(3, Math.max(1, effectiveMultiPv));
   const config = getEngineConfig({
     targetElo: effectiveElo,
@@ -114,8 +115,6 @@ export async function handleSuggestionRequest(
       puzzleMode: !!puzzleMode,
     });
 
-    logEnd(userId, requestId, 'suggestion',
-      `${result.suggestions.length} suggestions, eval=${result.positionEval}, depth=${result.maxDepth}`);
     send({
       type: 'suggestion_response',
       requestId,
@@ -129,7 +128,6 @@ export async function handleSuggestionRequest(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logEnd(userId, requestId, 'suggestion', `fail:${msg}`);
     send({ type: 'suggestion_error', requestId, error: msg });
   }
 }

@@ -11,6 +11,10 @@ import { initEvalBar } from './content/lib/evalBar';
 import { AnalysisEngine } from './content/lib/analysisEngine';
 import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
+
+function analysisSource(): 'wasm' | 'server' {
+  return analysisEngine instanceof ServerAnalysisEngine ? 'server' : 'wasm';
+}
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
 import { ServerEngine } from './content/lib/serverEngine';
@@ -31,6 +35,15 @@ let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | nu
  *  Windows AV, SIMD missing) we fall through to a WS-proxied Stockfish
  *  native on the server. */
 async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean; destroy(): void }> {
+  // Same dev affordance as createEngine — set localStorage.chessrForceServer=1
+  // to skip Stockfish WASM and force the server eval endpoint.
+  if (typeof localStorage !== 'undefined' && localStorage.chessrForceServer === '1') {
+    console.log('[Chessr] chessrForceServer=1 → server analysis engine');
+    const srv = new ServerAnalysisEngine();
+    await srv.init();
+    return srv;
+  }
+
   const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
   const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
   const wasm = new AnalysisEngine();
@@ -100,6 +113,16 @@ function newWasmEngine(id: EngineId): IEngine {
 }
 
 async function createEngine(id: EngineId): Promise<IEngine> {
+  // DEV affordance: skip WASM and force the server path. Toggle from
+  // DevTools console: `localStorage.chessrForceServer = '1'` (set), then
+  // reload. To restore: `delete localStorage.chessrForceServer`.
+  if (typeof localStorage !== 'undefined' && localStorage.chessrForceServer === '1') {
+    console.log(`[Chessr] chessrForceServer=1 → server engine for ${id}`);
+    const srv = new ServerEngine(id);
+    await srv.init();
+    return srv;
+  }
+
   const wasmEng = newWasmEngine(id);
   try {
     await Promise.race([
@@ -228,13 +251,16 @@ function runSuggestionSearch(fen: string) {
   useSuggestionStore.getState().setLoading(true, requestId);
   console.log('[Chessr][dbg] search start', { rid: requestId, multiPv: params.multiPv, fen: fen.slice(0, 22) + '…' });
 
-  // Telemetry: log the search on the server (same format as the old
-  // server-side engine) — compute is now local but we still want the audit
-  // trail for stats / debugging / per-user rate analysis.
+  // Telemetry: log the search on the server. `source` tag tells the
+  // dashboard whether the engine ran in-browser (wasm) or was proxied to
+  // the server-side native binary (server fallback). E2E latency is the
+  // time between this log_start and the matching log_end below — server
+  // path adds one WS round-trip + queue wait + native engine compute.
   const engineLabel = suggestionEngine.id;
+  const source = suggestionEngine instanceof ServerEngine ? 'server' : 'wasm';
   const extra = (() => {
     if (engineLabel === 'maia2') {
-      return `engine=maia2 variant=${params.variant} eloSelf=${params.eloSelf} eloOppo=${params.eloOppo} mpv=${params.multiPv}`;
+      return `source=${source} engine=maia2 variant=${params.variant} eloSelf=${params.eloSelf} eloOppo=${params.eloOppo} mpv=${params.multiPv}`;
     }
     const searchDesc = params.search
       ? `${params.search.mode}:${
@@ -244,7 +270,7 @@ function runSuggestionSearch(fen: string) {
           : '?'
         }`
       : 'default';
-    return `engine=komodo elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`;
+    return `source=${source} engine=komodo elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`;
   })();
   sendWs({
     type: 'suggestion_log_start',
@@ -451,11 +477,15 @@ export default defineContentScript({
       }
     });
 
-    // Analyze player's last move when turn switches to opponent
+    // Analyze player's last move when turn switches to opponent.
+    //
+    // Gate on actual FEN transition: useGameStore.subscribe fires on every
+    // store mutation (playerColor, isPlaying, gameOver, etc.) — without
+    // this guard the eval-bar update was firing 10–20× per move because
+    // `previousFen !== state.fen` stayed true on every non-FEN re-fire.
     useGameStore.subscribe((state, prev) => {
-      if (prev.fen && prev.fen !== state.fen) {
-        previousFen = prev.fen;
-      }
+      if (prev.fen === state.fen) return;
+      if (prev.fen) previousFen = prev.fen;
 
       // FEN side-to-move is ground truth — resilient to stale playerColor
       // early in the game (e.g. before `playingAs` stabilizes on SPA nav).
@@ -475,18 +505,26 @@ export default defineContentScript({
         const fenBefore = previousFen!;
         const fenAfter = state.fen!;
 
+        const arid = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const src = analysisSource();
+        sendWs({ type: 'analysis_log_start', requestId: arid,
+                 extra: `source=${src} move=#${moveNumber}` });
+
         useAnalysisStore.getState().setAnalyzing(true);
         analyzeLastMove(fenBefore, fenAfter, analysisEngine)
           .then((result) => {
             useAnalysisStore.getState().addAnalysis({ ...result, moveNumber });
             animationGate.markEvent('analysis');
-            // Update eval bar — evalAfter is player POV, convert to white's
             const pc = useGameStore.getState().playerColor;
             const evalWhite = pc === 'black' ? -result.evalAfter : result.evalAfter;
             useEvalStore.getState().setEval(evalWhite);
+            sendWs({ type: 'analysis_log_end', requestId: arid,
+                     extra: `${result.classification} caps2=${result.caps2}` });
           })
           .catch((err) => {
             console.error('[Chessr] Analysis error:', err);
+            sendWs({ type: 'analysis_log_end', requestId: arid,
+                     extra: `fail:${err?.message || 'unknown'}` });
           })
           .finally(() => {
             useAnalysisStore.getState().setAnalyzing(false);
@@ -506,12 +544,17 @@ export default defineContentScript({
 
       if (opponentJustMoved && analysisEngine?.ready) {
         // Single position eval — just analyze the current FEN
+        const erid = `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const src = analysisSource();
+        sendWs({ type: 'eval_log_start', requestId: erid, extra: `source=${src}` });
         analysisEngine.analyze(state.fen!).then((result) => {
-          // result.evaluation is side-to-move (player's) perspective in centipawns
           const pc = useGameStore.getState().playerColor;
           const evalWhite = pc === 'black' ? -result.evaluation / 100 : result.evaluation / 100;
           useEvalStore.getState().setEval(evalWhite);
-        }).catch(() => {
+          sendWs({ type: 'eval_log_end', requestId: erid,
+                   extra: `bestMove=${result.bestMove} eval=${result.evaluation}cp d${result.depth}` });
+        }).catch((err) => {
+          sendWs({ type: 'eval_log_end', requestId: erid, extra: `fail:${err?.message || 'unknown'}` });
           // If Stockfish crashed the `ready` flag will have been cleared
           // by the engine's error handler — re-init so the next move's
           // eval bar update can still work.

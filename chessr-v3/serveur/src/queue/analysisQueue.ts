@@ -89,11 +89,19 @@ function normalizeEval(evalCp: number, playerColor: 'white' | 'black'): number {
 
 const QUEUE_NAME = 'analysis';
 
+// Classify = 2 sequential Stockfish depth-18 searches (~1–3 s typical).
+// Eval = 1 search at depth ≤12 (~0.5 s). Give both 20 s headroom to keep
+// margin over a congested queue; EngineManager's 30 s internal cap is
+// still the hard floor.
+const PRODUCER_TIMEOUT_MS = 20_000;
+const LOCK_DURATION_MS = 45_000;
+
 export const analysisQueue = new Queue<AnalysisJobData, AnalysisJobResult>(QUEUE_NAME, {
   connection: redis,
   defaultJobOptions: {
     removeOnComplete: { count: 1000 },
     removeOnFail: { count: 100 },
+    attempts: 1,
   },
 });
 
@@ -113,7 +121,11 @@ export async function initAnalysisWorker(maxInstances: number): Promise<void> {
   worker = new Worker<AnalysisJobData, AnalysisJobResult>(
     QUEUE_NAME,
     async (job) => processAnalysisJob(job),
-    { connection: redis, concurrency: maxInstances },
+    {
+      connection: redis,
+      concurrency: maxInstances,
+      lockDuration: LOCK_DURATION_MS,
+    },
   );
 
   worker.on('failed', (job, err) => {
@@ -185,7 +197,7 @@ export async function enqueueClassify(data: ClassifyJobData): Promise<ClassifyJo
   if (!queueEvents) throw new Error('AnalysisQueue not initialised');
   const jobId = `cls:${data.userId}:${data.requestId}`;
   const job = await analysisQueue.add('process', data, { jobId });
-  const result = await job.waitUntilFinished(queueEvents);
+  const result = await job.waitUntilFinished(queueEvents, PRODUCER_TIMEOUT_MS);
   if (result.kind !== 'classify') throw new Error(`Unexpected job result kind: ${result.kind}`);
   return result;
 }
@@ -194,7 +206,7 @@ export async function enqueueEval(data: EvalJobData): Promise<EvalJobResult> {
   if (!queueEvents) throw new Error('AnalysisQueue not initialised');
   const jobId = `evl:${data.userId}:${data.requestId}`;
   const job = await analysisQueue.add('process', data, { jobId });
-  const result = await job.waitUntilFinished(queueEvents);
+  const result = await job.waitUntilFinished(queueEvents, PRODUCER_TIMEOUT_MS);
   if (result.kind !== 'eval') throw new Error(`Unexpected job result kind: ${result.kind}`);
   return result;
 }

@@ -14,6 +14,7 @@ import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
 import { initSuggestionWorker, shutdownSuggestionWorker } from './queue/suggestionQueue.js';
 import { initAnalysisWorker, shutdownAnalysisWorker } from './queue/analysisQueue.js';
+import { startQueueStats, stopQueueStats } from './queue/stats.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -57,9 +58,12 @@ initSuggestionWorker(MAX_KOMODO)
 initAnalysisWorker(MAX_STOCKFISH)
   .catch((err) => console.error('[Engines] Analysis worker failed to init:', err));
 
+startQueueStats();
+
 // Graceful shutdown
 async function shutdown() {
   console.log('[Engines] Shutting down BullMQ workers...');
+  stopQueueStats();
   await Promise.allSettled([shutdownSuggestionWorker(), shutdownAnalysisWorker()]);
   process.exit(0);
 }

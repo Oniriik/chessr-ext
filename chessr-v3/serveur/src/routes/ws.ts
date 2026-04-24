@@ -79,6 +79,26 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
                 handleFenEvalRequest(msg as FenEvalMessage, userId, send);
                 break;
 
+              // Client-side analysis telemetry (extension computed via Stockfish
+              // WASM or via the server fallback — `extra` carries source=...).
+              case 'analysis_log_start':
+                logStart(userId, msg.requestId, 'analysis', msg.extra);
+                break;
+
+              case 'analysis_log_end':
+                logEnd(userId, msg.requestId, 'analysis', msg.extra);
+                break;
+
+              // Eval-bar single-FEN telemetry (fires after each opponent
+              // move). Same WASM/server source split as analysis.
+              case 'eval_log_start':
+                logStart(userId, msg.requestId, 'eval', msg.extra);
+                break;
+
+              case 'eval_log_end':
+                logEnd(userId, msg.requestId, 'eval', msg.extra);
+                break;
+
               case 'chesscom_review':
                 logStart(userId, msg.requestId, 'review', `gameId=${msg.gameId}`);
                 handleChesscomReview(

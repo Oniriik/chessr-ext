@@ -43,7 +43,9 @@ export async function handleAnalysisRequest(
     return;
   }
 
-  logStart(userId, requestId, 'analyze', `move=${move}, color=${playerColor}`);
+  // No logStart/logEnd here — the extension drives a single
+  // `[analysis] source=wasm|server` line via analysis_log_start/end so the
+  // log shape is identical regardless of which path computed the result.
 
   try {
     const r = await enqueueClassify({
@@ -55,7 +57,6 @@ export async function handleAnalysisRequest(
       move,
       playerColor,
     });
-    logEnd(userId, requestId, 'analyze', `${r.move} → ${r.classification}, caps2=${r.caps2}`);
     send({
       type: 'analysis_response',
       requestId,
@@ -70,7 +71,6 @@ export async function handleAnalysisRequest(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    logEnd(userId, requestId, 'analyze', `fail:${msg}`);
     send({ type: 'analysis_error', requestId, error: msg });
   }
 }
@@ -85,6 +85,9 @@ export async function handleFenEvalRequest(
     send({ type: 'engine_eval_error', requestId, error: 'Missing requestId or fen' });
     return;
   }
+
+  // No logStart/logEnd here — the extension drives a single
+  // `[eval] source=wasm|server` line via eval_log_start/end.
 
   try {
     const r = await enqueueEval({ kind: 'eval', requestId, userId, fen, depth });

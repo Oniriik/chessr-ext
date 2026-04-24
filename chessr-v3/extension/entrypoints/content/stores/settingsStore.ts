@@ -212,7 +212,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if ((cloud as any).engine) {
           const eng = (cloud as any).engine;
           const es = useEngineStore.getState();
-          if (eng.engineId !== undefined) es.setEngineId(eng.engineId);
+          // Sanitize engineId — old cloud rows can have 'patricia' which we
+          // removed in 3.1.0. Drop unknown IDs back to default.
+          if (eng.engineId === 'komodo' || eng.engineId === 'maia2') es.setEngineId(eng.engineId);
           if (eng.maiaVariant !== undefined) es.setMaiaVariant(eng.maiaVariant);
           if (eng.maiaTargetEloAuto !== undefined) es.setMaiaTargetEloAuto(eng.maiaTargetEloAuto);
           if (eng.maiaTargetEloManual !== undefined) es.setMaiaTargetEloManual(eng.maiaTargetEloManual);

@@ -45,11 +45,23 @@ export interface SuggestionJobResult {
 
 const QUEUE_NAME = 'suggestion';
 
+/** Hard cap on one producer-side wait. Must be ≥ the engine's internal
+ *  search timeout (30 s in EngineManager) plus a small queueing slack.
+ *  If the cap fires, the client gets `suggestion_error: 'timeout'` and the
+ *  orphan job finishes harmlessly in the background. */
+const PRODUCER_TIMEOUT_MS = 35_000;
+
+/** Worker-side lock on an in-flight job. Must be > the engine's internal
+ *  30 s search timeout, otherwise BullMQ would consider a long search
+ *  stalled and re-queue it (which would cost a duplicate search). */
+const LOCK_DURATION_MS = 45_000;
+
 export const suggestionQueue = new Queue<SuggestionJobData, SuggestionJobResult>(QUEUE_NAME, {
   connection: redis,
   defaultJobOptions: {
     removeOnComplete: { count: 1000 },
     removeOnFail: { count: 100 },
+    attempts: 1,              // no auto-retry: a failed search is final
   },
 });
 
@@ -69,7 +81,11 @@ export async function initSuggestionWorker(maxInstances: number): Promise<void> 
   worker = new Worker<SuggestionJobData, SuggestionJobResult>(
     QUEUE_NAME,
     async (job) => processSuggestionJob(job),
-    { connection: redis, concurrency: maxInstances },
+    {
+      connection: redis,
+      concurrency: maxInstances,
+      lockDuration: LOCK_DURATION_MS,
+    },
   );
 
   worker.on('failed', (job, err) => {
@@ -118,7 +134,10 @@ export async function enqueueSuggestion(data: SuggestionJobData): Promise<Sugges
   if (!queueEvents) throw new Error('SuggestionQueue not initialised');
   const jobId = `sug:${data.userId}:${data.requestId}`;
   const job = await suggestionQueue.add('process', data, { jobId });
-  return job.waitUntilFinished(queueEvents);
+  // waitUntilFinished(queueEvents, ttl) rejects with "Timed out after X ms"
+  // after the cap. The underlying job keeps running but its result is
+  // discarded — the engine gets released normally.
+  return job.waitUntilFinished(queueEvents, PRODUCER_TIMEOUT_MS);
 }
 
 /**

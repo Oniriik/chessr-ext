@@ -353,7 +353,10 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
 function EngineSettingsTab() {
   const { engineId, setEngineId, autoEloBoost, setAutoEloBoost } = useEngineStore();
   const engineIds = Object.keys(ENGINE_INFO) as EngineId[];
-  const info = ENGINE_INFO[engineId];
+  // Tolerate a stale engineId (e.g. 'patricia' from pre-3.1.0 cloud state)
+  // by falling back to the first known engine. The cloud sanitizer in
+  // settingsStore.ts will rewrite the cloud row on next save.
+  const info = ENGINE_INFO[engineId] ?? ENGINE_INFO[engineIds[0]];
 
   return (
     <div className="settings-section">

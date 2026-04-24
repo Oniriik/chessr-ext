@@ -342,7 +342,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                         <div className="game-suggestions-header">
                           <div className="game-suggestions-label-group">
                             <span className="game-suggestions-label">Suggestions</span>
-                            <span className="game-suggestions-engine" title="Active engine — change in Settings → Engine">{ENGINE_INFO[activeEngineId].label}</span>
+                            <span className="game-suggestions-engine" title="Active engine — change in Settings → Engine">{ENGINE_INFO[activeEngineId]?.label ?? activeEngineId}</span>
                             {isPlaying && suggestions.length > 0 && suggestions[0]?.depth != null && suggestions[0].depth > 0 && (
                               <span className="game-suggestions-depth" title="Search depth reached">depth {suggestions[0].depth}</span>
                             )}
