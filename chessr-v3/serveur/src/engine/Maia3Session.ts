@@ -33,7 +33,11 @@ export async function initMaia3Session(modelPath?: string): Promise<void> {
   initPromise = (async () => {
     console.log(`[Maia3] loading ONNX session from ${file}`);
     const t0 = Date.now();
-    session = await ort.InferenceSession.create(file);
+    // graphOptimizationLevel='extended' is the highest that works on this
+    // model — 'all' (default) hits an optimizer pass that segfaults.
+    session = await ort.InferenceSession.create(file, {
+      graphOptimizationLevel: 'extended',
+    });
     console.log(`[Maia3] session ready (${Date.now() - t0}ms)`);
   })();
   return initPromise;
