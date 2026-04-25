@@ -20,6 +20,13 @@ import {
   type MaiaMessage,
 } from '../handlers/maiaHandler.js';
 import { logStart, logEnd, logConnected, logDisconnected } from '../lib/wsLog.js';
+import {
+  recordSuggestion,
+  recordAnalysis,
+  recordEval,
+  getUserState,
+  dropUser as dropUserState,
+} from '../lib/userState.js';
 
 type WSApp = {
   app: Hono;
@@ -31,6 +38,19 @@ const connectedAt = new Map<string, number>();
 
 export function getConnectedUsers(): Array<{ userId: string; connectedAt: number }> {
   return Array.from(connectedAt.entries()).map(([userId, ts]) => ({ userId, connectedAt: ts }));
+}
+
+export function getConnectedUsersDetailed() {
+  return Array.from(connectedAt.entries()).map(([userId, ts]) => {
+    const s = getUserState(userId);
+    return {
+      userId,
+      connectedAt: ts,
+      lastSuggestion: s?.lastSuggestion ?? null,
+      lastAnalysis: s?.lastAnalysis ?? null,
+      lastEval: s?.lastEval ?? null,
+    };
+  });
 }
 
 export function sendToClient(userId: string, data: any) {
@@ -61,6 +81,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
             switch (msg.type) {
               // Client-side suggestion telemetry (WASM computes, server logs).
               case 'suggestion_log_start':
+                recordSuggestion(userId, msg.extra);
                 logStart(userId, msg.requestId, 'suggestion', msg.extra);
                 break;
 
@@ -92,6 +113,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
               // Client-side analysis telemetry (extension computed via Stockfish
               // WASM or via the server fallback — `extra` carries source=...).
               case 'analysis_log_start':
+                recordAnalysis(userId, msg.extra);
                 logStart(userId, msg.requestId, 'analysis', msg.extra);
                 break;
 
@@ -102,6 +124,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
               // Eval-bar single-FEN telemetry (fires after each opponent
               // move). Same WASM/server source split as analysis.
               case 'eval_log_start':
+                recordEval(userId, msg.extra);
                 logStart(userId, msg.requestId, 'eval', msg.extra);
                 break;
 
@@ -132,6 +155,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
         onClose() {
           clients.delete(userId);
           connectedAt.delete(userId);
+          dropUserState(userId);
           handleUserDisconnectSuggestion(userId);
           handleUserDisconnectAnalysis(userId);
           handleUserDisconnectMaia(userId);

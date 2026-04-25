@@ -9,6 +9,11 @@
 # en local direct (HMR, source maps complets). Si tu veux quand même le
 # containeriser, dis-le et j'ajoute le service.
 #
+# Pour que la page Live du dashboard puisse iframe Bull Board en dev,
+# crée un .env.local dans dashboard/ avec :
+#   NEXT_PUBLIC_BULLBOARD_URL=http://localhost:3003
+# (en prod c'est /bullboard/ via nginx).
+#
 # Boot :
 #   cd chessr-v3 && docker compose -f docker-compose.dev.yml up -d --build
 #
@@ -57,6 +62,7 @@ services:
       - PORT=8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - LOG_DIR=/app/logs
       - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-2}
       - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-1}
     env_file:
@@ -71,6 +77,28 @@ services:
       - ./serveur/scripts:/app/scripts
       - ./serveur/migrations:/app/migrations
       - ./serveur/tsconfig.json:/app/tsconfig.json
+      # Persist serveur logs across container restart / down (rotating 10MB×5)
+      - ./serveur/logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Bull Board — UI temps réel pour les queues BullMQ (waiting / active /
+  # completed / failed, retry, drain, payload, logs). Zero-conf, lit Redis
+  # directement. http://localhost:3003 en dev. Liée aux queues `suggestion`,
+  # `analysis`, `maia` créées par le serveur.
+  bullboard:
+    image: deadly0/bull-board:latest
+    container_name: chessr-bullboard-dev
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BULL_PREFIX=bull
+      - BULL_VERSION=BULLMQ
+      - QUEUE_NAMES=suggestion,analysis,maia
+    ports:
+      - "127.0.0.1:3003:3000"
     depends_on:
       redis:
         condition: service_healthy

@@ -70,11 +70,16 @@ services:
       # 4 Komodo + 2 Stockfish without saturating.
       - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-4}
       - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-2}
+      - LOG_DIR=/app/logs
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - chessr
+    volumes:
+      # Persist serveur logs hors du container (rotating 10MB×5).
+      # Survit à compose down (sans -v).
+      - ./serveur/logs:/app/logs
     deploy:
       resources:
         limits:
@@ -98,6 +103,7 @@ services:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_SERVEUR_URL: ${NEXT_PUBLIC_SERVEUR_URL}
+        NEXT_PUBLIC_BULLBOARD_URL: ${NEXT_PUBLIC_BULLBOARD_URL:-/bullboard/}
     container_name: chessr-dashboard
     restart: unless-stopped
     environment:
@@ -115,6 +121,32 @@ services:
         limits:
           memory: 1G
 
+  # ─── Bull Board — BullMQ queue inspector ───────────────────────────────
+  # Intentionally not bound to a host port; reachable only inside the
+  # `chessr` network. Exposed via nginx behind /bullboard with basic auth
+  # so the admin dashboard can iframe it without leaking the queues.
+  bullboard:
+    image: deadly0/bull-board:latest
+    container_name: chessr-bullboard
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BULL_PREFIX=bull
+      - BULL_VERSION=BULLMQ
+      - QUEUE_NAMES=suggestion,analysis,maia
+      - USER_LOGIN=${BULLBOARD_USER:-admin}
+      - USER_PASSWORD=${BULLBOARD_PASSWORD:-changeme}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - chessr
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   # ─── Nginx — TLS terminator + reverse proxy ────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -131,6 +163,7 @@ services:
     depends_on:
       - serveur
       - dashboard
+      - bullboard
     networks:
       - chessr
 

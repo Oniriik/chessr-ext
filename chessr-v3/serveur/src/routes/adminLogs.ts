@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { stream } from 'hono/streaming';
 import { getRecentLines, subscribe } from '../lib/logBuffer.js';
 import { getLatestMetrics } from '../lib/sysMetrics.js';
-import { getConnectedUsers } from './ws.js';
+import { getConnectedUsersDetailed } from './ws.js';
 import { supabase } from '../lib/supabase.js';
 
 export const adminLogsRoutes = new Hono();
@@ -36,16 +36,17 @@ adminLogsRoutes.get('/admin/metrics', (c) => {
   return c.json(getLatestMetrics());
 });
 
-// GET /admin/users/connected — list currently connected WS users with email + connect time
+// GET /admin/users/connected — list currently connected WS users with email,
+// connect time, and the engine mode (wasm vs server) inferred from their
+// most recent suggestion / analysis / eval telemetry.
 adminLogsRoutes.get('/admin/users/connected', async (c) => {
   if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
 
-  const connected = getConnectedUsers();
+  const connected = getConnectedUsersDetailed();
   const users = await Promise.all(
-    connected.map(async ({ userId, connectedAt }) => ({
-      userId,
-      email: await resolveEmail(userId),
-      connectedAt,
+    connected.map(async (u) => ({
+      ...u,
+      email: await resolveEmail(u.userId),
     })),
   );
   // Most recent first

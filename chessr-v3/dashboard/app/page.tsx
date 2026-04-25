@@ -11,7 +11,7 @@ export default function Home() {
     (async () => {
       const supabase = getSupabase();
       const { data } = await supabase.auth.getSession();
-      router.replace(data.session ? '/logs' : '/login');
+      router.replace(data.session ? '/live' : '/login');
     })();
   }, [router]);
 
