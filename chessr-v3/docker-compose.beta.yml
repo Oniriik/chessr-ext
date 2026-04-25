@@ -64,6 +64,7 @@ services:
       - ./serveur/.env
     environment:
       - NODE_ENV=production
+      - PORT=8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       # Pool sizing — adjust per host capacity. CPX41 (8 vCPU) handles
