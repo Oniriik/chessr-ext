@@ -1,7 +1,7 @@
 import { useVersionStore } from '../stores/versionStore';
 import './update-required.css';
 
-const DOWNLOAD_URL = 'https://beta.chessr.io/download/chessr-beta.zip';
+const DOWNLOAD_URL = 'https://beta.chessr.io/download/latest';
 const DISCORD_URL = 'https://discord.gg/72j4dUadTu';
 
 export default function UpdateRequired() {
