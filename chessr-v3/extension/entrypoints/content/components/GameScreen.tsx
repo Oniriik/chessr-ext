@@ -684,6 +684,8 @@ function Maia2Panel() {
 
   return (
     <div className="engine-panel">
+      <span className="engine-name-chip">{ENGINE_INFO.maia2.label}</span>
+
       <EditableComponent id="maia-variant">
         <div className="engine-section">
           <div className="engine-section-header">
@@ -802,12 +804,9 @@ function Maia3Panel() {
 
   return (
     <div className="engine-panel">
-      <div className="engine-section" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span className="engine-name-chip">{ENGINE_INFO.maia3.label}</span>
         <span className="settings-engine-beta-badge">BETA</span>
-        <span className="engine-desc" style={{ flex: 1 }}>
-          New Maia model — continuous ELO 600–2600, no variants, retrained on
-          recent games.
-        </span>
       </div>
 
       <EditableComponent id="maia3-target-elo">
@@ -829,9 +828,9 @@ function Maia3Panel() {
               min={600} max={2600} step={50}
               value={engine.maiaTargetEloManual}
               onChange={engine.setMaiaTargetEloManual}
-              trackColor="linear-gradient(90deg, #6366f1, #a78bfa)"
-              thumbColor="#6366f1"
-              thumbColorEnd="#a78bfa"
+              trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+              thumbColor="#22c55e"
+              thumbColorEnd="#3b82f6"
             />
           )}
         </div>
@@ -856,8 +855,8 @@ function Maia3Panel() {
               min={600} max={2600} step={50}
               value={engine.maiaOppoEloManual}
               onChange={engine.setMaiaOppoEloManual}
-              trackColor="linear-gradient(90deg, #a78bfa, #ef4444)"
-              thumbColor="#a78bfa"
+              trackColor="linear-gradient(90deg, #3b82f6, #ef4444)"
+              thumbColor="#3b82f6"
               thumbColorEnd="#ef4444"
             />
           )}

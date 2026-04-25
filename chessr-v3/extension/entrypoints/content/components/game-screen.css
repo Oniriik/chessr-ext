@@ -864,6 +864,20 @@
   letter-spacing: 0.02em;
 }
 
+/* Engine name chip shown at the top of each engine panel (Maia 2 / 3,
+   parity with the Komodo `game-suggestions-engine` chip). */
+.engine-name-chip {
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.12);
+  letter-spacing: 0.02em;
+}
+
 /* "Fix" sub-row attached to the warning above — same yellow card,
    separated by a tinted divider so the user reads it as the remediation
    for the warning rather than a standalone setting. */
