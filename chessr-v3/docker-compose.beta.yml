@@ -35,7 +35,7 @@ services:
       --appendonly yes
       --save 60 1
       --loglevel warning
-      --maxmemory 512mb
+      --maxmemory 2gb
       --maxmemory-policy noeviction
     volumes:
       - redis_data:/data
@@ -49,9 +49,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
+          memory: 2560M
         reservations:
-          memory: 128M
+          memory: 256M
 
   # ─── Serveur (Hono + WS + BullMQ producer/worker) ──────────────────────
   serveur:
