@@ -53,6 +53,7 @@ export default function App() {
   const waitingForPlan = !!user && planLoading;
   const { isPlaying, gameOver } = useGameStore();
   const autoOpenOnGameEnd = useSettingsStore((s) => s.autoOpenOnGameEnd);
+  const fontSize = useSettingsStore((s) => s.fontSize);
 
   // Auto-open when a game ends (gated by setting).
   const prevGameOver = useRef(gameOver);
@@ -146,7 +147,15 @@ export default function App() {
       </div>
 
       {open && (
-        <div className="chessr-panel" ref={panelRef}>
+        <div
+          className="chessr-panel"
+          ref={panelRef}
+          // 'zoom' scales the whole panel proportionally (text, padding,
+          // borders) without touching the 100+ hard-coded font-size rules.
+          // Only the panel itself is affected — the fake-title badge and
+          // any DOM injected by pageContext into chess.com stay untouched.
+          style={fontSize === 'small' ? { zoom: 0.85 } : fontSize === 'big' ? { zoom: 1.2 } : undefined}
+        >
           {loading ? (
             <Skeleton />
           ) : updateRequired ? (

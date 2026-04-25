@@ -70,7 +70,7 @@ const TITLE_OPTIONS: { value: import('../stores/settingsStore').ChessTitle; labe
 ];
 
 function GeneralTab() {
-  const { disableAnimations, setDisableAnimations, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, resetAll } = useSettingsStore();
+  const { disableAnimations, setDisableAnimations, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, fontSize, setFontSize, resetAll } = useSettingsStore();
   const handleReset = () => {
     if (confirm('Reset all settings to defaults? This will clear custom layouts, hotkeys, engine preferences, etc.')) {
       resetAll();
@@ -151,6 +151,18 @@ function GeneralTab() {
       <div className="settings-item">
         <span className="settings-label">Auto-open at game end</span>
         <Toggle checked={autoOpenOnGameEnd} onChange={setAutoOpenOnGameEnd} />
+      </div>
+      <div className="settings-item">
+        <span className="settings-label">Font size</span>
+        <select
+          className="settings-select"
+          value={fontSize}
+          onChange={(e) => setFontSize(e.target.value as import('../stores/settingsStore').FontSize)}
+        >
+          <option value="small">Small</option>
+          <option value="normal">Normal</option>
+          <option value="big">Big</option>
+        </select>
       </div>
       <div className="settings-item">
         <span className="settings-label">Disable animations</span>

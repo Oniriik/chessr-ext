@@ -5,6 +5,7 @@ import { useEngineStore } from './engineStore';
 import { useAutoMoveStore } from './autoMoveStore';
 
 export type ChessTitle = 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM' | 'WFM' | 'WCM' | 'WNM';
+export type FontSize = 'small' | 'normal' | 'big';
 
 interface Settings {
   numArrows: number;
@@ -16,6 +17,7 @@ interface Settings {
   titleType: ChessTitle;
   autoOpenOnGameEnd: boolean;
   autoOpenOnReview: boolean;
+  fontSize: FontSize;
 }
 
 const DEFAULTS: Settings = {
@@ -28,6 +30,7 @@ const DEFAULTS: Settings = {
   titleType: 'GM',
   autoOpenOnGameEnd: false,
   autoOpenOnReview: true,
+  fontSize: 'normal',
 };
 
 export interface SettingsState extends Settings {
@@ -40,6 +43,7 @@ export interface SettingsState extends Settings {
   setTitleType: (t: ChessTitle) => void;
   setAutoOpenOnGameEnd: (v: boolean) => void;
   setAutoOpenOnReview: (v: boolean) => void;
+  setFontSize: (v: FontSize) => void;
   resetAll: () => void;
   loadFromCloud: (userId: string) => Promise<void>;
 }
@@ -104,6 +108,7 @@ function getSettingsPayload(state: SettingsState) {
     titleType: state.titleType,
     autoOpenOnGameEnd: state.autoOpenOnGameEnd,
     autoOpenOnReview: state.autoOpenOnReview,
+    fontSize: state.fontSize,
     layout: useLayoutStore.getState().getConfig(),
     engine: getEnginePayload(),
     autoMove: getAutoMovePayload(),
@@ -168,6 +173,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ autoOpenOnReview: v });
     syncToCloud(get());
   },
+  setFontSize: (v) => {
+    set({ fontSize: v });
+    syncToCloud(get());
+  },
 
   resetAll: () => {
     set({ ...DEFAULTS });
@@ -202,6 +211,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           titleType: nextTitleType,
           autoOpenOnGameEnd: (cloud as any).autoOpenOnGameEnd ?? DEFAULTS.autoOpenOnGameEnd,
           autoOpenOnReview: (cloud as any).autoOpenOnReview ?? DEFAULTS.autoOpenOnReview,
+          fontSize: ((cloud as any).fontSize as FontSize) ?? DEFAULTS.fontSize,
         });
         // Sync anon state to pageContext after cloud load
         window.postMessage({ type: 'chessr:setAnon', value: (cloud as any).anonNames ?? false }, '*');
