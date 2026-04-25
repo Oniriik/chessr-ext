@@ -63,14 +63,33 @@ export function sendToClient(userId: string, data: any) {
   if (ws) ws.send(JSON.stringify(data));
 }
 
+// Loose UUID/word check — userId comes from `?userId=...` and we want to
+// drop empty / clearly-invalid values without locking out future schemes.
+function isValidUserId(uid: string | undefined): uid is string {
+  if (!uid) return false;
+  if (uid === 'anonymous' || uid === 'undefined' || uid === 'null') return false;
+  return /^[A-Za-z0-9_-]{8,64}$/.test(uid);
+}
+
 export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
   app.get(
     '/ws',
     upgradeWebSocket((c) => {
-      const userId = c.req.query('userId') || 'anonymous';
+      const rawUid = c.req.query('userId');
+      const userId = isValidUserId(rawUid) ? rawUid : 'anonymous';
+      const valid = userId !== 'anonymous';
 
       return {
         onOpen(_event, ws) {
+          if (!valid) {
+            // Refuse: the extension always passes a Supabase user.id. An
+            // anonymous connect is either a leftover browser tab, a manual
+            // `wscat`, or a buggy client. Close cleanly so the page knows.
+            ws.send(JSON.stringify({ type: 'error', message: 'missing or invalid userId' }));
+            try { ws.close(4001, 'missing userId'); } catch { /* ignore */ }
+            console.warn('[WS] refused connect without userId (raw=' + JSON.stringify(rawUid) + ')');
+            return;
+          }
           clients.set(userId, ws);
           connectedAt.set(userId, Date.now());
           logConnected(userId, clients.size);
@@ -79,6 +98,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
         },
 
         onMessage(event, _ws) {
+          if (!valid) return;  // refused at onOpen, ignore any straggler messages
           try {
             const msg = JSON.parse(event.data as string);
             const send = (data: unknown) => sendToClient(userId, data);
@@ -163,6 +183,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
         },
 
         onClose() {
+          if (!valid) return;
           clients.delete(userId);
           connectedAt.delete(userId);
           dropUserState(userId);
