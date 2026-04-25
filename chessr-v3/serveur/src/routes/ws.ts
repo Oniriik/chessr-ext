@@ -14,6 +14,11 @@ import {
   type AnalysisMessage,
   type FenEvalMessage,
 } from '../handlers/analysisHandler.js';
+import {
+  handleMaiaRequest,
+  handleUserDisconnectMaia,
+  type MaiaMessage,
+} from '../handlers/maiaHandler.js';
 import { logStart, logEnd, logConnected, logDisconnected } from '../lib/wsLog.js';
 
 type WSApp = {
@@ -67,6 +72,11 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
               // because its WASM failed to init.
               case 'suggestion_request':
                 handleSuggestionRequest(msg as SuggestionMessage, userId, send);
+                break;
+
+              // Server-side Maia 2 fallback (native binary via MaiaPool).
+              case 'maia_request':
+                handleMaiaRequest(msg as MaiaMessage, userId, send);
                 break;
 
               // Server-side Stockfish move-analysis fallback (classification).
@@ -124,6 +134,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
           connectedAt.delete(userId);
           handleUserDisconnectSuggestion(userId);
           handleUserDisconnectAnalysis(userId);
+          handleUserDisconnectMaia(userId);
           logDisconnected(userId, clients.size);
         },
       };

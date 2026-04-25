@@ -8,6 +8,7 @@
 
 import { suggestionQueue } from './suggestionQueue.js';
 import { analysisQueue } from './analysisQueue.js';
+import { maiaQueue } from './maiaQueue.js';
 
 const STATS_INTERVAL_MS = 30_000;
 
@@ -15,15 +16,16 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 async function snapshot(): Promise<void> {
   try {
-    const [sug, ana] = await Promise.all([
+    const [sug, ana, mai] = await Promise.all([
       suggestionQueue.getJobCounts('active', 'waiting', 'completed', 'failed'),
       analysisQueue.getJobCounts('active', 'waiting', 'completed', 'failed'),
+      maiaQueue.getJobCounts('active', 'waiting', 'completed', 'failed'),
     ]);
     console.log(
-      `[Queues] sug active=${sug.active} waiting=${sug.waiting} ` +
-      `done=${sug.completed} failed=${sug.failed} ; ` +
-      `ana active=${ana.active} waiting=${ana.waiting} ` +
-      `done=${ana.completed} failed=${ana.failed}`,
+      `[Queues] ` +
+      `sug active=${sug.active} waiting=${sug.waiting} done=${sug.completed} failed=${sug.failed} ; ` +
+      `ana active=${ana.active} waiting=${ana.waiting} done=${ana.completed} failed=${ana.failed} ; ` +
+      `mai active=${mai.active} waiting=${mai.waiting} done=${mai.completed} failed=${mai.failed}`,
     );
   } catch (err) {
     console.warn('[Queues] stats snapshot failed:', err instanceof Error ? err.message : err);

@@ -14,6 +14,7 @@ import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
 import { initSuggestionWorker, shutdownSuggestionWorker } from './queue/suggestionQueue.js';
 import { initAnalysisWorker, shutdownAnalysisWorker } from './queue/analysisQueue.js';
+import { initMaiaWorker, shutdownMaiaWorker } from './queue/maiaQueue.js';
 import { startQueueStats, stopQueueStats } from './queue/stats.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
@@ -51,6 +52,7 @@ injectWebSocket(server);
 // unavailable (no queue to enqueue into).
 const MAX_KOMODO = Number(process.env.MAX_KOMODO_INSTANCES) || 2;
 const MAX_STOCKFISH = Number(process.env.MAX_STOCKFISH_INSTANCES) || 1;
+const MAX_MAIA = Number(process.env.MAX_MAIA_INSTANCES) || 1;
 
 initSuggestionWorker(MAX_KOMODO)
   .catch((err) => console.error('[Engines] Suggestion worker failed to init:', err));
@@ -58,13 +60,20 @@ initSuggestionWorker(MAX_KOMODO)
 initAnalysisWorker(MAX_STOCKFISH)
   .catch((err) => console.error('[Engines] Analysis worker failed to init:', err));
 
+initMaiaWorker(MAX_MAIA)
+  .catch((err) => console.error('[Engines] Maia worker failed to init:', err));
+
 startQueueStats();
 
 // Graceful shutdown
 async function shutdown() {
   console.log('[Engines] Shutting down BullMQ workers...');
   stopQueueStats();
-  await Promise.allSettled([shutdownSuggestionWorker(), shutdownAnalysisWorker()]);
+  await Promise.allSettled([
+    shutdownSuggestionWorker(),
+    shutdownAnalysisWorker(),
+    shutdownMaiaWorker(),
+  ]);
   process.exit(0);
 }
 process.on('SIGINT', shutdown);

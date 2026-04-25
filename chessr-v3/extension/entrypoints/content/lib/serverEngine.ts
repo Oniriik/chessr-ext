@@ -33,6 +33,14 @@ function capsFor(id: EngineId): EngineCapabilities {
   return { hasPersonality: true, hasUciElo: true, hasDynamism: true, hasKingSafety: true, hasVariety: true };
 }
 
+/** Map raw ELO to Maia's 0..10 bucket (mirror of eloBucketIndex in
+ *  maiaSuggestionEngine.ts). Server side expects pre-bucketed values. */
+function eloBucketIndex(elo: number): number {
+  if (elo < 1100) return 0;
+  if (elo >= 2000) return 10;
+  return Math.floor((elo - 1100) / 100) + 1;
+}
+
 export class ServerEngine implements IEngine {
   readonly id: EngineId;
   private _ready = false;
@@ -91,34 +99,40 @@ export class ServerEngine implements IEngine {
 
       this.active = { requestId, off, timer };
 
-      // Map IEngine params → server protocol.
-      const payload: any = {
-        type: 'suggestion_request',
-        requestId,
-        engine: this.id,
-        fen: params.fen,
-        moves: params.moves ?? [],
-        multiPv: params.multiPv,
-      };
+      // Map IEngine params → server protocol. Two distinct WS message
+      // types: `maia_request` for the native Maia binary path,
+      // `suggestion_request` for the Komodo Dragon path. Both come back
+      // as `suggestion_response` so the receive handler stays unified.
       if (this.id === 'maia2') {
-        // Maia-specific fields
-        payload.eloSelf = params.eloSelf;
-        payload.eloOppo = params.eloOppo;
-        payload.variant = params.variant;
-        payload.useBook = params.useBook;
+        sendWs({
+          type: 'maia_request',
+          requestId,
+          fen: params.fen,
+          eloSelf: eloBucketIndex(params.eloSelf ?? 1500),
+          eloOppo: eloBucketIndex(params.eloOppo ?? 1500),
+          multiPv: params.multiPv,
+        });
       } else {
-        payload.targetElo = params.targetElo;
-        payload.personality = params.personality;
-        payload.limitStrength = params.limitStrength;
-        payload.variety = params.variety;
+        const payload: any = {
+          type: 'suggestion_request',
+          requestId,
+          engine: this.id,
+          fen: params.fen,
+          moves: params.moves ?? [],
+          multiPv: params.multiPv,
+          targetElo: params.targetElo,
+          personality: params.personality,
+          limitStrength: params.limitStrength,
+          variety: params.variety,
+        };
         if (params.search) {
           payload.searchMode = params.search.mode;
           payload.searchNodes = params.search.nodes;
           payload.searchDepth = params.search.depth;
           payload.searchMovetime = params.search.movetime;
         }
+        sendWs(payload);
       }
-      sendWs(payload);
     });
   }
 
