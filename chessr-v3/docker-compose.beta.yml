@@ -1,14 +1,95 @@
+# Beta production stack — designed for the new Hetzner host (16 GB / 8 vCPU,
+# CPX41 or equivalent x86 with AVX2). Drop-in replacement for the OVH
+# version: adds Redis (BullMQ requirement), keeps serveur + dashboard +
+# nginx + certbot as before.
+#
+# Required env vars (read from .env in this directory at compose time):
+#   NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY  — inlined into
+#     the dashboard bundle at build (Next.js)
+#   SUPABASE_SERVICE_KEY, SERVEUR_ADMIN_TOKEN, NEXT_PUBLIC_SERVEUR_URL
+#     — runtime env for the dashboard
+#
+# Required: ./serveur/.env with SUPABASE_URL, SUPABASE_SERVICE_KEY,
+# DISCORD_*, OPENAI_API_KEY, etc. See chessr-v3/serveur for the full list.
+# REDIS_HOST/PORT are injected by this file → don't set them in .env.
+#
+# Boot:
+#   docker compose -f docker-compose.beta.yml up -d --build
+# Stop:
+#   docker compose -f docker-compose.beta.yml down
+# Logs:
+#   docker compose -f docker-compose.beta.yml logs -f serveur
+
+name: chessr
+
 services:
+  # ─── Redis — BullMQ broker for the suggestion + analysis queues ────────
+  redis:
+    image: redis:7-alpine
+    container_name: chessr-redis
+    restart: unless-stopped
+    # AOF persistence so jobs survive a server restart. Default RDB
+    # snapshots also kept as a safety net.
+    command: >
+      redis-server
+      --appendonly yes
+      --save 60 1
+      --loglevel warning
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    networks:
+      - chessr
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 128M
+
+  # ─── Serveur (Hono + WS + BullMQ producer/worker) ──────────────────────
   serveur:
     build:
       context: ./serveur
       dockerfile: Dockerfile
+    container_name: chessr-serveur
     restart: unless-stopped
     env_file:
       - ./serveur/.env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Pool sizing — adjust per host capacity. CPX41 (8 vCPU) handles
+      # 4 Komodo + 2 Stockfish without saturating.
+      - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-4}
+      - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-2}
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - chessr
+    deploy:
+      resources:
+        limits:
+          cpus: '6'
+          memory: 6G
+        reservations:
+          cpus: '2'
+          memory: 1G
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
 
+  # ─── Dashboard admin (Next.js) ─────────────────────────────────────────
   dashboard:
     build:
       context: ./dashboard
@@ -17,11 +98,11 @@ services:
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         NEXT_PUBLIC_SERVEUR_URL: ${NEXT_PUBLIC_SERVEUR_URL}
+    container_name: chessr-dashboard
     restart: unless-stopped
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # Server-only vars (not inlined by Next, read at runtime)
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - SERVEUR_ADMIN_TOKEN=${SERVEUR_ADMIN_TOKEN}
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
@@ -29,9 +110,15 @@ services:
       - NEXT_PUBLIC_SERVEUR_URL=${NEXT_PUBLIC_SERVEUR_URL}
     networks:
       - chessr
+    deploy:
+      resources:
+        limits:
+          memory: 1G
 
+  # ─── Nginx — TLS terminator + reverse proxy ────────────────────────────
   nginx:
     image: nginx:1.27-alpine
+    container_name: chessr-nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -47,16 +134,20 @@ services:
     networks:
       - chessr
 
+  # ─── Certbot — Let's Encrypt cert renewal loop ─────────────────────────
   certbot:
     image: certbot/certbot:latest
+    container_name: chessr-certbot
     restart: unless-stopped
     volumes:
       - ./nginx/certbot/conf:/etc/letsencrypt
       - ./nginx/certbot/www:/var/www/certbot
-    # Renew loop: check every 12h, reload nginx if cert rotated
     entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook "nginx -s reload 2>/dev/null || true"; sleep 12h & wait $${!}; done;'
     networks:
       - chessr
+
+volumes:
+  redis_data:
 
 networks:
   chessr:

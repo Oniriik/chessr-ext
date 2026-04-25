@@ -1,0 +1,79 @@
+# Dev stack — Redis + serveur en mode watch.
+#
+# Le serveur (Hono) tourne dans Docker avec `tsx watch` qui rebuild auto à
+# chaque save grâce au volume mount sur src/. Identique à prod côté
+# environnement (Node 20-slim, deps bind-mountées sur engines/), mais
+# avec NODE_ENV=development + Redis joignable.
+#
+# Le dashboard Next.js n'est pas inclus — son `next dev` est plus rapide
+# en local direct (HMR, source maps complets). Si tu veux quand même le
+# containeriser, dis-le et j'ajoute le service.
+#
+# Boot :
+#   cd chessr-v3 && docker compose -f docker-compose.dev.yml up -d --build
+#
+# Logs serveur en live :
+#   docker compose -f docker-compose.dev.yml logs -f serveur
+#
+# Reset complet (purge la queue Redis + node_modules cachés) :
+#   docker compose -f docker-compose.dev.yml down -v
+#
+# Rebuild après changement de package.json :
+#   docker compose -f docker-compose.dev.yml up -d --build serveur
+
+name: chessr
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: chessr-redis-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  serveur:
+    build:
+      context: ./serveur
+      dockerfile: Dockerfile
+    container_name: chessr-serveur-dev
+    restart: unless-stopped
+    # Force x86_64 — les binaires `engines/linux/{dragon,stockfish}-avx2`
+    # sont Linux x86 et le container ARM (Mac Apple Silicon par défaut)
+    # ne sait pas les exécuter. Docker Desktop emule via qemu/Rosetta —
+    # 3-5× plus lent qu'en natif mais OK pour le dev/tests fonctionnels.
+    # En prod sur Hetzner Linux x86, cette ligne est no-op.
+    platform: linux/amd64
+    command: ["npx", "tsx", "watch", "src/index.ts"]
+    environment:
+      - NODE_ENV=development
+      - PORT=8081
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-2}
+      - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-1}
+    env_file:
+      - ./serveur/.env
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      # Bind-mount des sources qui changent souvent → tsx watch détecte les
+      # modifs. node_modules et engines/ restent ceux baked dans l'image
+      # (overlay du container, sinon écrasés par le bind).
+      - ./serveur/src:/app/src
+      - ./serveur/scripts:/app/scripts
+      - ./serveur/migrations:/app/migrations
+      - ./serveur/tsconfig.json:/app/tsconfig.json
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_dev_data:
