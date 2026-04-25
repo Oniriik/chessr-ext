@@ -107,6 +107,17 @@
   gap: 4px;
 }
 
+.settings-engine-beta-badge {
+  align-self: flex-start;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+}
+
 .settings-engine-elo {
   font-size: 11px;
   color: hsl(var(--muted-foreground));

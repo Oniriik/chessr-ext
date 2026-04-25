@@ -652,7 +652,7 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
   const engineId = useEngineStore((s) => s.engineId);
   const engineOrder = useLayoutStore((s) => s.engineOrder);
 
-  if (engineId === 'maia2') return <Maia2Panel />;
+  if (engineId === 'maia2' || engineId === 'maia3') return <Maia2Panel />;
 
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>

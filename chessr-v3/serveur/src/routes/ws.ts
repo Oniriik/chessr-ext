@@ -19,6 +19,11 @@ import {
   handleUserDisconnectMaia,
   type MaiaMessage,
 } from '../handlers/maiaHandler.js';
+import {
+  handleMaia3Request,
+  handleUserDisconnectMaia3,
+  type Maia3Message,
+} from '../handlers/maia3Handler.js';
 import { logStart, logEnd, logConnected, logDisconnected } from '../lib/wsLog.js';
 import {
   recordSuggestion,
@@ -100,6 +105,11 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
                 handleMaiaRequest(msg as MaiaMessage, userId, send);
                 break;
 
+              // Server-side Maia 3 fallback (ONNX via onnxruntime-node).
+              case 'maia3_request':
+                handleMaia3Request(msg as Maia3Message, userId, send);
+                break;
+
               // Server-side Stockfish move-analysis fallback (classification).
               case 'analysis_request':
                 handleAnalysisRequest(msg as AnalysisMessage, userId, send);
@@ -159,6 +169,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
           handleUserDisconnectSuggestion(userId);
           handleUserDisconnectAnalysis(userId);
           handleUserDisconnectMaia(userId);
+          handleUserDisconnectMaia3(userId);
           logDisconnected(userId, clients.size);
         },
       };

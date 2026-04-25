@@ -22,6 +22,7 @@ function analysisSource(): 'wasm' | 'server' {
 }
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
+import { Maia3SuggestionEngine } from './content/lib/maia3SuggestionEngine';
 import { ServerEngine } from './content/lib/serverEngine';
 import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
 import type { EngineId } from './content/stores/engineStore';
@@ -120,6 +121,7 @@ const WASM_INIT_TIMEOUT_MS = 3000;
 function newWasmEngine(id: EngineId): IEngine {
   switch (id) {
     case 'maia2': return new MaiaSuggestionEngine();
+    case 'maia3': return new Maia3SuggestionEngine();
     default:      return new SuggestionEngine(); // 'komodo'
   }
 }
@@ -134,7 +136,7 @@ function forceServerSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrForceServer;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'stockfish']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -144,7 +146,7 @@ function forceFailSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrFailWasm;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'stockfish']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -249,7 +251,7 @@ function runSuggestionSearch(fen: string) {
   const numArrows = useSettingsStore.getState().numArrows;
 
   let params: EngineSearchParams;
-  if (suggestionEngine.id === 'maia2') {
+  if (suggestionEngine.id === 'maia2' || suggestionEngine.id === 'maia3') {
     params = {
       fen,
       moves: [] as string[],
@@ -257,7 +259,7 @@ function runSuggestionSearch(fen: string) {
       eloSelf: engine.getMaiaEffectiveTargetElo(),
       eloOppo: engine.getMaiaEffectiveOppoElo(),
       variant: engine.maiaVariant,
-      useBook: engine.maiaUseBook,
+      useBook: suggestionEngine.id === 'maia2' ? engine.maiaUseBook : false,
     };
   } else {
     const effectiveElo = engine.getEffectiveElo();
@@ -306,8 +308,8 @@ function runSuggestionSearch(fen: string) {
   const engineLabel = suggestionEngine.id;
   const source = suggestionEngine instanceof ServerEngine ? 'server' : 'wasm';
   const extra = (() => {
-    if (engineLabel === 'maia2') {
-      return `source=${source} engine=maia2 variant=${params.variant} eloSelf=${params.eloSelf} eloOppo=${params.eloOppo} mpv=${params.multiPv}`;
+    if (engineLabel === 'maia2' || engineLabel === 'maia3') {
+      return `source=${source} engine=${engineLabel} variant=${params.variant} eloSelf=${params.eloSelf} eloOppo=${params.eloOppo} mpv=${params.multiPv}`;
     }
     const searchDesc = params.search
       ? `${params.search.mode}:${

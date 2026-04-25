@@ -7,10 +7,10 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
-export type EngineId = 'komodo' | 'maia2';
+export type EngineId = 'komodo' | 'maia2' | 'maia3';
 export type MaiaVariant = 'blitz' | 'rapid';
 
-export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string }> = {
+export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string; beta?: boolean }> = {
   komodo: {
     label: 'Komodo',
     desc:  'Classical engine with deep search and full tuning.',
@@ -20,6 +20,12 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Maia 2',
     desc:  'Neural network that plays like a human at the chosen ELO.',
     eloRange: '1100 – 2000',
+  },
+  maia3:  {
+    label: 'Maia 3',
+    desc:  'New Maia model with continuous ELO and wider range.',
+    eloRange: '600 – 2600',
+    beta:  true,
   },
 };
 
@@ -198,9 +204,9 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
   // (cloud or otherwise) snaps into the band where each step actually changes
   // the model's behaviour.
   setMaiaTargetEloAuto: (v) => set({ maiaTargetEloAuto: v }),
-  setMaiaTargetEloManual: (v) => set({ maiaTargetEloManual: Math.max(1100, Math.min(2000, v)) }),
+  setMaiaTargetEloManual: (v) => set({ maiaTargetEloManual: Math.max(600, Math.min(2600, v)) }),
   setMaiaOppoEloAuto: (v) => set({ maiaOppoEloAuto: v }),
-  setMaiaOppoEloManual: (v) => set({ maiaOppoEloManual: Math.max(1100, Math.min(2000, v)) }),
+  setMaiaOppoEloManual: (v) => set({ maiaOppoEloManual: Math.max(600, Math.min(2600, v)) }),
   setMaiaUseBook: (v) => set({ maiaUseBook: v }),
 
   getMaiaEffectiveOppoElo: () => {

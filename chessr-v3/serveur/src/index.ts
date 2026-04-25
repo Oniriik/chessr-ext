@@ -15,6 +15,7 @@ import { startSysMetrics } from './lib/sysMetrics.js';
 import { initSuggestionWorker, shutdownSuggestionWorker } from './queue/suggestionQueue.js';
 import { initAnalysisWorker, shutdownAnalysisWorker } from './queue/analysisQueue.js';
 import { initMaiaWorker, shutdownMaiaWorker } from './queue/maiaQueue.js';
+import { initMaia3Worker, shutdownMaia3Worker } from './queue/maia3Queue.js';
 import { startQueueStats, stopQueueStats } from './queue/stats.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
@@ -53,6 +54,7 @@ injectWebSocket(server);
 const MAX_KOMODO = Number(process.env.MAX_KOMODO_INSTANCES) || 2;
 const MAX_STOCKFISH = Number(process.env.MAX_STOCKFISH_INSTANCES) || 1;
 const MAX_MAIA = Number(process.env.MAX_MAIA_INSTANCES) || 1;
+const MAX_MAIA3 = Number(process.env.MAX_MAIA3_INSTANCES) || 2;
 
 initSuggestionWorker(MAX_KOMODO)
   .catch((err) => console.error('[Engines] Suggestion worker failed to init:', err));
@@ -62,6 +64,9 @@ initAnalysisWorker(MAX_STOCKFISH)
 
 initMaiaWorker(MAX_MAIA)
   .catch((err) => console.error('[Engines] Maia worker failed to init:', err));
+
+initMaia3Worker(MAX_MAIA3)
+  .catch((err) => console.error('[Engines] Maia3 worker failed to init:', err));
 
 startQueueStats();
 
@@ -73,6 +78,7 @@ async function shutdown() {
     shutdownSuggestionWorker(),
     shutdownAnalysisWorker(),
     shutdownMaiaWorker(),
+    shutdownMaia3Worker(),
   ]);
   process.exit(0);
 }

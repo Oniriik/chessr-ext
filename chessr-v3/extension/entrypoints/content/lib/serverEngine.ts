@@ -158,6 +158,16 @@ export class ServerEngine implements IEngine {
           eloOppo: eloBucketIndex(params.eloOppo ?? 1500),
           multiPv: params.multiPv,
         });
+      } else if (this.id === 'maia3') {
+        sendWs({
+          type: 'maia3_request',
+          requestId,
+          fen: params.fen,
+          // Maia 3 takes raw float ELO — no bucketing.
+          eloSelf: params.eloSelf ?? 1500,
+          eloOppo: params.eloOppo ?? 1500,
+          multiPv: params.multiPv,
+        });
       } else {
         const payload: any = {
           type: 'suggestion_request',

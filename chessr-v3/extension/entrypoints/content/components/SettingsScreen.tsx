@@ -421,11 +421,16 @@ function EngineSettingsTab() {
             onChange={(e) => setEngineId(e.target.value as EngineId)}
           >
             {engineIds.map((id) => (
-              <option key={id} value={id}>{ENGINE_INFO[id].label}</option>
+              <option key={id} value={id}>
+                {ENGINE_INFO[id].label}{ENGINE_INFO[id].beta ? ' (beta)' : ''}
+              </option>
             ))}
           </select>
         </div>
         <div className="settings-engine-meta">
+          {info.beta && (
+            <span className="settings-engine-beta-badge">BETA</span>
+          )}
           <span className="settings-engine-elo">ELO range: <strong>{info.eloRange}</strong></span>
           <span className="settings-engine-desc">{info.desc}</span>
         </div>

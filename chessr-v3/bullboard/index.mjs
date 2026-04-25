@@ -13,7 +13,7 @@ const REDIS_HOST = process.env.REDIS_HOST || 'redis';
 const REDIS_PORT = Number(process.env.REDIS_PORT) || 6379;
 const PORT = Number(process.env.PORT) || 3000;
 const BASE_PATH = process.env.BASE_PATH || '/queues/board';
-const QUEUE_NAMES = (process.env.QUEUE_NAMES || 'komodo,analysis,maia-2')
+const QUEUE_NAMES = (process.env.QUEUE_NAMES || 'komodo,analysis,maia-2,maia-3')
   .split(',').map((s) => s.trim()).filter(Boolean);
 
 const connection = { host: REDIS_HOST, port: REDIS_PORT, maxRetriesPerRequest: null };
