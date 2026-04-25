@@ -74,9 +74,19 @@ export default function QueuesPage() {
 
   return (
     <AdminShell title="Queues">
-      <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
-        BullMQ — refresh every 3s.
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
+          BullMQ — refresh every 3s.
+        </p>
+        <a
+          href="/queues/board"
+          target="_blank"
+          rel="noreferrer"
+          style={{ fontSize: 11, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6 }}
+        >
+          Open Bull Board ↗
+        </a>
+      </div>
 
       {error && (
         <div style={{ fontSize: 12, color: 'var(--error)', padding: 8, borderRadius: 6, background: 'rgba(248,113,113,0.1)' }}>
