@@ -14,6 +14,7 @@ import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
 import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
+import { useGameStore } from '../stores/gameStore';
 import './settings-screen.css';
 
 const serverRegion = SERVER_LABEL[BUILD_ENV];
@@ -84,15 +85,27 @@ function GeneralTab() {
       const auth = useAuthStore.getState();
       const engine = useEngineStore.getState();
       const settings = useSettingsStore.getState();
+      const game = useGameStore.getState();
       const meta = {
-        extension: browser.runtime.getManifest().version,
+        extensionVersion: browser.runtime.getManifest().version,
+        buildEnv: BUILD_ENV,
         wsUrl: WS_SERVER_URL,
         userId: auth.user?.id ? auth.user.id.slice(0, 8) + '…' : '(none)',
         plan: auth.plan ?? '(none)',
         engineId: engine.engineId,
-        engineCaps: JSON.stringify(engine.capabilities),
-        suggestionEngine: (window as unknown as { __chessrEngineState?: unknown }).__chessrEngineState ?? '(unknown)',
-        numArrows: settings.numArrows,
+        game: {
+          fen: game.fen,
+          isPlaying: game.isPlaying,
+          gameOver: game.gameOver,
+          playerColor: game.playerColor,
+          turn: game.turn,
+        },
+        settings: {
+          numArrows: settings.numArrows,
+          maiaVariant: engine.maiaVariant,
+          targetEloAuto: engine.targetEloAuto,
+          searchMode: engine.searchMode,
+        },
       };
       const dump = await collectDebugDump(meta);
       await navigator.clipboard.writeText(dump);

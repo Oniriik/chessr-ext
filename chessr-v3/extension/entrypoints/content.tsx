@@ -1,6 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import App from './content/App';
-import { installDiagCapture } from './content/lib/diagBuffer';
+import { installDiagCapture, recordChessrEvent, recordEngineSwap } from './content/lib/diagBuffer';
 
 // Patch console.warn / .error + window.onerror into a ring buffer so the
 // Settings → Copy debug logs button can dump everything for support.
@@ -46,6 +46,7 @@ async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean
     console.log('[Chessr] chessrForceServer set for stockfish → server analysis engine');
     const srv = new ServerAnalysisEngine();
     await srv.init();
+    recordEngineSwap({ slot: 'analysis', engineId: 'stockfish', mode: 'server', success: true, detail: 'forced via chessrForceServer' });
     return srv;
   }
 
@@ -61,13 +62,16 @@ async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error('stockfish wasm init timeout')), 3000)),
     ]);
     console.log('[Chessr] analysis engine ready (WASM)');
+    recordEngineSwap({ slot: 'analysis', engineId: 'stockfish', mode: 'wasm', success: true });
     return wasm;
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
     console.warn('[Chessr] Stockfish WASM failed, falling back to server', err);
     try { wasm.destroy(); } catch { /* ignore */ }
     const srv = new ServerAnalysisEngine();
     await srv.init();
     console.log('[Chessr] analysis engine ready (server fallback)');
+    recordEngineSwap({ slot: 'analysis', engineId: 'stockfish', mode: 'server', success: true, detail: `wasm fail: ${errMsg}` });
     return srv;
   }
 }
@@ -155,13 +159,13 @@ async function createEngine(id: EngineId): Promise<IEngine> {
     console.log(`[Chessr] chessrForceServer set for ${id} → server engine`);
     const srv = new ServerEngine(id);
     await srv.init();
+    recordEngineSwap({ slot: 'suggestion', engineId: id, mode: 'server', success: true, detail: 'forced via chessrForceServer' });
     return srv;
   }
 
   const wasmEng = newWasmEngine(id);
   try {
     // DEV: simulate a WASM init failure to exercise the catch-fallback path.
-    // `localStorage.chessrFailWasm = '<engineId>'` (or '1'/'all').
     if (forceFailSet().has(id)) {
       throw new Error(`chessrFailWasm set for ${id} → simulated init failure`);
     }
@@ -171,13 +175,16 @@ async function createEngine(id: EngineId): Promise<IEngine> {
         setTimeout(() => rej(new Error('wasm init timeout')), WASM_INIT_TIMEOUT_MS)),
     ]);
     console.log(`[Chessr] engine ready (WASM): ${id}`);
+    recordEngineSwap({ slot: 'suggestion', engineId: id, mode: 'wasm', success: true });
     return wasmEng;
   } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
     console.warn(`[Chessr] WASM engine ${id} failed, falling back to server`, err);
     try { wasmEng.destroy(); } catch { /* ignore */ }
     const srv = new ServerEngine(id);
     await srv.init();
     console.log(`[Chessr] engine ready (server fallback): ${id}`);
+    recordEngineSwap({ slot: 'suggestion', engineId: id, mode: 'server', success: true, detail: `wasm fail: ${errMsg}` });
     return srv;
   }
 }
@@ -618,6 +625,7 @@ export default defineContentScript({
       if (typeof data?.type !== 'string' || !data.type.startsWith('chessr:')) return;
 
       console.log(`[Chessr] ${data.type}`, data);
+      recordChessrEvent(data.type, data);
 
       const { setPlaying, setMove, setPlayerColor, reset } = useGameStore.getState();
 
