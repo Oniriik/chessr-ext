@@ -74,10 +74,6 @@ export function startSysMetrics(intervalMs = 5000) {
       cpuCount: os.cpus().length,
     };
 
-    console.log(
-      `\x1b[90m[SYS]\x1b[0m cpu=${cpuPct.toFixed(1)}% ` +
-        `mem=${formatGb(usedMem)}/${formatGb(totalMem)}GB (${memPct.toFixed(0)}%) ` +
-        `rss=${formatMb(rss)}MB load1=${load1.toFixed(2)}`,
-    );
+    // Snapshot is exposed via /admin/metrics; no need to spam stdout.
   }, intervalMs).unref();
 }

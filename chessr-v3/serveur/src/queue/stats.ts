@@ -23,13 +23,8 @@ async function snapshot(): Promise<void> {
       maiaQueue.getJobCounts('active', 'waiting', 'completed', 'failed'),
       maia3Queue.getJobCounts('active', 'waiting', 'completed', 'failed'),
     ]);
-    console.log(
-      `[Queues] ` +
-      `komodo active=${sug.active} waiting=${sug.waiting} done=${sug.completed} failed=${sug.failed} ; ` +
-      `analysis active=${ana.active} waiting=${ana.waiting} done=${ana.completed} failed=${ana.failed} ; ` +
-      `maia-2 active=${mai.active} waiting=${mai.waiting} done=${mai.completed} failed=${mai.failed} ; ` +
-      `maia-3 active=${mai3.active} waiting=${mai3.waiting} done=${mai3.completed} failed=${mai3.failed}`,
-    );
+    // Counts are exposed via /admin/queues + Bull Board; no need to spam stdout.
+    void sug; void ana; void mai; void mai3;
   } catch (err) {
     console.warn('[Queues] stats snapshot failed:', err instanceof Error ? err.message : err);
   }
