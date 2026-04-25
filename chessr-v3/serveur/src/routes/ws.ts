@@ -78,6 +78,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
       const rawUid = c.req.query('userId');
       const userId = isValidUserId(rawUid) ? rawUid : 'anonymous';
       const valid = userId !== 'anonymous';
+      console.log('[WS][debug] upgrade — url=' + c.req.url + ' rawUid=' + JSON.stringify(rawUid) + ' valid=' + valid);
 
       return {
         onOpen(_event, ws) {
