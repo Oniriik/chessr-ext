@@ -4,6 +4,10 @@ import { getRecentLines, subscribe } from '../lib/logBuffer.js';
 import { getLatestMetrics } from '../lib/sysMetrics.js';
 import { getConnectedUsersDetailed } from './ws.js';
 import { supabase } from '../lib/supabase.js';
+import { suggestionQueue } from '../queue/suggestionQueue.js';
+import { analysisQueue } from '../queue/analysisQueue.js';
+import { maiaQueue } from '../queue/maiaQueue.js';
+import type { Queue, JobType } from 'bullmq';
 
 export const adminLogsRoutes = new Hono();
 
@@ -34,6 +38,41 @@ async function resolveEmail(userId: string): Promise<string | null> {
 adminLogsRoutes.get('/admin/metrics', (c) => {
   if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
   return c.json(getLatestMetrics());
+});
+
+// GET /admin/queues — BullMQ snapshot for each queue: counts + recent
+// failed jobs (last 5). Replaces the standalone Bull Board container so
+// the dashboard can render queue state inline without proxy headaches.
+adminLogsRoutes.get('/admin/queues', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  const STATES: JobType[] = ['active', 'waiting', 'completed', 'failed', 'delayed'];
+  const queues: Array<{ name: string; q: Queue }> = [
+    { name: 'suggestion', q: suggestionQueue },
+    { name: 'analysis',   q: analysisQueue },
+    { name: 'maia',       q: maiaQueue },
+  ];
+
+  const data = await Promise.all(queues.map(async ({ name, q }) => {
+    const [counts, failedJobs] = await Promise.all([
+      q.getJobCounts(...STATES),
+      q.getJobs(['failed'], 0, 4, false),
+    ]);
+    return {
+      name,
+      counts,
+      failed: failedJobs.map((j) => ({
+        id: j.id,
+        name: j.name,
+        attemptsMade: j.attemptsMade,
+        failedReason: j.failedReason,
+        finishedOn: j.finishedOn,
+        timestamp: j.timestamp,
+      })),
+    };
+  }));
+
+  return c.json({ ts: Date.now(), queues: data });
 });
 
 // GET /admin/users/connected — list currently connected WS users with email,

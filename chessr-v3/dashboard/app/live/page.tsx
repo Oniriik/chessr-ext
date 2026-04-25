@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { AdminShell } from '@/components/AdminShell';
 
@@ -16,7 +17,6 @@ type Sample = {
 };
 
 type EngineUsage = { source: 'wasm' | 'server'; engine: string | null; ts: number } | null;
-
 type ConnectedUser = {
   userId: string;
   email: string | null;
@@ -26,7 +26,8 @@ type ConnectedUser = {
   lastEval: EngineUsage;
 };
 
-const BULLBOARD_URL = process.env.NEXT_PUBLIC_BULLBOARD_URL || '/bullboard/';
+type Counts = { active: number; waiting: number; completed: number; failed: number; delayed: number };
+type QueueData = { name: string; counts: Counts; failed: unknown[] };
 
 function fmtGb(b: number) { return (b / 1024 / 1024 / 1024).toFixed(1); }
 function fmtMb(b: number) { return (b / 1024 / 1024).toFixed(0); }
@@ -41,7 +42,7 @@ function MiniStat({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
-function modeSummary(users: ConnectedUser[]): { wasm: number; server: number; mixed: number } {
+function modeSummary(users: ConnectedUser[]) {
   let wasm = 0, server = 0, mixed = 0;
   for (const u of users) {
     const sources = [u.lastSuggestion?.source, u.lastAnalysis?.source].filter(Boolean) as string[];
@@ -58,6 +59,7 @@ function modeSummary(users: ConnectedUser[]): { wasm: number; server: number; mi
 export default function LivePage() {
   const [sys, setSys] = useState<Sample | null>(null);
   const [users, setUsers] = useState<ConnectedUser[]>([]);
+  const [queues, setQueues] = useState<QueueData[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,14 +70,16 @@ export default function LivePage() {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const [mRes, uRes] = await Promise.all([
+        const [m, u, q] = await Promise.all([
           fetch(`/api/metrics?token=${encodeURIComponent(token)}`),
           fetch(`/api/users/connected?token=${encodeURIComponent(token)}`),
+          fetch(`/api/queues?token=${encodeURIComponent(token)}`),
         ]);
-        if (!mRes.ok || !uRes.ok) throw new Error(`HTTP ${mRes.status}/${uRes.status}`);
+        if (!m.ok || !u.ok || !q.ok) throw new Error(`HTTP ${m.status}/${u.status}/${q.status}`);
         if (cancelled) return;
-        setSys(await mRes.json());
-        setUsers((await uRes.json()).users || []);
+        setSys(await m.json());
+        setUsers((await u.json()).users || []);
+        setQueues((await q.json()).queues || []);
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Fetch failed');
@@ -96,7 +100,6 @@ export default function LivePage() {
         </div>
       )}
 
-      {/* ── Top stat strip ───────────────────────────────────────── */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         <MiniStat label="Connected" value={String(users.length)} sub={`${modes.wasm} wasm · ${modes.server} server · ${modes.mixed} mixed`} />
         {sys && <>
@@ -107,29 +110,33 @@ export default function LivePage() {
         </>}
       </div>
 
-      {/* ── Bull Board iframe ───────────────────────────────────── */}
-      <div className="admin-card" style={{ flex: 1, padding: 0, minHeight: 360, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', borderBottom: '1px solid var(--border)',
-        }}>
-          <h2 style={{ margin: 0, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.08, color: 'var(--muted)', fontWeight: 700 }}>
-            BullMQ queues
-          </h2>
-          <a
-            href={BULLBOARD_URL}
-            target="_blank"
-            rel="noreferrer"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}
-          >
-            Open <ExternalLink size={11} />
-          </a>
+      <div className="admin-card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2>BullMQ Queues</h2>
+          <Link href="/queues" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+            details <ArrowRight size={11} />
+          </Link>
         </div>
-        <iframe
-          src={BULLBOARD_URL}
-          style={{ flex: 1, border: 'none', background: '#0a0a14' }}
-          title="Bull Board"
-        />
+        {queues.length === 0 ? (
+          <div style={{ color: 'var(--muted)', fontSize: 12 }}>Loading…</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+            {queues.map((q) => (
+              <div key={q.name} style={{
+                border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px',
+                background: 'rgba(255,255,255,0.02)',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'capitalize', marginBottom: 6 }}>{q.name}</div>
+                <div style={{ display: 'flex', gap: 12, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+                  <span><span style={{ color: '#60a5fa' }}>active</span> {q.counts.active}</span>
+                  <span><span style={{ color: '#fbbf24' }}>waiting</span> {q.counts.waiting}</span>
+                  <span><span style={{ color: '#4ade80' }}>done</span> {q.counts.completed}</span>
+                  <span><span style={{ color: '#f87171' }}>fail</span> {q.counts.failed}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </AdminShell>
   );

@@ -122,32 +122,6 @@ services:
         limits:
           memory: 1G
 
-  # ─── Bull Board — BullMQ queue inspector ───────────────────────────────
-  # Intentionally not bound to a host port; reachable only inside the
-  # `chessr` network. Exposed via nginx behind /bullboard with basic auth
-  # so the admin dashboard can iframe it without leaking the queues.
-  bullboard:
-    image: deadly0/bull-board:latest
-    container_name: chessr-bullboard
-    restart: unless-stopped
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - BULL_PREFIX=bull
-      - BULL_VERSION=BULLMQ
-      - QUEUE_NAMES=suggestion,analysis,maia
-      - USER_LOGIN=${BULLBOARD_USER:-admin}
-      - USER_PASSWORD=${BULLBOARD_PASSWORD:-changeme}
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - chessr
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-
   # ─── Nginx — TLS terminator + reverse proxy ────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -164,7 +138,6 @@ services:
     depends_on:
       - serveur
       - dashboard
-      - bullboard
     networks:
       - chessr
 

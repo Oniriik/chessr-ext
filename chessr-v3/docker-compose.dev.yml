@@ -83,25 +83,5 @@ services:
       redis:
         condition: service_healthy
 
-  # Bull Board — UI temps réel pour les queues BullMQ (waiting / active /
-  # completed / failed, retry, drain, payload, logs). Zero-conf, lit Redis
-  # directement. http://localhost:3003 en dev. Liée aux queues `suggestion`,
-  # `analysis`, `maia` créées par le serveur.
-  bullboard:
-    image: deadly0/bull-board:latest
-    container_name: chessr-bullboard-dev
-    restart: unless-stopped
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - BULL_PREFIX=bull
-      - BULL_VERSION=BULLMQ
-      - QUEUE_NAMES=suggestion,analysis,maia
-    ports:
-      - "127.0.0.1:3003:3000"
-    depends_on:
-      redis:
-        condition: service_healthy
-
 volumes:
   redis_dev_data:
