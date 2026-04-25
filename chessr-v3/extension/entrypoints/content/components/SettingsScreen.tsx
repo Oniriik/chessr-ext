@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import gsap from 'gsap';
 import { useAuthStore, type Plan } from '../stores/authStore';
 import { useDiscordStore } from '../stores/discordStore';
@@ -9,7 +9,7 @@ import UnlinkIcon from './icons/UnlinkIcon';
 import ChesscomIcon from './icons/ChesscomIcon';
 import LichessIcon from './icons/LichessIcon';
 import { useSettingsStore } from '../stores/settingsStore';
-import { SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
+import { SERVER_URL, WS_SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
@@ -76,6 +76,35 @@ function GeneralTab() {
     }
   };
 
+  const [debugLabel, setDebugLabel] = React.useState<'idle' | 'copying' | 'copied' | 'error'>('idle');
+  const handleCopyDebug = async () => {
+    setDebugLabel('copying');
+    try {
+      const { collectDebugDump } = await import('../lib/diagBuffer');
+      const auth = useAuthStore.getState();
+      const engine = useEngineStore.getState();
+      const settings = useSettingsStore.getState();
+      const meta = {
+        extension: browser.runtime.getManifest().version,
+        wsUrl: WS_SERVER_URL,
+        userId: auth.user?.id ? auth.user.id.slice(0, 8) + '…' : '(none)',
+        plan: auth.plan ?? '(none)',
+        engineId: engine.engineId,
+        engineCaps: JSON.stringify(engine.capabilities),
+        suggestionEngine: (window as unknown as { __chessrEngineState?: unknown }).__chessrEngineState ?? '(unknown)',
+        numArrows: settings.numArrows,
+      };
+      const dump = await collectDebugDump(meta);
+      await navigator.clipboard.writeText(dump);
+      setDebugLabel('copied');
+      setTimeout(() => setDebugLabel('idle'), 2000);
+    } catch (err) {
+      console.error('[Chessr] copy debug logs failed:', err);
+      setDebugLabel('error');
+      setTimeout(() => setDebugLabel('idle'), 2500);
+    }
+  };
+
   return (
     <div className="settings-section">
       <div className="settings-item">
@@ -116,6 +145,16 @@ function GeneralTab() {
       </div>
       <button className="settings-reset-btn" onClick={handleReset}>
         Reset to default settings
+      </button>
+      <button
+        className="settings-debug-btn"
+        onClick={handleCopyDebug}
+        title="Copies a diagnostic dump (extension version, WS state, recent errors + WS messages, background script logs) to clipboard. Paste it in a support ticket or Discord."
+      >
+        {debugLabel === 'idle'    && '📋 Copy debug logs'}
+        {debugLabel === 'copying' && 'Collecting…'}
+        {debugLabel === 'copied'  && '✓ Copied to clipboard'}
+        {debugLabel === 'error'   && '⚠ Copy failed'}
       </button>
     </div>
   );

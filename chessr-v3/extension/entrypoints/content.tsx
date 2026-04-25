@@ -1,5 +1,10 @@
 import ReactDOM from 'react-dom/client';
 import App from './content/App';
+import { installDiagCapture } from './content/lib/diagBuffer';
+
+// Patch console.warn / .error + window.onerror into a ring buffer so the
+// Settings → Copy debug logs button can dump everything for support.
+installDiagCapture();
 import { useGameStore, toColor, type Color } from './content/stores/gameStore';
 import { useSuggestionStore } from './content/stores/suggestionStore';
 import { connectWs, disconnectWs, sendWs } from './content/lib/websocket';

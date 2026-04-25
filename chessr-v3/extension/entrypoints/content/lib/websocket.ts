@@ -1,4 +1,5 @@
 import { WS_SERVER_URL } from './config';
+import { recordWsSend, recordWsRecv } from './diagBuffer';
 
 type MessageHandler = (data: any) => void;
 
@@ -31,6 +32,7 @@ export function connectWs(uid: string) {
   ws.onmessage = (e) => {
     try {
       const data = JSON.parse(e.data);
+      recordWsRecv(data);
       for (const handler of handlers) handler(data);
     } catch {}
   };
@@ -44,6 +46,7 @@ export function connectWs(uid: string) {
 }
 
 export function sendWs(data: any) {
+  recordWsSend(data);
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify(data));
   } else {
