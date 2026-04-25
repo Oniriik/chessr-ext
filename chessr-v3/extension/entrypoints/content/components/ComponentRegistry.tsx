@@ -34,6 +34,10 @@ export const COMPONENT_REGISTRY: Record<string, { label: string; engineId?: Engi
   'maia-target-elo': { label: 'Maia Target ELO',   engineId: 'maia2' },
   'maia-oppo-elo':   { label: 'Maia Opponent ELO', engineId: 'maia2' },
   'maia-variant':    { label: 'Maia Variant',      engineId: 'maia2' },
+
+  // Maia 3-specific widgets — wider ELO range (600-2600, step 50), no variant.
+  'maia3-target-elo': { label: 'Maia 3 Target ELO',   engineId: 'maia3' },
+  'maia3-oppo-elo':   { label: 'Maia 3 Opponent ELO', engineId: 'maia3' },
 };
 
 function isPremium(plan: string): boolean {
@@ -574,6 +578,75 @@ function FloatingMaiaVariant() {
   );
 }
 
+// Maia 3 floating widgets — same ELO controls as Maia 2 but with the wider
+// 600-2600 range and no variant selector (single unified Maia 3 model).
+function FloatingMaia3TargetElo() {
+  const engine = useEngineStore();
+  const value = engine.getMaiaEffectiveTargetElo();
+  const auto = engine.maiaTargetEloAuto;
+  return (
+    <div style={fCard}>
+      <div style={fRow}>
+        <span style={fLabel}>Target ELO</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+          <button onClick={() => engine.setMaiaTargetEloAuto(!auto)} style={fAutoBtn(auto)}>Auto</button>
+        </div>
+      </div>
+      <Slider
+        min={600} max={2600} step={50}
+        value={auto ? value : engine.maiaTargetEloManual}
+        onChange={(v) => {
+          if (auto) engine.setMaiaTargetEloAuto(false);
+          engine.setMaiaTargetEloManual(v);
+        }}
+        trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+        thumbColor="#22c55e"
+        thumbColorEnd="#3b82f6"
+      />
+      {auto && (
+        <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
+          Opponent {engine.getMaiaEffectiveOppoElo()} + {engine.autoEloBoost} boost
+        </span>
+      )}
+    </div>
+  );
+}
+
+function FloatingMaia3OppoElo() {
+  const engine = useEngineStore();
+  const value = engine.getMaiaEffectiveOppoElo();
+  const auto = engine.maiaOppoEloAuto;
+  const detected = engine.opponentElo > 0;
+  return (
+    <div style={fCard}>
+      <div style={fRow}>
+        <span style={fLabel}>Opponent ELO</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+          <button onClick={() => engine.setMaiaOppoEloAuto(!auto)} style={fAutoBtn(auto)}>Auto</button>
+        </div>
+      </div>
+      <Slider
+        min={600} max={2600} step={50}
+        value={auto ? value : engine.maiaOppoEloManual}
+        onChange={(v) => {
+          if (auto) engine.setMaiaOppoEloAuto(false);
+          engine.setMaiaOppoEloManual(v);
+        }}
+        trackColor="linear-gradient(90deg, #3b82f6, #ef4444)"
+        thumbColor="#3b82f6"
+        thumbColorEnd="#ef4444"
+      />
+      {auto && (
+        <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
+          {detected ? `Detected (${engine.opponentElo})` : 'No opponent detected'}
+        </span>
+      )}
+    </div>
+  );
+}
+
 
 export function renderPinnedComponent(id: string, engineId?: EngineId): React.ReactNode | null {
   // Engine-scoped widgets only render when the matching engine is active.
@@ -599,6 +672,8 @@ export function renderPinnedComponent(id: string, engineId?: EngineId): React.Re
     case 'maia-target-elo': return <FloatingMaiaTargetElo />;
     case 'maia-oppo-elo': return <FloatingMaiaOppoElo />;
     case 'maia-variant': return <FloatingMaiaVariant />;
+    case 'maia3-target-elo': return <FloatingMaia3TargetElo />;
+    case 'maia3-oppo-elo': return <FloatingMaia3OppoElo />;
     default: return null;
   }
 }
