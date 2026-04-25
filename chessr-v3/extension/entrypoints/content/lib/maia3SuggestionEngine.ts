@@ -113,6 +113,7 @@ export class Maia3SuggestionEngine implements IEngine {
   readonly id = 'maia3' as const;
 
   private worker: Worker | null = null;
+  private workerBlobUrl: string | null = null;
   private _ready = false;
   private allMovesDict: Record<string, number> = {};
   private allMovesReversed: string[] = [];
@@ -124,34 +125,58 @@ export class Maia3SuggestionEngine implements IEngine {
   getCapabilities(): EngineCapabilities { return MAIA3_CAPABILITIES; }
 
   async init(): Promise<void> {
+    const t0 = Date.now();
+    console.log('[Maia3] init starting…');
+
     // Load the move dictionary (4352 entries) so we can mask legal moves.
     const movesUrl = browser.runtime.getURL('/engine/maia3/all_moves.json');
     const movesRev = browser.runtime.getURL('/engine/maia3/all_moves_reversed.json');
+    const tDict = Date.now();
     const [movesRes, revRes] = await Promise.all([fetch(movesUrl), fetch(movesRev)]);
     if (!movesRes.ok || !revRes.ok) throw new Error('Failed to fetch maia3 moves dict');
     this.allMovesDict = await movesRes.json();
     const reversedObj = await revRes.json() as Record<string, string>;
     this.allMovesReversed = new Array(POLICY_SIZE);
     for (const k in reversedObj) this.allMovesReversed[Number(k)] = reversedObj[k];
+    console.log(`[Maia3] move dictionary loaded in ${Date.now() - tDict}ms`);
 
-    // Boot the worker. URLs must be absolute (chrome-extension://...) so
-    // importScripts inside the worker can resolve them.
-    const workerUrl    = browser.runtime.getURL('/engine/maia3/maia3-worker.js');
+    // Boot the worker via Blob URL (MV3 + chess.com CSP forbids constructing
+    // a Worker directly from chrome-extension://). We fetch the worker JS,
+    // wrap it in a blob, then `new Worker(blobUrl)`. The worker itself still
+    // does `importScripts(chrome-extension://.../ort.wasm.min.js)` which is
+    // allowed because the ORT files are listed in web_accessible_resources.
+    const workerUrl     = browser.runtime.getURL('/engine/maia3/maia3-worker.js');
     const ortRuntimeUrl = browser.runtime.getURL('/engine/maia3/ort/ort.wasm.min.js');
-    // ORT loads its WASM siblings from this base — strip the JS filename.
     const ortBaseUrl    = ortRuntimeUrl.replace(/ort\.wasm\.min\.js$/, '');
-    const modelUrl     = browser.runtime.getURL('/engine/maia3/model.onnx');
+    const modelUrl      = browser.runtime.getURL('/engine/maia3/model.onnx');
 
-    this.worker = new Worker(workerUrl);
+    const tBlob = Date.now();
+    const workerJsRes = await fetch(workerUrl);
+    if (!workerJsRes.ok) throw new Error(`fetch maia3-worker.js: ${workerJsRes.status}`);
+    const workerJs = await workerJsRes.text();
+    const blob = new Blob([workerJs], { type: 'application/javascript' });
+    this.workerBlobUrl = URL.createObjectURL(blob);
+    console.log(`[Maia3] worker blob URL ready in ${Date.now() - tBlob}ms`);
+
+    this.worker = new Worker(this.workerBlobUrl);
     this.worker.addEventListener('message', (e) => this.onWorkerMessage(e));
 
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error('Maia3 worker init timeout')), INIT_TIMEOUT_MS);
       const onMsg = (e: MessageEvent) => {
         const d = e.data;
+        if (d?.type === 'log') {
+          console.log(...d.args);
+          return;
+        }
+        if (d?.type === 'progress') {
+          console.log(`[Maia3] download ${d.progress}%`);
+          return;
+        }
         if (d?.type === 'status' && d.status === 'ready') {
           clearTimeout(t);
           this.worker!.removeEventListener('message', onMsg);
+          console.log(`[Maia3] init ready in ${Date.now() - t0}ms`);
           resolve();
         } else if (d?.type === 'error' && d.id === undefined) {
           clearTimeout(t);
@@ -160,6 +185,7 @@ export class Maia3SuggestionEngine implements IEngine {
         }
       };
       this.worker!.addEventListener('message', onMsg);
+      console.log('[Maia3] posting init to worker (modelUrl + ORT urls)');
       this.worker!.postMessage({ type: 'init', modelUrl, ortBaseUrl, ortRuntimeUrl });
     });
 
@@ -286,6 +312,7 @@ export class Maia3SuggestionEngine implements IEngine {
 
   destroy(): void {
     if (this.worker) { this.worker.terminate(); this.worker = null; }
+    if (this.workerBlobUrl) { URL.revokeObjectURL(this.workerBlobUrl); this.workerBlobUrl = null; }
     for (const p of this.pending.values()) { clearTimeout(p.timer); p.reject(new Error('engine destroyed')); }
     this.pending.clear();
     this._ready = false;

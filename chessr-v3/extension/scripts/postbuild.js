@@ -56,10 +56,12 @@ export async function runPostbuild() {
       }
       if (code.length < 100) continue;
 
+      // Diag builds: set CHESSR_KEEP_LOGS=1 to preserve console.* calls
+      // for in-browser debugging of WASM init / engine flow / etc.
       const stripped = transformSync(code, {
         minify: true,
         legalComments: 'none',
-        drop: ['console'],
+        drop: process.env.CHESSR_KEEP_LOGS ? [] : ['console'],
       });
 
       const result = JavaScriptObfuscator.obfuscate(stripped.code, {
