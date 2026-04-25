@@ -117,14 +117,6 @@ function isPremiumPlan(plan: string | undefined): boolean {
  * visible regression for working environments.
  */
 const WASM_INIT_TIMEOUT_MS = 3000;
-// Maia 3 needs to download a 45 MB ONNX model + boot ORT WASM runtime;
-// 3s is way too aggressive. Give it a real budget — desktop fibre inits
-// in ~5-10s cold, IndexedDB-cached ~1s.
-const WASM_INIT_TIMEOUT_MS_MAIA3 = 60_000;
-
-function wasmInitTimeoutMs(id: EngineId): number {
-  return id === 'maia3' ? WASM_INIT_TIMEOUT_MS_MAIA3 : WASM_INIT_TIMEOUT_MS;
-}
 
 function newWasmEngine(id: EngineId): IEngine {
   switch (id) {
@@ -182,7 +174,7 @@ async function createEngine(id: EngineId): Promise<IEngine> {
     await Promise.race([
       wasmEng.init(),
       new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error('wasm init timeout')), wasmInitTimeoutMs(id))),
+        setTimeout(() => rej(new Error('wasm init timeout')), WASM_INIT_TIMEOUT_MS)),
     ]);
     console.log(`[Chessr] engine ready (WASM): ${id}`);
     recordEngineSwap({ slot: 'suggestion', engineId: id, mode: 'wasm', success: true });
