@@ -60,7 +60,7 @@ export interface MaiaJobResult {
 
 // ─── Tuning ────────────────────────────────────────────────────────────
 
-const QUEUE_NAME = 'maia';
+const QUEUE_NAME = 'maia-2';
 const PRODUCER_TIMEOUT_MS = 15_000;
 const LOCK_DURATION_MS = 30_000;
 

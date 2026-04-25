@@ -43,7 +43,7 @@ export interface SuggestionJobResult {
   maxDepth: number;
 }
 
-const QUEUE_NAME = 'suggestion';
+const QUEUE_NAME = 'komodo';
 
 /** Hard cap on one producer-side wait. Must be ≥ the engine's internal
  *  search timeout (30 s in EngineManager) plus a small queueing slack.

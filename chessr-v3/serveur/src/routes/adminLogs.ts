@@ -48,9 +48,9 @@ adminLogsRoutes.get('/admin/queues', async (c) => {
 
   const STATES: JobType[] = ['active', 'waiting', 'completed', 'failed', 'delayed'];
   const queues: Array<{ name: string; q: Queue }> = [
-    { name: 'suggestion', q: suggestionQueue },
-    { name: 'analysis',   q: analysisQueue },
-    { name: 'maia',       q: maiaQueue },
+    { name: 'komodo',   q: suggestionQueue },
+    { name: 'analysis', q: analysisQueue },
+    { name: 'maia-2',   q: maiaQueue },
   ];
 
   const data = await Promise.all(queues.map(async ({ name, q }) => {

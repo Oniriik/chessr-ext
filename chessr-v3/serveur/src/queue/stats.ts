@@ -23,9 +23,9 @@ async function snapshot(): Promise<void> {
     ]);
     console.log(
       `[Queues] ` +
-      `sug active=${sug.active} waiting=${sug.waiting} done=${sug.completed} failed=${sug.failed} ; ` +
-      `ana active=${ana.active} waiting=${ana.waiting} done=${ana.completed} failed=${ana.failed} ; ` +
-      `mai active=${mai.active} waiting=${mai.waiting} done=${mai.completed} failed=${mai.failed}`,
+      `komodo active=${sug.active} waiting=${sug.waiting} done=${sug.completed} failed=${sug.failed} ; ` +
+      `analysis active=${ana.active} waiting=${ana.waiting} done=${ana.completed} failed=${ana.failed} ; ` +
+      `maia-2 active=${mai.active} waiting=${mai.waiting} done=${mai.completed} failed=${mai.failed}`,
     );
   } catch (err) {
     console.warn('[Queues] stats snapshot failed:', err instanceof Error ? err.message : err);
