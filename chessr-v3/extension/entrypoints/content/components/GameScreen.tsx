@@ -652,7 +652,8 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
   const engineId = useEngineStore((s) => s.engineId);
   const engineOrder = useLayoutStore((s) => s.engineOrder);
 
-  if (engineId === 'maia2' || engineId === 'maia3') return <Maia2Panel />;
+  if (engineId === 'maia2') return <Maia2Panel />;
+  if (engineId === 'maia3') return <Maia3Panel />;
 
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -784,6 +785,84 @@ function Maia2Panel() {
           />
         </div>
       </div>
+
+      <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
+        Strength comes from the ELO setting — Maia plays in one forward pass, no depth tuning.
+      </span>
+    </div>
+  );
+}
+
+function Maia3Panel() {
+  const engine = useEngineStore();
+
+  const effectiveOppo = engine.getMaiaEffectiveOppoElo();
+  const effectiveTarget = engine.getMaiaEffectiveTargetElo();
+  const oppoDetected = engine.opponentElo > 0;
+
+  return (
+    <div className="engine-panel">
+      <div className="engine-section" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span className="settings-engine-beta-badge">BETA</span>
+        <span className="engine-desc" style={{ flex: 1 }}>
+          New Maia model — continuous ELO 600–2600, no variants, retrained on
+          recent games.
+        </span>
+      </div>
+
+      <EditableComponent id="maia3-target-elo">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Target ELO</span>
+            <button
+              className={`engine-auto-btn ${engine.maiaTargetEloAuto ? 'engine-auto-btn--active' : ''}`}
+              onClick={() => engine.setMaiaTargetEloAuto(!engine.maiaTargetEloAuto)}
+            >Auto</button>
+          </div>
+          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveTarget}</span></div>
+          {engine.maiaTargetEloAuto ? (
+            <span className="engine-desc">
+              Opponent {effectiveOppo} + {engine.autoEloBoost} boost
+            </span>
+          ) : (
+            <Slider
+              min={600} max={2600} step={50}
+              value={engine.maiaTargetEloManual}
+              onChange={engine.setMaiaTargetEloManual}
+              trackColor="linear-gradient(90deg, #6366f1, #a78bfa)"
+              thumbColor="#6366f1"
+              thumbColorEnd="#a78bfa"
+            />
+          )}
+        </div>
+      </EditableComponent>
+
+      <EditableComponent id="maia3-oppo-elo">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Opponent ELO</span>
+            <button
+              className={`engine-auto-btn ${engine.maiaOppoEloAuto ? 'engine-auto-btn--active' : ''}`}
+              onClick={() => engine.setMaiaOppoEloAuto(!engine.maiaOppoEloAuto)}
+            >Auto</button>
+          </div>
+          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveOppo}</span></div>
+          {engine.maiaOppoEloAuto ? (
+            <span className="engine-desc">
+              {oppoDetected ? `Detected from game (${engine.opponentElo})` : `No opponent detected, defaulting to ${engine.maiaOppoEloManual}`}
+            </span>
+          ) : (
+            <Slider
+              min={600} max={2600} step={50}
+              value={engine.maiaOppoEloManual}
+              onChange={engine.setMaiaOppoEloManual}
+              trackColor="linear-gradient(90deg, #a78bfa, #ef4444)"
+              thumbColor="#a78bfa"
+              thumbColorEnd="#ef4444"
+            />
+          )}
+        </div>
+      </EditableComponent>
 
       <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
         Strength comes from the ELO setting — Maia plays in one forward pass, no depth tuning.
