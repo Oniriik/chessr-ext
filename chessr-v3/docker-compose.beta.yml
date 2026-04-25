@@ -122,6 +122,35 @@ services:
         limits:
           memory: 1G
 
+  # ─── Bull Board — accès admin via tunnel SSH uniquement ───────────────
+  # Bound to 127.0.0.1:3003 on the host (pas de port public, pas de cert,
+  # pas de basic auth). Pour y accéder depuis ton ordi :
+  #   ssh -L 3003:localhost:3003 chessr-beta
+  #   then open http://localhost:3003
+  # Le dashboard a son propre /queues natif (sans iframe), c'est pour
+  # quand tu veux un control panel complet (retry / drain / payload).
+  bullboard:
+    image: deadly0/bull-board:latest
+    container_name: chessr-bullboard
+    restart: unless-stopped
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BULL_PREFIX=bull
+      - BULL_VERSION=BULLMQ
+      - QUEUE_NAMES=suggestion,analysis,maia
+    ports:
+      - "127.0.0.1:3003:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - chessr
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   # ─── Nginx — TLS terminator + reverse proxy ────────────────────────────
   nginx:
     image: nginx:1.27-alpine
