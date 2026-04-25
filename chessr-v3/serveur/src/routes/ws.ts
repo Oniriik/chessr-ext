@@ -82,12 +82,11 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
       return {
         onOpen(_event, ws) {
           if (!valid) {
-            // Refuse: the extension always passes a Supabase user.id. An
-            // anonymous connect is either a leftover browser tab, a manual
-            // `wscat`, or a buggy client. Close cleanly so the page knows.
+            // Refuse silently — the extension always passes a real userId,
+            // so anything else (bot scans, manual wscat, leftover tabs) is
+            // not actionable. Just close so the rare legit caller knows.
             ws.send(JSON.stringify({ type: 'error', message: 'missing or invalid userId' }));
             try { ws.close(4001, 'missing userId'); } catch { /* ignore */ }
-            console.warn('[WS] refused connect without userId (raw=' + JSON.stringify(rawUid) + ')');
             return;
           }
           clients.set(userId, ws);
