@@ -1,6 +1,6 @@
 import type { Hono } from 'hono';
 
-const MIN_EXTENSION_VERSION = '3.0.0';
+const MIN_EXTENSION_VERSION = '3.0.5';
 
 export function registerHealthRoutes(app: Hono) {
   app.get('/health', (c) =>
