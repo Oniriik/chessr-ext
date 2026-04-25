@@ -119,3 +119,8 @@ maia2-wasm/web/public/models
 # Playwright artifacts from the demo
 maia2-wasm/web/.playwright-mcp/
 
+
+# Native Maia build outputs (rebuild via maia2-wasm/maia-runtime/native/build.sh)
+maia2-wasm/maia-runtime/native/maia-native
+maia2-wasm/maia-runtime/native/weights.bin
+maia2-wasm/maia-runtime/native/*.o
