@@ -154,7 +154,7 @@ export default function App() {
           // borders) without touching the 100+ hard-coded font-size rules.
           // Only the panel itself is affected — the fake-title badge and
           // any DOM injected by pageContext into chess.com stay untouched.
-          style={fontSize === 'small' ? { zoom: 0.85 } : fontSize === 'big' ? { zoom: 1.2 } : undefined}
+          style={fontSize === 'small' ? { zoom: 0.92 } : fontSize === 'big' ? { zoom: 1.1 } : undefined}
         >
           {loading ? (
             <Skeleton />
