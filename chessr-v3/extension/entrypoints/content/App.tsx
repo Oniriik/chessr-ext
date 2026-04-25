@@ -177,8 +177,11 @@ export default function App() {
                   {(() => {
                     const reviewId = getReviewGameId();
                     if (showSettings) return <SettingsScreen activeTab={settingsTab} setActiveTab={setSettingsTab} />;
+                    // ReviewScreen only when not actively playing — during a
+                    // live game the URL still matches /game/live/<id>, so we
+                    // must gate on isPlaying to keep the GameScreen mounted
+                    // mid-match.
                     if (reviewId && !isPlaying) return <ReviewScreen gameId={reviewId} />;
-                    if (reviewId) return <ReviewScreen gameId={reviewId} />;
                     return <GameScreen activeTab={gameTab} setActiveTab={setGameTab} />;
                   })()}
                 </div>
