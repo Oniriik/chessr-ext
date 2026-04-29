@@ -20,6 +20,8 @@ export default defineContentScript({
     '*://*.chess.com/*',
     '*://lichess.org/*',
     '*://*.lichess.org/*',
+    '*://worldchess.com/*',
+    '*://*.worldchess.com/*',
   ],
   world: 'MAIN',
   runAt: 'document_start',

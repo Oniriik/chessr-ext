@@ -32,12 +32,25 @@ class LichessBoardSelectors implements BoardSelectors {
   }
 }
 
+class WorldchessBoardSelectors implements BoardSelectors {
+  boardEl(): HTMLElement | null {
+    // Worldchess uses a forked chessground without `.cg-wrap` — the size-
+    // stable parent is `[data-component="GameBoard"]`, which contains the
+    // `cg-board` element directly.
+    return document.querySelector('[data-component="GameBoard"]') as HTMLElement | null
+        ?? (document.querySelector('cg-board')?.parentElement as HTMLElement | null)
+        ?? null;
+  }
+}
+
 const chesscom = new ChesscomBoardSelectors();
 const lichess = new LichessBoardSelectors();
+const worldchess = new WorldchessBoardSelectors();
 
 export function pickBoardSelectors(host: string = location.hostname): BoardSelectors {
   if (/(^|\.)chess\.com$/.test(host)) return chesscom;
   if (/(^|\.)lichess\.org$/.test(host)) return lichess;
+  if (/(^|\.)worldchess\.com$/.test(host)) return worldchess;
   // Fallback: chess.com (status quo) — content script also gates on hostname
   // upstream, so this branch shouldn't be reached in practice.
   return chesscom;

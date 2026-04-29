@@ -381,7 +381,7 @@ function resetSuggestionState() {
 }
 
 export default defineContentScript({
-  matches: ['*://chess.com/*', '*://*.chess.com/*', '*://lichess.org/*', '*://*.lichess.org/*'],
+  matches: ['*://chess.com/*', '*://*.chess.com/*', '*://lichess.org/*', '*://*.lichess.org/*', '*://worldchess.com/*', '*://*.worldchess.com/*'],
   cssInjectionMode: 'ui',
 
   async main(ctx) {

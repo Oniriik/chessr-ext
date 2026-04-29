@@ -28,6 +28,11 @@ function isPremiumPlan(plan: string | undefined): boolean {
 
 function getReviewGameId(): string | null {
   try {
+    // ReviewScreen is chess.com only (UI strings + api.chess.com fetch).
+    // Hard-gate by hostname so worldchess `/game/<uuid>` URLs don't fall
+    // through into the regex below — `\d+` would greedy-match the UUID's
+    // leading digits and surface a bogus chess.com gameId.
+    if (!/(^|\.)chess\.com$/.test(window.location.hostname)) return null;
     const path = window.location.pathname;
     // Don't show review screen for bot games
     if (path.includes('/computer')) return null;

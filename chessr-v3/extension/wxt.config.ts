@@ -41,6 +41,8 @@ export default defineConfig({
       "*://*.chess.com/*",
       "*://lichess.org/*",
       "*://*.lichess.org/*",
+      "*://worldchess.com/*",
+      "*://*.worldchess.com/*",
       "*://app.chessr.io/*",
     ],
     web_accessible_resources: [
@@ -51,6 +53,8 @@ export default defineConfig({
           "*://*.chess.com/*",
           "*://lichess.org/*",
           "*://*.lichess.org/*",
+          "*://worldchess.com/*",
+          "*://*.worldchess.com/*",
         ],
       },
     ],
