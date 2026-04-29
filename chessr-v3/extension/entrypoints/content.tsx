@@ -648,6 +648,29 @@ export default defineContentScript({
       const data = e.data;
       if (typeof data?.type !== 'string' || !data.type.startsWith('chessr:')) return;
 
+      // CDP relay: lichess executeMove asks the background to inject native
+      // mouse events via chrome.debugger. MAIN-world adapter can't reach
+      // chrome.runtime, so we relay here. Gated to lichess hostname so
+      // chess.com / worldchess never trigger the debugger banner.
+      if (data.type === 'chessr:cdpMouseMove' && /(^|\.)lichess\.org$/.test(location.hostname)) {
+        browser.runtime.sendMessage({
+          type: 'cdpMouseMove',
+          fromX: data.fromX, fromY: data.fromY,
+          toX: data.toX, toY: data.toY,
+          pickDelay: data.pickDelay,
+          selectDelay: data.selectDelay,
+          moveDelay: data.moveDelay,
+        }).catch(() => { /* background may be reloading */ });
+        return;
+      }
+      if (data.type === 'chessr:cdpClick' && /(^|\.)lichess\.org$/.test(location.hostname)) {
+        browser.runtime.sendMessage({
+          type: 'cdpClick',
+          x: data.x, y: data.y,
+        }).catch(() => { /* background may be reloading */ });
+        return;
+      }
+
       console.log(`[Chessr] ${data.type}`, data);
       recordChessrEvent(data.type, data);
 

@@ -20,13 +20,13 @@ export default defineConfig({
       ? "[BETA] Chessr.io — Chess assist done right!"
       : "Chessr.io — Chess assist done right!",
     description: isBeta ? "Chessr.io v3 BETA" : "Chessr.io v3",
-    version: "3.0.7",
+    version: "3.0.8",
     icons: {
       16: "/icons/icon16.png",
       48: "/icons/icon48.png",
       128: "/icons/icon128.png",
     },
-    permissions: ["storage", "activeTab", "declarativeNetRequest"],
+    permissions: ["storage", "activeTab", "declarativeNetRequest", "debugger"],
     declarative_net_request: {
       rule_resources: [
         {

@@ -230,7 +230,7 @@ function squareCenter(boardEl: HTMLElement, square: string, orientation: Color):
   return { x: rect.left + col * size + size / 2, y: rect.top + row * size + size / 2 };
 }
 
-function dispatchPointer(target: HTMLElement, type: 'pointerdown' | 'pointerup' | 'mousedown' | 'mouseup', x: number, y: number) {
+function dispatchPointer(target: HTMLElement, type: 'pointerdown' | 'pointerup' | 'pointermove' | 'mousedown' | 'mouseup' | 'mousemove', x: number, y: number) {
   const opts: PointerEventInit = {
     bubbles: true,
     cancelable: true,
@@ -238,9 +238,10 @@ function dispatchPointer(target: HTMLElement, type: 'pointerdown' | 'pointerup' 
     clientX: x,
     clientY: y,
     button: 0,
-    buttons: type.endsWith('down') ? 1 : 0,
+    buttons: (type.endsWith('down') || type.endsWith('move')) ? 1 : 0,
     pointerId: 1,
     pointerType: 'mouse',
+    isPrimary: true,
   };
   // Pointer events are what chessground listens for primarily.
   if (type.startsWith('pointer')) {
@@ -248,6 +249,34 @@ function dispatchPointer(target: HTMLElement, type: 'pointerdown' | 'pointerup' 
   } else {
     target.dispatchEvent(new MouseEvent(type, opts as MouseEventInit));
   }
+}
+
+/** Best-effort grab of the chessground API. Two storage paths:
+ *    - `lichess.chessground()` accessor — set on training/storm/racer
+ *    - `wrap['lichess-chessground']` DOM property — set on the homepage
+ *      demo board and some other surfaces
+ *  On round (live games) BOTH are unset; chessground is closure-private. */
+interface LichessChessgroundApi {
+  selectSquare?: (key: string, force?: boolean) => void;
+  cancelPremove?: () => void;
+  state?: { orientation?: 'white' | 'black' };
+}
+function getChessgroundApi(): LichessChessgroundApi | null {
+  // 1. Global accessor (training, storm, racer)
+  const w = window as unknown as {
+    lichess?: { chessground?: () => LichessChessgroundApi | null };
+    site?: { chessground?: () => LichessChessgroundApi | null };
+  };
+  const accessor = w.lichess?.chessground ?? w.site?.chessground;
+  try {
+    const cg = accessor?.();
+    if (cg) return cg;
+  } catch { /* ignore */ }
+  // 2. DOM-attached property (homepage demo, some other surfaces)
+  const wrap = document.querySelector('.main-board .cg-wrap, .cg-wrap') as
+    | (HTMLElement & { 'lichess-chessground'?: LichessChessgroundApi })
+    | null;
+  return wrap?.['lichess-chessground'] ?? null;
 }
 
 export class LichessPageAdapter implements PageContextAdapter {
@@ -686,7 +715,52 @@ export class LichessPageAdapter implements PageContextAdapter {
       }
     }
 
-    // Live game: synthesise mouse events on the chessground board.
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const promo = uci[4];
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+    // Prefer the chessground API when reachable (puzzle/training/storm/racer
+    // expose `lichess.chessground()` which returns the live cg controller).
+    // `selectSquare(from); selectSquare(to)` triggers chessground's
+    // `userMove` → fires `events.movable.after` → lichess sends to server.
+    const cg = getChessgroundApi();
+    if (cg && typeof cg.selectSquare === 'function') {
+      if (humanize) {
+        const total = humanize.pickDelay + humanize.selectDelay + humanize.moveDelay;
+        if (total > 0) await sleep(total);
+      }
+      try {
+        cg.selectSquare(from);
+        cg.selectSquare(to);
+      } catch (err) {
+        console.warn(`${LOG} cg.selectSquare failed`, err);
+        return false;
+      }
+
+      if (promo) {
+        await sleep(80);
+        const modal = document.querySelector('#promotion-choice');
+        if (modal) {
+          const map: Record<string, number> = { q: 0, n: 1, r: 2, b: 3 };
+          const idx = map[promo.toLowerCase()] ?? 0;
+          const choice = modal.children[idx] as HTMLElement | undefined;
+          choice?.click();
+        }
+      }
+      console.log(`${LOG} executeMove ${uci} via cg.selectSquare`);
+      return true;
+    }
+
+    // Round (live game): chessground is closure-private. Synthesised
+    // pointer events (drag OR click-click) don't land moves — chessground
+    // checks `event.isTrusted` semantics that dispatchEvent can't fake.
+    // Solution: ask the background script to inject NATIVE mouse events
+    // via `chrome.debugger.sendCommand("Input.dispatchMouseEvent")`. CDP
+    // events are indistinguishable from real OS-level clicks, so they
+    // pass every check. Cost: while the debugger is attached, Chrome
+    // shows a "Chessr is debugging this browser" banner (the user can
+    // dismiss it, which detaches us — a subsequent move re-attaches).
     const board = document.querySelector('.cg-wrap cg-board') as HTMLElement | null;
     if (!board) {
       console.warn(`${LOG} executeMove: no cg-board`);
@@ -694,48 +768,49 @@ export class LichessPageAdapter implements PageContextAdapter {
     }
 
     const orientation = readOrientation();
-    const from = uci.slice(0, 2);
-    const to = uci.slice(2, 4);
     const fromPt = squareCenter(board, from, orientation);
     const toPt = squareCenter(board, to, orientation);
     if (!fromPt || !toPt) return false;
 
-    const target = (document.elementFromPoint(fromPt.x, fromPt.y) as HTMLElement) ?? board;
+    // MAIN-world script can't reach chrome.runtime — relay via postMessage
+    // to content.tsx (ISOLATED) which forwards to the background. Humanize
+    // delays are passed THROUGH so the background orchestrates the timing
+    // around CDP press / drag / release (don't sleep them all upfront — that
+    // collapses the three phases into a single instantaneous burst).
+    window.postMessage({
+      type: 'chessr:cdpMouseMove',
+      fromX: fromPt.x, fromY: fromPt.y,
+      toX: toPt.x, toY: toPt.y,
+      pickDelay: humanize?.pickDelay ?? 0,
+      selectDelay: humanize?.selectDelay ?? 0,
+      moveDelay: humanize?.moveDelay ?? 0,
+    }, '*');
 
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-    if (humanize) {
-      await sleep(humanize.pickDelay);
-      dispatchPointer(target, 'pointerdown', fromPt.x, fromPt.y);
-      dispatchPointer(target, 'mousedown', fromPt.x, fromPt.y);
-      await sleep(humanize.selectDelay);
-      const target2 = (document.elementFromPoint(toPt.x, toPt.y) as HTMLElement) ?? board;
-      await sleep(humanize.moveDelay);
-      dispatchPointer(target2, 'pointerup', toPt.x, toPt.y);
-      dispatchPointer(target2, 'mouseup', toPt.x, toPt.y);
-    } else {
-      dispatchPointer(target, 'pointerdown', fromPt.x, fromPt.y);
-      dispatchPointer(target, 'mousedown', fromPt.x, fromPt.y);
-      const target2 = (document.elementFromPoint(toPt.x, toPt.y) as HTMLElement) ?? board;
-      dispatchPointer(target2, 'pointerup', toPt.x, toPt.y);
-      dispatchPointer(target2, 'mouseup', toPt.x, toPt.y);
-    }
-
-    // Promotion: Lichess opens a `#promotion-choice` modal — pick the right
-    // piece. Order: q, n, r, b (matching Lichess's UI top-to-bottom).
-    const promo = uci[4];
     if (promo) {
-      await sleep(80);
+      // Promotion modal opens after the move lands. Its position depends
+      // on the file — we CDP-click the right child element's centre. Wait
+      // for the move + modal to render first; the background CDP handler
+      // takes pickDelay+selectDelay+moveDelay, so we wait at least that
+      // plus a small render budget.
+      const totalMove = (humanize?.pickDelay ?? 0) + (humanize?.selectDelay ?? 0) + (humanize?.moveDelay ?? 0);
+      await sleep(totalMove + 200);
       const modal = document.querySelector('#promotion-choice');
       if (modal) {
         const map: Record<string, number> = { q: 0, n: 1, r: 2, b: 3 };
         const idx = map[promo.toLowerCase()] ?? 0;
         const choice = modal.children[idx] as HTMLElement | undefined;
-        choice?.click();
+        if (choice) {
+          const r = choice.getBoundingClientRect();
+          window.postMessage({
+            type: 'chessr:cdpClick',
+            x: r.left + r.width / 2,
+            y: r.top + r.height / 2,
+          }, '*');
+        }
       }
     }
 
-    console.log(`${LOG} executeMove(round) ${uci} via mouse synthesis`);
+    console.log(`${LOG} executeMove(round) ${uci} via CDP`);
     return true;
   }
 
@@ -747,10 +822,12 @@ export class LichessPageAdapter implements PageContextAdapter {
     return true;
   }
 
-  /** No-op fallback — there's no stable public API to cancel a premove
-   *  programmatically. The user can right-click the board to cancel manually. */
+  /** Use chessground's `cancelPremove` when reachable (puzzle/training).
+   *  On round it's closure-private — no-op fallback, the user can
+   *  right-click the board to cancel manually. */
   cancelPremoves(): void {
-    /* nothing reliable to do without API access */
+    const cg = getChessgroundApi();
+    cg?.cancelPremove?.();
   }
 
   requestRematch(): boolean {
