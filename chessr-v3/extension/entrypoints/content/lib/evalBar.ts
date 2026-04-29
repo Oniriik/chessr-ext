@@ -7,6 +7,7 @@ import gsap from 'gsap';
 import { useEvalStore } from '../stores/evalStore';
 import { useGameStore } from '../stores/gameStore';
 import { useSettingsStore } from '../stores/settingsStore';
+import { boardSelectors } from '../adapters/BoardSelectors';
 
 const BAR_WIDTH = 22;
 const BAR_ID = 'chessr-eval-bar';
@@ -23,7 +24,7 @@ function evalToPercent(evalPawns: number): number {
 }
 
 function getBoard(): HTMLElement | null {
-  return document.querySelector('wc-chess-board');
+  return boardSelectors.boardEl();
 }
 
 function createBar() {

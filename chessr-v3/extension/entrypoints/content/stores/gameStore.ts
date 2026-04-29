@@ -30,9 +30,9 @@ interface GameState {
   reset: () => void;
 }
 
-function toColor(value: number | null): Color {
-  if (value === 1) return 'white';
-  if (value === 2) return 'black';
+function toColor(value: number | string | null | undefined): Color {
+  if (value === 1 || value === 'white') return 'white';
+  if (value === 2 || value === 'black') return 'black';
   return null;
 }
 

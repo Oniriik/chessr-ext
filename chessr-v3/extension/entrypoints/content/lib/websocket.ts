@@ -9,6 +9,12 @@ let pendingMessage: any = null;
 const handlers = new Set<MessageHandler>();
 
 export function connectWs(uid: string) {
+  // Defensive: refuse to open a connection without a real userId — we'd just
+  // get refused server-side and spin in a reconnect loop.
+  if (!uid || typeof uid !== 'string' || uid === 'undefined' || uid === 'null') {
+    console.warn('[Chessr][WS] connectWs called with invalid uid:', uid);
+    return;
+  }
   // Dedupe: skip if an active (CONNECTING or OPEN) socket already exists for this user.
   if (ws && userId === uid && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
     return;
@@ -20,9 +26,12 @@ export function connectWs(uid: string) {
   }
   userId = uid;
 
-  ws = new WebSocket(`${WS_SERVER_URL}/ws?userId=${uid}`);
+  const url = `${WS_SERVER_URL}/ws?userId=${encodeURIComponent(uid)}`;
+  console.log('[Chessr][WS] opening:', url);
+  ws = new WebSocket(url);
 
   ws.onopen = () => {
+    console.log('[Chessr][WS] open ok for', uid);
     if (pendingMessage) {
       ws!.send(JSON.stringify(pendingMessage));
       pendingMessage = null;
@@ -37,7 +46,8 @@ export function connectWs(uid: string) {
     } catch {}
   };
 
-  ws.onclose = () => {
+  ws.onclose = (ev) => {
+    console.warn('[Chessr][WS] closed', { code: ev.code, reason: ev.reason });
     // Only retry if we still intend to be connected (userId set)
     setTimeout(() => {
       if (userId && (!ws || ws.readyState === WebSocket.CLOSED)) connectWs(userId);

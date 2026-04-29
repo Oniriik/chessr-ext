@@ -1,6 +1,7 @@
 import gsap from 'gsap';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
+import { boardSelectors } from '../adapters/BoardSelectors';
 import type { LabeledSuggestion } from './engineLabeler';
 
 const DRAW_DURATION = 0.3;
@@ -27,7 +28,7 @@ interface DrawnArrow {
 const arrowsByFrom = new Map<string, DrawnArrow[]>();
 
 function getBoard(): HTMLElement | null {
-  return document.querySelector('wc-chess-board') as HTMLElement | null;
+  return boardSelectors.boardEl();
 }
 
 function getSquareCenter(square: string): { x: number; y: number } | null {
@@ -288,7 +289,9 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   flipped = isFlipped;
 
   const rect = board.getBoundingClientRect();
-  if (!overlay || Math.abs(rect.width / 8 - squareSize) > 1) {
+  // Also recreate when the overlay was detached from the DOM — Lichess'
+  // puzzle.jump() rebuilds chessground's children, which orphans our SVG.
+  if (!overlay || !overlay.isConnected || overlay.parentElement !== board || Math.abs(rect.width / 8 - squareSize) > 1) {
     createOverlay(board);
   }
 
@@ -336,8 +339,10 @@ export function clearArrows() {
   if (!children.length) return;
 
   if (useSettingsStore.getState().disableAnimations) {
-    arrowGroup.innerHTML = '';
-    if (defs) defs.innerHTML = '';
+    for (const c of children) c.remove();
+    // Only wipe defs if nothing else is left in arrowGroup — otherwise
+    // we'd kill markers used by arrows that arrived in the meantime.
+    if (defs && arrowGroup.children.length === 0) defs.innerHTML = '';
     return;
   }
 
@@ -346,8 +351,17 @@ export function clearArrows() {
     duration: 0.15,
     ease: 'power2.in',
     onComplete: () => {
-      if (arrowGroup) arrowGroup.innerHTML = '';
-      if (defs) defs.innerHTML = '';
+      // Only remove the children we captured at call time. A renderArrows()
+      // that ran during the fade-out has already added new arrows to the
+      // arrowGroup — wiping innerHTML here would kill them too (race we
+      // see on Lichess puzzles when a wrong move is reverted in <150 ms
+      // and a fresh search resolves into the brief gap).
+      for (const c of children) {
+        if (c.parentNode === arrowGroup) c.remove();
+      }
+      if (defs && arrowGroup && arrowGroup.children.length === 0) {
+        defs.innerHTML = '';
+      }
     },
   });
 }

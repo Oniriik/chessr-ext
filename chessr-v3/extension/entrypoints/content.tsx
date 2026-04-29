@@ -225,11 +225,20 @@ function swapSuggestionEngine(id: EngineId): Promise<void> {
 }
 
 function requestSuggestion(fen: string, force = false) {
-  if (!force && fen === lastRequestedFen) return;
+  if (!force && fen === lastRequestedFen) {
+    console.log('[Chessr][req] skip (same fen as last)');
+    return;
+  }
   lastRequestedFen = fen;
 
-  if (!useAuthStore.getState().user) return;
-  if (!suggestionEngine?.ready) return;
+  if (!useAuthStore.getState().user) {
+    console.log('[Chessr][req] skip (no user)');
+    return;
+  }
+  if (!suggestionEngine?.ready) {
+    console.log('[Chessr][req] skip (engine not ready)', { id: suggestionEngine?.id, ready: suggestionEngine?.ready });
+    return;
+  }
 
   // Debounce: when moves come rapid-fire (game review, bot auto-move),
   // only the last position in the window triggers a real search.
@@ -237,6 +246,7 @@ function requestSuggestion(fen: string, force = false) {
   // re-fire, chessr:rescan).
   if (suggestionDebounce) clearTimeout(suggestionDebounce);
   const delay = force ? 0 : SUGGESTION_DEBOUNCE_MS;
+  console.log('[Chessr][req] queuing search', { delay, fen: fen.slice(0, 22) + '…' });
   suggestionDebounce = setTimeout(() => {
     suggestionDebounce = null;
     runSuggestionSearch(fen);
@@ -505,24 +515,36 @@ export default defineContentScript({
       // Clear on new game or game over — cancel in-flight search too so a
       // late response doesn't repopulate arrows after the game ended.
       if (!isPlaying || gameOver) {
+        console.log('[Chessr][gate] reset (idle):', { isPlaying, gameOver });
         resetSuggestionState();
         return;
       }
 
       if (!playerColor || !turn || !fen || playerColor !== turn) {
+        console.log('[Chessr][gate] not our turn:', { playerColor, turn, hasFen: !!fen });
         clearArrows();
         resetSuggestionState();
         return;
       }
 
-      // Trigger when: position changed, turn switched to us, game just started, or player color resolved
+      // Trigger when: position changed, turn switched to us, game just started,
+      // or player color changed (covers null→colour AND colour→colour, the
+      // latter happens between two consecutive puzzles where you alternate
+      // sides).
       const positionChanged = fen !== prev.fen;
       const turnChanged = turn !== prev.turn;
       const gameJustStarted = isPlaying && !prev.isPlaying;
-      const playerColorResolved = playerColor !== null && prev.playerColor === null;
+      const playerColorChanged = playerColor !== prev.playerColor;
 
-      if (positionChanged || turnChanged || gameJustStarted || playerColorResolved) {
+      if (positionChanged || turnChanged || gameJustStarted || playerColorChanged) {
+        console.log('[Chessr][gate] firing requestSuggestion', { positionChanged, turnChanged, gameJustStarted, playerColorChanged, fen: fen.slice(0, 22) + '…' });
+        // Clear stale arrows immediately on FEN change — keeps storm/racer
+        // (rapid puzzle transitions) from showing the previous puzzle's arrows
+        // while the new search is in flight (server can take 1-2s).
+        if (positionChanged) useSuggestionStore.getState().clear();
         requestSuggestion(fen);
+      } else {
+        console.log('[Chessr][gate] no-change skip', { fen: fen.slice(0, 22) + '…' });
       }
     });
 
@@ -734,6 +756,15 @@ export default defineContentScript({
       position: 'overlay',
       zIndex: 2147483647,
       onMount: (container) => {
+        // Stop keyboard events from leaking to the host page's global key
+        // handlers (Lichess `mousetrap` focuses the in-game chat on plain
+        // letter keys; without this, typing in our login input would steal
+        // the keystrokes).
+        const stopKey = (e: Event) => e.stopPropagation();
+        container.addEventListener('keydown', stopKey);
+        container.addEventListener('keyup', stopKey);
+        container.addEventListener('keypress', stopKey);
+
         const root = ReactDOM.createRoot(container);
         root.render(<App />);
         return root;
