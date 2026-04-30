@@ -7,7 +7,7 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
-export type EngineId = 'komodo' | 'maia2' | 'maia3';
+export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'stockfish';
 export type MaiaVariant = 'blitz' | 'rapid';
 
 export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string; beta?: boolean }> = {
@@ -26,6 +26,11 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     desc:  'New Maia model with continuous ELO and wider range.',
     eloRange: '600 – 2600',
     beta:  true,
+  },
+  stockfish: {
+    label: 'Stockfish',
+    desc:  'Open-source classical engine — fast, pure tactical strength, no personality tuning.',
+    eloRange: '1320 – 3500',
   },
 };
 

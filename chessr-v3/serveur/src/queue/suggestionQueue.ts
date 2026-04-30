@@ -14,7 +14,10 @@
 import { Queue, Worker, QueueEvents, type Job } from 'bullmq';
 import { redis } from './connection.js';
 import { EnginePool } from '../engine/EnginePool.js';
+import { getStockfishPool } from './analysisQueue.js';
 import { labelSuggestions, type LabeledSuggestion } from '../engine/MoveLabeler.js';
+
+export type SuggestionEngineType = 'komodo' | 'stockfish';
 
 export interface SuggestionJobData {
   requestId: string;
@@ -30,6 +33,8 @@ export interface SuggestionJobData {
   };
   personality: string;
   puzzleMode: boolean;
+  /** Which engine binary to run. Defaults to 'komodo' for backward compat. */
+  engineType?: SuggestionEngineType;
 }
 
 export interface SuggestionJobResult {
@@ -98,9 +103,31 @@ export async function initSuggestionWorker(maxInstances: number): Promise<void> 
 async function processSuggestionJob(
   job: Job<SuggestionJobData, SuggestionJobResult>,
 ): Promise<SuggestionJobResult> {
-  if (!pool) throw new Error('Engine pool not initialised');
-  const { fen, pvCount, config, searchOptions, personality, puzzleMode } = job.data;
+  const { engineType = 'komodo', fen, pvCount, config, searchOptions, personality, puzzleMode } = job.data;
 
+  // Dispatch to the right engine pool. Stockfish suggestions share the
+  // pool initialised by `initAnalysisWorker` — no separate pool needed.
+  if (engineType === 'stockfish') {
+    const sfPool = getStockfishPool();
+    if (!sfPool) throw new Error('Stockfish pool not initialised (analysis worker not running?)');
+    const engine = await sfPool.acquire();
+    if (!engine) throw new Error('Stockfish pool unavailable');
+    try {
+      await engine.configure(config);
+      const raw = await engine.search(fen, pvCount, searchOptions);
+      const suggestions = labelSuggestions(raw);
+      const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
+      const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
+      const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
+      const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
+      return { fen, personality, suggestions, positionEval, mateIn, winRate, puzzleMode, maxDepth };
+    } finally {
+      sfPool.release(engine);
+    }
+  }
+
+  // Default — Komodo path.
+  if (!pool) throw new Error('Engine pool not initialised');
   const engine = await pool.acquire();
   if (!engine) throw new Error('Engine pool unavailable');
   try {

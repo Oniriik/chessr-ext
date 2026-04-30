@@ -7,6 +7,7 @@
  */
 
 import { getEngineConfig, SEARCH_NODES } from '../engine/KomodoConfig.js';
+import { getSuggestionConfig as getStockfishSuggestionConfig } from '../engine/StockfishConfig.js';
 import {
   enqueueSuggestion,
   removePendingSuggestionsForUser,
@@ -22,6 +23,9 @@ export interface SuggestionMessage {
   type: 'suggestion_request';
   requestId: string;
   fen: string;
+  /** Engine binary to run server-side. Defaults to 'komodo' for backward
+   *  compat with older extension builds. */
+  engine?: 'komodo' | 'stockfish';
   moves?: string[];
   targetElo?: number;
   personality?: string;
@@ -52,10 +56,11 @@ export async function handleSuggestionRequest(
   send: SendFn,
 ): Promise<void> {
   const {
-    requestId, fen, moves, targetElo, personality, multiPv,
+    requestId, fen, engine, moves, targetElo, personality, multiPv,
     contempt, variety, puzzleMode, limitStrength, armageddon,
     searchMode, searchNodes, searchDepth, searchMovetime,
   } = message;
+  const engineType: 'komodo' | 'stockfish' = engine === 'stockfish' ? 'stockfish' : 'komodo';
 
   if (!requestId || !fen) {
     send({ type: 'suggestion_error', requestId, error: 'Missing requestId or fen' });
@@ -71,16 +76,26 @@ export async function handleSuggestionRequest(
   const effectiveLimit = limitStrength;
 
   const pvCount = Math.min(3, Math.max(1, effectiveMultiPv));
-  const config = getEngineConfig({
-    targetElo: effectiveElo,
-    personality: personality || 'Default',
-    multiPv: pvCount,
-    contempt,
-    variety,
-    limitStrength: effectiveLimit,
-    armageddon,
-    puzzleMode,
-  });
+  // Build engine-specific UCI config. Stockfish has a much smaller knob set
+  // (no Personality / Variety / Armageddon / Contempt) so we use a dedicated
+  // builder rather than feeding Komodo's options to it.
+  const config = engineType === 'stockfish'
+    ? getStockfishSuggestionConfig({
+        targetElo: effectiveElo,
+        multiPv: pvCount,
+        limitStrength: effectiveLimit,
+        puzzleMode: !!puzzleMode,
+      })
+    : getEngineConfig({
+        targetElo: effectiveElo,
+        personality: personality || 'Default',
+        multiPv: pvCount,
+        contempt,
+        variety,
+        limitStrength: effectiveLimit,
+        armageddon,
+        puzzleMode,
+      });
 
   const searchOptions: SuggestionJobData['searchOptions'] = { moves };
   if (effectiveLimit === false && searchMode) {
@@ -113,6 +128,7 @@ export async function handleSuggestionRequest(
       searchOptions,
       personality: personality || 'Default',
       puzzleMode: !!puzzleMode,
+      engineType,
     });
 
     send({

@@ -109,6 +109,14 @@ let queueEvents: QueueEvents | null = null;
 let worker: Worker<AnalysisJobData, AnalysisJobResult> | null = null;
 let pool: StockfishPool | null = null;
 
+/** Expose the shared Stockfish pool so other queues (e.g. the suggestion
+ *  queue when engine='stockfish') can acquire engines from the same set
+ *  of binaries — avoids spawning a duplicate pool just for suggestions.
+ *  Returns null until `initAnalysisWorker` has run. */
+export function getStockfishPool(): StockfishPool | null {
+  return pool;
+}
+
 export async function initAnalysisWorker(maxInstances: number): Promise<void> {
   if (worker) return;
 

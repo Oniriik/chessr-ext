@@ -30,8 +30,13 @@ import { sendWs, onWsMessage } from './websocket';
 const SEARCH_TIMEOUT_MS = 30_000;
 
 function capsFor(id: EngineId): EngineCapabilities {
-  if (id === 'maia2') {
+  if (id === 'maia2' || id === 'maia3') {
     return { hasPersonality: false, hasUciElo: false, hasDynamism: false, hasKingSafety: false, hasVariety: false };
+  }
+  if (id === 'stockfish') {
+    // Stockfish supports UCI Elo / UCI_LimitStrength but no Komodo-specific
+    // personality / variety / dynamism / king safety knobs.
+    return { hasPersonality: false, hasUciElo: true, hasDynamism: false, hasKingSafety: false, hasVariety: false };
   }
   // Komodo server-side always supports personality + ELO + variety
   return { hasPersonality: true, hasUciElo: true, hasDynamism: true, hasKingSafety: true, hasVariety: true };

@@ -415,6 +415,11 @@ function EloSection() {
   const forcePinned = useLayoutStore((s) => s.pinned.includes('force'));
   const togglePin = useLayoutStore((s) => s.togglePin);
   if (!engine.capabilities.hasUciElo) return null;
+  // Stockfish's UCI_Elo only goes down to 1320; Komodo accepts down to 400.
+  // Match the slider min to the engine so users can't pick an ELO the
+  // engine will silently clamp away (avoids "I asked for 800 but it plays
+  // like 1320" surprises).
+  const sliderMin = engine.engineId === 'stockfish' ? 1320 : 400;
   return (
     <div className="engine-section">
       <div className="engine-section-header">
@@ -427,10 +432,10 @@ function EloSection() {
       )}
       {!engine.targetEloAuto && (
         <Slider
-          min={400}
+          min={sliderMin}
           max={premium ? (engine.limitStrength ? 2500 : 3500) : 2000}
           step={50}
-          value={engine.targetEloManual}
+          value={Math.max(sliderMin, engine.targetEloManual)}
           onChange={(v) => {
             engine.setTargetEloManual(v);
             if (v < 2500 && !engine.limitStrength) engine.setLimitStrength(true);
@@ -655,10 +660,16 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
   if (engineId === 'maia2') return <Maia2Panel />;
   if (engineId === 'maia3') return <Maia3Panel />;
 
+  // Stockfish + Komodo share this layout — sections render based on the
+  // engine's advertised capabilities (Personality / Variety / Dynamism /
+  // KingSafety hide themselves on Stockfish, leaving the ELO + search-mode
+  // sections visible). The chip at the top makes the active engine
+  // explicit when the user is browsing between Komodo and Stockfish.
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={engineOrder} strategy={verticalListSortingStrategy}>
         <div className="engine-panel">
+          <span className="engine-name-chip">{ENGINE_INFO[engineId]?.label ?? engineId}</span>
           {engineOrder.map((id) => {
             const renderFn = ENGINE_SECTIONS[id];
             if (!renderFn) return null;

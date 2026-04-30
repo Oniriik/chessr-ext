@@ -1,7 +1,20 @@
 /**
- * SuggestionEngine — runs Komodo Dragon WASM in a WebWorker via Blob URL
- * (same CSP-workaround pattern as AnalysisEngine). MultiPV, per-search setoption,
- * capability discovery at init.
+ * StockfishSuggestionEngine — runs Stockfish WASM in a WebWorker via Blob
+ * URL (same CSP-workaround pattern as SuggestionEngine / AnalysisEngine).
+ *
+ * Differences vs the Komodo Dragon SuggestionEngine:
+ *   - binary URLs: /engine/stockfish.js + /engine/stockfish.wasm
+ *   - no opening book (Stockfish uses NNUE evaluation; book moves come
+ *     from the suggestion-store layer if needed, not from the engine)
+ *   - no Personality / Variety / Dynamism / King Safety setoptions —
+ *     Stockfish doesn't advertise them, so `buildEngineSetOptions` filters
+ *     them out automatically via the `_supportedOptions` set
+ *   - id = 'stockfish'
+ *
+ * The labeling, search loop, cancel semantics and capability discovery
+ * are identical and inherited via duplication. A future refactor can
+ * parameterise SuggestionEngine to share this code; for now keeping the
+ * paths separate avoids breaking the Komodo path during stockfish dev.
  */
 
 import { buildEngineSetOptions, type EngineParams } from './engineConfig.js';
@@ -10,26 +23,22 @@ import { labelSuggestions, type LabeledSuggestion, type Suggestion } from './eng
 import type { IEngine, SuggestionSearchParams as IEngineSearchParams } from './engineApi';
 import type { EngineCapabilities } from '../stores/engineStore';
 
-// Komodo Dragon WASM hash table size. Aligned with the server-side Komodo
-// (also 512 MB, see serveur/src/engine/KomodoConfig.ts) so suggestions are
-// the same strength regardless of which path runs the search. WASM heap can
-// grow up to ~4 GB per module so 512 MB is well within budget; the host tab
-// (chess.com / lichess / worldchess) typically sits at 200-500 MB so we
-// stay under the practical 1.5 GB tab budget on modern desktops. Older /
-// memory-constrained devices: WASM init may OOM and fall back to the
-// ServerEngine path automatically — see content.tsx createEngine.
+// Stockfish WASM hash. Stockfish benefits more from large hash than
+// Komodo at the same time budget (NNUE eval is heavier per node, fewer
+// nodes searched, deeper hash hits more important). 512 MB matches
+// Komodo so users see consistent memory usage when switching engines.
 const HASH_MB = 512;
 const SEARCH_TIMEOUT_MS = 30_000;
 const INIT_TIMEOUT_MS = 10_000;
 
-export interface SuggestionSearchParams extends EngineParams {
+export interface StockfishSuggestionSearchParams extends EngineParams {
   fen: string;
   moves?: string[];
   search?: SearchOptions;
 }
 
-export class SuggestionEngine implements IEngine {
-  readonly id = 'komodo' as const;
+export class StockfishSuggestionEngine implements IEngine {
+  readonly id = 'stockfish' as const;
   private worker: Worker | null = null;
   private blobUrl: string | null = null;
   private _ready = false;
@@ -44,34 +53,26 @@ export class SuggestionEngine implements IEngine {
   private activeResults: Map<string, Suggestion> = new Map();
   private cancelling: Promise<void> | null = null;
 
-  // Fullmove number of the last searched FEN — used as a safety net to detect
-  // a game rewind or a new game the host forgot to signal, in which case we
-  // implicitly fire ucinewgame before the search proceeds.
   private lastFullmove: number | null = null;
 
   get ready() { return this._ready; }
   get supportedOptions(): ReadonlySet<string> { return this._supportedOptions; }
 
   async init(): Promise<void> {
-    const jsUrl = browser.runtime.getURL('/engine/dragon.js');
-    const wasmUrl = browser.runtime.getURL('/engine/dragon.wasm');
-    const bookUrl = browser.runtime.getURL('/engine/book.bin');
+    const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
+    const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
     const response = await browser.runtime.sendMessage({
       type: 'fetchExtensionFile',
       path: new URL(jsUrl).pathname,
     }) as { text?: string; error?: string };
     if (response.error || !response.text) {
-      throw new Error(`Failed to fetch dragon.js: ${response.error}`);
+      throw new Error(`Failed to fetch stockfish.js: ${response.error}`);
     }
 
     const blob = new Blob([response.text], { type: 'application/javascript' });
     this.blobUrl = URL.createObjectURL(blob);
-    // Hash fragment carries wasm URL (required) + optional book URL,
-    // separated by '|'. Glue reads both during Worker bootstrap.
-    const hash =
-      encodeURIComponent(wasmUrl) +
-      (bookUrl ? '|' + encodeURIComponent(bookUrl) : '');
-    this.worker = new Worker(this.blobUrl + '#' + hash);
+    // No book — Stockfish uses NNUE; hash fragment carries only the wasm URL.
+    this.worker = new Worker(this.blobUrl + '#' + encodeURIComponent(wasmUrl));
 
     // Phase 1: collect options during `uci` → `uciok`.
     await this.withTimeout(
@@ -103,34 +104,29 @@ export class SuggestionEngine implements IEngine {
     );
 
     if (!this._supportedOptions.has('MultiPV')) {
-      throw new Error('Dragon WASM does not advertise MultiPV — cannot run suggestions');
+      throw new Error('Stockfish WASM does not advertise MultiPV — cannot run suggestions');
     }
 
     this._ready = true;
-    // Initial game boundary — clears any residual state from prior init.
     await this.newGame();
   }
 
   getCapabilities(): EngineCapabilities {
     const s = this._supportedOptions;
     return {
-      hasPersonality: s.has('Personality'),
-      hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),
-      hasDynamism: s.has('Dynamism'),
-      hasKingSafety: s.has('King Safety'),
-      hasVariety: s.has('Variety'),
+      hasPersonality: s.has('Personality'),                       // false on Stockfish
+      hasUciElo: s.has('UCI Elo') || s.has('UCI_Elo'),             // true on Stockfish
+      hasDynamism: s.has('Dynamism'),                              // false on Stockfish
+      hasKingSafety: s.has('King Safety'),                         // false on Stockfish
+      hasVariety: s.has('Variety'),                                // false on Stockfish
     };
   }
 
   async search(params: IEngineSearchParams): Promise<LabeledSuggestion[]> {
-    if (!this.worker || !this._ready) throw new Error('SuggestionEngine not initialised');
+    if (!this.worker || !this._ready) throw new Error('StockfishSuggestionEngine not initialised');
 
     if (this.activeResolve) await this.cancel();
 
-    // Safety net: if fullmove number regressed, the host likely didn't emit
-    // chessr:newGame (e.g., puzzle retry, daily-bot restart, SPA edge case).
-    // Reset engine state so residual transposition data for the previous game
-    // doesn't skew this new game's analysis.
     const currentFullmove = parseFullmove(params.fen);
     if (this.lastFullmove !== null && currentFullmove < this.lastFullmove) {
       await this.newGame();
@@ -152,25 +148,19 @@ export class SuggestionEngine implements IEngine {
       this.worker!.addEventListener('message', this.activeListener);
 
       const opts = buildEngineSetOptions(params as EngineParams, this._supportedOptions);
-      console.log('[Chessr][dbg] setoption payload', opts);
+      console.log('[Chessr][dbg][sf] setoption payload', opts);
       for (const [k, v] of Object.entries(opts)) this.sendRaw(`setoption name ${k} value ${v}`);
 
       this.sendRaw('isready');
       this.waitForToken('readyok').then(() => {
-        if (this.activeResolve !== resolve) return; // cancelled meanwhile
+        if (this.activeResolve !== resolve) return;
         const movesSuffix = params.moves?.length ? ` moves ${params.moves.join(' ')}` : '';
         this.sendRaw(`position fen ${params.fen}${movesSuffix}`);
-        this.sendRaw(buildGoCommand(params.search ?? null, 'dragon'));
+        this.sendRaw(buildGoCommand(params.search ?? null, 'stockfish'));
       });
     });
   }
 
-  /**
-   * Signal a new game boundary to the engine. Clears the transposition table
-   * and lets Dragon reset per-game state. Should be called exactly once per
-   * game (at start or on transition), NOT between consecutive positions of
-   * the same game — otherwise analysis cached between moves gets thrown away.
-   */
   async newGame(): Promise<void> {
     if (!this.worker || !this._ready) return;
     this.lastFullmove = null;
@@ -192,21 +182,10 @@ export class SuggestionEngine implements IEngine {
     this._ready = false;
   }
 
-  /**
-   * Cancel any in-flight search. The rejected caller receives an AbortError,
-   * letting content.tsx silently ignore cancellations without risking stale
-   * arrows from the old request being set on the store.
-   *
-   * Public so the content script can call it on game end / new game transitions.
-   */
   async cancel(): Promise<void> {
     if (!this.activeResolve) return;
     if (this.cancelling) return this.cancelling;
 
-    // Swap trick: we've sent `stop`; UCI will emit one final `bestmove` that
-    // would normally call activeResolve. Replace activeResolve to instead
-    // REJECT the original caller (with AbortError) and unblock cancel().
-    // Guarantees the UCI buffer is drained before the next search starts.
     this.cancelling = new Promise<void>((resolve) => {
       const prevReject = this.activeReject!;
       this.activeResolve = () => {
@@ -246,19 +225,11 @@ export class SuggestionEngine implements IEngine {
       const fen = this.activeFen!;
       const mp = this.activeMultiPv;
       const allRaws = Array.from(this.activeResults.values());
-      console.log('[Chessr][dbg] bestmove received', {
-        line,
-        infoCount: allRaws.length,
-        moves: allRaws.map((s) => `${s.move}(pv${s.multipv}/d${s.depth})`),
-        multiPvWanted: mp,
-      });
-      let raws = allRaws
-        .sort((a, b) => a.multipv - b.multipv)
-        .slice(0, mp);
+      let raws = allRaws.sort((a, b) => a.multipv - b.multipv).slice(0, mp);
 
-      // Book move fallback: when Komodo plays from its opening book it emits
-      // `bestmove X` WITHOUT any prior `info` lines. Synthesise a single-move
-      // suggestion so the arrow still renders (eval/depth unknown, flag depth=0).
+      // bestmove without prior info — synthesise a single move with neutral
+      // eval so the arrow still renders. Less common on Stockfish than on
+      // Komodo (which has its book), but keep the safety net.
       if (raws.length === 0) {
         const bestMove = line.split(/\s+/)[1];
         if (bestMove && bestMove !== '(none)' && bestMove.length >= 4) {
@@ -311,55 +282,46 @@ export class SuggestionEngine implements IEngine {
   }
 }
 
-/** FEN fullmove (field 6, 1-indexed, increments after black's move). */
 function parseFullmove(fen: string): number {
   const parts = fen.split(' ');
   const n = parseInt(parts[5] ?? '1', 10);
   return Number.isFinite(n) && n > 0 ? n : 1;
 }
 
+/** Parse a UCI `info` line into a Suggestion. Identical shape to
+ *  suggestionEngine.ts's helper — duplicated locally for now to keep this
+ *  engine self-contained. Refactor target: share via engineLabeler. */
 function parseInfo(line: string): Suggestion | null {
-  const pvMatch = line.match(/\bpv\s+(.+)$/);
-  if (!pvMatch) return null;
-  const pv = pvMatch[1].split(/\s+/).filter((m) => m.length >= 4);
-  if (!pv.length) return null;
-
-  const multipv = parseInt(line.match(/\bmultipv\s+(\d+)/)?.[1] || '1');
-  const depth = parseInt(line.match(/\bdepth\s+(\d+)/)?.[1] || '0');
-
-  let evaluation = 0;
-  let mateScore: number | null = null;
-  let winRate = 50, drawRate = 0, lossRate = 50;
-
-  const mateMatch = line.match(/\bscore\s+mate\s+(-?\d+)/);
-  const cpMatch = line.match(/\bscore\s+cp\s+(-?\d+)/);
-  const wdlMatch = line.match(/\bwdl\s+(\d+)\s+(\d+)\s+(\d+)/);
-
-  if (mateMatch) {
-    mateScore = parseInt(mateMatch[1]);
-    evaluation = mateScore > 0 ? 10000 : -10000;
-    winRate = mateScore > 0 ? 100 : 0;
-    drawRate = 0;
-    lossRate = mateScore > 0 ? 0 : 100;
-  } else if (cpMatch) {
-    evaluation = parseInt(cpMatch[1]);
+  const tokens = line.split(/\s+/);
+  let multipv = 1, depth = 0, cp: number | null = null, mate: number | null = null;
+  let pvStart = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === 'multipv') multipv = parseInt(tokens[++i], 10);
+    else if (t === 'depth') depth = parseInt(tokens[++i], 10);
+    else if (t === 'score') {
+      const kind = tokens[++i];
+      const val = parseInt(tokens[++i], 10);
+      if (kind === 'cp') cp = val;
+      else if (kind === 'mate') mate = val;
+    } else if (t === 'pv') { pvStart = i + 1; break; }
   }
-
-  if (wdlMatch) {
-    winRate = parseInt(wdlMatch[1]) / 10;
-    drawRate = parseInt(wdlMatch[2]) / 10;
-    lossRate = parseInt(wdlMatch[3]) / 10;
-  } else if (!mateMatch && cpMatch) {
-    winRate = 50 + 50 * (2 / (1 + Math.exp(-evaluation / 400)) - 1);
-    winRate = Math.round(winRate * 10) / 10;
-    lossRate = Math.round((100 - winRate) * 10) / 10;
-  }
-
+  if (pvStart < 0) return null;
+  const pv = tokens.slice(pvStart).filter(Boolean);
+  if (pv.length === 0) return null;
+  const evaluation = mate !== null ? (mate > 0 ? 100 : -100) : (cp ?? 0) / 100;
+  const winRate = mate !== null
+    ? (mate > 0 ? 100 : 0)
+    : Math.max(0, Math.min(100, 50 + (cp ?? 0) / 4));
   return {
-    multipv, move: pv[0], evaluation, depth,
-    winRate: Math.round(winRate * 10) / 10,
-    drawRate: Math.round(drawRate * 10) / 10,
-    lossRate: Math.round(lossRate * 10) / 10,
-    mateScore, pv,
+    multipv,
+    move: pv[0],
+    evaluation,
+    depth,
+    winRate,
+    drawRate: 0,
+    lossRate: 100 - winRate,
+    mateScore: mate,
+    pv,
   };
 }

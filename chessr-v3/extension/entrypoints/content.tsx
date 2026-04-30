@@ -23,6 +23,7 @@ function analysisSource(): 'wasm' | 'server' {
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
 import { Maia3SuggestionEngine } from './content/lib/maia3SuggestionEngine';
+import { StockfishSuggestionEngine } from './content/lib/stockfishSuggestionEngine';
 import { ServerEngine } from './content/lib/serverEngine';
 import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
 import type { EngineId } from './content/stores/engineStore';
@@ -120,9 +121,10 @@ const WASM_INIT_TIMEOUT_MS = 3000;
 
 function newWasmEngine(id: EngineId): IEngine {
   switch (id) {
-    case 'maia2': return new MaiaSuggestionEngine();
-    case 'maia3': return new Maia3SuggestionEngine();
-    default:      return new SuggestionEngine(); // 'komodo'
+    case 'maia2':     return new MaiaSuggestionEngine();
+    case 'maia3':     return new Maia3SuggestionEngine();
+    case 'stockfish': return new StockfishSuggestionEngine();
+    default:          return new SuggestionEngine(); // 'komodo'
   }
 }
 
