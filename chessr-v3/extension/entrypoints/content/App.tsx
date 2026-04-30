@@ -39,9 +39,19 @@ function getReviewGameId(): string | null {
   } catch { return null; }
 }
 
-export default function App() {
-  // Auto-open panel on review/analysis pages (gated by user setting)
+interface AppProps {
+  /** When true, the App is rendered inside the dedicated Stream Mode tab:
+   *  panel always-open, FAB hidden, chessr-panel sized for the page
+   *  rather than the corner overlay. The on-platform stream-hide CSS
+   *  also doesn't apply (the stream page IS the consumer). */
+  streamMode?: boolean;
+}
+
+export default function App({ streamMode = false }: AppProps = {}) {
+  // Auto-open panel on review/analysis pages (gated by user setting). In
+  // stream mode the panel is always open — no toggle, no auto-open logic.
   const [open, setOpen] = useState(() => {
+    if (streamMode) return true;
     const path = window.location.pathname;
     const onReviewPage = /\/(?:analysis\/game|game)\/(?:live|daily)\/\d+/.test(path) && !path.includes('/computer');
     if (!onReviewPage) return false;
@@ -137,26 +147,32 @@ export default function App() {
   // panel snap back the moment Stream Mode closes — internal UI state
   // (current tab, scroll, edit mode) is preserved across the toggle.
   const streamOpen = useStreamOpen();
+  // Stream-mode override: hide the on-platform UI is N/A inside the
+  // stream page itself (this App IS the stream page), and content scripts
+  // use the streamOpen flag — which the stream page set on mount.
+  const hostHideClass = !streamMode && streamOpen ? 'chessr-host--stream-active' : '';
 
   return (
-    <div className={`chessr-host ${streamOpen ? 'chessr-host--stream-active' : ''}`}>
-      <div
-        className="chessr-fab-wrapper"
-        data-tooltip={updateRequired ? 'Update required' : !initializing && !user ? 'Sign in required' : undefined}
-      >
-        {(updateRequired || (!initializing && !user)) && <span className="chessr-fab-badge" />}
-        <button
-          className={`chessr-fab ${open ? 'chessr-fab--active' : 'chessr-fab--disabled'}`}
-          onClick={() => open ? handleClose() : setOpen(true)}
-          aria-label="Toggle Chessr"
+    <div className={`chessr-host ${streamMode ? 'chessr-host--stream-mode' : ''} ${hostHideClass}`}>
+      {!streamMode && (
+        <div
+          className="chessr-fab-wrapper"
+          data-tooltip={updateRequired ? 'Update required' : !initializing && !user ? 'Sign in required' : undefined}
         >
-          <img src={browser.runtime.getURL('/icons/icon128.png')} alt="Chessr" width={54} height={54} style={{ marginTop: 4 }} />
-        </button>
-      </div>
+          {(updateRequired || (!initializing && !user)) && <span className="chessr-fab-badge" />}
+          <button
+            className={`chessr-fab ${open ? 'chessr-fab--active' : 'chessr-fab--disabled'}`}
+            onClick={() => open ? handleClose() : setOpen(true)}
+            aria-label="Toggle Chessr"
+          >
+            <img src={browser.runtime.getURL('/icons/icon128.png')} alt="Chessr" width={54} height={54} style={{ marginTop: 4 }} />
+          </button>
+        </div>
+      )}
 
       {open && (
         <div
-          className="chessr-panel"
+          className={`chessr-panel ${streamMode ? 'chessr-panel--stream' : ''}`}
           ref={panelRef}
           // 'zoom' scales the whole panel proportionally (text, padding,
           // borders) without touching the 100+ hard-coded font-size rules.
