@@ -67,10 +67,13 @@ services:
       - PORT=8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      # Pool sizing — adjust per host capacity. CPX41 (8 vCPU) handles
-      # 4 Komodo + 2 Stockfish without saturating.
-      - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-4}
+      # Pool sizing — 2 instances of each engine = 8 instances on a CPX41
+      # (8 vCPU), one thread per instance, full hardware utilisation.
+      # Stockfish suggestions share the analysis pool (see suggestionQueue).
+      - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-2}
       - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-2}
+      - MAX_MAIA_INSTANCES=${MAX_MAIA_INSTANCES:-2}
+      - MAX_MAIA3_INSTANCES=${MAX_MAIA3_INSTANCES:-2}
       - LOG_DIR=/app/logs
     depends_on:
       redis:
@@ -84,8 +87,14 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '6'
-          memory: 6G
+          # 8 engine instances × 1 thread each = 8 vCPU. Bumped from 6 so
+          # the container can use the full host (CPX41 has 8 vCPU).
+          cpus: '8'
+          # Memory budget: 2×512MB Komodo + 2×~1GB Stockfish (analysis
+          # hash) + 2×~150MB Maia + Node + buffers ≈ 5-6 GB worst case.
+          # Cap at 8G for headroom — host has 16 GB, Redis is capped at
+          # 4 GB on its own.
+          memory: 8G
         reservations:
           cpus: '2'
           memory: 1G
