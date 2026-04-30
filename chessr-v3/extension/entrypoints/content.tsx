@@ -331,7 +331,11 @@ function runSuggestionSearch(fen: string) {
           : '?'
         }`
       : 'default';
-    return `source=${source} engine=komodo elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength} perso=${params.personality} search=${searchDesc}`;
+    // Stockfish has no personality knob — only Komodo does. Omit it from
+    // the log on stockfish so the line doesn't lie ("perso=Default" looked
+    // like the user picked Default but the field isn't applicable).
+    const persoBit = engineLabel === 'stockfish' ? '' : ` perso=${params.personality}`;
+    return `source=${source} engine=${engineLabel} elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength}${persoBit} search=${searchDesc}`;
   })();
   sendWs({
     type: 'suggestion_log_start',
