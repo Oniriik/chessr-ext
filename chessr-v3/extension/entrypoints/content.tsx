@@ -436,6 +436,7 @@ export default defineContentScript({
     // right after login.
     useEngineStore.subscribe((state, prev) => {
       const changed =
+        // Komodo / Stockfish — ELO + tuning + search budget
         state.targetEloAuto !== prev.targetEloAuto ||
         state.targetEloManual !== prev.targetEloManual ||
         state.autoEloBoost !== prev.autoEloBoost ||
@@ -451,7 +452,14 @@ export default defineContentScript({
         state.searchMode !== prev.searchMode ||
         state.searchNodes !== prev.searchNodes ||
         state.searchDepth !== prev.searchDepth ||
-        state.searchMovetime !== prev.searchMovetime;
+        state.searchMovetime !== prev.searchMovetime ||
+        // Maia 2 / Maia 3 — separate ELO + variant + book
+        state.maiaTargetEloAuto !== prev.maiaTargetEloAuto ||
+        state.maiaTargetEloManual !== prev.maiaTargetEloManual ||
+        state.maiaOppoEloAuto !== prev.maiaOppoEloAuto ||
+        state.maiaOppoEloManual !== prev.maiaOppoEloManual ||
+        state.maiaUseBook !== prev.maiaUseBook ||
+        state.maiaVariant !== prev.maiaVariant;
       if (!changed) return;
       if (engineDebounce) clearTimeout(engineDebounce);
       engineDebounce = setTimeout(() => {
