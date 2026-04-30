@@ -138,6 +138,15 @@ async function cdpMouseMove(
 export default defineBackground(() => {
   console.log('Chessr v3 background loaded');
 
+  // Clear the stream-open flag at every boot. If the previous session
+  // crashed the browser before the stream tab's beforeunload fired, the
+  // flag could be stuck `true` — content scripts would then keep their
+  // panel hidden forever. Background restart is a clean opportunity to
+  // reset: no stream tab can be open if we just booted.
+  browser.storage.local.set({
+    chessr_stream_open: { value: false, ts: Date.now() },
+  }).catch(() => { /* no-op */ });
+
   // Track debugger detach (user clicked the "Cancel" banner, or tab closed)
   // so we don't try to reuse a stale attachment.
   const dbg = (browser as any).debugger;
