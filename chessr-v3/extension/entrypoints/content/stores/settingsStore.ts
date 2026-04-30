@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useLayoutStore } from './layoutStore';
 import { useEngineStore } from './engineStore';
 import { useAutoMoveStore } from './autoMoveStore';
+import { useAuthStore } from './authStore';
 
 export type ChessTitle = 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM' | 'WFM' | 'WCM' | 'WNM';
 export type FontSize = 'small' | 'normal' | 'big';
@@ -223,13 +224,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           const eng = (cloud as any).engine;
           const es = useEngineStore.getState();
           // Sanitize engineId — old cloud rows can have 'patricia' which we
-          // removed in 3.1.0. Drop unknown IDs back to default.
-          if (
-            eng.engineId === 'komodo' ||
-            eng.engineId === 'maia2' ||
-            eng.engineId === 'maia3' ||
-            eng.engineId === 'stockfish'
-          ) es.setEngineId(eng.engineId);
+          // removed in 3.1.0. Drop unknown IDs back to default. Also
+          // downgrade Maia 2 / Maia 3 to Komodo on free users (Maia is a
+          // premium-only engine; a free user with a stale Maia preference
+          // from a previous premium session would otherwise keep using it).
+          const knownIds = ['komodo', 'maia2', 'maia3', 'stockfish'];
+          if (knownIds.includes(eng.engineId)) {
+            const plan = useAuthStore.getState().plan;
+            const premiumPlan = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
+            const FREE_OK = ['komodo', 'stockfish'];
+            const finalId = premiumPlan || FREE_OK.includes(eng.engineId)
+              ? eng.engineId
+              : 'komodo';
+            es.setEngineId(finalId);
+          }
           if (eng.maiaVariant !== undefined) es.setMaiaVariant(eng.maiaVariant);
           if (eng.maiaTargetEloAuto !== undefined) es.setMaiaTargetEloAuto(eng.maiaTargetEloAuto);
           if (eng.maiaTargetEloManual !== undefined) es.setMaiaTargetEloManual(eng.maiaTargetEloManual);

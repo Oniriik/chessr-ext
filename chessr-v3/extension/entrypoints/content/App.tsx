@@ -17,14 +17,11 @@ import LinkAccountScreen from './components/LinkAccountScreen';
 import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
 import ReviewScreen from './components/ReviewScreen';
-import BetaGate from './components/BetaGate';
+// BetaGate removed — free users now have access to the extension with
+// per-feature premium gating (engine selection, ELO max, personalities,
+// etc.). See lib/premium and the individual gates in GameScreen.
 import './components/beta-gate.css';
 import './app.css';
-
-const PREMIUM_PLANS = ['premium', 'lifetime', 'beta', 'freetrial'];
-function isPremiumPlan(plan: string | undefined): boolean {
-  return PREMIUM_PLANS.includes(plan ?? '');
-}
 
 function getReviewGameId(): string | null {
   try {
@@ -53,8 +50,7 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('account');
   const [gameTab, setGameTab] = useState<GameTab>('game');
   const panelRef = useRef<HTMLDivElement>(null);
-  const { user, initializing, initialize, plan, planLoading } = useAuthStore();
-  const premium = isPremiumPlan(plan);
+  const { user, initializing, initialize, plan: _plan, planLoading } = useAuthStore();
   const waitingForPlan = !!user && planLoading;
   const { isPlaying, gameOver } = useGameStore();
   const autoOpenOnGameEnd = useSettingsStore((s) => s.autoOpenOnGameEnd);
@@ -170,13 +166,6 @@ export default function App() {
           ) : user ? (
             waitingForPlan ? (
               <div className="chessr-panel-body"><Skeleton /></div>
-            ) : !premium ? (
-              <>
-                <PanelHeader showSettings={false} onToggleSettings={() => {}} hideActions />
-                <div className="chessr-panel-body">
-                  <BetaGate />
-                </div>
-              </>
             ) : needsLinking && pendingProfile ? (
               <>
                 <PanelHeader showSettings={false} onToggleSettings={() => {}} hideActions />

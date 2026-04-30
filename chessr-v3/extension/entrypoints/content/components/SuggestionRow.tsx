@@ -27,9 +27,7 @@ const PROMO_PIECES: Record<string, string> = {
   q: 'Q', r: 'R', b: 'B', n: 'N',
 };
 
-function isPremium(plan: Plan): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-}
+import { isPremium } from '../lib/premium';
 
 interface Props {
   suggestion: Suggestion;

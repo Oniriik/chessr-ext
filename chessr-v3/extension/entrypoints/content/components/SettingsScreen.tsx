@@ -11,6 +11,7 @@ import LichessIcon from './icons/LichessIcon';
 import { useSettingsStore } from '../stores/settingsStore';
 import { SERVER_URL, WS_SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
 import { openBillingPage } from '../lib/openBilling';
+import { isPremium } from '../lib/premium';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
@@ -415,8 +416,15 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
   );
 }
 
+/** Engines available on the free tier. Maia 2 / Maia 3 stay premium —
+ *  they're the human-style engines that justify upgrading. Komodo and
+ *  Stockfish are the two classical engines; both unlocked on free. */
+const FREE_TIER_ENGINES: EngineId[] = ['komodo', 'stockfish'];
+
 function EngineSettingsTab() {
   const { engineId, setEngineId, autoEloBoost, setAutoEloBoost } = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
   const engineIds = Object.keys(ENGINE_INFO) as EngineId[];
   // Tolerate a stale engineId (e.g. 'patricia' from pre-3.1.0 cloud state)
   // by falling back to the first known engine. The cloud sanitizer in
@@ -431,13 +439,28 @@ function EngineSettingsTab() {
           <select
             className="settings-select"
             value={engineId}
-            onChange={(e) => setEngineId(e.target.value as EngineId)}
+            onChange={(e) => {
+              const next = e.target.value as EngineId;
+              // Hard guard: if a free user manages to submit a premium
+              // engine ID anyway, snap them back to Komodo. Belt and
+              // suspenders since the option is also `disabled` below.
+              if (!premium && !FREE_TIER_ENGINES.includes(next)) {
+                setEngineId('komodo');
+                return;
+              }
+              setEngineId(next);
+            }}
           >
-            {engineIds.map((id) => (
-              <option key={id} value={id}>
-                {ENGINE_INFO[id].label}{ENGINE_INFO[id].beta ? ' (beta)' : ''}
-              </option>
-            ))}
+            {engineIds.map((id) => {
+              const locked = !premium && !FREE_TIER_ENGINES.includes(id);
+              return (
+                <option key={id} value={id} disabled={locked}>
+                  {ENGINE_INFO[id].label}
+                  {ENGINE_INFO[id].beta ? ' (beta)' : ''}
+                  {locked ? ' — Premium' : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div className="settings-engine-meta">

@@ -4,10 +4,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useAuthStore } from '../stores/authStore';
 import { executeAutoMove, executePremove, cancelPremoves } from './autoMove';
 
-const PREMIUM_PLANS = ['premium', 'lifetime', 'beta', 'freetrial'];
-function isPremiumPlan(plan: string | undefined): boolean {
-  return PREMIUM_PLANS.includes(plan ?? '');
-}
+import { isPremiumPlan } from './premium';
 
 // ─── Hotkey listener ───
 
@@ -21,6 +18,11 @@ export function installHotkeyListener(): void {
   window.addEventListener('keydown', (e) => {
     const s = useAutoMoveStore.getState();
     if (s.mode !== 'hotkey') return;
+
+    // Hard premium gate — hotkey mode is paid-only, even if a stale
+    // localStorage / cloud value left mode=hotkey on a free user. The UI
+    // also disables the mode button, but this catches direct-state edits.
+    if (!isPremiumPlan(useAuthStore.getState().plan)) return;
 
     // Skip if user is typing somewhere
     const target = e.target as HTMLElement;
@@ -202,6 +204,11 @@ export function installAutoPlayScheduler(): () => void {
 function trySchedule(suggestions: { move: string; pv: string[]; labels?: string[] }[]): void {
   const s = useAutoMoveStore.getState();
   const game = useGameStore.getState();
+
+  // Auto mode is premium-only. Stale state on a free user (cloud sync
+  // from a previous premium session) shouldn't actually fire moves —
+  // the UI mode-switch is also locked but this is the safety net.
+  if (!isPremiumPlan(useAuthStore.getState().plan)) return;
 
   if (!game.isPlaying || game.gameOver) return;
   if (!game.playerColor || game.playerColor !== game.turn) return;

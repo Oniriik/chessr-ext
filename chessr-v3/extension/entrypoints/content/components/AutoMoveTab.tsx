@@ -8,9 +8,7 @@ import RangeSlider from './RangeSlider';
 import Toggle from './Toggle';
 import './auto-move-tab.css';
 
-function isPremium(plan: Plan): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-}
+import { isPremium } from '../lib/premium';
 
 const MODE_META: Record<AutoMoveMode, { name: string; desc: string; cls: string; bg: string; border: string }> = {
   off:    { name: 'Off',    desc: 'Manual play',          cls: 'off',  bg: 'rgba(255, 255, 255, 0.03)', border: 'rgba(228, 228, 231, 0.6)' },
@@ -46,6 +44,8 @@ export function displayKeyCompact(key: string): string {
 
 export default function AutoMoveTab() {
   const s = useAutoMoveStore();
+  const plan = useAuthStore((st) => st.plan);
+  const premium = isPremium(plan);
 
   const modeRef = useRef<HTMLDivElement>(null);
   const indicatorRef = useRef<HTMLDivElement>(null);
@@ -92,15 +92,21 @@ export default function AutoMoveTab() {
           {(['off', 'hotkey', 'auto'] as const).map((m) => {
             const meta = MODE_META[m];
             const active = s.mode === m;
+            // Auto + Hotkey are premium-only — free tier sees only Off
+            // active. Locked buttons stay visible (greyed) so the user
+            // sees what's available with an upgrade.
+            const locked = !premium && (m === 'auto' || m === 'hotkey');
             return (
               <button
                 key={m}
                 type="button"
                 data-mode={m}
-                className={`am-mode-btn ${meta.cls} ${active ? 'active' : ''}`}
-                onClick={() => s.setMode(m)}
+                disabled={locked}
+                title={locked ? 'Premium — upgrade to unlock' : undefined}
+                className={`am-mode-btn ${meta.cls} ${active ? 'active' : ''} ${locked ? 'am-mode-btn--locked' : ''}`}
+                onClick={() => { if (!locked) s.setMode(m); }}
               >
-                <span className="am-mode-name">{meta.name}</span>
+                <span className="am-mode-name">{meta.name}{locked ? ' 🔒' : ''}</span>
                 <span className="am-mode-desc">{meta.desc}</span>
               </button>
             );
@@ -238,7 +244,11 @@ function AutoPlayCard() {
           <span className="am-slider-label">Play delay</span>
           <span className="am-slider-val">{s.autoPlayDelay[0]}–{s.autoPlayDelay[1]} ms</span>
         </div>
-        <RangeSlider value={s.autoPlayDelay} onChange={s.setAutoPlayDelay} min={0} max={3000} step={50} color="#a855f7" disabled={!premium} />
+        {/* Play delay stays customizable on free — it's the one auto-mode
+            knob the user can tune even without premium. The auto MODE
+            itself is locked at the mode-switch level above; if a free
+            user is here it's because they were premium previously. */}
+        <RangeSlider value={s.autoPlayDelay} onChange={s.setAutoPlayDelay} min={0} max={3000} step={50} color="#a855f7" />
       </div>
       <div className="am-row">
         <div className="am-row-label-col">

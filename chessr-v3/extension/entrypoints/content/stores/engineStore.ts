@@ -193,9 +193,7 @@ const ENGINE_DEFAULTS = {
   searchMovetime: 2000,
 };
 
-function isPremium(plan: Plan): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-}
+import { isPremium } from '../lib/premium';
 
 export const useEngineStore = create<EngineState>()((set, get) => ({
   ...ENGINE_DEFAULTS,

@@ -18,6 +18,7 @@ import { useAutoMoveStore, formatCountdown } from '../stores/autoMoveStore';
 import EditableComponent from './EditableComponent';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
+import { isPremium } from '../lib/premium';
 import Slider, { lerpColor } from './Slider';
 import GameSummaryCard from './GameSummaryCard';
 import { useGameMeta } from '../hooks/useGameMeta';
@@ -401,10 +402,6 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
   );
 }
 
-function isPremium(plan: string): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-}
-
 function EloSection() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
@@ -573,6 +570,8 @@ function PersonalitySection() {
 function DynamismSection() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
+  // Dynamism uses the REAL premium check (bypasses the beta override)
+  // — premium-only knob even during beta. Same for KingSafety below.
   const premium = isPremium(plan);
   const info = getDynamismLabel(engine.dynamism);
   const sliderDisabled = !premium || engine.dynamismAuto;
@@ -602,6 +601,7 @@ function DynamismSection() {
 function KingSafetySection() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
+  // Real premium check — see DynamismSection above.
   const premium = isPremium(plan);
   const info = getKingSafetyLabel(engine.kingSafety);
   const sliderDisabled = !premium || engine.kingSafetyAuto;

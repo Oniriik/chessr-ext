@@ -294,6 +294,14 @@
   color: #71717a;
 }
 
+.am-mode-btn--locked,
+.am-mode-btn--locked:hover {
+  opacity: 0.45;
+  cursor: not-allowed;
+  color: #71717a !important;
+}
+.am-mode-btn--locked .am-mode-name { color: #71717a; }
+
 .am-upgrade-note {
   margin-top: 8px;
   padding: 8px 10px;

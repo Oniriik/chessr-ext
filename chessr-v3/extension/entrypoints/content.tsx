@@ -34,6 +34,7 @@ import { useEngineStore } from './content/stores/engineStore';
 import { animationGate } from './content/stores/animationStore';
 import { useEvalStore } from './content/stores/evalStore';
 import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
+import { isPremiumPlan } from './content/lib/premium';
 let lastRequestedFen: string | null = null;
 let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | null = null;
 
@@ -101,11 +102,6 @@ function parseMoveNumber(fen: string): number {
 }
 
 const FREE_DEFAULTS = { mode: 'nodes' as const, nodes: 1_000_000, depth: 20, movetime: 2000 };
-const PREMIUM_PLANS = ['premium', 'lifetime', 'beta', 'freetrial'];
-
-function isPremiumPlan(plan: string | undefined): boolean {
-  return PREMIUM_PLANS.includes(plan ?? '');
-}
 
 /**
  * WASM-first engine builder with server fallback.

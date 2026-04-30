@@ -8,6 +8,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { useAuthStore } from '../stores/authStore';
 import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, type EngineId, type MaiaVariant, MAIA_VARIANT_INFO } from '../stores/engineStore';
+import { isPremium } from '../lib/premium';
 import { useAccuracy, useAccuracyTrend, useMoveAnalyses, computeClassificationCounts } from '../stores/analysisStore';
 import { useAutoMoveStore, formatCountdown } from '../stores/autoMoveStore';
 import { useLayoutStore } from '../stores/layoutStore';
@@ -47,9 +48,7 @@ export const COMPONENT_REGISTRY: Record<string, { label: string; engineIds?: Eng
   'maia3-oppo-elo':   { label: 'Maia 3 Opponent ELO', engineIds: ['maia3'] },
 };
 
-function isPremium(plan: string): boolean {
-  return plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-}
+// `isPremium` imported from ../lib/premium (see top of file).
 
 function FloatingSuggestions() {
   const { suggestions, loading } = useSuggestionStore();
@@ -256,6 +255,7 @@ function ForceSubmodule() {
 function FloatingForce() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
+  // Real premium gate — Force search depth is premium-only even during beta.
   const premium = isPremium(plan);
   return (
     <div style={{ ...fCard, ...fRow }}>
@@ -286,6 +286,7 @@ function FloatingPersonality() {
 function FloatingDynamism() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
+  // Real premium gate — Dynamism is premium-only even during beta.
   const premium = isPremium(plan);
   const info = getDynamismLabel(engine.dynamism);
   return (
@@ -312,6 +313,7 @@ function FloatingDynamism() {
 function FloatingKingSafety() {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
+  // Real premium gate — King Safety is premium-only even during beta.
   const premium = isPremium(plan);
   const info = getKingSafetyLabel(engine.kingSafety);
   return (
