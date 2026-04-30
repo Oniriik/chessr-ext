@@ -42,6 +42,12 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
 
 const bootedAt = Date.now();
 
+// Stream Mode tab tracking — set when we open a stream tab via the
+// `open_stream` message handler. On tabs.onRemoved we clear the flag
+// stored in chrome.storage.local so the platform panel re-shows even
+// if the page-level beforeunload cleanup didn't fire.
+const streamTabIds = new Set<number>();
+
 // CDP-based native mouse-event injector. Lichess's chessground rejects
 // synthesised pointer events on round (live games) — `setPointerCapture`
 // + drag-distance threshold checks make `dispatchEvent` unreliable.
@@ -142,6 +148,12 @@ export default defineBackground(() => {
   }
   browser.tabs.onRemoved.addListener((tabId) => {
     attachedTabs.delete(tabId);
+    if (streamTabIds.has(tabId)) {
+      streamTabIds.delete(tabId);
+      browser.storage.local.set({
+        chessr_stream_open: { value: false, ts: Date.now() },
+      });
+    }
   });
 
   browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -190,7 +202,12 @@ export default defineBackground(() => {
 
     // Open Stream Mode page in a new tab. Triggered from SettingsScreen.
     if (msg?.type === 'open_stream') {
-      browser.tabs.create({ url: browser.runtime.getURL('/stream.html') });
+      browser.tabs.create({ url: browser.runtime.getURL('/stream.html') }).then((tab) => {
+        // Tag this tab so we can clear the open flag if the user closes
+        // it before the page-level cleanup fires (hard kill, browser
+        // crash). The tag is held in module-scope below.
+        if (tab.id !== undefined) streamTabIds.add(tab.id);
+      });
       return false;
     }
 

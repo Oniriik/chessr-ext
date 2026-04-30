@@ -17,6 +17,7 @@ import LinkAccountScreen from './components/LinkAccountScreen';
 import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
 import ReviewScreen from './components/ReviewScreen';
+import { useStreamOpen } from './lib/streamOpen';
 // BetaGate removed — free users now have access to the extension with
 // per-feature premium gating (engine selection, ELO max, personalities,
 // etc.). See lib/premium and the individual gates in GameScreen.
@@ -130,9 +131,15 @@ export default function App() {
   }, [disableAnimations]);
 
   const loading = checking || (!updateRequired && initializing);
+  // When the streamer has Stream Mode open in another tab, hide the
+  // on-page panel + trigger so everything is shown only in the dedicated
+  // stream tab. CSS hide (not unmount) keeps stores live + lets the
+  // panel snap back the moment Stream Mode closes — internal UI state
+  // (current tab, scroll, edit mode) is preserved across the toggle.
+  const streamOpen = useStreamOpen();
 
   return (
-    <>
+    <div className={`chessr-host ${streamOpen ? 'chessr-host--stream-active' : ''}`}>
       <div
         className="chessr-fab-wrapper"
         data-tooltip={updateRequired ? 'Update required' : !initializing && !user ? 'Sign in required' : undefined}
@@ -199,6 +206,6 @@ export default function App() {
       )}
 
       <FloatingWidget />
-    </>
+    </div>
   );
 }

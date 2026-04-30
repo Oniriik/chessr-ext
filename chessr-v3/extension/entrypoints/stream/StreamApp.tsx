@@ -15,6 +15,7 @@ import Chessboard, { ARROW_COLORS } from './Chessboard';
 import EvalBar from './EvalBar';
 
 const STORAGE_KEY = 'chessr_stream_state';
+const STREAM_OPEN_KEY = 'chessr_stream_open';
 
 interface StreamSnapshot {
   ts: number;
@@ -89,6 +90,26 @@ export default function StreamApp() {
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // Tell the content scripts to hide their on-page panel while this tab
+  // is mounted. Cleanup on unmount (BFCache restore, navigation away,
+  // tab close fires beforeunload). Background's tabs.onRemoved handler
+  // is the safety net for hard tab kills.
+  useEffect(() => {
+    browser.storage.local.set({
+      [STREAM_OPEN_KEY]: { value: true, ts: Date.now() },
+    });
+    const cleanup = () => {
+      browser.storage.local.set({
+        [STREAM_OPEN_KEY]: { value: false, ts: Date.now() },
+      });
+    };
+    window.addEventListener('beforeunload', cleanup);
+    return () => {
+      cleanup();
+      window.removeEventListener('beforeunload', cleanup);
+    };
   }, []);
 
   const stale = state && Date.now() - state.ts > 30_000;
