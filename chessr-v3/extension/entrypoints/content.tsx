@@ -739,11 +739,24 @@ export default defineContentScript({
         case 'chessr:newGame': {
           // chess.com occasionally emits a transient newGame on the same
           // position (right after a spurious `gameOver`). Debounce: remember
-          // the FEN we saw before the event and defer the reset. If a
-          // chessr:mode playing on the SAME fen lands within the window,
-          // cancel the reset — the game in fact continues.
+          // the FEN we saw before the event and defer the heavy resets
+          // (gameStore wipe + engine re-init) so a spurious-newGame doesn't
+          // visibly flicker the panel. If a chessr:mode playing on the SAME
+          // fen lands within the window, cancel — the game in fact continues.
           const fenAtNewGame = useGameStore.getState().fen;
           pendingNewGameFen = fenAtNewGame;
+
+          // EAGER resets: the per-move annotation stores (analysis /
+          // explanations / eval graph) are safe to wipe immediately —
+          // worst case is a spurious newGame on the same position, in
+          // which case the next move will just rebuild them. Without
+          // this, the cancel-logic on chess.com (where two games starting
+          // at startpos look identical to "spurious") leaves the previous
+          // game's accuracy/classifications visible on the new game.
+          useAnalysisStore.getState().reset();
+          useExplanationStore.getState().clear();
+          useEvalStore.getState().reset();
+
           if (newGameResetTimer) clearTimeout(newGameResetTimer);
           newGameResetTimer = setTimeout(() => {
             newGameResetTimer = null;
@@ -751,9 +764,6 @@ export default defineContentScript({
             reset();
             resetSuggestionState();
             suggestionEngine?.newGame().catch(() => { /* engine gone */ });
-            useAnalysisStore.getState().reset();
-            useExplanationStore.getState().clear();
-            useEvalStore.getState().reset();
             previousFen = null;
             playerMoveCount = 0;
           }, 200);
