@@ -1,4 +1,13 @@
-:host {
+/* CSS variables — `:host` selector matches the Shadow Root the content
+ * script mounts the panel into on chess.com / lichess / worldchess.
+ * `.chessr-host` is the same selector but for non-Shadow contexts (the
+ * Stream Mode extension page), so all the vars (--muted, --card-bg,
+ * --foreground, etc.) resolve correctly when the panel is embedded in
+ * stream mode too. Without the second selector the TabBar indicator,
+ * card backgrounds and a bunch of other internals render as
+ * transparent / invisible inside the stream tab. */
+:host,
+.chessr-host {
   overscroll-behavior: contain;
   --background: 240 20% 5%;
   --foreground: 240 6% 90%;

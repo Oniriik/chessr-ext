@@ -73,9 +73,38 @@ function ago(ts: number): string {
   return `${Math.round(sec / 60)}m ago`;
 }
 
+/** Track viewport width so we can switch to a stacked layout on narrow
+ *  windows (≤900 px) — board on top, panel underneath. */
+function useViewportWidth(): number {
+  const [w, setW] = useState(typeof window === 'undefined' ? 1400 : window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setW(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return w;
+}
+
 export default function StreamApp() {
   const state = useStreamState();
   const [, setTick] = useState(0);
+  const viewportW = useViewportWidth();
+  // Panel stays at the same fixed 400 px width as on the platforms;
+  // the chessboard takes the remaining horizontal space and scales.
+  const PANEL_W = 400;
+  const isMobile = viewportW < PANEL_W + 360 + 60; // not enough room for board+panel side-by-side
+  const horizontalGap = 20;
+  const horizontalPadding = isMobile ? 32 : 48;
+  const evalBarW = isMobile ? 18 : 22;
+  const evalGap = 8;
+  // On desktop the board fills the row minus the panel + paddings; on
+  // mobile it spans the full available width minus a small breathing room.
+  const desktopBoardSize = Math.min(
+    Math.max(viewportW - PANEL_W - horizontalGap - horizontalPadding - evalBarW - evalGap, 320),
+    640,
+  );
+  const mobileBoardSize = Math.min(viewportW - horizontalPadding - evalBarW - evalGap, 520);
+  const boardSize = isMobile ? mobileBoardSize : desktopBoardSize;
   // Initial Supabase auth bootstrap (same as content scripts do at boot).
   const initialize = useAuthStore((s) => s.initialize);
 
@@ -106,24 +135,35 @@ export default function StreamApp() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      // Fill the viewport so the panel column has a real height to flex
+      // against. `100vh` + flex column lets the body row grow vertically
+      // while the panel / board children inherit a defined height.
+      height: '100vh',
       maxWidth: 1400,
       margin: '0 auto',
-      padding: '20px 24px',
+      padding: isMobile ? '14px 16px' : '20px 24px',
       display: 'flex',
       flexDirection: 'column',
-      gap: 16,
+      gap: 14,
       boxSizing: 'border-box',
+      overflow: 'hidden',
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>
+      {/* Header — single row on desktop, allowed to wrap on mobile */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        flexWrap: 'wrap',
+      }}>
+        <span style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700, color: '#fff' }}>
           Chessr<span style={{ color: '#3b82f6' }}>.io</span>
         </span>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#a1a1aa' }}>
           STREAM MODE
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: '#71717a' }}>
+        <span style={{
+          marginLeft: 'auto',
+          fontSize: 11, color: '#71717a',
+          textAlign: 'right',
+        }}>
           {state ? (
             <>
               <span style={{ color: state.gameOver ? '#71717a' : '#22c55e' }}>
@@ -142,16 +182,33 @@ export default function StreamApp() {
         </span>
       </div>
 
-      {/* Two-column body */}
-      <div style={{ display: 'flex', gap: 24, flex: 1, alignItems: 'flex-start' }}>
-        {/* Board column */}
-        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+      {/* Body — two columns on desktop, stacked on mobile. flex:1 + min-height:0
+          lets the children actually fill the remaining vertical space. */}
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: isMobile ? 14 : horizontalGap,
+        flex: 1,
+        minHeight: 0,
+        alignItems: 'stretch',
+      }}>
+        {/* Board column — flex:1 grow on desktop so the board uses all
+            the space the panel doesn't claim. Centered on mobile. */}
+        <div style={{
+          display: 'flex',
+          gap: evalGap,
+          flex: isMobile ? 'none' : 1,
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          minWidth: 0,
+        }}>
           <EvalBar
             evaluation={topSugg?.evaluation ?? null}
             mateScore={topSugg?.mateScore ?? null}
             turn={state?.turn ?? null}
             orientation={orientation}
-            height={520}
+            height={boardSize}
+            width={evalBarW}
           />
           <Chessboard
             fen={state?.fen ?? null}
@@ -162,14 +219,20 @@ export default function StreamApp() {
               color: ARROW_COLORS[i] ?? '#71717a',
               rank: i,
             }))}
-            size={520}
+            size={boardSize}
           />
         </div>
 
-        {/* Chessr panel column — full Game/Engine/AutoMove/Settings UI */}
+        {/* Chessr panel column — fixed 400 px width to mirror the on-
+            platform overlay; takes the full vertical space available
+            in the row so all 4 tabs (Game/Engine/AutoMove/Settings)
+            see the same layout users get on chess.com / lichess. */}
         <div style={{
-          flex: 1, minWidth: 380, height: 600,
-          display: 'flex', flexDirection: 'column',
+          width: isMobile ? '100%' : PANEL_W,
+          flex: isMobile ? 'none' : '0 0 auto',
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
         }}>
           <App streamMode />
         </div>

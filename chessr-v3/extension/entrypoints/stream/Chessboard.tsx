@@ -13,8 +13,12 @@
 
 import React from 'react';
 
+// Use the filled (black-Unicode) glyphs for BOTH colors and tint via
+// SVG `fill`. The outlined (white-Unicode) glyphs ♔♕♖♗♘♙ render as
+// thin strokes that are hard to read on a busy background; the filled
+// variants ♚♛♜♝♞♟ are heavier shapes that read clearly at small sizes.
 const PIECE_GLYPH: Record<string, string> = {
-  K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙',
+  K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟',
   k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟',
 };
 
@@ -152,13 +156,14 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480 }
             key={`p-${i}`}
             x={x}
             y={y}
-            fontSize={sq * 0.78}
+            fontSize={sq * 0.82}
             textAnchor="middle"
             dominantBaseline="central"
-            fill={isWhite ? '#fafafa' : '#1a1a1a'}
-            stroke={isWhite ? '#1a1a1a' : '#fafafa'}
-            strokeWidth={0.6}
+            fill={isWhite ? '#fafafa' : '#0f0f12'}
+            stroke={isWhite ? '#0f0f12' : '#fafafa'}
+            strokeWidth={1.2}
             paintOrder="stroke"
+            style={{ pointerEvents: 'none', userSelect: 'none' }}
           >
             {glyph}
           </text>
