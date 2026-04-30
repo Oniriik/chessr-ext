@@ -36,18 +36,21 @@ function getGameEndInfo(game: any): GameEnd | null {
   };
 }
 
-function detectRatings(emit: Emit) {
+function readRatings(): { playerRating: number | null; opponentRating: number | null } {
   const bottom = document.querySelector('#board-layout-player-bottom');
   const top = document.querySelector('#board-layout-player-top');
   const playerRatingEl = bottom?.querySelector('[data-cy="user-tagline-rating"]');
   const opponentRatingEl = top?.querySelector('[data-cy="user-tagline-rating"]');
-  const playerRating = playerRatingEl?.textContent?.trim().replace(/[()]/g, '');
-  const opponentRating = opponentRatingEl?.textContent?.trim().replace(/[()]/g, '');
-  emit({
-    type: 'chessr:ratings',
-    playerRating: playerRating ? parseInt(playerRating, 10) : null,
-    opponentRating: opponentRating ? parseInt(opponentRating, 10) : null,
-  });
+  const parse = (el: Element | null | undefined): number | null => {
+    const txt = el?.textContent?.trim().replace(/[()]/g, '');
+    if (!txt) return null;
+    const n = parseInt(txt, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    playerRating: parse(playerRatingEl),
+    opponentRating: parse(opponentRatingEl),
+  };
 }
 
 function findLegalMove(game: any, fromSq: string, toSq: string, promo?: string): any {
@@ -82,6 +85,15 @@ export class ChesscomPageAdapter implements PageContextAdapter {
   private origPushState: typeof history.pushState | null = null;
   private origReplaceState: typeof history.replaceState | null = null;
   private onPopState: (() => void) | null = null;
+  // Ratings detection state. Online games render the player cards AFTER
+  // matchmaking → first detection at +500ms often misses them. Poll until
+  // both ratings resolve OR the deadline expires. Reset on new game so a
+  // fresh opponent gets re-detected.
+  private ratingsPoll: ReturnType<typeof setInterval> | null = null;
+  private ratingsLast: { playerRating: number | null; opponentRating: number | null } = {
+    playerRating: null,
+    opponentRating: null,
+  };
   private emit: Emit | null = null;
 
   matches(host: string): boolean {
@@ -168,10 +180,41 @@ export class ChesscomPageAdapter implements PageContextAdapter {
     this.observer = null;
     if (this.pollInterval) clearInterval(this.pollInterval);
     this.pollInterval = null;
+    if (this.ratingsPoll) clearInterval(this.ratingsPoll);
+    this.ratingsPoll = null;
     if (this.origPushState) history.pushState = this.origPushState;
     if (this.origReplaceState) history.replaceState = this.origReplaceState;
     if (this.onPopState) window.removeEventListener('popstate', this.onPopState);
     this.emit = null;
+  }
+
+  /** Poll the player cards every 500ms until both ratings resolve OR a 15s
+   *  deadline expires. Re-emit on every change so partial detections (e.g.
+   *  player loaded but opponent still in matchmaking) reach the engine
+   *  store, then refine when the second card lands. Reset state to start
+   *  a fresh detection — call this on adapter install AND on `chessr:newGame`. */
+  private startRatingsPoll(emit: Emit) {
+    if (this.ratingsPoll) clearInterval(this.ratingsPoll);
+    this.ratingsLast = { playerRating: null, opponentRating: null };
+    let elapsed = 0;
+    const tick = () => {
+      const r = readRatings();
+      const changed = r.playerRating !== this.ratingsLast.playerRating
+                   || r.opponentRating !== this.ratingsLast.opponentRating;
+      if (changed && (r.playerRating !== null || r.opponentRating !== null)) {
+        this.ratingsLast = r;
+        emit({ type: 'chessr:ratings', playerRating: r.playerRating, opponentRating: r.opponentRating });
+      }
+      // Stop once both resolve or we hit the deadline.
+      if ((r.playerRating !== null && r.opponentRating !== null) || elapsed >= 15000) {
+        if (this.ratingsPoll) { clearInterval(this.ratingsPoll); this.ratingsPoll = null; }
+      }
+    };
+    tick(); // immediate first read
+    this.ratingsPoll = setInterval(() => {
+      elapsed += 500;
+      tick();
+    }, 500);
   }
 
   requestState(): void {
@@ -231,6 +274,9 @@ export class ChesscomPageAdapter implements PageContextAdapter {
     game.on('ResetGame', () => {
       console.log('[Chessr chesscom] ResetGame event');
       emit({ type: 'chessr:newGame' });
+      // Re-detect opponent ratings — a rematch / new opponent renders a
+      // fresh card and the previous opponent rating is stale.
+      this.startRatingsPoll(emit);
       this.lastMode = game.getMode()?.name || null;
       emit({
         type: 'chessr:mode',
@@ -323,7 +369,7 @@ export class ChesscomPageAdapter implements PageContextAdapter {
     setTimeout(sendInitialState, 500);
     setTimeout(sendInitialState, 1500);
 
-    setTimeout(() => detectRatings(emit), 500);
+    this.startRatingsPoll(emit);
   }
 
   async executeMove(uci: string, humanize?: HumanizeTiming): Promise<boolean> {
