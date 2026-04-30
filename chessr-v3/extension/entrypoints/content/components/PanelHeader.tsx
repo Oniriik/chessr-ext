@@ -1,5 +1,6 @@
 import { useAuthStore, type Plan } from '../stores/authStore';
 import { useLayoutStore } from '../stores/layoutStore';
+import { openBillingPage } from '../lib/openBilling';
 import './panel-header.css';
 
 // Tinted header pill — bg is the accent color at 18% alpha, text is the accent color at full saturation.
@@ -40,7 +41,7 @@ export default function PanelHeader({ showSettings, onToggleSettings, hideAction
             {planLoading ? (
               <span className="plan-badge-skeleton" />
             ) : plan === 'free' ? (
-              <button className="plan-badge-upgrade">Upgrade</button>
+              <button className="plan-badge-upgrade" onClick={() => openBillingPage()}>Upgrade</button>
             ) : (
               <span className="plan-badge" style={{ background: config.bg, color: config.color }}>
                 {config.label}

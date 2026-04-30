@@ -10,6 +10,7 @@ import ChesscomIcon from './icons/ChesscomIcon';
 import LichessIcon from './icons/LichessIcon';
 import { useSettingsStore } from '../stores/settingsStore';
 import { SERVER_URL, WS_SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
+import { openBillingPage } from '../lib/openBilling';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
@@ -312,7 +313,7 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
               <span className="settings-plan-expiry">{getExpiryText(planExpiry)}</span>
             )}
             {config.cta && (
-              <button className="settings-plan-cta">{config.cta}</button>
+              <button className="settings-plan-cta" onClick={() => openBillingPage()}>{config.cta}</button>
             )}
           </div>
           <div className="settings-discord-card">

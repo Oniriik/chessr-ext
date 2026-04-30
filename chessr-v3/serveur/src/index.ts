@@ -10,6 +10,7 @@ import { discordRoutes } from './routes/discord.js';
 import { accountRoutes } from './routes/accounts.js';
 import { explanationRoutes } from './routes/explanation.js';
 import { adminLogsRoutes } from './routes/adminLogs.js';
+import { handlePaddleWebhook, handlePaddleBillingLink } from './handlers/paddleHandler.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
 import { initSuggestionWorker, shutdownSuggestionWorker } from './queue/suggestionQueue.js';
@@ -35,6 +36,13 @@ app.route('/', discordRoutes);
 app.route('/', accountRoutes);
 app.route('/', explanationRoutes);
 app.route('/', adminLogsRoutes);
+
+// Paddle billing — webhook (server-to-server, signed) + billing-link
+// (extension-authenticated). Other paddle endpoints (status/switch/cancel/
+// preview-upgrade/upgrade-lifetime/prices) are ported in follow-up commits.
+app.post('/api/paddle/webhook', handlePaddleWebhook);
+app.post('/api/paddle/billing-link', handlePaddleBillingLink);
+
 registerWsRoute({ app, upgradeWebSocket });
 
 // Start
