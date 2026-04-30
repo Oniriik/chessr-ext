@@ -170,6 +170,13 @@ function GeneralTab() {
         <span className="settings-label">Disable animations</span>
         <Toggle checked={disableAnimations} onChange={setDisableAnimations} />
       </div>
+      <button
+        className="settings-stream-btn"
+        onClick={() => browser.runtime.sendMessage({ type: 'open_stream' })}
+        title="Opens a dedicated Chessr page (chessboard + live suggestions) in a new tab — capture it with OBS to overlay your stream."
+      >
+        🎬 Open Stream Mode
+      </button>
       <button className="settings-reset-btn" onClick={handleReset}>
         Reset to default settings
       </button>

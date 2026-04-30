@@ -35,6 +35,7 @@ import { animationGate } from './content/stores/animationStore';
 import { useEvalStore } from './content/stores/evalStore';
 import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
 import { isPremiumPlan } from './content/lib/premium';
+import { installStreamSync } from './content/lib/streamSync';
 let lastRequestedFen: string | null = null;
 let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | null = null;
 
@@ -393,6 +394,9 @@ export default defineContentScript({
     // Auto Move: install hotkey listener + auto-play scheduler
     installHotkeyListener();
     installAutoPlayScheduler();
+    // Mirror the live game state to chrome.storage so the Stream Mode
+    // page (separate extension tab) can render the same board + arrows.
+    installStreamSync();
     // Shrink suggestion arrows in real time when the user grabs a matching piece.
     installArrowDrag();
     // Suggestions are now served by the local SuggestionEngine; no WS

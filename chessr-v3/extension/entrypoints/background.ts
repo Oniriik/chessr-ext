@@ -188,6 +188,12 @@ export default defineBackground(() => {
       return true;
     }
 
+    // Open Stream Mode page in a new tab. Triggered from SettingsScreen.
+    if (msg?.type === 'open_stream') {
+      browser.tabs.create({ url: browser.runtime.getURL('/stream.html') });
+      return false;
+    }
+
     // Background-side debug dump for the Settings copy button.
     if (msg?.type === 'getBackgroundDiag') {
       sendResponse({
