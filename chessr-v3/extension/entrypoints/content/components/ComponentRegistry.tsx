@@ -16,28 +16,35 @@ import Slider, { lerpColor } from './Slider';
 import { fCard, fRow, fLabel, fSelect, fAutoBtn } from './widgetPrimitives';
 import { getGameStatus, getGameOutcome } from './GameScreen';
 
-export const COMPONENT_REGISTRY: Record<string, { label: string; engineId?: EngineId }> = {
+/** Widget catalog entry. `engineIds` is the set of engines that this
+ *  widget applies to — leaving it undefined means "engine-agnostic"
+ *  (always visible). The pinned-render path filters out widgets whose
+ *  engineIds don't include the currently-active engine. */
+export const COMPONENT_REGISTRY: Record<string, { label: string; engineIds?: EngineId[] }> = {
   // Engine-agnostic widgets (visible regardless of which engine is active).
   gameinfo:    { label: 'Game Info' },
   performance: { label: 'Performance' },
   suggestions: { label: 'Suggestions' },
 
-  // Komodo-specific widgets — only render when engineId === 'komodo'.
-  elo:         { label: 'Target ELO',        engineId: 'komodo' },
-  search:      { label: 'Max search depth',  engineId: 'komodo' },
-  force:       { label: 'Force search depth', engineId: 'komodo' },
-  personality: { label: 'Personality',       engineId: 'komodo' },
-  ambition:    { label: 'Ambition',          engineId: 'komodo' },
-  variety:     { label: 'Variety',           engineId: 'komodo' },
+  // Shared between Komodo and Stockfish — both have UCI_Elo + accept a
+  // search budget (depth/movetime/nodes) + a force-search-depth toggle.
+  elo:         { label: 'Target ELO',         engineIds: ['komodo', 'stockfish'] },
+  search:      { label: 'Max search depth',   engineIds: ['komodo', 'stockfish'] },
+  force:       { label: 'Force search depth', engineIds: ['komodo', 'stockfish'] },
 
-  // Maia 2-specific widgets — only render when engineId === 'maia2'.
-  'maia-target-elo': { label: 'Maia Target ELO',   engineId: 'maia2' },
-  'maia-oppo-elo':   { label: 'Maia Opponent ELO', engineId: 'maia2' },
-  'maia-variant':    { label: 'Maia Variant',      engineId: 'maia2' },
+  // Komodo-only knobs — Stockfish doesn't expose any of these UCI options.
+  personality: { label: 'Personality',        engineIds: ['komodo'] },
+  ambition:    { label: 'Ambition',           engineIds: ['komodo'] },
+  variety:     { label: 'Variety',            engineIds: ['komodo'] },
+
+  // Maia 2-specific widgets.
+  'maia-target-elo': { label: 'Maia Target ELO',   engineIds: ['maia2'] },
+  'maia-oppo-elo':   { label: 'Maia Opponent ELO', engineIds: ['maia2'] },
+  'maia-variant':    { label: 'Maia Variant',      engineIds: ['maia2'] },
 
   // Maia 3-specific widgets — wider ELO range (600-2600, step 50), no variant.
-  'maia3-target-elo': { label: 'Maia 3 Target ELO',   engineId: 'maia3' },
-  'maia3-oppo-elo':   { label: 'Maia 3 Opponent ELO', engineId: 'maia3' },
+  'maia3-target-elo': { label: 'Maia 3 Target ELO',   engineIds: ['maia3'] },
+  'maia3-oppo-elo':   { label: 'Maia 3 Opponent ELO', engineIds: ['maia3'] },
 };
 
 function isPremium(plan: string): boolean {
@@ -649,11 +656,10 @@ function FloatingMaia3OppoElo() {
 
 
 export function renderPinnedComponent(id: string, engineId?: EngineId): React.ReactNode | null {
-  // Engine-scoped widgets only render when the matching engine is active.
-  // (engineId arg is the currently-active engine; the widget's own scope
-  // comes from COMPONENT_REGISTRY[id].engineId.)
-  const widgetScope = COMPONENT_REGISTRY[id]?.engineId;
-  if (widgetScope && engineId && widgetScope !== engineId) return null;
+  // Engine-scoped widgets only render when the active engine is in the
+  // widget's `engineIds` set. Empty/undefined = engine-agnostic.
+  const widgetScope = COMPONENT_REGISTRY[id]?.engineIds;
+  if (widgetScope && engineId && !widgetScope.includes(engineId)) return null;
 
   // When `elo` is pinned, it absorbs `search` as a submodule — don't render
   // a separate floating card for search.

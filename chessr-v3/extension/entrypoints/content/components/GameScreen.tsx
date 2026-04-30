@@ -653,12 +653,29 @@ const ENGINE_SECTIONS: Record<string, () => React.ReactNode> = {
   variety: () => <VarietySection />,
 };
 
+/** Which sections each engine actually supports. Drives the edit-mode
+ *  pin-slot rendering — Stockfish has no Personality / Variety / Dynamism
+ *  / KingSafety so we don't reserve empty droppable rows for those.
+ *  Komodo gets the full set. New engines added here as they're plugged in. */
+const ENGINE_SUPPORTED_SECTIONS: Record<string, string[]> = {
+  komodo:    ['elo', 'personality', 'dynamism', 'kingsafety', 'variety'],
+  stockfish: ['elo'],
+};
+
 function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
   const engineId = useEngineStore((s) => s.engineId);
   const engineOrder = useLayoutStore((s) => s.engineOrder);
 
   if (engineId === 'maia2') return <Maia2Panel />;
   if (engineId === 'maia3') return <Maia3Panel />;
+
+  // Filter the user's section order to only those this engine supports —
+  // otherwise edit mode shows empty drop slots for sections that render
+  // null (e.g. Personality on Stockfish). Preserve the user's chosen
+  // order via intersection rather than a separate per-engine ordering.
+  const supported = ENGINE_SUPPORTED_SECTIONS[engineId] ?? ENGINE_SUPPORTED_SECTIONS.komodo;
+  const supportedSet = new Set(supported);
+  const visibleOrder = engineOrder.filter((id) => supportedSet.has(id));
 
   // Stockfish + Komodo share this layout — sections render based on the
   // engine's advertised capabilities (Personality / Variety / Dynamism /
@@ -667,10 +684,10 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
   // explicit when the user is browsing between Komodo and Stockfish.
   return (
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={engineOrder} strategy={verticalListSortingStrategy}>
+      <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
         <div className="engine-panel">
           <span className="engine-name-chip">{ENGINE_INFO[engineId]?.label ?? engineId}</span>
-          {engineOrder.map((id) => {
+          {visibleOrder.map((id) => {
             const renderFn = ENGINE_SECTIONS[id];
             if (!renderFn) return null;
             return (
