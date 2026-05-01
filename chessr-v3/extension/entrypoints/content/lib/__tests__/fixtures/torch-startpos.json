@@ -1,0 +1,708 @@
+{
+  "whiteElo": 1500,
+  "blackElo": 1500,
+  "startingFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "firstMoveNumber": 1,
+  "playerToMove": "white",
+  "positions": [
+    {
+      "color": null,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "evals": [
+        {
+          "cp": 26,
+          "pv": [
+            "e2e4",
+            "e7e5",
+            "g1f3",
+            "b8c6",
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4",
+            "f8b4",
+            "d4c6",
+            "b7c6",
+            "f1d3",
+            "d7d5",
+            "e4d5",
+            "d8e7",
+            "d1e2",
+            "e7e2"
+          ]
+        },
+        {
+          "cp": 22,
+          "pv": [
+            "d2d4",
+            "d7d5",
+            "c2c4",
+            "d5c4",
+            "e2e3",
+            "e7e5",
+            "b1c3",
+            "e5d4",
+            "e3d4",
+            "g8f6",
+            "f1c4",
+            "f8b4",
+            "a2a3",
+            "b4c3",
+            "b2c3",
+            "e8g8",
+            "g1e2"
+          ]
+        },
+        {
+          "cp": 21,
+          "pv": [
+            "g1f3",
+            "d7d5",
+            "d2d4",
+            "e7e6",
+            "c2c4",
+            "g8f6",
+            "b1c3",
+            "c7c5",
+            "e2e3",
+            "d5c4",
+            "f1c4",
+            "a7a6",
+            "a2a4",
+            "d8c7"
+          ]
+        },
+        {
+          "cp": 19,
+          "pv": [
+            "e2e3",
+            "d7d5",
+            "c2c4",
+            "e7e6",
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "f8e7",
+            "g1f3",
+            "e8g8",
+            "f1e2",
+            "d5c4",
+            "e2c4",
+            "c7c5",
+            "e1g1",
+            "b8c6"
+          ]
+        },
+        {
+          "cp": 16,
+          "pv": [
+            "c2c4",
+            "e7e5",
+            "g2g3",
+            "c7c6",
+            "g1f3",
+            "e5e4",
+            "f3d4",
+            "d7d5",
+            "c4d5",
+            "d8d5",
+            "d4c2",
+            "d5e5"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": null,
+      "playedMove": null,
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "The favorite first move of 1972 World Champion Bobby Fischer."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "41147a2c8b910eb88819048fdb800a2e45e4e9a2061406d98400cd6286c955c4",
+            "alternative": 13,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.26,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "e2e4",
+        "eval": {
+          "cp": 26,
+          "pv": [
+            "e2e4",
+            "e7e5",
+            "g1f3",
+            "b8c6",
+            "b1c3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4",
+            "f8b4",
+            "d4c6",
+            "b7c6",
+            "f1d3",
+            "d7d5",
+            "e4d5",
+            "d8e7",
+            "d1e2",
+            "e7e2"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "e7e5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "e2e4",
+              "e7e5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [],
+          "bad": []
+        },
+        "best": {
+          "good": [],
+          "bad": []
+        }
+      },
+      "classificationName": null,
+      "caps2": null,
+      "scenarios": {}
+    }
+  ],
+  "totalPositions": 0,
+  "tallies": {
+    "white": {
+      "best": 0,
+      "blunder": 0,
+      "blunderGP0": 0,
+      "blunderGP1": 0,
+      "blunderGP2": 0,
+      "book": 0,
+      "brilliant": 0,
+      "excellent": 0,
+      "forced": 0,
+      "good": 0,
+      "greatFind": 0,
+      "inaccuracy": 0,
+      "inaccuracyGP0": 0,
+      "inaccuracyGP1": 0,
+      "inaccuracyGP2": 0,
+      "miss": 0,
+      "missGP0": 0,
+      "missGP1": 0,
+      "missGP2": 0,
+      "mistake": 0,
+      "mistakeGP0": 0,
+      "mistakeGP1": 0,
+      "mistakeGP2": 0
+    },
+    "black": {
+      "best": 0,
+      "blunder": 0,
+      "blunderGP0": 0,
+      "blunderGP1": 0,
+      "blunderGP2": 0,
+      "book": 0,
+      "brilliant": 0,
+      "excellent": 0,
+      "forced": 0,
+      "good": 0,
+      "greatFind": 0,
+      "inaccuracy": 0,
+      "inaccuracyGP0": 0,
+      "inaccuracyGP1": 0,
+      "inaccuracyGP2": 0,
+      "miss": 0,
+      "missGP0": 0,
+      "missGP1": 0,
+      "missGP2": 0,
+      "mistake": 0,
+      "mistakeGP0": 0,
+      "mistakeGP1": 0,
+      "mistakeGP2": 0
+    }
+  },
+  "pieceMoves": {
+    "white": {
+      "K": 0,
+      "Q": 0,
+      "R": 0,
+      "B": 0,
+      "N": 0,
+      "P": 0
+    },
+    "black": {
+      "K": 0,
+      "Q": 0,
+      "R": 0,
+      "B": 0,
+      "N": 0,
+      "P": 0
+    }
+  },
+  "prediction": {
+    "w": 0.56,
+    "b": 0.43,
+    "d": 0.01
+  },
+  "gameStartPhase": 0,
+  "gameEndPhase": 0,
+  "gamePhases": [],
+  "castled": {
+    "white": -1,
+    "black": -1
+  },
+  "arc": "balanced",
+  "avgDifference": {
+    "white": 0,
+    "black": 0
+  },
+  "arcPlayerScenarios": {
+    "white": null,
+    "black": null
+  },
+  "themes": {
+    "moves": {
+      "black": {},
+      "white": {}
+    },
+    "checkmate": null,
+    "weights": {
+      "black": {},
+      "white": {}
+    },
+    "endgames": {}
+  },
+  "takeaways": {
+    "white": [],
+    "black": []
+  },
+  "E1": {
+    "white": 0,
+    "black": 0
+  },
+  "playMayContinue": {
+    "cp": 26,
+    "pv": [
+      "e2e4",
+      "e7e5",
+      "g1f3",
+      "b8c6",
+      "b1c3",
+      "g8f6",
+      "d2d4",
+      "e5d4",
+      "f3d4",
+      "f8b4",
+      "d4c6",
+      "b7c6",
+      "f1d3",
+      "d7d5",
+      "e4d5",
+      "d8e7",
+      "d1e2",
+      "e7e2"
+    ],
+    "pvCutoff": 1,
+    "pvCutoffLine": [
+      "e7e5"
+    ]
+  },
+  "CAPS": {
+    "white": {
+      "B": 0,
+      "K": 0,
+      "N": 0,
+      "P": 0,
+      "Q": 0,
+      "R": 0,
+      "all": 0,
+      "gp0": null,
+      "gp1": null,
+      "gp2": null
+    },
+    "black": {
+      "B": 0,
+      "K": 0,
+      "N": 0,
+      "P": 0,
+      "Q": 0,
+      "R": 0,
+      "all": 0,
+      "gp0": null,
+      "gp1": null,
+      "gp2": null
+    }
+  },
+  "reportCard": {
+    "white": {
+      "effectiveElo": null,
+      "glyphs": {},
+      "categories": []
+    },
+    "black": {
+      "effectiveElo": null,
+      "glyphs": {},
+      "categories": []
+    },
+    "speech": null,
+    "audioUrlHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "gameSummary": "Let's review some key moments from your game.",
+  "gameSummaryAudioUrlHash": "4f65de26841c163ad5e96351158105685005b981c6d33f69eab4be269d80e7f7",
+  "gameSummaryPlay": "Let's take some time and review this game together.",
+  "gameSummaryPlayAudioUrlHash": "7b29abec407f9b1a1993b2a95cefb02abc2b72901cc51f35b529e4387474b74f",
+  "gameSummaryCoachEmotion": "impressed",
+  "book": null,
+  "coachAssetConfig": {
+    "text_id": "Generic_coach",
+    "locale": "en-US"
+  },
+  "tepOptions": {
+    "AutoDetectTermination": "false",
+    "BadKeyMomentsNeedMaterialOrMate": "false",
+    "BasicVariationThemes": "false",
+    "BlackChesscomUsername": null,
+    "BlackElo": "1500",
+    "BotChatOnlyAfterBotMove": "false",
+    "BotChatPrioritizePlayerMove": "true",
+    "BotChatPrioritizePlayerMovePercent": "50",
+    "BotName": null,
+    "Chess960": "false",
+    "ClassificationV3": "true",
+    "Coach": null,
+    "CoachAssetsV2": "true",
+    "CoachLocale": null,
+    "CoachTextId": null,
+    "DefaultNumNullMoveVariations": "1",
+    "DefaultNumVariations": "2",
+    "DoProgressUpdates": "false",
+    "EloSensitivePD": "false",
+    "Engine": "Torch",
+    "EvalSourceEngine": "Torch",
+    "ForceDisableInternalEngineSearches": "false",
+    "ForgivingClassificationsElo": "0",
+    "GamePhaseV2": "true",
+    "GetThemes": "false",
+    "HandleContinuations": "true",
+    "HandleContinuationsDepth": "14",
+    "HandleContinuationsTimeMs": "0",
+    "HandleNullMoveContinuations": "false",
+    "HandleNullMoveContinuationsDepth": "12",
+    "HandleNullMoveContinuationsTimeMs": "0",
+    "IgnoreStopCommand": "false",
+    "InsightsTags": "false",
+    "Language": "en_US",
+    "LogFD": "-1",
+    "LogFile": "-",
+    "NewSpeech": "false",
+    "NullMoveRepresentation": "(none)",
+    "PersonalSpeechForOpponentMoves": "false",
+    "PgnHeadersJson": "{}",
+    "PrintCoachTags": "false",
+    "Result": "*",
+    "ScoreWhiteToMove": "false",
+    "SerializeBoardEvents": "false",
+    "SerializeEvals": "true",
+    "SerializeLikeCEAC": "true",
+    "SerializeLikeCEACV3": "false",
+    "SerializeSpeechDetails": "true",
+    "ServeCommandV2": "true",
+    "SpeechV2": "false",
+    "SpeechV3": "true",
+    "Strength": null,
+    "Termination": "*",
+    "TestMode": "false",
+    "Threads": "1",
+    "TimeControl": null,
+    "UseDeclarativePositionCommand": "true",
+    "UseImmediateStop": "false",
+    "UseRatingRanges": "true",
+    "UserColor": "white",
+    "VerboseEvalTerms": "false",
+    "VerboseThemes": "false",
+    "WhiteChesscomUsername": null,
+    "WhiteElo": "1500"
+  },
+  "options": [
+    [
+      "AutoDetectTermination",
+      "false"
+    ],
+    [
+      "BadKeyMomentsNeedMaterialOrMate",
+      "false"
+    ],
+    [
+      "BasicVariationThemes",
+      "false"
+    ],
+    [
+      "BlackChesscomUsername",
+      null
+    ],
+    [
+      "BlackElo",
+      "1500"
+    ],
+    [
+      "BotChatOnlyAfterBotMove",
+      "false"
+    ],
+    [
+      "BotChatPrioritizePlayerMove",
+      "true"
+    ],
+    [
+      "BotChatPrioritizePlayerMovePercent",
+      "50"
+    ],
+    [
+      "BotName",
+      null
+    ],
+    [
+      "Chess960",
+      "false"
+    ],
+    [
+      "ClassificationV3",
+      "true"
+    ],
+    [
+      "Coach",
+      null
+    ],
+    [
+      "CoachAssetsV2",
+      "true"
+    ],
+    [
+      "CoachLocale",
+      null
+    ],
+    [
+      "CoachTextId",
+      null
+    ],
+    [
+      "DefaultNumNullMoveVariations",
+      "1"
+    ],
+    [
+      "DefaultNumVariations",
+      "2"
+    ],
+    [
+      "DoProgressUpdates",
+      "false"
+    ],
+    [
+      "EloSensitivePD",
+      "false"
+    ],
+    [
+      "Engine",
+      "Torch"
+    ],
+    [
+      "EvalSourceEngine",
+      "Torch"
+    ],
+    [
+      "ForceDisableInternalEngineSearches",
+      "false"
+    ],
+    [
+      "ForgivingClassificationsElo",
+      "0"
+    ],
+    [
+      "GamePhaseV2",
+      "true"
+    ],
+    [
+      "GetThemes",
+      "false"
+    ],
+    [
+      "HandleContinuations",
+      "true"
+    ],
+    [
+      "HandleContinuationsDepth",
+      "14"
+    ],
+    [
+      "HandleContinuationsTimeMs",
+      "0"
+    ],
+    [
+      "HandleNullMoveContinuations",
+      "false"
+    ],
+    [
+      "HandleNullMoveContinuationsDepth",
+      "12"
+    ],
+    [
+      "HandleNullMoveContinuationsTimeMs",
+      "0"
+    ],
+    [
+      "IgnoreStopCommand",
+      "false"
+    ],
+    [
+      "InsightsTags",
+      "false"
+    ],
+    [
+      "Language",
+      "en_US"
+    ],
+    [
+      "LogFD",
+      "-1"
+    ],
+    [
+      "LogFile",
+      "-"
+    ],
+    [
+      "NewSpeech",
+      "false"
+    ],
+    [
+      "NullMoveRepresentation",
+      "(none)"
+    ],
+    [
+      "PersonalSpeechForOpponentMoves",
+      "false"
+    ],
+    [
+      "PgnHeadersJson",
+      "{}"
+    ],
+    [
+      "PrintCoachTags",
+      "false"
+    ],
+    [
+      "Result",
+      "*"
+    ],
+    [
+      "ScoreWhiteToMove",
+      "false"
+    ],
+    [
+      "SerializeBoardEvents",
+      "false"
+    ],
+    [
+      "SerializeEvals",
+      "true"
+    ],
+    [
+      "SerializeLikeCEAC",
+      "true"
+    ],
+    [
+      "SerializeLikeCEACV3",
+      "false"
+    ],
+    [
+      "SerializeSpeechDetails",
+      "true"
+    ],
+    [
+      "ServeCommandV2",
+      "true"
+    ],
+    [
+      "SpeechV2",
+      "false"
+    ],
+    [
+      "SpeechV3",
+      "true"
+    ],
+    [
+      "Strength",
+      null
+    ],
+    [
+      "Termination",
+      "*"
+    ],
+    [
+      "TestMode",
+      "false"
+    ],
+    [
+      "Threads",
+      "1"
+    ],
+    [
+      "TimeControl",
+      null
+    ],
+    [
+      "UseDeclarativePositionCommand",
+      "true"
+    ],
+    [
+      "UseImmediateStop",
+      "false"
+    ],
+    [
+      "UseRatingRanges",
+      "true"
+    ],
+    [
+      "UserColor",
+      "white"
+    ],
+    [
+      "VerboseEvalTerms",
+      "false"
+    ],
+    [
+      "VerboseThemes",
+      "false"
+    ],
+    [
+      "WhiteChesscomUsername",
+      null
+    ],
+    [
+      "WhiteElo",
+      "1500"
+    ]
+  ]
+}

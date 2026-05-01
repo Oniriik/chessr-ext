@@ -1,0 +1,7047 @@
+{
+  "whiteElo": 1500,
+  "blackElo": 1500,
+  "startingFen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "firstMoveNumber": 1,
+  "playerToMove": "white",
+  "positions": [
+    {
+      "color": null,
+      "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      "evals": [
+        {
+          "cp": 23,
+          "pv": [
+            "e2e4",
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ]
+        },
+        {
+          "cp": 22,
+          "pv": [
+            "d2d4",
+            "d7d5",
+            "c2c4",
+            "d5c4",
+            "e2e3",
+            "e7e5",
+            "b1c3",
+            "e5d4",
+            "e3d4",
+            "g8f6",
+            "f1c4",
+            "f8b4",
+            "a2a3",
+            "b4c3",
+            "b2c3",
+            "e8g8",
+            "g1e2"
+          ]
+        },
+        {
+          "cp": 21,
+          "pv": [
+            "g1f3",
+            "d7d5",
+            "d2d4",
+            "e7e6",
+            "c2c4",
+            "g8f6",
+            "b1c3",
+            "c7c5",
+            "e2e3",
+            "d5c4",
+            "f1c4",
+            "a7a6",
+            "a2a4",
+            "d8c7"
+          ]
+        },
+        {
+          "cp": 19,
+          "pv": [
+            "e2e3",
+            "d7d5",
+            "c2c4",
+            "e7e6",
+            "d2d4",
+            "g8f6",
+            "b1c3",
+            "f8e7",
+            "g1f3",
+            "e8g8",
+            "f1e2",
+            "d5c4",
+            "e2c4",
+            "c7c5",
+            "e1g1",
+            "b8c6"
+          ]
+        },
+        {
+          "cp": 16,
+          "pv": [
+            "c2c4",
+            "e7e5",
+            "g2g3",
+            "c7c6",
+            "g1f3",
+            "e5e4",
+            "f3d4",
+            "d7d5",
+            "c4d5",
+            "d8d5",
+            "d4c2",
+            "d5e5"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": null,
+      "playedMove": null,
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "One of my favorite opening moves. It strikes the center and offers several strong follow-ups."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "8c14b6f51b4f9affe38419efdd9ec70abe6d08853319c540acf5c8d9ddf5d64d",
+            "alternative": 7,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.23,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "e2e4",
+        "eval": {
+          "cp": 23,
+          "pv": [
+            "e2e4",
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "c7c5",
+            "g1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "e2e4",
+              "c7c5",
+              "g1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [],
+          "bad": []
+        },
+        "best": {
+          "good": [],
+          "bad": []
+        }
+      },
+      "classificationName": null,
+      "caps2": null,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1",
+      "evals": [
+        {
+          "cp": 23,
+          "pv": [
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ]
+        },
+        {
+          "cp": 27,
+          "pv": [
+            "e7e5",
+            "g1f3",
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "One of my favorite opening moves. It strikes the center and offers several strong follow-ups."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "8c14b6f51b4f9affe38419efdd9ec70abe6d08853319c540acf5c8d9ddf5d64d",
+            "alternative": 7,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.23,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "e2e4",
+        "eval": {
+          "cp": 23,
+          "pv": [
+            "e2e4",
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "c7c5",
+            "g1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "e2e4",
+              "c7c5",
+              "g1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "One of my favorite opening moves. It strikes the center and offers several strong follow-ups."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "8c14b6f51b4f9affe38419efdd9ec70abe6d08853319c540acf5c8d9ddf5d64d",
+            "alternative": 7,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.23,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "e2e4",
+        "eval": {
+          "cp": 23,
+          "pv": [
+            "e2e4",
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "c7c5",
+            "g1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "e2e4",
+              "c7c5",
+              "g1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Starting aggressive with the Sicilian Defense."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "379d20921f2efa1894e22becfe67d7a4203f6974662cb57b60845273db070cc9",
+            "alternative": 11,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.23,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c7c5",
+        "eval": {
+          "cp": 23,
+          "pv": [
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "g1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c7c5",
+              "g1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "FirstMoveCenterPawn",
+            "PutsPawnInCenter",
+            "PreparesBishopDevelopment"
+          ],
+          "bad": [
+            "FirstMoveCenterPawn"
+          ]
+        },
+        "best": {
+          "good": [
+            "FirstMoveCenterPawn",
+            "PutsPawnInCenter",
+            "PreparesBishopDevelopment"
+          ],
+          "bad": [
+            "FirstMoveCenterPawn"
+          ]
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "black",
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2",
+      "evals": [
+        {
+          "cp": 27,
+          "pv": [
+            "g1f3",
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ]
+        },
+        {
+          "cp": 11,
+          "pv": [
+            "b1c3",
+            "b8c6",
+            "g1f3",
+            "g8f6",
+            "d2d4",
+            "e5d4",
+            "f3d4",
+            "f8b4",
+            "d4c6",
+            "b7c6",
+            "d1f3",
+            "e8g8",
+            "f1d3",
+            "b4c3",
+            "b2c3",
+            "f8e8"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Starting aggressive with the Sicilian Defense."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "379d20921f2efa1894e22becfe67d7a4203f6974662cb57b60845273db070cc9",
+            "alternative": 11,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.23,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c7c5",
+        "eval": {
+          "cp": 23,
+          "pv": [
+            "c7c5",
+            "g1f3",
+            "b8c6",
+            "d2d4",
+            "c5d4",
+            "f3d4",
+            "g8f6",
+            "b1c3",
+            "e7e6",
+            "d4c6",
+            "b7c6",
+            "e4e5",
+            "f6d5",
+            "c3d5",
+            "e6d5",
+            "f1d3",
+            "f8e7",
+            "e1g1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "g1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c7c5",
+              "g1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Mirroring White's e-pawn for a balanced game."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "bc866831c422ef79bd7eb7e9601e18e27fbda53dae6e4a08b5908d202e35cf1f",
+            "alternative": 9,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 17,
+        "mateIn": null,
+        "moveLan": "e7e5",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "e7e5",
+            "g1f3",
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Adding control of the center with your knight."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "4212a30a8b12af86be929e6c135d9350181147714b64ed73bec36dee665b2a43",
+            "alternative": 5,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "g1f3",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "g1f3",
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "b8c6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g1f3",
+              "b8c6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.04,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "PutsPawnInCenter",
+            "PreparesBishopDevelopment"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "PutsPawnInCenter"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "white",
+      "fen": "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2",
+      "evals": [
+        {
+          "cp": 27,
+          "pv": [
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ]
+        },
+        {
+          "cp": 30,
+          "pv": [
+            "g8f6",
+            "f3e5",
+            "f6e4",
+            "d2d4",
+            "d7d5",
+            "f1d3",
+            "f8d6",
+            "e1g1",
+            "e8g8",
+            "c2c4",
+            "c7c6",
+            "c4d5",
+            "c6d5",
+            "b1c3",
+            "e4c3",
+            "b2c3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Adding control of the center with your knight."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "4212a30a8b12af86be929e6c135d9350181147714b64ed73bec36dee665b2a43",
+            "alternative": 5,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "g1f3",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "g1f3",
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "b8c6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g1f3",
+              "b8c6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Adding control of the center with your knight."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "4212a30a8b12af86be929e6c135d9350181147714b64ed73bec36dee665b2a43",
+            "alternative": 5,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "g1f3",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "g1f3",
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "b8c6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g1f3",
+              "b8c6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Protecting the pawn and adding reinforcement to the center."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "7d6981ed71f0c54398ffdbb77c5a0d077f2b4b9d3e62bfbc1f06b27a68ba0bb2",
+            "alternative": 13,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "b8c6",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CaptureThreat",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "black",
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
+      "evals": [
+        {
+          "cp": 27,
+          "pv": [
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ]
+        },
+        {
+          "cp": 12,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ]
+        },
+        {
+          "cp": 12,
+          "pv": [
+            "d2d4",
+            "e5d4",
+            "f3d4",
+            "f8c5",
+            "d4b3",
+            "c5b6",
+            "f1e2",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "b1c3",
+            "g8f6",
+            "c1g5",
+            "h7h6",
+            "g5h4",
+            "d8e7",
+            "c3d5"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Protecting the pawn and adding reinforcement to the center."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "7d6981ed71f0c54398ffdbb77c5a0d077f2b4b9d3e62bfbc1f06b27a68ba0bb2",
+            "alternative": 13,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "b8c6",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Protecting the pawn and adding reinforcement to the center."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "7d6981ed71f0c54398ffdbb77c5a0d077f2b4b9d3e62bfbc1f06b27a68ba0bb2",
+            "alternative": 13,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "b8c6",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "b8c6",
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Quick development, threatening the knight, and a chance to castle early."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "7acafc7448de35e2b9ff79d067efa341fb29b89d9d5fbe7f5daa8a1f0f99d54a",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f1b5",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "DefendsPiece",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "DefendsPiece",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "white",
+      "fen": "r1bqkbnr/pppp1ppp/2n5/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R b KQkq - 3 3",
+      "evals": [
+        {
+          "cp": 12,
+          "pv": [
+            "g8f6",
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ]
+        },
+        {
+          "cp": 16,
+          "pv": [
+            "f8c5",
+            "d2d3",
+            "g8f6",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Quick development, threatening the knight, and a chance to castle early."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "7acafc7448de35e2b9ff79d067efa341fb29b89d9d5fbe7f5daa8a1f0f99d54a",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.27,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f1b5",
+        "eval": {
+          "cp": 27,
+          "pv": [
+            "f1b5",
+            "a7a6",
+            "b5a4",
+            "g8f6",
+            "e1g1",
+            "b7b5",
+            "a4b3",
+            "f6e4",
+            "d2d4",
+            "e5d4",
+            "f1e1",
+            "d7d5",
+            "f3d4",
+            "c6d4",
+            "d1d4",
+            "c8e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Developing your bishop creates good tactical and positional opportunities."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "624f398941513ae91599c583f80d7787b0ecfe4c090bd5e9581f4b065069f492",
+            "alternative": 4,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.12,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "f1c4",
+        "eval": {
+          "cp": 12,
+          "pv": [
+            "f1c4",
+            "g8f6",
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Doing two things with one move: attacking the undefended pawn and developing the knight."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "87310c4509edc1c9d7c79ce8573304122ed33bfc5aeb30b7a60659d5be0b6845",
+            "alternative": 3,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.12,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "g8f6",
+        "eval": {
+          "cp": 12,
+          "pv": [
+            "g8f6",
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d2d3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g8f6",
+              "d2d3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.15,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "PreparesToCastleKingside",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "PreparesToCastleKingside",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "black",
+      "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
+      "evals": [
+        {
+          "cp": 12,
+          "pv": [
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ]
+        },
+        {
+          "cp": -2,
+          "pv": [
+            "d1e2",
+            "f8e7",
+            "d2d3",
+            "d7d5",
+            "e4d5",
+            "f6d5",
+            "b1c3",
+            "c8e6",
+            "c4b3",
+            "d5c3",
+            "b2c3",
+            "d8d6",
+            "e1g1"
+          ]
+        },
+        {
+          "cp": -26,
+          "pv": [
+            "e1g1",
+            "f6e4",
+            "b1c3",
+            "e4c3",
+            "d2c3",
+            "f7f6",
+            "a2a4",
+            "d7d6",
+            "a4a5",
+            "a7a6",
+            "b2b4",
+            "d8e7",
+            "f1e1"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Doing two things with one move: attacking the undefended pawn and developing the knight."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "87310c4509edc1c9d7c79ce8573304122ed33bfc5aeb30b7a60659d5be0b6845",
+            "alternative": 3,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.12,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "g8f6",
+        "eval": {
+          "cp": 12,
+          "pv": [
+            "g8f6",
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d2d3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g8f6",
+              "d2d3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Doing two things with one move: attacking the undefended pawn and developing the knight."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "87310c4509edc1c9d7c79ce8573304122ed33bfc5aeb30b7a60659d5be0b6845",
+            "alternative": 3,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.12,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "g8f6",
+        "eval": {
+          "cp": 12,
+          "pv": [
+            "g8f6",
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d2d3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g8f6",
+              "d2d3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "d3 protects the e4 pawn and the c4 bishop, and allows the dark-squared bishop to develop."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "c683fc1933e47bb0ff8b5dfb03abc2f714a2f11921d5b8dbc66c643c0ed21c18",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.12,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "d2d3",
+        "eval": {
+          "cp": 12,
+          "pv": [
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CaptureThreat",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "white",
+      "fen": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 b kq - 5 4",
+      "evals": [
+        {
+          "cp": -26,
+          "pv": [
+            "f6e4",
+            "b1c3",
+            "e4c3",
+            "d2c3",
+            "f7f6",
+            "a2a4",
+            "d7d6",
+            "a4a5",
+            "a7a6",
+            "b2b4",
+            "d8e7",
+            "f1e1"
+          ]
+        },
+        {
+          "cp": 14,
+          "pv": [
+            "f8c5",
+            "d2d3",
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "d3 protects the e4 pawn and the c4 bishop, and allows the dark-squared bishop to develop."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "c683fc1933e47bb0ff8b5dfb03abc2f714a2f11921d5b8dbc66c643c0ed21c18",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.12,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "d2d3",
+        "eval": {
+          "cp": 12,
+          "pv": [
+            "d2d3",
+            "f8c5",
+            "b1c3",
+            "h7h6",
+            "c3d5",
+            "d7d6",
+            "c2c3",
+            "f6d5",
+            "c4d5",
+            "c6e7",
+            "d5b3",
+            "c7c6",
+            "e1g1"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Castling kingside helps to complete your development."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "e954eb94618fcdad6463adc8b7c4e56a30c4546bdb5ddc6234dc34b881382a34",
+            "alternative": 1,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.26,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "e1g1",
+        "eval": {
+          "cp": -26,
+          "pv": [
+            "e1g1",
+            "f6e4",
+            "b1c3",
+            "e4c3",
+            "d2c3",
+            "f7f6",
+            "a2a4",
+            "d7d6",
+            "a4a5",
+            "a7a6",
+            "b2b4",
+            "d8e7",
+            "f1e1"
+          ],
+          "pvCutoff": 5,
+          "pvCutoffLine": [
+            "f6e4",
+            "b1c3",
+            "e4c3",
+            "d2c3",
+            "f7f6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "e1g1",
+              "f6e4",
+              "b1c3",
+              "e4c3",
+              "d2c3",
+              "f7f6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": [
+          "MaterialLost"
+        ]
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "That pawn was free for the taking."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "d8b9790f20e4ad2b845cf66d2d3783670b89acae290f8f8fc550736b3bcfd1b7",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": -0.26,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f6e4",
+        "eval": {
+          "cp": -26,
+          "pv": [
+            "f6e4",
+            "b1c3",
+            "e4c3",
+            "d2c3",
+            "f7f6",
+            "a2a4",
+            "d7d6",
+            "a4a5",
+            "a7a6",
+            "b2b4",
+            "d8e7",
+            "f1e1"
+          ],
+          "pvCutoff": 3,
+          "pvCutoffLine": [
+            "b1c3",
+            "e4c3",
+            "d2c3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6e4",
+              "b1c3",
+              "e4c3",
+              "d2c3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "impressed",
+        "insightsTags": [
+          "FreePiece",
+          "MaterialWon"
+        ]
+      },
+      "difference": 0.38,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "GambitsPawn",
+            "CastlesKingSide",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": [
+            "LosesMaterial"
+          ]
+        },
+        "best": {
+          "good": [
+            "DefendsPiece",
+            "PreparesBishopDevelopment",
+            "CreatesPawnChain"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "black",
+      "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 6 5",
+      "evals": [
+        {
+          "cp": 14,
+          "pv": [
+            "d2d3",
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ]
+        },
+        {
+          "cp": -3,
+          "pv": [
+            "b1c3",
+            "d7d6",
+            "h2h3",
+            "e8g8",
+            "d2d3",
+            "c6a5",
+            "c4b3",
+            "a5b3",
+            "a2b3",
+            "a7a6",
+            "c1g5",
+            "h7h6",
+            "g5h4",
+            "c7c6",
+            "d3d4",
+            "e5d4"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "That pawn was free for the taking."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "d8b9790f20e4ad2b845cf66d2d3783670b89acae290f8f8fc550736b3bcfd1b7",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": -0.26,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f6e4",
+        "eval": {
+          "cp": -26,
+          "pv": [
+            "f6e4",
+            "b1c3",
+            "e4c3",
+            "d2c3",
+            "f7f6",
+            "a2a4",
+            "d7d6",
+            "a4a5",
+            "a7a6",
+            "b2b4",
+            "d8e7",
+            "f1e1"
+          ],
+          "pvCutoff": 3,
+          "pvCutoffLine": [
+            "b1c3",
+            "e4c3",
+            "d2c3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6e4",
+              "b1c3",
+              "e4c3",
+              "d2c3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "impressed",
+        "insightsTags": [
+          "FreePiece",
+          "MaterialWon"
+        ]
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Black develops the bishop and attacks the ",
+              "center",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c5d4"
+            ],
+            "squares": [],
+            "audioUrlHash": "63165c4ffbd7cdd6210e4fac8ca5afb09c6e329578bfa12e6fd88263a7ca6b1f",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.14,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "f8c5",
+        "eval": {
+          "cp": 14,
+          "pv": [
+            "f8c5",
+            "d2d3",
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d2d3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f8c5",
+              "d2d3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Good job ",
+              "defending",
+              " that pawn."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d3e4",
+              "f6e4"
+            ],
+            "squares": [],
+            "audioUrlHash": "1190bfbff1e7452d2c9d6a70f3126a84ac08676185770031d75b4eb847d5d6d6",
+            "alternative": 1,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.14,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d2d3",
+        "eval": {
+          "cp": 14,
+          "pv": [
+            "d2d3",
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.4,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "PreparesToCastleKingside",
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "FreePiece",
+            "Captures",
+            "WinsMaterial"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "white",
+      "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 b kq - 0 5",
+      "evals": [
+        {
+          "cp": 14,
+          "pv": [
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ]
+        },
+        {
+          "cp": 18,
+          "pv": [
+            "d7d6",
+            "c2c3",
+            "c5b6",
+            "a2a4",
+            "a7a5",
+            "h2h3",
+            "h7h6",
+            "b1a3",
+            "e8g8",
+            "c4a2",
+            "c8e6",
+            "a2e6",
+            "f7e6"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Good job ",
+              "defending",
+              " that pawn."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d3e4",
+              "f6e4"
+            ],
+            "squares": [],
+            "audioUrlHash": "1190bfbff1e7452d2c9d6a70f3126a84ac08676185770031d75b4eb847d5d6d6",
+            "alternative": 1,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.14,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d2d3",
+        "eval": {
+          "cp": 14,
+          "pv": [
+            "d2d3",
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Good job ",
+              "defending",
+              " that pawn."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d3e4",
+              "f6e4"
+            ],
+            "squares": [],
+            "audioUrlHash": "1190bfbff1e7452d2c9d6a70f3126a84ac08676185770031d75b4eb847d5d6d6",
+            "alternative": 1,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.14,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d2d3",
+        "eval": {
+          "cp": 14,
+          "pv": [
+            "d2d3",
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Both kings are castled and ready for the middlegame."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "58fc60f21967863325b7cbf778040aaca07084601ed0fdde99df7e52f413ad79",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.14,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "e8g8",
+        "eval": {
+          "cp": 14,
+          "pv": [
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "DefendsPiece",
+            "PreparesBishopDevelopment",
+            "CreatesPawnChain"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "DefendsPiece",
+            "PreparesBishopDevelopment",
+            "CreatesPawnChain"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true
+      }
+    },
+    {
+      "color": "black",
+      "fen": "r1bqk2r/ppp2ppp/2np1n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQ1RK1 w kq - 0 6",
+      "evals": [
+        {
+          "cp": 18,
+          "pv": [
+            "c2c3",
+            "c5b6",
+            "a2a4",
+            "a7a5",
+            "h2h3",
+            "h7h6",
+            "b1a3",
+            "e8g8",
+            "c4a2",
+            "c8e6",
+            "a2e6",
+            "f7e6"
+          ]
+        },
+        {
+          "cp": 9,
+          "pv": [
+            "a2a4",
+            "a7a5",
+            "c2c3",
+            "e8g8",
+            "f1e1",
+            "c8e6",
+            "c4e6",
+            "f7e6",
+            "d3d4",
+            "c5a7",
+            "h2h3",
+            "d8e8"
+          ]
+        },
+        {
+          "cp": -18,
+          "pv": [
+            "c1g5",
+            "c6a5",
+            "c4b3",
+            "a5b3",
+            "a2b3",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "a7a6",
+            "b3b4",
+            "c5a7",
+            "b4b5",
+            "f6d8",
+            "b5a6",
+            "b7a6",
+            "d1d2",
+            "c7c6",
+            "c3a4"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Both kings are castled and ready for the middlegame."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "58fc60f21967863325b7cbf778040aaca07084601ed0fdde99df7e52f413ad79",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.14,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "e8g8",
+        "eval": {
+          "cp": 14,
+          "pv": [
+            "e8g8",
+            "h2h3",
+            "h7h6",
+            "c2c3",
+            "d7d6",
+            "a2a4",
+            "a7a5",
+            "c4a2",
+            "c5a7",
+            "b1a3",
+            "a7c5",
+            "c1e3",
+            "c5a3",
+            "b2a3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This prepares the bishop for ",
+              "development",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c8g4"
+            ],
+            "squares": [],
+            "audioUrlHash": "1537bab4bcd7b61637995973fd9c3cc6d7997bf839cc616cef4ca53ef01d7522",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d7d6",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "d7d6",
+            "c2c3",
+            "c5b6",
+            "a2a4",
+            "a7a5",
+            "h2h3",
+            "h7h6",
+            "b1a3",
+            "e8g8",
+            "c4a2",
+            "c8e6",
+            "a2e6",
+            "f7e6"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "impressed",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [],
+        "score": 0.18,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c2c3",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c2c3",
+            "c5b6",
+            "a2a4",
+            "a7a5",
+            "h2h3",
+            "h7h6",
+            "b1a3",
+            "e8g8",
+            "c4a2",
+            "c8e6",
+            "a2e6",
+            "f7e6"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c5b6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c2c3",
+              "c5b6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "book",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.04,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "PreparesBishopDevelopment",
+            "CreatesPawnChain"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CastlesSameSide",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "book",
+      "caps2": 100,
+      "scenarios": {
+        "book": true,
+        "isKeyMoment": true
+      }
+    },
+    {
+      "color": "white",
+      "fen": "r1bqk2r/ppp2ppp/2np1n2/2b1p1B1/2B1P3/3P1N2/PPP2PPP/RN1Q1RK1 b kq - 1 6",
+      "evals": [
+        {
+          "cp": -18,
+          "pv": [
+            "c6a5",
+            "c4b3",
+            "a5b3",
+            "a2b3",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "a7a6",
+            "b3b4",
+            "c5a7",
+            "b4b5",
+            "f6d8",
+            "b5a6",
+            "b7a6",
+            "d1d2",
+            "c7c6",
+            "c3a4"
+          ]
+        },
+        {
+          "cp": -4,
+          "pv": [
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [],
+        "score": 0.18,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c2c3",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c2c3",
+            "c5b6",
+            "a2a4",
+            "a7a5",
+            "h2h3",
+            "h7h6",
+            "b1a3",
+            "e8g8",
+            "c4a2",
+            "c8e6",
+            "a2e6",
+            "f7e6"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c5b6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c2c3",
+              "c5b6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Your ",
+              "pin",
+              " restricts your opponent's knight."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "g5d8"
+            ],
+            "squares": [
+              "f6"
+            ],
+            "audioUrlHash": "09ae7a277568b1fe09743678fc1eede61aa1c288b52a578434a688613a0793f3",
+            "alternative": 4,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.18,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "c1g5",
+        "eval": {
+          "cp": -18,
+          "pv": [
+            "c1g5",
+            "c6a5",
+            "c4b3",
+            "a5b3",
+            "a2b3",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "a7a6",
+            "b3b4",
+            "c5a7",
+            "b4b5",
+            "f6d8",
+            "b5a6",
+            "b7a6",
+            "d1d2",
+            "c7c6",
+            "c3a4"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": [
+          "Pin"
+        ]
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [],
+        "score": -0.18,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c6a5",
+        "eval": {
+          "cp": -18,
+          "pv": [
+            "c6a5",
+            "c4b3",
+            "a5b3",
+            "a2b3",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "a7a6",
+            "b3b4",
+            "c5a7",
+            "b4b5",
+            "f6d8",
+            "b5a6",
+            "b7a6",
+            "d1d2",
+            "c7c6",
+            "c3a4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c4b3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c6a5",
+              "c4b3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.36,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "RelativePin",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [],
+          "bad": []
+        }
+      },
+      "classificationName": "good",
+      "caps2": 85.51,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r1bqk2r/ppp2pp1/2np1n1p/2b1p1B1/2B1P3/3P1N2/PPP2PPP/RN1Q1RK1 w kq - 0 7",
+      "evals": [
+        {
+          "cp": -4,
+          "pv": [
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ]
+        },
+        {
+          "cp": -21,
+          "pv": [
+            "g5d2",
+            "c8g4",
+            "h2h3",
+            "g4h5",
+            "c4b5",
+            "e8g8",
+            "b5c6",
+            "b7c6",
+            "d2e3",
+            "c5b6",
+            "f1e1",
+            "d6d5",
+            "e4d5",
+            "f6d5",
+            "e3b6",
+            "a7b6",
+            "e1e5"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [],
+        "score": -0.18,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c6a5",
+        "eval": {
+          "cp": -18,
+          "pv": [
+            "c6a5",
+            "c4b3",
+            "a5b3",
+            "a2b3",
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "a7a6",
+            "b3b4",
+            "c5a7",
+            "b4b5",
+            "f6d8",
+            "b5a6",
+            "b7a6",
+            "d1d2",
+            "c7c6",
+            "c3a4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c4b3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c6a5",
+              "c4b3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This ",
+              "kicks",
+              " a bishop."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "h6g5"
+            ],
+            "squares": [],
+            "audioUrlHash": "befd5163307245956bfd46870a065494451dfd5ddef1222346d11e37ee8019ea",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 18,
+        "mateIn": null,
+        "moveLan": "h7h6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "h7h6",
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "g5f6",
+            "d8f6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "h7h6",
+              "g5f6",
+              "d8f6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You ",
+              "exchange",
+              " pieces of equal value."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d8f6"
+            ],
+            "squares": [],
+            "audioUrlHash": "407a63d1572d1a7c63eeccc6191a1fe249e8629d2a28b07fdb864ee56cd78cad",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 17,
+        "mateIn": null,
+        "moveLan": "g5f6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d8f6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g5f6",
+              "d8f6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": [
+          "EqualTrade"
+        ]
+      },
+      "difference": 0.14,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "Kicks",
+            "CaptureThreatFrom",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [],
+          "bad": []
+        }
+      },
+      "classificationName": "excellent",
+      "caps2": 94.42,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r1bqk2r/ppp2pp1/2np1B1p/2b1p3/2B1P3/3P1N2/PPP2PPP/RN1Q1RK1 b kq - 0 7",
+      "evals": [
+        {
+          "cp": -4,
+          "pv": [
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ]
+        },
+        {
+          "cp": 61,
+          "pv": [
+            "g7f6",
+            "f3h4",
+            "h6h5",
+            "c2c3",
+            "c8g4",
+            "d1c2",
+            "a7a6",
+            "b1d2",
+            "g4e6",
+            "c4d5",
+            "e6d5",
+            "e4d5",
+            "c6e7",
+            "d2e4",
+            "e7d5",
+            "c2b3",
+            "d5f4",
+            "b3b7"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You ",
+              "exchange",
+              " pieces of equal value."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d8f6"
+            ],
+            "squares": [],
+            "audioUrlHash": "407a63d1572d1a7c63eeccc6191a1fe249e8629d2a28b07fdb864ee56cd78cad",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 17,
+        "mateIn": null,
+        "moveLan": "g5f6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d8f6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g5f6",
+              "d8f6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": [
+          "EqualTrade"
+        ]
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You ",
+              "exchange",
+              " pieces of equal value."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d8f6"
+            ],
+            "squares": [],
+            "audioUrlHash": "407a63d1572d1a7c63eeccc6191a1fe249e8629d2a28b07fdb864ee56cd78cad",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 17,
+        "mateIn": null,
+        "moveLan": "g5f6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "g5f6",
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d8f6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g5f6",
+              "d8f6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": [
+          "EqualTrade"
+        ]
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Black combines recapturing with the development of a new piece."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "c3b6a50f0bcb8e42d47dd98474261652aa8a602bdd5944a65381c549c0ad3d7a",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "d8f6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "EqualTrade",
+            "Captures",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "EqualTrade",
+            "Captures",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r1b1k2r/ppp2pp1/2np1q1p/2b1p3/2B1P3/3P1N2/PPP2PPP/RN1Q1RK1 w kq - 0 8",
+      "evals": [
+        {
+          "cp": -4,
+          "pv": [
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ]
+        },
+        {
+          "cp": -35,
+          "pv": [
+            "a2a4",
+            "c6e7",
+            "c2c3",
+            "a7a6",
+            "b1a3",
+            "c8g4",
+            "a3c2",
+            "g4f3",
+            "d1f3",
+            "f6f3",
+            "g2f3",
+            "e7g6",
+            "b2b4",
+            "c5a7"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Black combines recapturing with the development of a new piece."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "c3b6a50f0bcb8e42d47dd98474261652aa8a602bdd5944a65381c549c0ad3d7a",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "d8f6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Black combines recapturing with the development of a new piece."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "c3b6a50f0bcb8e42d47dd98474261652aa8a602bdd5944a65381c549c0ad3d7a",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "d8f6",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "d8f6",
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Develops the knight and attacks the ",
+              "center",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c3e4",
+              "c3d5"
+            ],
+            "squares": [],
+            "audioUrlHash": "693c7dcd9ea7c3a32551c2a6e9984ab24ff2a48b3454c066ed8d7e8b576f7857",
+            "alternative": 2,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "b1c3",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "b1c3",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "DevelopsRecapture",
+            "Obvious(Recapture)",
+            "ImmediateRecapture",
+            "RemovesAttacker",
+            "DevelopsOpening",
+            "Develops",
+            "Captures"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "DevelopsRecapture",
+            "Obvious(Recapture)",
+            "ImmediateRecapture",
+            "RemovesAttacker",
+            "DevelopsOpening",
+            "Develops",
+            "Captures"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r1b1k2r/ppp2pp1/2np1q1p/2b1p3/2B1P3/2NP1N2/PPP2PPP/R2Q1RK1 b kq - 1 8",
+      "evals": [
+        {
+          "cp": -4,
+          "pv": [
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ]
+        },
+        {
+          "cp": -4,
+          "pv": [
+            "e8g8",
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a1d1",
+            "c7c6",
+            "d1d8",
+            "b6d8",
+            "f1d1",
+            "d8b6"
+          ]
+        },
+        {
+          "cp": 19,
+          "pv": [
+            "c8g4",
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Develops the knight and attacks the ",
+              "center",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c3e4",
+              "c3d5"
+            ],
+            "squares": [],
+            "audioUrlHash": "693c7dcd9ea7c3a32551c2a6e9984ab24ff2a48b3454c066ed8d7e8b576f7857",
+            "alternative": 2,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "b1c3",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "b1c3",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Develops the knight and attacks the ",
+              "center",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c3e4",
+              "c3d5"
+            ],
+            "squares": [],
+            "audioUrlHash": "693c7dcd9ea7c3a32551c2a6e9984ab24ff2a48b3454c066ed8d7e8b576f7857",
+            "alternative": 2,
+            "personality": "Personal"
+          }
+        ],
+        "score": -0.04,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "b1c3",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "b1c3",
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "b1c3",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [],
+        "score": -0.04,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f6d8",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "c3d5",
+            "e8g8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6d8",
+              "c3d5",
+              "e8g8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "DevelopsCenter",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r3k2r/ppp2pp1/2np1q1p/2b1p3/2B1P1b1/2NP1N2/PPP2PPP/R2Q1RK1 w kq - 2 9",
+      "evals": [
+        {
+          "cp": 19,
+          "pv": [
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ]
+        },
+        {
+          "cp": -44,
+          "pv": [
+            "c4b5",
+            "g4f3",
+            "d1f3",
+            "f6f3",
+            "g2f3",
+            "e8g8",
+            "b5c6",
+            "b7c6",
+            "c3a4",
+            "c5b6",
+            "b2b4",
+            "a7a5",
+            "a4b6",
+            "c7b6",
+            "b4a5",
+            "a8a5",
+            "a2a4",
+            "c6c5",
+            "h2h3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [],
+        "score": -0.04,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f6d8",
+        "eval": {
+          "cp": -4,
+          "pv": [
+            "f6d8",
+            "c3d5",
+            "e8g8",
+            "c2c3",
+            "c6e7",
+            "d5e3",
+            "e7g6",
+            "d3d4",
+            "c5b6",
+            "d4e5",
+            "d6e5",
+            "d1d8",
+            "f8d8",
+            "a2a4",
+            "b6e3",
+            "f2e3",
+            "a7a5",
+            "a1d1"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "c3d5",
+            "e8g8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6d8",
+              "c3d5",
+              "e8g8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This activates a bishop by developing it off of its starting square."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "2059fd37add12e1e231de10bbf4ada6073127f123dcdc3ca26d26ae9d307f921",
+            "alternative": 7,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 17,
+        "mateIn": null,
+        "moveLan": "c8g4",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "c8g4",
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "c3d5",
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c8g4",
+              "c3d5",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You win time by ",
+              "threatening",
+              " a queen."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d5f6"
+            ],
+            "squares": [],
+            "audioUrlHash": "2ef7d31ccca1fd8b98f4e85010218f917dba4cd6075ecd72be100f0f4fe7566d",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "c3d5",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c3d5",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.23,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "PreparesToCastleQueenside",
+            "DevelopsOpening",
+            "Develops"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [],
+          "bad": []
+        }
+      },
+      "classificationName": "good",
+      "caps2": 90.92,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r3k2r/ppp2pp1/2np1q1p/2bNp3/2B1P1b1/3P1N2/PPP2PPP/R2Q1RK1 b kq - 3 9",
+      "evals": [
+        {
+          "cp": 19,
+          "pv": [
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ]
+        },
+        {
+          "cp": 77,
+          "pv": [
+            "f6g6",
+            "d5c7",
+            "e8d8",
+            "c7a8",
+            "c6d4",
+            "g1h1",
+            "g6f6",
+            "d1e1",
+            "g4f3",
+            "e1a5",
+            "d8e8",
+            "f1g1",
+            "f3e2",
+            "a5c7",
+            "b7b5"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You win time by ",
+              "threatening",
+              " a queen."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d5f6"
+            ],
+            "squares": [],
+            "audioUrlHash": "2ef7d31ccca1fd8b98f4e85010218f917dba4cd6075ecd72be100f0f4fe7566d",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "c3d5",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c3d5",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You win time by ",
+              "threatening",
+              " a queen."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d5f6"
+            ],
+            "squares": [],
+            "audioUrlHash": "2ef7d31ccca1fd8b98f4e85010218f917dba4cd6075ecd72be100f0f4fe7566d",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "c3d5",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "c3d5",
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "f6d8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c3d5",
+              "f6d8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This moves the queen to safety."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "2489e9601ab005282136438b93a631bc1b5d3edbf5efd8bb222c98831074d286",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "f6d8",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c2c3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6d8",
+              "c2c3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "WinsTempo",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CaptureThreat",
+            "WinsTempo",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r2qk2r/ppp2pp1/2np3p/2bNp3/2B1P1b1/3P1N2/PPP2PPP/R2Q1RK1 w kq - 4 10",
+      "evals": [
+        {
+          "cp": 19,
+          "pv": [
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ]
+        },
+        {
+          "cp": 15,
+          "pv": [
+            "h2h3",
+            "g4f3",
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This moves the queen to safety."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "2489e9601ab005282136438b93a631bc1b5d3edbf5efd8bb222c98831074d286",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "f6d8",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c2c3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6d8",
+              "c2c3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This moves the queen to safety."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "2489e9601ab005282136438b93a631bc1b5d3edbf5efd8bb222c98831074d286",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.19,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "f6d8",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "f6d8",
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "c2c3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f6d8",
+              "c2c3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [],
+        "score": 0.19,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c2c3",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "a7a6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c2c3",
+              "a7a6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "Retreat",
+            "EscapesThreat",
+            "DefendsPiece"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "Retreat",
+            "EscapesThreat",
+            "DefendsPiece"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r2qk2r/ppp2pp1/2np3p/2bNp3/2B1P1b1/3P1N1P/PPP2PP1/R2Q1RK1 b kq - 0 10",
+      "evals": [
+        {
+          "cp": 15,
+          "pv": [
+            "g4f3",
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ]
+        },
+        {
+          "cp": 16,
+          "pv": [
+            "g4h5",
+            "c2c3",
+            "a7a6",
+            "a2a4",
+            "e8g8",
+            "d5e3",
+            "c6e7",
+            "g2g4",
+            "h5g6",
+            "f3h4",
+            "c7c6",
+            "c4b3"
+          ]
+        },
+        {
+          "cp": 19,
+          "pv": [
+            "g4e6",
+            "c2c3",
+            "a7a6",
+            "b2b4",
+            "c5a7",
+            "d3d4",
+            "e5d4",
+            "c3d4",
+            "c6e7",
+            "a1c1",
+            "e8g8",
+            "d5e7",
+            "d8e7",
+            "c4e6"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [],
+        "score": 0.19,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c2c3",
+        "eval": {
+          "cp": 19,
+          "pv": [
+            "c2c3",
+            "a7a6",
+            "d5e3",
+            "g4h5",
+            "e3f5",
+            "e8g8",
+            "h2h3",
+            "g8h8",
+            "c4d5",
+            "c5a7",
+            "g2g4"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "a7a6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c2c3",
+              "a7a6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You ",
+              "kicked",
+              " your opponent's piece from that square."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "h3g4"
+            ],
+            "squares": [],
+            "audioUrlHash": "8885323e07916f9fe9a52fd9dc7ff943a719a9addbfe2099f8c3aca9437b889a",
+            "alternative": 3,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 17,
+        "mateIn": null,
+        "moveLan": "h2h3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "h2h3",
+            "g4f3",
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 2,
+          "pvCutoffLine": [
+            "g4f3",
+            "d1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "h2h3",
+              "g4f3",
+              "d1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This is an equal ",
+              "trade",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d1f3"
+            ],
+            "squares": [],
+            "audioUrlHash": "8227be5be32c84616a796039631fadf914283c0077e903206a3d572ed576f290",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "g4f3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "g4f3",
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g4f3",
+              "d1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": [
+          "EqualTrade"
+        ]
+      },
+      "difference": 0.04,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "Kicks",
+            "CreatesLuft",
+            "CaptureThreatFrom",
+            "CaptureThreatTo"
+          ],
+          "bad": [
+            "MovesPawnInFrontOfKing"
+          ]
+        },
+        "best": {
+          "good": [],
+          "bad": []
+        }
+      },
+      "classificationName": "excellent",
+      "caps2": 98.21,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r2qk2r/ppp2pp1/2np3p/2bNp3/2B1P3/3P1b1P/PPP2PP1/R2Q1RK1 w kq - 0 11",
+      "evals": [
+        {
+          "cp": 15,
+          "pv": [
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ]
+        },
+        {
+          "cp": -61,
+          "pv": [
+            "g2f3",
+            "c6d4",
+            "c2c3",
+            "d4e6",
+            "d3d4",
+            "e5d4",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "e4d5",
+            "d8g5",
+            "g1h2",
+            "g5e5",
+            "f3f4",
+            "e5f4"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This is an equal ",
+              "trade",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d1f3"
+            ],
+            "squares": [],
+            "audioUrlHash": "8227be5be32c84616a796039631fadf914283c0077e903206a3d572ed576f290",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "g4f3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "g4f3",
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g4f3",
+              "d1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": [
+          "EqualTrade"
+        ]
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This is an equal ",
+              "trade",
+              "."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d1f3"
+            ],
+            "squares": [],
+            "audioUrlHash": "8227be5be32c84616a796039631fadf914283c0077e903206a3d572ed576f290",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "g4f3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "g4f3",
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "d1f3"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "g4f3",
+              "d1f3"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": [
+          "EqualTrade"
+        ]
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You used the recapture to develop another piece."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "d0a428733471dd0d469a3208a686313007864a0d85fcd3e1ac721aa752af6bff",
+            "alternative": 4,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d1f3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "e8g8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "d1f3",
+              "e8g8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "EqualTrade",
+            "Captures",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "EqualTrade",
+            "Captures",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r2qk2r/ppp2pp1/2np3p/2bNp3/2B1P3/3P1Q1P/PPP2PP1/R4RK1 b kq - 0 11",
+      "evals": [
+        {
+          "cp": 15,
+          "pv": [
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ]
+        },
+        {
+          "cp": 40,
+          "pv": [
+            "c6d4",
+            "f3g4",
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "c4d5",
+            "e6c5",
+            "a1b1",
+            "c5d3",
+            "b1b7",
+            "d3c5",
+            "b7b1",
+            "a8b8",
+            "b1b8"
+          ]
+        },
+        {
+          "cp": 41,
+          "pv": [
+            "a7a5",
+            "c2c3",
+            "e8g8",
+            "a2a4",
+            "c6e7",
+            "d5e3",
+            "c7c6",
+            "c4a2",
+            "d8b6",
+            "a1b1",
+            "d6d5",
+            "e4d5",
+            "c5e3",
+            "d5d6",
+            "e7d5",
+            "f2e3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You used the recapture to develop another piece."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "d0a428733471dd0d469a3208a686313007864a0d85fcd3e1ac721aa752af6bff",
+            "alternative": 4,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d1f3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "e8g8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "d1f3",
+              "e8g8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You used the recapture to develop another piece."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "d0a428733471dd0d469a3208a686313007864a0d85fcd3e1ac721aa752af6bff",
+            "alternative": 4,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d1f3",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "d1f3",
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 1,
+          "pvCutoffLine": [
+            "e8g8"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "d1f3",
+              "e8g8"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Castling to the same side of the board is a more cautious approach."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "be3712f30f6ba4806beb90e55b0b80368846b5936658e469eeaac7792d63f966",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "e8g8",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "DevelopsRecapture",
+            "Obvious(Recapture)",
+            "ImmediateRecapture",
+            "ConnectsRooks",
+            "DevelopsMiddlegame",
+            "Develops",
+            "Captures"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "DevelopsRecapture",
+            "Obvious(Recapture)",
+            "ImmediateRecapture",
+            "ConnectsRooks",
+            "DevelopsMiddlegame",
+            "Develops",
+            "Captures"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r2qk2r/ppp2pp1/3p3p/2bNp3/2BnP3/3P1Q1P/PPP2PP1/R4RK1 w kq - 1 12",
+      "evals": [
+        {
+          "cp": 40,
+          "pv": [
+            "f3g4",
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "c4d5",
+            "e6c5",
+            "a1b1",
+            "c5d3",
+            "b1b7",
+            "d3c5",
+            "b7b1",
+            "a8b8",
+            "b1b8"
+          ]
+        },
+        {
+          "cp": 18,
+          "pv": [
+            "f3d1",
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "Castling to the same side of the board is a more cautious approach."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "be3712f30f6ba4806beb90e55b0b80368846b5936658e469eeaac7792d63f966",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.15,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "e8g8",
+        "eval": {
+          "cp": 15,
+          "pv": [
+            "e8g8",
+            "c2c3",
+            "c6a5",
+            "b2b4",
+            "a5c4",
+            "d3c4",
+            "c5b6",
+            "a2a4",
+            "c7c6",
+            "d5b6",
+            "a7b6",
+            "f1d1",
+            "f8e8",
+            "a1a3",
+            "e8e6",
+            "f3d3"
+          ],
+          "pvCutoff": 0,
+          "pvCutoffLine": []
+        },
+        "variationThemes": [],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This wins a tempo by ",
+              "threatening",
+              " a queen and forcing it to move away."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "d4f3"
+            ],
+            "squares": [],
+            "audioUrlHash": "7a73d4ea0431796afa73f26111a76c4534de075cd71df44284bca2393e5244be",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.4,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "c6d4",
+        "eval": {
+          "cp": 40,
+          "pv": [
+            "c6d4",
+            "f3g4",
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "c4d5",
+            "e6c5",
+            "a1b1",
+            "c5d3",
+            "b1b7",
+            "d3c5",
+            "b7b1",
+            "a8b8",
+            "b1b8"
+          ],
+          "pvCutoff": 4,
+          "pvCutoffLine": [
+            "f3g4",
+            "e8g8",
+            "c2c3",
+            "d4e6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c6d4",
+              "f3g4",
+              "e8g8",
+              "c2c3",
+              "d4e6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [],
+        "score": 0.4,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f3g4",
+        "eval": {
+          "cp": 40,
+          "pv": [
+            "f3g4",
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "c4d5",
+            "e6c5",
+            "a1b1",
+            "c5d3",
+            "b1b7",
+            "d3c5",
+            "b7b1",
+            "a8b8",
+            "b1b8"
+          ],
+          "pvCutoff": 3,
+          "pvCutoffLine": [
+            "e8g8",
+            "c2c3",
+            "d4e6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f3g4",
+              "e8g8",
+              "c2c3",
+              "d4e6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.25,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "WinsTempo",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CastlesSameSide",
+            "DevelopsMiddlegame",
+            "Develops"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "good",
+      "caps2": 89.27,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r2qk2r/ppp2pp1/3p3p/2bNp3/2BnP3/3P3P/PPP2PP1/R2Q1RK1 b kq - 2 12",
+      "evals": [
+        {
+          "cp": 18,
+          "pv": [
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ]
+        },
+        {
+          "cp": 31,
+          "pv": [
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "c4d5",
+            "d6c5",
+            "d5b7",
+            "a8b8",
+            "a1b1",
+            "e6f4",
+            "d1f3",
+            "f4d3",
+            "b7d5",
+            "d3f4",
+            "d5c4",
+            "b8b1",
+            "f1b1"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [],
+        "score": 0.4,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "f3g4",
+        "eval": {
+          "cp": 40,
+          "pv": [
+            "f3g4",
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "b2b4",
+            "c7c6",
+            "b4c5",
+            "c6d5",
+            "c4d5",
+            "e6c5",
+            "a1b1",
+            "c5d3",
+            "b1b7",
+            "d3c5",
+            "b7b1",
+            "a8b8",
+            "b1b8"
+          ],
+          "pvCutoff": 3,
+          "pvCutoffLine": [
+            "e8g8",
+            "c2c3",
+            "d4e6"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f3g4",
+              "e8g8",
+              "c2c3",
+              "d4e6"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "You found a safer square for your queen."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "4f8f0b710ed2278290d6a62547994d779cd57fc669a60c62b5cc40c1b6e5b777",
+            "alternative": 4,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 16,
+        "mateIn": null,
+        "moveLan": "f3d1",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "f3d1",
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ],
+          "pvCutoff": 8,
+          "pvCutoffLine": [
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "f3d1",
+              "c7c6",
+              "c2c3",
+              "c6d5",
+              "c3d4",
+              "c5d4",
+              "d1a4",
+              "e8f8",
+              "c4d5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This ",
+              "kicks",
+              " a knight."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c6d5"
+            ],
+            "squares": [],
+            "audioUrlHash": "5627d1e2784689a3cdf2978b82e9f0f0cf628c9e2727d5255468ea3a5423da03",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "c7c6",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ],
+          "pvCutoff": 7,
+          "pvCutoffLine": [
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c7c6",
+              "c2c3",
+              "c6d5",
+              "c3d4",
+              "c5d4",
+              "d1a4",
+              "e8f8",
+              "c4d5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.22,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "Retreat",
+            "EscapesThreat",
+            "DefendsPiece"
+          ],
+          "bad": [
+            "MovesToPassiveSquare"
+          ]
+        },
+        "best": {
+          "good": [
+            "CaptureThreat",
+            "EscapesThreat",
+            "CaptureThreatFrom",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "good",
+      "caps2": 91.31,
+      "scenarios": {}
+    },
+    {
+      "color": "black",
+      "fen": "r2qk2r/pp3pp1/2pp3p/2bNp3/2BnP3/3P3P/PPP2PP1/R2Q1RK1 w kq - 0 13",
+      "evals": [
+        {
+          "cp": 18,
+          "pv": [
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ]
+        },
+        {
+          "cp": 0,
+          "pv": [
+            "d5e3",
+            "b7b5",
+            "c2c3",
+            "b5c4",
+            "c3d4",
+            "c5d4",
+            "e3f5",
+            "e8g8",
+            "d3c4",
+            "d8f6",
+            "d1c2",
+            "a8b8",
+            "f5d4",
+            "e5d4",
+            "b2b3",
+            "c6c5",
+            "a1d1",
+            "b8b4",
+            "c2d3"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This ",
+              "kicks",
+              " a knight."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c6d5"
+            ],
+            "squares": [],
+            "audioUrlHash": "5627d1e2784689a3cdf2978b82e9f0f0cf628c9e2727d5255468ea3a5423da03",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "c7c6",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ],
+          "pvCutoff": 7,
+          "pvCutoffLine": [
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c7c6",
+              "c2c3",
+              "c6d5",
+              "c3d4",
+              "c5d4",
+              "d1a4",
+              "e8f8",
+              "c4d5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This ",
+              "kicks",
+              " a knight."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c6d5"
+            ],
+            "squares": [],
+            "audioUrlHash": "5627d1e2784689a3cdf2978b82e9f0f0cf628c9e2727d5255468ea3a5423da03",
+            "alternative": 2,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "c7c6",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c7c6",
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ],
+          "pvCutoff": 7,
+          "pvCutoffLine": [
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c7c6",
+              "c2c3",
+              "c6d5",
+              "c3d4",
+              "c5d4",
+              "d1a4",
+              "e8f8",
+              "c4d5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This creates a ",
+              "counterthreat",
+              " against the knight, as opposed to retreating."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c3d4"
+            ],
+            "squares": [],
+            "audioUrlHash": "d0ea4fc79c8647b988e44f3fea87f7c7589ad50f080d0081d7c82033d03bf5aa",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c2c3",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ],
+          "pvCutoff": 6,
+          "pvCutoffLine": [
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c2c3",
+              "c6d5",
+              "c3d4",
+              "c5d4",
+              "d1a4",
+              "e8f8",
+              "c4d5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "CaptureThreat",
+            "Kicks",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CaptureThreat",
+            "Kicks",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "best",
+      "caps2": 100,
+      "scenarios": {}
+    },
+    {
+      "color": "white",
+      "fen": "r2qk2r/pp3pp1/2pp3p/2b1p3/2BnP3/3PN2P/PPP2PP1/R2Q1RK1 b kq - 1 13",
+      "evals": [
+        {
+          "cp": 0,
+          "pv": [
+            "b7b5",
+            "c2c3",
+            "b5c4",
+            "c3d4",
+            "c5d4",
+            "e3f5",
+            "e8g8",
+            "d3c4",
+            "d8f6",
+            "d1c2",
+            "a8b8",
+            "f5d4",
+            "e5d4",
+            "b2b3",
+            "c6c5",
+            "a1d1",
+            "b8b4",
+            "c2d3"
+          ]
+        },
+        {
+          "cp": 19,
+          "pv": [
+            "e8g8",
+            "c2c3",
+            "d4e6",
+            "d1g4",
+            "c5e3",
+            "f2e3",
+            "d8e7",
+            "a2a4",
+            "g8h7",
+            "f1f2",
+            "g7g6",
+            "c4e6",
+            "f7e6",
+            "a1f1"
+          ]
+        }
+      ],
+      "threat_evals": [],
+      "suggestedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This creates a ",
+              "counterthreat",
+              " against the knight, as opposed to retreating."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "c3d4"
+            ],
+            "squares": [],
+            "audioUrlHash": "d0ea4fc79c8647b988e44f3fea87f7c7589ad50f080d0081d7c82033d03bf5aa",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0.18,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "c2c3",
+        "eval": {
+          "cp": 18,
+          "pv": [
+            "c2c3",
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5",
+            "g7g6",
+            "a1c1",
+            "a8b8",
+            "a4c4",
+            "f8g7",
+            "c4c7",
+            "d8f6",
+            "g2g3"
+          ],
+          "pvCutoff": 6,
+          "pvCutoffLine": [
+            "c6d5",
+            "c3d4",
+            "c5d4",
+            "d1a4",
+            "e8f8",
+            "c4d5"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "c2c3",
+              "c6d5",
+              "c3d4",
+              "c5d4",
+              "d1a4",
+              "e8f8",
+              "c4d5"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "playedMove": {
+        "speech": [
+          {
+            "sentence": [
+              "This is a good time for you to get out of trouble."
+            ],
+            "arrowsSquaresStringIndex": -1,
+            "arrows": [],
+            "squares": [],
+            "audioUrlHash": "2120fe46379b7f125f81e052a497d133ef13d01860d574f727cd9d0a50c2799e",
+            "alternative": 2,
+            "personality": "Personal"
+          }
+        ],
+        "score": 0,
+        "depth": 15,
+        "mateIn": null,
+        "moveLan": "d5e3",
+        "eval": {
+          "cp": 0,
+          "pv": [
+            "d5e3",
+            "b7b5",
+            "c2c3",
+            "b5c4",
+            "c3d4",
+            "c5d4",
+            "e3f5",
+            "e8g8",
+            "d3c4",
+            "d8f6",
+            "d1c2",
+            "a8b8",
+            "f5d4",
+            "e5d4",
+            "b2b3",
+            "c6c5",
+            "a1d1",
+            "b8b4",
+            "c2d3"
+          ],
+          "pvCutoff": 10,
+          "pvCutoffLine": [
+            "b7b5",
+            "c2c3",
+            "b5c4",
+            "c3d4",
+            "c5d4",
+            "e3f5",
+            "e8g8",
+            "d3c4",
+            "d8f6",
+            "d1c2"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "d5e3",
+              "b7b5",
+              "c2c3",
+              "b5c4",
+              "c3d4",
+              "c5d4",
+              "e3f5",
+              "e8g8",
+              "d3c4",
+              "d8f6",
+              "d1c2"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": null,
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "nullMove": null,
+      "bestMove": {
+        "speech": [
+          {
+            "sentence": [
+              "The bishop is ",
+              "kicked",
+              " by a pawn, and must now move or be captured."
+            ],
+            "arrowsSquaresStringIndex": 1,
+            "arrows": [
+              "b5c4"
+            ],
+            "squares": [],
+            "audioUrlHash": "6417ba257a8dfd2bd9d73b813234656e69cefbc735203498b4bd0816e1f0c8d9",
+            "alternative": 1,
+            "personality": "Impersonal"
+          }
+        ],
+        "score": 0,
+        "depth": 14,
+        "mateIn": null,
+        "moveLan": "b7b5",
+        "eval": {
+          "cp": 0,
+          "pv": [
+            "b7b5",
+            "c2c3",
+            "b5c4",
+            "c3d4",
+            "c5d4",
+            "e3f5",
+            "e8g8",
+            "d3c4",
+            "d8f6",
+            "d1c2",
+            "a8b8",
+            "f5d4",
+            "e5d4",
+            "b2b3",
+            "c6c5",
+            "a1d1",
+            "b8b4",
+            "c2d3"
+          ],
+          "pvCutoff": 9,
+          "pvCutoffLine": [
+            "c2c3",
+            "b5c4",
+            "c3d4",
+            "c5d4",
+            "e3f5",
+            "e8g8",
+            "d3c4",
+            "d8f6",
+            "d1c2"
+          ]
+        },
+        "variationThemes": [
+          {
+            "show": "Show Follow-Up",
+            "hide": "Hide Follow-Up",
+            "moves": [
+              "b7b5",
+              "c2c3",
+              "b5c4",
+              "c3d4",
+              "c5d4",
+              "e3f5",
+              "e8g8",
+              "d3c4",
+              "d8f6",
+              "d1c2"
+            ]
+          }
+        ],
+        "isPositionCritical": false,
+        "classification": "best",
+        "coachEmotion": "none",
+        "insightsTags": []
+      },
+      "difference": 0.18,
+      "analysisTypes": {
+        "played": {
+          "good": [
+            "Retreat",
+            "EscapesThreat"
+          ],
+          "bad": []
+        },
+        "best": {
+          "good": [
+            "CounterThreat",
+            "CaptureThreat",
+            "Kicks",
+            "CaptureThreatTo"
+          ],
+          "bad": []
+        }
+      },
+      "classificationName": "excellent",
+      "caps2": 93.09,
+      "scenarios": {}
+    }
+  ],
+  "totalPositions": 25,
+  "tallies": {
+    "white": {
+      "best": 4,
+      "blunder": 0,
+      "blunderGP0": 0,
+      "blunderGP1": 0,
+      "blunderGP2": 0,
+      "book": 5,
+      "brilliant": 0,
+      "excellent": 2,
+      "forced": 0,
+      "good": 2,
+      "greatFind": 0,
+      "inaccuracy": 0,
+      "inaccuracyGP0": 0,
+      "inaccuracyGP1": 0,
+      "inaccuracyGP2": 0,
+      "miss": 0,
+      "missGP0": 0,
+      "missGP1": 0,
+      "missGP2": 0,
+      "mistake": 0,
+      "mistakeGP0": 0,
+      "mistakeGP1": 0,
+      "mistakeGP2": 0
+    },
+    "black": {
+      "best": 4,
+      "blunder": 0,
+      "blunderGP0": 0,
+      "blunderGP1": 0,
+      "blunderGP2": 0,
+      "book": 5,
+      "brilliant": 0,
+      "excellent": 1,
+      "forced": 0,
+      "good": 2,
+      "greatFind": 0,
+      "inaccuracy": 0,
+      "inaccuracyGP0": 0,
+      "inaccuracyGP1": 0,
+      "inaccuracyGP2": 0,
+      "miss": 0,
+      "missGP0": 0,
+      "missGP1": 0,
+      "missGP2": 0,
+      "mistake": 0,
+      "mistakeGP0": 0,
+      "mistakeGP1": 0,
+      "mistakeGP2": 0
+    }
+  },
+  "pieceMoves": {
+    "white": {
+      "K": 1,
+      "Q": 2,
+      "R": 0,
+      "B": 3,
+      "N": 4,
+      "P": 3
+    },
+    "black": {
+      "K": 0,
+      "Q": 2,
+      "R": 0,
+      "B": 3,
+      "N": 3,
+      "P": 4
+    }
+  },
+  "prediction": {
+    "w": 0.56,
+    "b": 0.43,
+    "d": 0.01
+  },
+  "gameStartPhase": 0,
+  "gameEndPhase": 1,
+  "gamePhases": [
+    17
+  ],
+  "castled": {
+    "white": 6,
+    "black": -1
+  },
+  "arc": "balanced",
+  "avgDifference": {
+    "white": 0.11,
+    "black": 0.1
+  },
+  "arcPlayerScenarios": {
+    "white": null,
+    "black": null
+  },
+  "themes": {
+    "moves": {
+      "black": {
+        "knight and bishop": [
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ],
+        "relative pin": [
+          18,
+          19
+        ]
+      },
+      "white": {
+        "castling": [
+          7
+        ],
+        "knight and bishop": [
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ],
+        "relative pin": [
+          11,
+          12
+        ]
+      }
+    },
+    "checkmate": null,
+    "weights": {
+      "black": {
+        "knight and bishop": 40,
+        "relative pin": 80
+      },
+      "white": {
+        "castling": 20,
+        "knight and bishop": 40,
+        "relative pin": 80
+      }
+    },
+    "endgames": {}
+  },
+  "takeaways": {
+    "white": [],
+    "black": []
+  },
+  "E1": {
+    "white": 4,
+    "black": 4
+  },
+  "playMayContinue": {
+    "cp": 0,
+    "pv": [
+      "b7b5",
+      "c2c3",
+      "b5c4",
+      "c3d4",
+      "c5d4",
+      "e3f5",
+      "e8g8",
+      "d3c4",
+      "d8f6",
+      "d1c2",
+      "a8b8",
+      "f5d4",
+      "e5d4",
+      "b2b3",
+      "c6c5",
+      "a1d1",
+      "b8b4",
+      "c2d3"
+    ],
+    "pvCutoff": 9,
+    "pvCutoffLine": [
+      "c2c3",
+      "b5c4",
+      "c3d4",
+      "c5d4",
+      "e3f5",
+      "e8g8",
+      "d3c4",
+      "d8f6",
+      "d1c2"
+    ]
+  },
+  "CAPS": {
+    "white": {
+      "B": 95.17,
+      "K": 100,
+      "N": 98.27,
+      "P": 99.4,
+      "Q": 95.65,
+      "R": 0,
+      "all": 97.55,
+      "gp0": 98.19,
+      "gp1": 96.52,
+      "gp2": null
+    },
+    "black": {
+      "B": 96.97,
+      "K": 0,
+      "N": 96.42,
+      "P": 98.61,
+      "Q": 100,
+      "R": 0,
+      "all": 97.88,
+      "gp0": 98.17,
+      "gp1": 97.32,
+      "gp2": null
+    }
+  },
+  "reportCard": {
+    "white": {
+      "effectiveElo": 2300,
+      "glyphs": {
+        "gp0": "greatFind",
+        "gp1": "greatFind"
+      },
+      "categories": []
+    },
+    "black": {
+      "effectiveElo": 2300,
+      "glyphs": {
+        "gp0": "greatFind",
+        "gp1": "greatFind"
+      },
+      "categories": []
+    },
+    "speech": "You had a pretty competitive game there. Both of you played an amazing opening. It was an incredible middlegame by both of you.",
+    "audioUrlHash": "cbce7aef9131813ed2b640b8905557f7563ca601d5c873af09785d55aa9dfc02"
+  },
+  "gameSummary": "Let's review some key moments from your game.",
+  "gameSummaryAudioUrlHash": "4f65de26841c163ad5e96351158105685005b981c6d33f69eab4be269d80e7f7",
+  "gameSummaryPlay": "Let's take some time and review this game together.",
+  "gameSummaryPlayAudioUrlHash": "7b29abec407f9b1a1993b2a95cefb02abc2b72901cc51f35b529e4387474b74f",
+  "gameSummaryCoachEmotion": "impressed",
+  "book": {
+    "name": "Giuoco Piano Game: Giuoco Pianissimo Variation",
+    "moves": "mC0Kgv5QfA9Ilt!TegZR",
+    "code": "C50",
+    "url": "Giuoco-Piano-Game-Giuoco-Pianissimo-Variation-4...Nf6-5.O-O-d6",
+    "score": -0.2,
+    "depth": 15
+  },
+  "coachAssetConfig": {
+    "text_id": "Generic_coach",
+    "locale": "en-US"
+  },
+  "tepOptions": {
+    "AutoDetectTermination": "false",
+    "BadKeyMomentsNeedMaterialOrMate": "false",
+    "BasicVariationThemes": "false",
+    "BlackChesscomUsername": null,
+    "BlackElo": "1500",
+    "BotChatOnlyAfterBotMove": "false",
+    "BotChatPrioritizePlayerMove": "true",
+    "BotChatPrioritizePlayerMovePercent": "50",
+    "BotName": null,
+    "Chess960": "false",
+    "ClassificationV3": "true",
+    "Coach": null,
+    "CoachAssetsV2": "true",
+    "CoachLocale": null,
+    "CoachTextId": null,
+    "DefaultNumNullMoveVariations": "1",
+    "DefaultNumVariations": "2",
+    "DoProgressUpdates": "false",
+    "EloSensitivePD": "false",
+    "Engine": "Torch",
+    "EvalSourceEngine": "Torch",
+    "ForceDisableInternalEngineSearches": "false",
+    "ForgivingClassificationsElo": "0",
+    "GamePhaseV2": "true",
+    "GetThemes": "false",
+    "HandleContinuations": "true",
+    "HandleContinuationsDepth": "14",
+    "HandleContinuationsTimeMs": "0",
+    "HandleNullMoveContinuations": "false",
+    "HandleNullMoveContinuationsDepth": "12",
+    "HandleNullMoveContinuationsTimeMs": "0",
+    "IgnoreStopCommand": "false",
+    "InsightsTags": "false",
+    "Language": "en_US",
+    "LogFD": "-1",
+    "LogFile": "-",
+    "NewSpeech": "false",
+    "NullMoveRepresentation": "(none)",
+    "PersonalSpeechForOpponentMoves": "false",
+    "PgnHeadersJson": "{}",
+    "PrintCoachTags": "false",
+    "Result": "*",
+    "ScoreWhiteToMove": "false",
+    "SerializeBoardEvents": "false",
+    "SerializeEvals": "true",
+    "SerializeLikeCEAC": "true",
+    "SerializeLikeCEACV3": "false",
+    "SerializeSpeechDetails": "true",
+    "ServeCommandV2": "true",
+    "SpeechV2": "false",
+    "SpeechV3": "true",
+    "Strength": null,
+    "Termination": "*",
+    "TestMode": "false",
+    "Threads": "1",
+    "TimeControl": null,
+    "UseDeclarativePositionCommand": "true",
+    "UseImmediateStop": "false",
+    "UseRatingRanges": "true",
+    "UserColor": "white",
+    "VerboseEvalTerms": "false",
+    "VerboseThemes": "false",
+    "WhiteChesscomUsername": null,
+    "WhiteElo": "1500"
+  },
+  "options": [
+    [
+      "AutoDetectTermination",
+      "false"
+    ],
+    [
+      "BadKeyMomentsNeedMaterialOrMate",
+      "false"
+    ],
+    [
+      "BasicVariationThemes",
+      "false"
+    ],
+    [
+      "BlackChesscomUsername",
+      null
+    ],
+    [
+      "BlackElo",
+      "1500"
+    ],
+    [
+      "BotChatOnlyAfterBotMove",
+      "false"
+    ],
+    [
+      "BotChatPrioritizePlayerMove",
+      "true"
+    ],
+    [
+      "BotChatPrioritizePlayerMovePercent",
+      "50"
+    ],
+    [
+      "BotName",
+      null
+    ],
+    [
+      "Chess960",
+      "false"
+    ],
+    [
+      "ClassificationV3",
+      "true"
+    ],
+    [
+      "Coach",
+      null
+    ],
+    [
+      "CoachAssetsV2",
+      "true"
+    ],
+    [
+      "CoachLocale",
+      null
+    ],
+    [
+      "CoachTextId",
+      null
+    ],
+    [
+      "DefaultNumNullMoveVariations",
+      "1"
+    ],
+    [
+      "DefaultNumVariations",
+      "2"
+    ],
+    [
+      "DoProgressUpdates",
+      "false"
+    ],
+    [
+      "EloSensitivePD",
+      "false"
+    ],
+    [
+      "Engine",
+      "Torch"
+    ],
+    [
+      "EvalSourceEngine",
+      "Torch"
+    ],
+    [
+      "ForceDisableInternalEngineSearches",
+      "false"
+    ],
+    [
+      "ForgivingClassificationsElo",
+      "0"
+    ],
+    [
+      "GamePhaseV2",
+      "true"
+    ],
+    [
+      "GetThemes",
+      "false"
+    ],
+    [
+      "HandleContinuations",
+      "true"
+    ],
+    [
+      "HandleContinuationsDepth",
+      "14"
+    ],
+    [
+      "HandleContinuationsTimeMs",
+      "0"
+    ],
+    [
+      "HandleNullMoveContinuations",
+      "false"
+    ],
+    [
+      "HandleNullMoveContinuationsDepth",
+      "12"
+    ],
+    [
+      "HandleNullMoveContinuationsTimeMs",
+      "0"
+    ],
+    [
+      "IgnoreStopCommand",
+      "false"
+    ],
+    [
+      "InsightsTags",
+      "false"
+    ],
+    [
+      "Language",
+      "en_US"
+    ],
+    [
+      "LogFD",
+      "-1"
+    ],
+    [
+      "LogFile",
+      "-"
+    ],
+    [
+      "NewSpeech",
+      "false"
+    ],
+    [
+      "NullMoveRepresentation",
+      "(none)"
+    ],
+    [
+      "PersonalSpeechForOpponentMoves",
+      "false"
+    ],
+    [
+      "PgnHeadersJson",
+      "{}"
+    ],
+    [
+      "PrintCoachTags",
+      "false"
+    ],
+    [
+      "Result",
+      "*"
+    ],
+    [
+      "ScoreWhiteToMove",
+      "false"
+    ],
+    [
+      "SerializeBoardEvents",
+      "false"
+    ],
+    [
+      "SerializeEvals",
+      "true"
+    ],
+    [
+      "SerializeLikeCEAC",
+      "true"
+    ],
+    [
+      "SerializeLikeCEACV3",
+      "false"
+    ],
+    [
+      "SerializeSpeechDetails",
+      "true"
+    ],
+    [
+      "ServeCommandV2",
+      "true"
+    ],
+    [
+      "SpeechV2",
+      "false"
+    ],
+    [
+      "SpeechV3",
+      "true"
+    ],
+    [
+      "Strength",
+      null
+    ],
+    [
+      "Termination",
+      "*"
+    ],
+    [
+      "TestMode",
+      "false"
+    ],
+    [
+      "Threads",
+      "1"
+    ],
+    [
+      "TimeControl",
+      null
+    ],
+    [
+      "UseDeclarativePositionCommand",
+      "true"
+    ],
+    [
+      "UseImmediateStop",
+      "false"
+    ],
+    [
+      "UseRatingRanges",
+      "true"
+    ],
+    [
+      "UserColor",
+      "white"
+    ],
+    [
+      "VerboseEvalTerms",
+      "false"
+    ],
+    [
+      "VerboseThemes",
+      "false"
+    ],
+    [
+      "WhiteChesscomUsername",
+      null
+    ],
+    [
+      "WhiteElo",
+      "1500"
+    ]
+  ]
+}
