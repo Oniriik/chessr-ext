@@ -70,6 +70,16 @@ async function buildLiveAnalysis(): Promise<void> {
     return;
   }
 
+  // Always bring up the server-SF fallback alongside torch. Torch can't
+  // analyse mid-game-rooted positions (its `position fen X + fetch
+  // analysis` crashes the wasm), so when chessr loads on a chess.com
+  // /play/computer continuation game, we route eval-bar updates through
+  // the server SF instead. ServerAnalysisEngine.init is a no-op (just
+  // sets _ready = true) so this is essentially free.
+  const srvFallback = new ServerAnalysisEngine();
+  await srvFallback.init();
+  analysisEngine = srvFallback;
+
   const torch = new TorchAnalysisEngine();
   try {
     if (forceFailSet().has('torch')) {
@@ -81,17 +91,22 @@ async function buildLiveAnalysis(): Promise<void> {
     ]);
     torchAnalysisEngine = torch;
     setTorchLiveEngine(torch);
-    console.log('[Chessr] live analysis ready (torch WASM)');
+    console.log('[Chessr] live analysis ready (torch WASM + server SF fallback for mid-game starts)');
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'wasm', success: true });
     useEngineStore.getState().setTorchAvailable(true);
+    // Expose stores on window for DevTools inspection (read-only debug aid).
+    (window as any).__chessr = {
+      analysisStore: useAnalysisStore,
+      engineStore: useEngineStore,
+      gameStore: useGameStore,
+      torchEngine: () => torchAnalysisEngine,
+    };
     return;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.warn('[Chessr] Torch WASM failed, falling back to server SF', err);
+    console.warn('[Chessr] Torch WASM failed, server SF fallback already up', err);
     try { torch.destroy(); } catch { /* ignore */ }
-    const srv = new ServerAnalysisEngine();
-    await srv.init();
-    analysisEngine = srv;
+    // analysisEngine (ServerAnalysisEngine) is already populated above.
     console.log('[Chessr] live analysis ready (server fallback, degraded mode)');
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'server', success: true, detail: `wasm fail: ${errMsg}` });
     useEngineStore.getState().setTorchAvailable(false);
@@ -624,21 +639,12 @@ export default defineContentScript({
 
         useAnalysisStore.getState().setAnalyzing(true);
 
-        if (torchAnalysisEngine?.ready) {
+        const history = useGameStore.getState().moveHistoryUci;
+        const torchUsable = torchAnalysisEngine?.ready && historyMatchesFen(history, fenAfter);
+
+        if (torchUsable) {
           // Torch primary path — single fetch_analysis on the whole game.
-          // Guard: if our tracked history doesn't replay to the current
-          // FEN (e.g. chessr loaded mid-game and missed early moves),
-          // sending it to torch's `position startpos moves <X>` can
-          // wasm-abort the engine on the inconsistent move sequence.
-          // Skip silently — eval bar will catch up on the next fresh game.
-          const history = useGameStore.getState().moveHistoryUci;
-          if (!historyMatchesFen(history, fenAfter)) {
-            useAnalysisStore.getState().setAnalyzing(false);
-            sendWs({ type: 'analysis_log_end', requestId: arid,
-                     extra: 'skip:history-not-rooted-at-startpos' });
-            return;
-          }
-          torchAnalysisEngine.analyze(history)
+          torchAnalysisEngine!.analyze(history)
             .then((result: TorchAnalysis) => {
               useAnalysisStore.getState().applyTorchAnalysis(result);
               animationGate.markEvent('analysis');
@@ -706,17 +712,13 @@ export default defineContentScript({
         const src = analysisSource();
         sendWs({ type: 'eval_log_start', requestId: erid, extra: `source=${src}` });
 
-        if (torchAnalysisEngine?.ready) {
+        const history = useGameStore.getState().moveHistoryUci;
+        const torchUsableOpp = torchAnalysisEngine?.ready && historyMatchesFen(history, state.fen!);
+
+        if (torchUsableOpp) {
           // Torch path — fetch_analysis on the whole game (includes opponent's
           // last move). Cheap (~60 ms) and keeps everything consistent.
-          // Same history-validity guard as the playerJustMoved branch.
-          const history = useGameStore.getState().moveHistoryUci;
-          if (!historyMatchesFen(history, state.fen!)) {
-            sendWs({ type: 'eval_log_end', requestId: erid,
-                     extra: 'skip:history-not-rooted-at-startpos' });
-            return;
-          }
-          torchAnalysisEngine.analyze(history).then((result) => {
+          torchAnalysisEngine!.analyze(history).then((result) => {
             useAnalysisStore.getState().applyTorchAnalysis(result);
             const last = result.moveAnalyses[result.moveAnalyses.length - 1];
             if (last) {
