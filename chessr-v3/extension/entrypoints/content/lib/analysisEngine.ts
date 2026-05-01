@@ -6,11 +6,11 @@
 const ANALYSIS_DEPTH = 12;
 const HASH_MB = 32;
 
-export interface AnalysisResult {
-  evaluation: number; // centipawns, side-to-move perspective
-  bestMove: string;   // UCI format
-  depth: number;
-}
+// AnalysisResult moved to moveAnalysis.ts (this file is scheduled for
+// deletion once TorchAnalysisEngine fully replaces this engine in
+// content.tsx). Re-exported here so any lingering imports still resolve.
+import type { AnalysisResult } from './moveAnalysis';
+export type { AnalysisResult };
 
 export class AnalysisEngine {
   private worker: Worker | null = null;

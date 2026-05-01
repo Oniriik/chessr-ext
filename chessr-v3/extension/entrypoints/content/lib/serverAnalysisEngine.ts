@@ -14,7 +14,7 @@
  */
 
 import { sendWs, onWsMessage } from './websocket';
-import type { AnalysisResult } from './analysisEngine';
+import type { AnalysisResult } from './moveAnalysis';
 import type { MoveAnalysisResult } from './moveAnalysis';
 
 const EVAL_TIMEOUT_MS = 10_000;

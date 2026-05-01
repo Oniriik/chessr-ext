@@ -3,7 +3,11 @@
  * Ported from serveur/src/handlers/analysisHandler.ts (Chess.com calibrated).
  */
 
-import type { AnalysisResult } from './analysisEngine';
+export interface AnalysisResult {
+  evaluation: number; // centipawns, side-to-move perspective
+  bestMove: string;   // UCI format
+  depth: number;
+}
 
 /** Structural interface: both the WASM AnalysisEngine and the
  *  ServerAnalysisEngine fallback implement this subset. */
