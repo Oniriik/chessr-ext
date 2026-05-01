@@ -5,9 +5,12 @@ import {
   useAccuracyTrend,
   useIsAnalyzing,
   useMoveAnalyses,
+  useCaps,
+  useEffectiveElo,
   computeClassificationCounts,
   type AccuracyTrend,
 } from '../stores/analysisStore';
+import { useGameStore } from '../stores/gameStore';
 import type { MoveClassification } from '../lib/moveAnalysis';
 import { useSettingsStore } from '../stores/settingsStore';
 import { animationGate } from '../stores/animationStore';
@@ -19,12 +22,17 @@ const CLASSIFICATION_CONFIG: {
   full: string;
   color: string;
 }[] = [
-  { key: 'best',       label: 'Best',  full: 'Best',       color: '#22c55e' },
+  { key: 'best',       label: 'Best',  full: 'Best',       color: '#81B64C' },
+  { key: 'brilliant',  label: 'Brill', full: 'Brilliant',  color: '#26C2A3' },
+  { key: 'great',      label: 'Great', full: 'Great',      color: '#749BBF' },
   { key: 'excellent',  label: 'Exce',  full: 'Excellent',  color: '#6ee7b7' },
-  { key: 'good',       label: 'Good',  full: 'Good',       color: '#94a3b8' },
-  { key: 'inaccuracy', label: 'Inacc', full: 'Inaccuracy', color: '#fbbf24' },
-  { key: 'mistake',    label: 'Miss',  full: 'Mistake',    color: '#fb923c' },
-  { key: 'blunder',    label: 'Blund', full: 'Blunder',    color: '#f87171' },
+  { key: 'good',       label: 'Good',  full: 'Good',       color: '#95B776' },
+  { key: 'book',       label: 'Book',  full: 'Book',       color: '#D5A47D' },
+  { key: 'forced',     label: 'Frcd',  full: 'Forced',     color: '#96AF8B' },
+  { key: 'inaccuracy', label: 'Inacc', full: 'Inaccuracy', color: '#F7C631' },
+  { key: 'mistake',    label: 'Mist',  full: 'Mistake',    color: '#FFA459' },
+  { key: 'miss',       label: 'Miss',  full: 'Miss',       color: '#FF7769' },
+  { key: 'blunder',    label: 'Blund', full: 'Blunder',    color: '#FA412D' },
 ];
 
 function getAccuracyColor(accuracy: number): string {
@@ -71,7 +79,16 @@ export default function PerformanceCard() {
   const trend = useAccuracyTrend();
   const isAnalyzing = useIsAnalyzing();
   const moveAnalyses = useMoveAnalyses();
+  const caps = useCaps();
+  const effectiveElo = useEffectiveElo();
+  const playerColor = useGameStore((s) => s.playerColor);
   const disableAnimations = useSettingsStore((s) => s.disableAnimations);
+
+  // Read torch-only stats for the player's side. Null when in degraded
+  // mode (server SF fallback) — UI hides the readouts in that case.
+  const playerCaps = (playerColor ? caps[playerColor]?.all : null) ?? null;
+  const playerElo = playerColor ? effectiveElo[playerColor] : null;
+  const torchModeActive = playerCaps !== null && playerElo != null;
 
   const numberRef = useRef<HTMLSpanElement>(null);
   const badgeRef = useRef<HTMLDivElement>(null);
@@ -176,6 +193,24 @@ export default function PerformanceCard() {
           {idle ? 'Ready' : `${moveCount} moves`}
         </span>
       </div>
+
+      {torchModeActive && !idle && (
+        <div className="perf-torch-stats">
+          <span className="perf-torch-stat">
+            <span className="perf-torch-stat-label">CAPS</span>
+            <span className="perf-torch-stat-value">{playerCaps!.toFixed(1)}</span>
+          </span>
+          <span className="perf-torch-stat">
+            <span className="perf-torch-stat-label">Elo</span>
+            <span className="perf-torch-stat-value">{playerElo}</span>
+          </span>
+        </div>
+      )}
+      {!torchModeActive && !idle && (
+        <div className="perf-torch-stats perf-torch-stats--limited">
+          <span className="perf-torch-stat-limited">limited mode</span>
+        </div>
+      )}
 
       <div className="perf-body">
         <div

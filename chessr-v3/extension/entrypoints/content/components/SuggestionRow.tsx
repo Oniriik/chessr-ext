@@ -8,6 +8,7 @@ import {
   useIsExplanationLoading,
 } from '../stores/explanationStore';
 import type { Suggestion, MoveLabel } from '../stores/suggestionStore';
+import type { MoveClassification } from '../lib/moveAnalysis';
 import './suggestion-row.css';
 
 function hexToRgba(hex: string, alpha: number): string {
@@ -21,6 +22,27 @@ const LABEL_CONFIG: Record<string, { text: string; color: string }> = {
   check:   { text: 'Check',   color: '#f97316' },
   mate:    { text: 'Mate',    color: '#a855f7' },
   capture: { text: 'Capture', color: '#64748b' },
+};
+
+// Classification badge colors / short labels (mirror PerformanceCard).
+// Keep in sync if either is touched.
+const CLASSIFICATION_COLOR: Record<MoveClassification, string> = {
+  best:       '#81B64C',
+  brilliant:  '#26C2A3',
+  great:      '#749BBF',
+  excellent:  '#6ee7b7',
+  good:       '#95B776',
+  book:       '#D5A47D',
+  forced:     '#96AF8B',
+  inaccuracy: '#F7C631',
+  mistake:    '#FFA459',
+  miss:       '#FF7769',
+  blunder:    '#FA412D',
+};
+const CLASSIFICATION_LABEL: Record<MoveClassification, string> = {
+  best: 'Best', brilliant: 'Brill', great: 'Great', excellent: 'Excel',
+  good: 'Good', book: 'Book', forced: 'Frcd',
+  inaccuracy: 'Inacc', mistake: 'Mist', miss: 'Miss', blunder: 'Blund',
 };
 
 const PROMO_PIECES: Record<string, string> = {
@@ -111,6 +133,18 @@ export default function SuggestionRow({ suggestion, index, color, fen, compact, 
             <span className="srow-rank" style={{ color, fontVariantNumeric: 'tabular-nums' }}>#{index + 1}</span>
           )}
           <span className="srow-move">{suggestion.move}</span>
+          {suggestion.class && (
+            <span
+              className="srow-cls-badge"
+              style={{
+                background: hexToRgba(CLASSIFICATION_COLOR[suggestion.class], 0.18),
+                color: CLASSIFICATION_COLOR[suggestion.class],
+              }}
+              title={CLASSIFICATION_LABEL[suggestion.class]}
+            >
+              {CLASSIFICATION_LABEL[suggestion.class]}
+            </span>
+          )}
           {labels.map((l, i) => (
             <span key={i} className="srow-label" style={{ background: hexToRgba(l.color, 0.15), color: l.color }}>
               {l.text}
