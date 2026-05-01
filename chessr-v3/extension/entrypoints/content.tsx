@@ -13,12 +13,21 @@ import { useSettingsStore } from './content/stores/settingsStore';
 import { renderArrows, clearArrows } from './content/lib/arrows';
 import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
-import { AnalysisEngine } from './content/lib/analysisEngine';
 import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
+import { TorchAnalysisEngine } from './content/lib/torchAnalysisEngine';
+import type { TorchAnalysis } from './content/lib/torchJson';
+import { uciFromFens } from './content/lib/uciFromFens';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
 
 function analysisSource(): 'wasm' | 'server' {
+  if (torchAnalysisEngine?.ready) return 'wasm';
   return analysisEngine instanceof ServerAnalysisEngine ? 'server' : 'wasm';
+}
+
+/** Module-scope getter for the suggestion engine to share the live engine
+ *  for per-candidate classification (see TorchClassifier in torchSuggestionEngine). */
+export function getTorchLiveEngine(): TorchAnalysisEngine | null {
+  return torchAnalysisEngine;
 }
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
@@ -38,45 +47,56 @@ import { isPremiumPlan } from './content/lib/premium';
 import { installStreamSync } from './content/lib/streamSync';
 let lastRequestedFen: string | null = null;
 let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | null = null;
+/** Primary slot when torch.wasm is available. Coexists with `analysisEngine`
+ *  (which is populated only in degraded mode = server SF fallback). The two
+ *  slots are mutually exclusive in practice: at any given time, exactly one
+ *  is non-null after `buildLiveAnalysis()` resolves. */
+let torchAnalysisEngine: TorchAnalysisEngine | null = null;
 
-/** WASM-first analysis engine with server fallback. Same 3s WASM cap as
- *  suggestion engines — if Stockfish WASM doesn't load quickly (iOS,
- *  Windows AV, SIMD missing) we fall through to a WS-proxied Stockfish
- *  native on the server. */
-async function buildAnalysisEngine(): Promise<AnalysisBackend & { ready: boolean; destroy(): void }> {
-  // Same dev affordance — set localStorage.chessrForceServer to '1', 'all',
-  // or include 'stockfish' in the comma list to skip Stockfish WASM.
-  if (forceServerSet().has('stockfish')) {
-    console.log('[Chessr] chessrForceServer set for stockfish → server analysis engine');
+/** WASM-first live analysis. Tries torch.wasm in the extension; on failure,
+ *  falls back to the existing server SF native via WebSocket (degraded mode:
+ *  eval bar still works, but no CAPS / effective Elo / 11-class native
+ *  classifications). Populates one of the two module-scope slots. */
+async function buildLiveAnalysis(): Promise<void> {
+  // Reset both slots first (handles re-init after a crash).
+  try { torchAnalysisEngine?.destroy(); } catch { /* ignore */ }
+  try { analysisEngine?.destroy(); } catch { /* ignore */ }
+  torchAnalysisEngine = null;
+  analysisEngine = null;
+
+  if (forceServerSet().has('torch')) {
+    console.log('[Chessr] chessrForceServer set for torch → server SF analysis fallback');
     const srv = new ServerAnalysisEngine();
     await srv.init();
-    recordEngineSwap({ slot: 'analysis', engineId: 'stockfish', mode: 'server', success: true, detail: 'forced via chessrForceServer' });
-    return srv;
+    analysisEngine = srv;
+    recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'server', success: true, detail: 'forced via chessrForceServer' });
+    return;
   }
 
-  const jsUrl = browser.runtime.getURL('/engine/stockfish.js');
-  const wasmUrl = browser.runtime.getURL('/engine/stockfish.wasm');
-  const wasm = new AnalysisEngine();
+  const torch = new TorchAnalysisEngine();
   try {
-    if (forceFailSet().has('stockfish')) {
-      throw new Error('chessrFailWasm set for stockfish → simulated init failure');
+    if (forceFailSet().has('torch')) {
+      throw new Error('chessrFailWasm set for torch → simulated init failure');
     }
     await Promise.race([
-      wasm.init(jsUrl, wasmUrl),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('stockfish wasm init timeout')), 3000)),
+      torch.init(),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('torch wasm init timeout')), 3000)),
     ]);
-    console.log('[Chessr] analysis engine ready (WASM)');
-    recordEngineSwap({ slot: 'analysis', engineId: 'stockfish', mode: 'wasm', success: true });
-    return wasm;
+    torchAnalysisEngine = torch;
+    console.log('[Chessr] live analysis ready (torch WASM)');
+    recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'wasm', success: true });
+    useEngineStore.getState().setTorchAvailable(true);
+    return;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.warn('[Chessr] Stockfish WASM failed, falling back to server', err);
-    try { wasm.destroy(); } catch { /* ignore */ }
+    console.warn('[Chessr] Torch WASM failed, falling back to server SF', err);
+    try { torch.destroy(); } catch { /* ignore */ }
     const srv = new ServerAnalysisEngine();
     await srv.init();
-    console.log('[Chessr] analysis engine ready (server fallback)');
-    recordEngineSwap({ slot: 'analysis', engineId: 'stockfish', mode: 'server', success: true, detail: `wasm fail: ${errMsg}` });
-    return srv;
+    analysisEngine = srv;
+    console.log('[Chessr] live analysis ready (server fallback, degraded mode)');
+    recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'server', success: true, detail: `wasm fail: ${errMsg}` });
+    useEngineStore.getState().setTorchAvailable(false);
   }
 }
 let suggestionEngine: IEngine | null = null;
@@ -135,7 +155,7 @@ function forceServerSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrForceServer;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish', 'torch']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -145,7 +165,7 @@ function forceFailSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrFailWasm;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish', 'torch']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -479,13 +499,10 @@ export default defineContentScript({
       if (uid && uid !== lastLoggedInUserId) {
         lastLoggedInUserId = uid;
         connectWs(uid);
-        if (!analysisEngine) {
-          buildAnalysisEngine()
-            .then((eng) => { analysisEngine = eng; })
-            .catch((err) => {
-              console.error('[Chessr] Failed to init analysis engine:', err);
-              analysisEngine = null;
-            });
+        if (!analysisEngine && !torchAnalysisEngine) {
+          buildLiveAnalysis().catch((err) => {
+            console.error('[Chessr] Failed to init live analysis:', err);
+          });
         }
         // Wait for cloud settings before instantiating the suggestion engine —
         // otherwise we'd boot Komodo by default and immediately swap if the
@@ -584,7 +601,18 @@ export default defineContentScript({
         state.isPlaying &&
         !state.gameOver;
 
-      if (playerJustMoved && analysisEngine?.ready) {
+      // Maintain moveHistoryUci on every detected move (player OR opponent),
+      // before any analysis call — torch's fetch_analysis takes a full
+      // history. Derive UCI from previous→current FEN.
+      const aMoveHappened =
+        previousFen !== null && previousFen !== state.fen && !!state.fen &&
+        state.isPlaying && !state.gameOver;
+      if (aMoveHappened) {
+        const uci = uciFromFens(previousFen!, state.fen!);
+        if (uci) useGameStore.getState().pushUciMove(uci);
+      }
+
+      if (playerJustMoved && (torchAnalysisEngine?.ready || analysisEngine?.ready)) {
         playerMoveCount++;
         const moveNumber = parseMoveNumber(previousFen!);
         const fenBefore = previousFen!;
@@ -596,24 +624,54 @@ export default defineContentScript({
                  extra: `source=${src} move=#${moveNumber}` });
 
         useAnalysisStore.getState().setAnalyzing(true);
-        analyzeLastMove(fenBefore, fenAfter, analysisEngine)
-          .then((result) => {
-            useAnalysisStore.getState().addAnalysis({ ...result, moveNumber });
-            animationGate.markEvent('analysis');
-            const pc = useGameStore.getState().playerColor;
-            const evalWhite = pc === 'black' ? -result.evalAfter : result.evalAfter;
-            useEvalStore.getState().setEval(evalWhite);
-            sendWs({ type: 'analysis_log_end', requestId: arid,
-                     extra: `${result.classification} caps2=${result.caps2}` });
-          })
-          .catch((err) => {
-            console.error('[Chessr] Analysis error:', err);
-            sendWs({ type: 'analysis_log_end', requestId: arid,
-                     extra: `fail:${err?.message || 'unknown'}` });
-          })
-          .finally(() => {
-            useAnalysisStore.getState().setAnalyzing(false);
-          });
+
+        if (torchAnalysisEngine?.ready) {
+          // Torch primary path — single fetch_analysis on the whole game.
+          const history = useGameStore.getState().moveHistoryUci;
+          torchAnalysisEngine.analyze(history)
+            .then((result: TorchAnalysis) => {
+              useAnalysisStore.getState().applyTorchAnalysis(result);
+              animationGate.markEvent('analysis');
+              const last = result.moveAnalyses[result.moveAnalyses.length - 1];
+              if (last) {
+                const pc = useGameStore.getState().playerColor;
+                const evalWhite = pc === 'black' ? -last.evaluation : last.evaluation;
+                useEvalStore.getState().setEval(evalWhite);
+                sendWs({ type: 'analysis_log_end', requestId: arid,
+                         extra: `${last.classification} (torch)` });
+              } else {
+                sendWs({ type: 'analysis_log_end', requestId: arid, extra: 'empty' });
+              }
+            })
+            .catch((err) => {
+              console.error('[Chessr][torch] live analysis error:', err);
+              sendWs({ type: 'analysis_log_end', requestId: arid,
+                       extra: `fail:${err?.message || 'unknown'}` });
+            })
+            .finally(() => {
+              useAnalysisStore.getState().setAnalyzing(false);
+            });
+        } else if (analysisEngine?.ready) {
+          // Degraded path: existing two-FEN flow with server SF.
+          analyzeLastMove(fenBefore, fenAfter, analysisEngine)
+            .then((result) => {
+              useAnalysisStore.getState().addAnalysis({ ...result, moveNumber });
+              animationGate.markEvent('analysis');
+              const pc = useGameStore.getState().playerColor;
+              const evalWhite = pc === 'black' ? -result.evalAfter : result.evalAfter;
+              useEvalStore.getState().setEval(evalWhite);
+              sendWs({ type: 'analysis_log_end', requestId: arid,
+                       extra: `${result.classification} caps2=${result.caps2}` });
+            })
+            .catch((err) => {
+              console.error('[Chessr] Analysis error:', err);
+              sendWs({ type: 'analysis_log_end', requestId: arid,
+                       extra: `fail:${err?.message || 'unknown'}` });
+            })
+            .finally(() => {
+              useAnalysisStore.getState().setAnalyzing(false);
+            });
+        }
       }
 
       // Opponent just moved — quick eval for the eval bar
@@ -627,33 +685,52 @@ export default defineContentScript({
         !state.gameOver &&
         !!state.fen;
 
-      if (opponentJustMoved && analysisEngine?.ready) {
-        // Single position eval — just analyze the current FEN
+      if (opponentJustMoved && (torchAnalysisEngine?.ready || analysisEngine?.ready)) {
         const erid = `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const src = analysisSource();
         sendWs({ type: 'eval_log_start', requestId: erid, extra: `source=${src}` });
-        analysisEngine.analyze(state.fen!).then((result) => {
-          const pc = useGameStore.getState().playerColor;
-          const evalWhite = pc === 'black' ? -result.evaluation / 100 : result.evaluation / 100;
-          useEvalStore.getState().setEval(evalWhite);
-          sendWs({ type: 'eval_log_end', requestId: erid,
-                   extra: `bestMove=${result.bestMove} eval=${result.evaluation}cp d${result.depth}` });
-        }).catch((err) => {
-          sendWs({ type: 'eval_log_end', requestId: erid, extra: `fail:${err?.message || 'unknown'}` });
-          // If Stockfish crashed the `ready` flag will have been cleared
-          // by the engine's error handler — re-init so the next move's
-          // eval bar update can still work.
-          if (!analysisEngine?.ready) {
-            try { analysisEngine?.destroy(); } catch { /* ignore */ }
-            analysisEngine = null;
-            buildAnalysisEngine()
-              .then((eng) => { analysisEngine = eng; })
-              .catch((err) => {
-                console.error('[Chessr] Stockfish re-init failed:', err);
-                analysisEngine = null;
-              });
-          }
-        });
+
+        if (torchAnalysisEngine?.ready) {
+          // Torch path — fetch_analysis on the whole game (includes opponent's
+          // last move). Cheap (~60 ms) and keeps everything consistent.
+          const history = useGameStore.getState().moveHistoryUci;
+          torchAnalysisEngine.analyze(history).then((result) => {
+            useAnalysisStore.getState().applyTorchAnalysis(result);
+            const last = result.moveAnalyses[result.moveAnalyses.length - 1];
+            if (last) {
+              const pc = useGameStore.getState().playerColor;
+              // Opponent just moved — last entry is from opponent's POV. Negate
+              // for player POV (consistent with the SF path's evalAfter shape).
+              const evalPlayerPov = -last.evaluation;
+              const evalWhite = pc === 'black' ? -evalPlayerPov : evalPlayerPov;
+              useEvalStore.getState().setEval(evalWhite);
+            }
+            sendWs({ type: 'eval_log_end', requestId: erid,
+                     extra: `eval=${last?.evaluation ?? '?'} (torch)` });
+          }).catch((err) => {
+            sendWs({ type: 'eval_log_end', requestId: erid, extra: `fail:${err?.message || 'unknown'}` });
+            if (!torchAnalysisEngine?.ready) {
+              buildLiveAnalysis().catch((e) =>
+                console.error('[Chessr] live-analysis re-init failed:', e));
+            }
+          });
+        } else if (analysisEngine?.ready) {
+          // Degraded path — existing single-FEN call to server SF.
+          analysisEngine.analyze(state.fen!).then((result) => {
+            const pc = useGameStore.getState().playerColor;
+            const evalWhite = pc === 'black' ? -result.evaluation / 100 : result.evaluation / 100;
+            useEvalStore.getState().setEval(evalWhite);
+            sendWs({ type: 'eval_log_end', requestId: erid,
+                     extra: `bestMove=${result.bestMove} eval=${result.evaluation}cp d${result.depth}` });
+          }).catch((err) => {
+            sendWs({ type: 'eval_log_end', requestId: erid, extra: `fail:${err?.message || 'unknown'}` });
+            // Re-init the live engine if the previous one died.
+            if (!analysisEngine?.ready) {
+              buildLiveAnalysis().catch((e) =>
+                console.error('[Chessr] live-analysis re-init failed:', e));
+            }
+          });
+        }
       }
     });
 

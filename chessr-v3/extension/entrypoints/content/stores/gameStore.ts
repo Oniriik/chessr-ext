@@ -22,9 +22,14 @@ interface GameState {
   result: GameResult;
   playerColor: Color;
   turn: Color;
+  /** Cumulative UCI move history since startpos. Used by torch's
+   *  fetch_analysis pipeline (which takes a moves-from-startpos history).
+   *  Pushed on each detected move; cleared on reset. */
+  moveHistoryUci: string[];
 
   setPlaying: (playing: boolean) => void;
   setMove: (fen: string, gameOver: boolean, turn: Color, gameEnd?: GameEndInfo | null) => void;
+  pushUciMove: (uci: string) => void;
   setGameOver: (result: GameResult) => void;
   setPlayerColor: (color: Color) => void;
   reset: () => void;
@@ -46,10 +51,21 @@ export const useGameStore = create<GameState>((set) => ({
   result: '*',
   playerColor: null,
   turn: null,
+  moveHistoryUci: [],
 
   setPlaying: (playing) => set({ isPlaying: playing }),
   setMove: (fen, gameOver, turn, gameEnd = null) => set({ fen, gameOver, turn, gameEnd }),
+  pushUciMove: (uci) => set((s) => ({ moveHistoryUci: [...s.moveHistoryUci, uci] })),
   setGameOver: (result) => set({ gameOver: true, result }),
   setPlayerColor: (color) => set({ playerColor: color }),
-  reset: () => set({ isPlaying: false, fen: null, gameOver: false, gameEnd: null, result: '*', playerColor: null, turn: null }),
+  reset: () => set({
+    isPlaying: false,
+    fen: null,
+    gameOver: false,
+    gameEnd: null,
+    result: '*',
+    playerColor: null,
+    turn: null,
+    moveHistoryUci: [],
+  }),
 }));

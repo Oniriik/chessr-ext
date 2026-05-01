@@ -135,6 +135,12 @@ interface EngineState {
   capabilities: EngineCapabilities;
   setCapabilities: (c: EngineCapabilities) => void;
 
+  /** null = unprobed, true = torch.wasm init OK, false = WASM unavailable.
+   *  Set by buildLiveAnalysis() in content.tsx based on which engine slot
+   *  it populated. SettingsScreen greys the Torch option when false. */
+  torchAvailable: boolean | null;
+  setTorchAvailable: (v: boolean) => void;
+
   setEngineId: (v: EngineId) => void;
   setMaiaVariant: (v: MaiaVariant) => void;
   setMaiaTargetEloAuto: (v: boolean) => void;
@@ -199,6 +205,9 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
   ...ENGINE_DEFAULTS,
   capabilities: CAPABILITIES_PERMISSIVE,
   setCapabilities: (c) => set({ capabilities: c }),
+
+  torchAvailable: null,
+  setTorchAvailable: (v) => set({ torchAvailable: v }),
 
   setEngineId: (v) => set({ engineId: v }),
   setMaiaVariant: (v) => set({ maiaVariant: v }),
