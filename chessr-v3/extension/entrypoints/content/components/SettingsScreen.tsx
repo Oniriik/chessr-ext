@@ -426,12 +426,13 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
 /** Engines available on the free tier. Maia 2 / Maia 3 stay premium —
  *  they're the human-style engines that justify upgrading. Komodo and
  *  Stockfish are the two classical engines; both unlocked on free. */
-const FREE_TIER_ENGINES: EngineId[] = ['komodo', 'stockfish'];
+const FREE_TIER_ENGINES: EngineId[] = ['komodo', 'stockfish', 'torch'];
 
 function EngineSettingsTab() {
   const { engineId, setEngineId, autoEloBoost, setAutoEloBoost } = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
+  const torchAvailable = useEngineStore((s) => s.torchAvailable);
   const engineIds = Object.keys(ENGINE_INFO) as EngineId[];
   // Tolerate a stale engineId (e.g. 'patricia' from pre-3.1.0 cloud state)
   // by falling back to the first known engine. The cloud sanitizer in
@@ -460,11 +461,13 @@ function EngineSettingsTab() {
           >
             {engineIds.map((id) => {
               const locked = !premium && !FREE_TIER_ENGINES.includes(id);
+              const torchUnavailable = id === 'torch' && torchAvailable === false;
               return (
-                <option key={id} value={id} disabled={locked}>
+                <option key={id} value={id} disabled={locked || torchUnavailable}>
                   {ENGINE_INFO[id].label}
                   {ENGINE_INFO[id].beta ? ' (beta)' : ''}
                   {locked ? ' — Premium' : ''}
+                  {torchUnavailable ? ' — WASM unavailable' : ''}
                 </option>
               );
             })}

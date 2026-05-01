@@ -228,11 +228,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           // downgrade Maia 2 / Maia 3 to Komodo on free users (Maia is a
           // premium-only engine; a free user with a stale Maia preference
           // from a previous premium session would otherwise keep using it).
-          const knownIds = ['komodo', 'maia2', 'maia3', 'stockfish'];
+          const knownIds = ['komodo', 'maia2', 'maia3', 'stockfish', 'torch'];
           if (knownIds.includes(eng.engineId)) {
             const plan = useAuthStore.getState().plan;
             const premiumPlan = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-            const FREE_OK = ['komodo', 'stockfish'];
+            const FREE_OK = ['komodo', 'stockfish', 'torch'];
             const finalId = premiumPlan || FREE_OK.includes(eng.engineId)
               ? eng.engineId
               : 'komodo';
