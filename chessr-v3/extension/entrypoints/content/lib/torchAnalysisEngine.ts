@@ -69,6 +69,12 @@ export class TorchAnalysisEngine {
   private _ready = false;
   private _disposed = false;
   private deps: TorchAnalysisDeps;
+  /** Sequential queue: torch processes UCI commands in order; pipelining
+   *  position+fetch_analysis from concurrent analyze() calls puts the
+   *  json-listeners in a state where listener N can resolve with the
+   *  payload from a previous call (and worse: deeply nested fetch_analysis
+   *  calls have triggered wasm abort()s in production). Serialise. */
+  private analysisQueue: Promise<unknown> = Promise.resolve();
 
   constructor(deps?: Partial<TorchAnalysisDeps>) {
     this.deps = {
@@ -105,21 +111,33 @@ export class TorchAnalysisEngine {
     if (this._disposed) throw new Error('engine disposed');
     if (!this._ready || !this.worker) throw new Error('engine not ready');
 
-    const movesPart = history.length ? ` moves ${history.join(' ')}` : '';
-    this.send(`position startpos${movesPart}`);
+    // Chain on the previous analysis so commands are strictly sequential.
+    // .catch on the prior promise so that if it failed, this one doesn't
+    // immediately reject — we want each call to attempt its own work.
+    const next = this.analysisQueue.catch(() => undefined).then(async () => {
+      // Re-check state at the moment we actually start (may have been
+      // disposed while we were queued).
+      if (this._disposed) throw new Error('engine disposed');
+      if (!this._ready || !this.worker) throw new Error('engine not ready');
 
-    const json = await this.waitForLinePrefix(
-      'json ',
-      () => this.send('fetch analysis'),
-      ANALYSIS_TIMEOUT_MS,
-    );
-    let raw: unknown;
-    try {
-      raw = JSON.parse(json.slice(5));
-    } catch (e) {
-      throw new Error(`torch JSON parse error: ${(e as Error).message}`);
-    }
-    return parseFetchAnalysisJson(raw);
+      const movesPart = history.length ? ` moves ${history.join(' ')}` : '';
+      this.send(`position startpos${movesPart}`);
+
+      const json = await this.waitForLinePrefix(
+        'json ',
+        () => this.send('fetch analysis'),
+        ANALYSIS_TIMEOUT_MS,
+      );
+      let raw: unknown;
+      try {
+        raw = JSON.parse(json.slice(5));
+      } catch (e) {
+        throw new Error(`torch JSON parse error: ${(e as Error).message}`);
+      }
+      return parseFetchAnalysisJson(raw);
+    });
+    this.analysisQueue = next;
+    return next;
   }
 
   destroy(): void {
@@ -177,7 +195,13 @@ export class TorchAnalysisEngine {
       };
       const timer = setTimeout(() => {
         this.worker?.removeEventListener('message', onMsg);
-        reject(new Error(`torch: timeout waiting for line prefixed "${prefix}"`));
+        // Timeout on a json-line means the wasm probably aborted (the
+        // worker is alive but the engine no longer emits anything).
+        // Mark the engine dead so the caller's catch handler triggers
+        // a re-init via buildLiveAnalysis.
+        this._ready = false;
+        this._disposed = true;
+        reject(new Error(`torch: timeout waiting for line prefixed "${prefix}" (engine may have aborted)`));
       }, timeoutMs);
       this.worker.addEventListener('message', onMsg);
       trigger();

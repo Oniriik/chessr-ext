@@ -17,7 +17,7 @@ import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
 import { TorchAnalysisEngine } from './content/lib/torchAnalysisEngine';
 import { setTorchLiveEngine } from './content/lib/torchLiveRef';
 import type { TorchAnalysis } from './content/lib/torchJson';
-import { uciFromFens } from './content/lib/uciFromFens';
+import { uciFromFens, historyMatchesFen } from './content/lib/uciFromFens';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
 
 function analysisSource(): 'wasm' | 'server' {
@@ -626,7 +626,18 @@ export default defineContentScript({
 
         if (torchAnalysisEngine?.ready) {
           // Torch primary path — single fetch_analysis on the whole game.
+          // Guard: if our tracked history doesn't replay to the current
+          // FEN (e.g. chessr loaded mid-game and missed early moves),
+          // sending it to torch's `position startpos moves <X>` can
+          // wasm-abort the engine on the inconsistent move sequence.
+          // Skip silently — eval bar will catch up on the next fresh game.
           const history = useGameStore.getState().moveHistoryUci;
+          if (!historyMatchesFen(history, fenAfter)) {
+            useAnalysisStore.getState().setAnalyzing(false);
+            sendWs({ type: 'analysis_log_end', requestId: arid,
+                     extra: 'skip:history-not-rooted-at-startpos' });
+            return;
+          }
           torchAnalysisEngine.analyze(history)
             .then((result: TorchAnalysis) => {
               useAnalysisStore.getState().applyTorchAnalysis(result);
@@ -646,6 +657,12 @@ export default defineContentScript({
               console.error('[Chessr][torch] live analysis error:', err);
               sendWs({ type: 'analysis_log_end', requestId: arid,
                        extra: `fail:${err?.message || 'unknown'}` });
+              // Engine may have aborted (wasm crash); re-init silently so
+              // the next move is analysed by a fresh worker.
+              if (!torchAnalysisEngine?.ready) {
+                buildLiveAnalysis().catch((e) =>
+                  console.error('[Chessr] live-analysis re-init failed:', e));
+              }
             })
             .finally(() => {
               useAnalysisStore.getState().setAnalyzing(false);
@@ -692,7 +709,13 @@ export default defineContentScript({
         if (torchAnalysisEngine?.ready) {
           // Torch path — fetch_analysis on the whole game (includes opponent's
           // last move). Cheap (~60 ms) and keeps everything consistent.
+          // Same history-validity guard as the playerJustMoved branch.
           const history = useGameStore.getState().moveHistoryUci;
+          if (!historyMatchesFen(history, state.fen!)) {
+            sendWs({ type: 'eval_log_end', requestId: erid,
+                     extra: 'skip:history-not-rooted-at-startpos' });
+            return;
+          }
           torchAnalysisEngine.analyze(history).then((result) => {
             useAnalysisStore.getState().applyTorchAnalysis(result);
             const last = result.moveAnalyses[result.moveAnalyses.length - 1];

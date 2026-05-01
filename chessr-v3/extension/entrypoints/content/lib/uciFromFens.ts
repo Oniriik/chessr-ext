@@ -7,9 +7,44 @@
  *
  * Returns null if no legal move connects the two positions (illegal
  * fenAfter, or non-adjacent positions). Cheap (≤ ~50 candidates per ply).
+ *
+ * Also exposes `historyMatchesFen(history, fen)` — replay a UCI history
+ * from startpos and check whether it produces `fen`. Used to gate calls
+ * to torch's `position startpos moves <history>` to avoid sending an
+ * inconsistent sequence (which can wasm-abort the engine when chess.com
+ * loaded an in-progress game whose early moves we never observed).
  */
 
 import { Chess } from 'chess.js';
+
+/** Replay `history` (UCI moves) from startpos and check the resulting
+ *  position equals `fen`. Compared on the first 3 space-separated tokens
+ *  (board + side-to-move + castling) — en-passant + halfmove + fullmove
+ *  fields diverge harmlessly between chess.js and chess.com so we ignore
+ *  them. Returns false if any move in history is illegal. */
+export function historyMatchesFen(history: string[], fen: string): boolean {
+  let chess: Chess;
+  try {
+    chess = new Chess();
+  } catch {
+    return false;
+  }
+  for (const m of history) {
+    try {
+      const result = chess.move({
+        from: m.slice(0, 2),
+        to: m.slice(2, 4),
+        promotion: m.length >= 5 ? m.slice(4) : undefined,
+      });
+      if (!result) return false;
+    } catch {
+      return false;
+    }
+  }
+  const replayKey = chess.fen().split(' ').slice(0, 3).join(' ');
+  const targetKey = fen.split(' ').slice(0, 3).join(' ');
+  return replayKey === targetKey;
+}
 
 export function uciFromFens(fenBefore: string, fenAfter: string): string | null {
   let chess: Chess;
