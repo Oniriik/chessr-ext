@@ -19,6 +19,8 @@ import { buildGoCommand, type SearchOptions } from './searchOptions.js';
 import { labelSuggestions, type LabeledSuggestion, type Suggestion } from './engineLabeler.js';
 import type { IEngine, SuggestionSearchParams as IEngineSearchParams } from './engineApi';
 import type { EngineCapabilities } from '../stores/engineStore';
+import { TorchClassifier } from './torchClassifier.js';
+import { getTorchLiveEngine } from './torchLiveRef.js';
 
 // Match SF / Komodo at 512 MB hash for consistent memory profile when
 // switching engines.
@@ -43,12 +45,14 @@ export class TorchSuggestionEngine implements IEngine {
   private activeReject: ((e: Error) => void) | null = null;
   private activeListener: ((e: MessageEvent) => void) | null = null;
   private activeFen: string | null = null;
+  private activeHistory: string[] = [];
   private activeMultiPv = 1;
   private activeTimer: ReturnType<typeof setTimeout> | null = null;
   private activeResults: Map<string, Suggestion> = new Map();
   private cancelling: Promise<void> | null = null;
 
   private lastFullmove: number | null = null;
+  private classifier: TorchClassifier | null = null;
 
   get ready() { return this._ready; }
   get supportedOptions(): ReadonlySet<string> { return this._supportedOptions; }
@@ -102,6 +106,12 @@ export class TorchSuggestionEngine implements IEngine {
       throw new Error('Torch WASM does not advertise MultiPV — cannot run suggestions');
     }
 
+    // Wire the classifier to the live analysis engine if it's available.
+    // If not (degraded mode or live still initialising), suggestion list
+    // simply renders without class badges — graceful degradation.
+    const live = getTorchLiveEngine();
+    if (live) this.classifier = new TorchClassifier(live);
+
     this._ready = true;
     await this.newGame();
   }
@@ -132,6 +142,7 @@ export class TorchSuggestionEngine implements IEngine {
       this.activeResolve = resolve;
       this.activeReject = reject;
       this.activeFen = params.fen;
+      this.activeHistory = params.moves ? [...params.moves] : [];
       this.activeMultiPv = Math.max(1, Math.min(3, params.multiPv ?? 1));
       this.activeResults = new Map();
 
@@ -174,6 +185,10 @@ export class TorchSuggestionEngine implements IEngine {
       URL.revokeObjectURL(this.blobUrl);
       this.blobUrl = null;
     }
+    // Clear the classifier cache; do NOT destroy the live engine — it's
+    // owned by content.tsx and shared across multiple consumers.
+    this.classifier?.clear();
+    this.classifier = null;
     this._ready = false;
   }
 
@@ -218,7 +233,9 @@ export class TorchSuggestionEngine implements IEngine {
     } else if (line.startsWith('bestmove')) {
       const resolve = this.activeResolve;
       const fen = this.activeFen!;
+      const history = this.activeHistory;
       const mp = this.activeMultiPv;
+      const classifier = this.classifier;
       const allRaws = Array.from(this.activeResults.values());
       let raws = allRaws.sort((a, b) => a.multipv - b.multipv).slice(0, mp);
 
@@ -246,8 +263,29 @@ export class TorchSuggestionEngine implements IEngine {
       if (this.activeListener && this.worker) this.worker.removeEventListener('message', this.activeListener);
       this.activeListener = null;
       this.activeResolve = null; this.activeReject = null; this.activeFen = null;
+      this.activeHistory = [];
       this.activeResults = new Map();
-      if (resolve) resolve(labelSuggestions(raws, fen));
+
+      if (!resolve) return;
+      const labeled = labelSuggestions(raws, fen);
+
+      // No classifier (live engine unavailable) → resolve immediately
+      // without class badges.
+      if (!classifier) {
+        resolve(labeled);
+        return;
+      }
+
+      // Classify each candidate via fetch_analysis on the live engine.
+      // Failures fall through to no-class — Promise.allSettled keeps
+      // partial results.
+      Promise.all(
+        labeled.map((s) =>
+          classifier.classify(history, s.move).then((klass) => { s.class = klass; }).catch(() => { /* leave .class undefined */ }),
+        ),
+      ).finally(() => {
+        resolve(labeled);
+      });
     }
   }
 

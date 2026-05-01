@@ -15,6 +15,7 @@ import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
 import { TorchAnalysisEngine } from './content/lib/torchAnalysisEngine';
+import { setTorchLiveEngine } from './content/lib/torchLiveRef';
 import type { TorchAnalysis } from './content/lib/torchJson';
 import { uciFromFens } from './content/lib/uciFromFens';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
@@ -22,12 +23,6 @@ import type { AnalysisBackend } from './content/lib/moveAnalysis';
 function analysisSource(): 'wasm' | 'server' {
   if (torchAnalysisEngine?.ready) return 'wasm';
   return analysisEngine instanceof ServerAnalysisEngine ? 'server' : 'wasm';
-}
-
-/** Module-scope getter for the suggestion engine to share the live engine
- *  for per-candidate classification (see TorchClassifier in torchSuggestionEngine). */
-export function getTorchLiveEngine(): TorchAnalysisEngine | null {
-  return torchAnalysisEngine;
 }
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
@@ -64,6 +59,7 @@ async function buildLiveAnalysis(): Promise<void> {
   try { analysisEngine?.destroy(); } catch { /* ignore */ }
   torchAnalysisEngine = null;
   analysisEngine = null;
+  setTorchLiveEngine(null);
 
   if (forceServerSet().has('torch')) {
     console.log('[Chessr] chessrForceServer set for torch → server SF analysis fallback');
@@ -84,6 +80,7 @@ async function buildLiveAnalysis(): Promise<void> {
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error('torch wasm init timeout')), 3000)),
     ]);
     torchAnalysisEngine = torch;
+    setTorchLiveEngine(torch);
     console.log('[Chessr] live analysis ready (torch WASM)');
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'wasm', success: true });
     useEngineStore.getState().setTorchAvailable(true);

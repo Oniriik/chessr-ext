@@ -1,4 +1,5 @@
 import { Chess } from 'chess.js';
+import type { MoveClassification } from './moveAnalysis';
 
 export interface Suggestion {
   multipv: number;
@@ -16,6 +17,10 @@ export type MoveLabel = 'check' | 'mate' | 'capture' | `promotion:${'q' | 'r' | 
 
 export interface LabeledSuggestion extends Suggestion {
   labels: MoveLabel[];
+  /** Native Chess.com classification of this candidate. Populated by the
+   *  torch path (one fetch_analysis per candidate). Absent / undefined on
+   *  Komodo / Stockfish / Maia paths — UI hides the badge when missing. */
+  class?: MoveClassification;
 }
 
 export function labelSuggestions(suggestions: Suggestion[], fen: string): LabeledSuggestion[] {
