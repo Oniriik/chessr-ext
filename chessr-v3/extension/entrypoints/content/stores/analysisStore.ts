@@ -85,10 +85,15 @@ export function computeClassificationCounts(
 ): Record<MoveClassification, number> {
   const counts: Record<MoveClassification, number> = {
     best: 0,
+    brilliant: 0,
+    great: 0,
     excellent: 0,
     good: 0,
+    book: 0,
+    forced: 0,
     inaccuracy: 0,
     mistake: 0,
+    miss: 0,
     blunder: 0,
   };
   for (const a of analyses) {

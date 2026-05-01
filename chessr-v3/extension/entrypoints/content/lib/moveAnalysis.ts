@@ -20,7 +20,18 @@ export interface AnalysisBackend {
   classifyMove?(fenBefore: string, fenAfter: string): Promise<MoveAnalysisResult>;
 }
 
-export type MoveClassification = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
+export type MoveClassification =
+  | 'best'
+  | 'brilliant'
+  | 'great'
+  | 'excellent'
+  | 'good'
+  | 'book'
+  | 'forced'
+  | 'inaccuracy'
+  | 'mistake'
+  | 'miss'
+  | 'blunder';
 
 export interface MoveAnalysisResult {
   classification: MoveClassification;
