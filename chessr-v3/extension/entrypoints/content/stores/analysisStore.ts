@@ -4,6 +4,8 @@
 
 import { create } from 'zustand';
 import type { MoveClassification } from '../lib/moveAnalysis';
+import { winProb, computeCAPS2 } from '../lib/moveAnalysis';
+import type { CapsBlock, TallyMap, TorchAnalysis } from '../lib/torchJson';
 
 export interface MoveAnalysis {
   moveNumber: number;
@@ -16,6 +18,13 @@ export interface MoveAnalysis {
   bestMove: string;
 }
 
+/** Slot for the per-side stats torch's fetch_analysis publishes. `null`
+ *  means we're in degraded mode (server SF fallback) — UI hides the
+ *  CAPS / Elo readouts in that case rather than showing zeros. */
+export type TorchCaps = { white: CapsBlock | null; black: CapsBlock | null };
+export type TorchEffectiveElo = { white: number | null; black: number | null };
+export type TorchTallies = { white: TallyMap | null; black: TallyMap | null };
+
 export type AccuracyTrend = 'up' | 'down' | 'stable';
 
 interface AnalysisState {
@@ -25,9 +34,20 @@ interface AnalysisState {
   isAnalyzing: boolean;
   lastAnalysis: MoveAnalysis | null;
 
+  // Torch-only slices. Null in degraded mode (server fallback active).
+  caps: TorchCaps;
+  effectiveElo: TorchEffectiveElo;
+  tallies: TorchTallies;
+
   addAnalysis: (analysis: MoveAnalysis) => void;
+  /** Bulk-replace state from a torch fetch_analysis result. Computes
+   *  caps2/diff/wpDiff per move locally so existing accuracy reducers
+   *  (which depend on these fields) continue to work numerically. */
+  applyTorchAnalysis: (a: TorchAnalysis) => void;
   setAnalyzing: (v: boolean) => void;
   reset: () => void;
+  /** Clear torch-only slices. Called on chessr:newGame alongside reset. */
+  resetTorchSlices: () => void;
 }
 
 function computeAccuracy(analyses: MoveAnalysis[]): number {
@@ -42,6 +62,9 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
   accuracyTrend: 'stable',
   isAnalyzing: false,
   lastAnalysis: null,
+  caps: { white: null, black: null },
+  effectiveElo: { white: null, black: null },
+  tallies: { white: null, black: null },
 
   addAnalysis: (analysis) => {
     const prev = get();
@@ -62,6 +85,42 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
     });
   },
 
+  applyTorchAnalysis: (a) => {
+    // Build full MoveAnalysis entries from torch's per-move evals so
+    // existing reducers (computeAccuracy, computeClassificationCounts)
+    // see populated caps2/diff/wpDiff. Eval BEFORE move i = -eval AFTER
+    // move i-1 (POV swap); for move 0 we treat eval-before as 0.
+    const augmented: MoveAnalysis[] = a.moveAnalyses.map((m, i) => {
+      const evalBefore = i === 0 ? 0 : -a.moveAnalyses[i - 1].evaluation;
+      const evalAfter = m.evaluation;
+      const diff = Math.max(0, evalBefore - evalAfter);
+      const wpDiff = Math.max(0, winProb(evalBefore) - winProb(evalAfter));
+      const caps2 = computeCAPS2(diff, Math.abs(evalBefore));
+      return {
+        moveNumber: i + 1,
+        classification: m.classification,
+        caps2: Math.round(caps2 * 10) / 10,
+        diff: Math.round(diff * 100) / 100,
+        wpDiff: Math.round(wpDiff * 100) / 100,
+        evalBefore: Math.round(evalBefore * 100) / 100,
+        evalAfter: Math.round(evalAfter * 100) / 100,
+        bestMove: m.moveLan,
+      };
+    });
+    const accuracy = computeAccuracy(augmented);
+    set({
+      moveAnalyses: augmented,
+      accuracy,
+      // accuracyTrend not meaningful for bulk replace; keep stable.
+      accuracyTrend: 'stable',
+      lastAnalysis: augmented[augmented.length - 1] ?? null,
+      isAnalyzing: false,
+      caps: a.caps,
+      effectiveElo: a.effectiveElo,
+      tallies: a.tallies,
+    });
+  },
+
   setAnalyzing: (v) => set({ isAnalyzing: v }),
 
   reset: () =>
@@ -71,6 +130,16 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
       accuracyTrend: 'stable',
       isAnalyzing: false,
       lastAnalysis: null,
+      caps: { white: null, black: null },
+      effectiveElo: { white: null, black: null },
+      tallies: { white: null, black: null },
+    }),
+
+  resetTorchSlices: () =>
+    set({
+      caps: { white: null, black: null },
+      effectiveElo: { white: null, black: null },
+      tallies: { white: null, black: null },
     }),
 }));
 
@@ -79,6 +148,9 @@ export const useAccuracyTrend = () => useAnalysisStore((s) => s.accuracyTrend);
 export const useIsAnalyzing = () => useAnalysisStore((s) => s.isAnalyzing);
 export const useLastAnalysis = () => useAnalysisStore((s) => s.lastAnalysis);
 export const useMoveAnalyses = () => useAnalysisStore((s) => s.moveAnalyses);
+export const useCaps = () => useAnalysisStore((s) => s.caps);
+export const useEffectiveElo = () => useAnalysisStore((s) => s.effectiveElo);
+export const useTallies = () => useAnalysisStore((s) => s.tallies);
 
 export function computeClassificationCounts(
   analyses: MoveAnalysis[],
