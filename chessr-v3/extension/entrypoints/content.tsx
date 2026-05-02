@@ -10,7 +10,7 @@ import { useSuggestionStore } from './content/stores/suggestionStore';
 import { connectWs, disconnectWs, sendWs } from './content/lib/websocket';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
-import { renderArrows, clearArrows } from './content/lib/arrows';
+import { renderArrows, clearArrows, applyClassificationsToBoard } from './content/lib/arrows';
 import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
@@ -592,13 +592,25 @@ export default defineContentScript({
     // Suggestions are now served by the local SuggestionEngine; no WS
     // message dispatch needed here.
 
-    // Render arrows when suggestions change (with animation)
+    // Render arrows when suggestions change (with animation). Async
+    // classifyCandidate updates land here too — they only mutate
+    // `class` on existing entries. Detect that and refresh badges
+    // only, leaving arrow paths (and their draw animation) untouched.
+    let lastSuggestionsKey: string | null = null;
     useSuggestionStore.subscribe((state) => {
-      if (state.suggestions.length > 0) {
-        const isFlipped = useGameStore.getState().playerColor === 'black';
-        renderArrows(state.suggestions, isFlipped, true);
-      } else {
+      if (state.suggestions.length === 0) {
+        lastSuggestionsKey = null;
         clearArrows();
+        return;
+      }
+      const moveKey = state.suggestions.map((s) => s.move).join('|');
+      const isFlipped = useGameStore.getState().playerColor === 'black';
+      if (moveKey === lastSuggestionsKey) {
+        // Same arrow set — only badges may have changed. Refresh in place.
+        applyClassificationsToBoard(state.suggestions);
+      } else {
+        renderArrows(state.suggestions, isFlipped, true);
+        lastSuggestionsKey = moveKey;
       }
     });
 

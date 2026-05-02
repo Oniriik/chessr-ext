@@ -3,6 +3,27 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { boardSelectors } from '../adapters/BoardSelectors';
 import type { LabeledSuggestion } from './engineLabeler';
+import type { MoveClassification } from './moveAnalysis';
+
+// Mirrors PerformanceCard / SuggestionRow palette — keep in sync.
+const CLASSIFICATION_COLOR: Record<MoveClassification, string> = {
+  best:       '#81B64C',
+  brilliant:  '#26C2A3',
+  great:      '#749BBF',
+  excellent:  '#6ee7b7',
+  good:       '#95B776',
+  book:       '#D5A47D',
+  forced:     '#96AF8B',
+  inaccuracy: '#F7C631',
+  mistake:    '#FFA459',
+  miss:       '#FF7769',
+  blunder:    '#FA412D',
+};
+const CLASSIFICATION_LABEL: Record<MoveClassification, string> = {
+  best: 'Best', brilliant: 'Brill', great: 'Great', excellent: 'Excel',
+  good: 'Good', book: 'Book', forced: 'Frcd',
+  inaccuracy: 'Inacc', mistake: 'Mist', miss: 'Miss', blunder: 'Blund',
+};
 
 const DRAW_DURATION = 0.3;
 
@@ -12,7 +33,7 @@ let defs: SVGDefsElement | null = null;
 let squareSize = 0;
 let flipped = false;
 let resizeObserver: ResizeObserver | null = null;
-let lastSuggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore'>[] = [];
+let lastSuggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[] = [];
 
 // Drawn-arrow registry keyed by `from` square so drag handlers can shorten
 // or hide the matching arrows in real time as the user drags the piece.
@@ -26,6 +47,14 @@ interface DrawnArrow {
   totalLen: number;
 }
 const arrowsByFrom = new Map<string, DrawnArrow[]>();
+
+// Per-suggestion badge container (classification + standard labels for
+// one arrow), keyed by the full UCI move so two suggestions sharing a
+// `from` square (e.g. two different promotion pieces) get distinct
+// badge groups. Tracked separately from arrows so renderBadges() can
+// swap badges in place without re-rendering the arrow path — torch's
+// async classifyCandidate landing should not re-animate the arrow.
+const badgeGroupByMove = new Map<string, SVGGElement>();
 
 function getBoard(): HTMLElement | null {
   return boardSelectors.boardEl();
@@ -106,6 +135,114 @@ function resolveLabelDisplay(label: string, mateScore?: number | null): { displa
     return { displayLabel: label, displayText: Math.abs(mateScore) === 1 ? 'Mate' : `M${Math.abs(mateScore)}`, badgeColor: LABEL_COLORS[label] || '#c084fc' };
   }
   return { displayLabel: label, displayText: label.charAt(0).toUpperCase() + label.slice(1), badgeColor: LABEL_COLORS[label] || '#94a3b8' };
+}
+
+/** Build a single badge <g> at slot `stackIndex` (0 = top, others stacked
+ *  below). Used for both classification badges and standard labels. */
+function makeBadge(toPt: { x: number; y: number }, text: string, badgeColor: string, stackIndex: number, animate: boolean): SVGGElement {
+  const fontSize = Math.max(6, squareSize / 11);
+  const padX = fontSize * 0.6;
+  const padY = fontSize * 0.2;
+  const badgeW = text.length * fontSize * 0.65 + padX * 2;
+  const badgeH = fontSize + padY * 2;
+  const inset = 8;
+  const x = toPt.x + squareSize / 2 - badgeW / 2 - inset;
+  const y = toPt.y - squareSize / 2 + badgeH / 2 + inset + stackIndex * (badgeH + 2);
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('transform', `translate(${x}, ${y})`);
+
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', `${-badgeW / 2}`);
+  rect.setAttribute('y', `${-badgeH / 2}`);
+  rect.setAttribute('width', `${badgeW}`);
+  rect.setAttribute('height', `${badgeH}`);
+  rect.setAttribute('rx', `${fontSize * 0.3}`);
+  const r = parseInt(badgeColor.slice(1, 3), 16);
+  const g2 = parseInt(badgeColor.slice(3, 5), 16);
+  const b = parseInt(badgeColor.slice(5, 7), 16);
+  rect.setAttribute('fill', `rgba(${r}, ${g2}, ${b}, 0.85)`);
+  g.appendChild(rect);
+
+  const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  txt.setAttribute('x', '0');
+  txt.setAttribute('y', `${fontSize * 0.35}`);
+  txt.setAttribute('text-anchor', 'middle');
+  txt.setAttribute('font-size', `${fontSize}`);
+  txt.setAttribute('font-weight', '700');
+  txt.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, sans-serif');
+  txt.setAttribute('letter-spacing', '0.04em');
+  txt.setAttribute('fill', 'white');
+  txt.textContent = text.toUpperCase();
+  g.appendChild(txt);
+
+  if (animate) {
+    gsap.fromTo(g,
+      { attr: { transform: `translate(${x}, ${y}) scale(0)` }, opacity: 0 },
+      { attr: { transform: `translate(${x}, ${y}) scale(1)` }, opacity: 1, duration: 0.2, ease: 'back.out(2)' },
+    );
+  }
+  return g;
+}
+
+/** Draw all badges (classification + standard labels) for one suggestion.
+ *  Classification ALWAYS sits at slot 0 (per UI convention — see
+ *  SuggestionRow); standard labels stack below it. Returns the wrapping
+ *  <g> so the caller can track + atomically replace it on updates. */
+function buildSuggestionBadges(s: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>, animate: boolean): SVGGElement | null {
+  const to = s.move.slice(2, 4);
+  const toPt = getSquareCenter(to);
+  if (!toPt) return null;
+
+  const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  wrapper.setAttribute('data-badges-for', s.move);
+  let slot = 0;
+  if (s.class) {
+    const cls = s.class;
+    wrapper.appendChild(makeBadge(toPt, CLASSIFICATION_LABEL[cls], CLASSIFICATION_COLOR[cls], slot++, animate));
+  }
+  for (const l of s.labels ?? []) {
+    const { displayText, badgeColor } = resolveLabelDisplay(l, s.mateScore);
+    wrapper.appendChild(makeBadge(toPt, displayText, badgeColor, slot++, animate));
+  }
+  return wrapper;
+}
+
+/** Render badges (classification + labels) for the current suggestion
+ *  set. Idempotent: drops a move's badge group when its `move` is gone,
+ *  rebuilds in place when its labels/class changed, leaves others alone.
+ *  Called from renderArrows after the paths land, AND from
+ *  applyClassificationsToBoard when async torch results stream in. */
+function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[], animate: boolean) {
+  if (!arrowGroup) return;
+  const moveSet = new Set(suggestions.map((s) => s.move));
+  // Drop badge groups whose move dropped out of the suggestion list
+  for (const [m, g] of badgeGroupByMove) {
+    if (!moveSet.has(m)) {
+      g.remove();
+      badgeGroupByMove.delete(m);
+    }
+  }
+  for (const s of suggestions) {
+    const stateKey = `${s.class ?? '-'}|${(s.labels ?? []).join(',')}|${s.mateScore ?? '-'}`;
+    const existing = badgeGroupByMove.get(s.move);
+    if (existing && existing.getAttribute('data-state') === stateKey) continue;
+    if (existing) {
+      existing.remove();
+      badgeGroupByMove.delete(s.move);
+    }
+    const wrapper = buildSuggestionBadges(s, animate);
+    if (!wrapper) continue;
+    wrapper.setAttribute('data-state', stateKey);
+    arrowGroup.appendChild(wrapper);
+    badgeGroupByMove.set(s.move, wrapper);
+  }
+}
+
+/** Public hook: torch's async classifyCandidate stream lands here. Just
+ *  refresh badges — the underlying arrows stay put. */
+export function applyClassificationsToBoard(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[]) {
+  renderBadges(suggestions, true);
 }
 
 function drawBadge(pt: { x: number; y: number }, label: string, badgeColor: string, animate = true, displayText?: string, stackIndex = 0) {
@@ -259,23 +396,14 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
       ease: 'power2.out',
       onComplete: () => {
         path.setAttribute('marker-end', `url(#chessr-marker-${index})`);
-        if (labels?.length) {
-          labels.forEach((l, i) => {
-            const { displayLabel, displayText, badgeColor } = resolveLabelDisplay(l, mateScore);
-            drawBadge(toPt, displayLabel, badgeColor, true, displayText, i);
-          });
-        }
       },
     });
   } else {
     path.setAttribute('marker-end', `url(#chessr-marker-${index})`);
-    if (labels?.length) {
-      labels.forEach((l, i) => {
-        const { displayLabel, displayText, badgeColor } = resolveLabelDisplay(l, mateScore);
-        drawBadge(toPt, displayLabel, badgeColor, false, displayText, i);
-      });
-    }
   }
+  // Badges (classification + standard labels) are drawn by renderBadges
+  // — kept separate so async classifyCandidate updates can swap them
+  // without re-animating the arrow path.
 
   return path;
 }
@@ -301,9 +429,11 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
         createOverlay(board);
         if (arrowGroup) arrowGroup.innerHTML = '';
         if (defs) defs.innerHTML = '';
+        badgeGroupByMove.clear();
         for (const s of lastSuggestions) {
           drawArrow(s.move.slice(0, 2), s.move.slice(2, 4), lastSuggestions.indexOf(s), false, s.labels, s.mateScore);
         }
+        renderBadges(lastSuggestions, false);
       }
     });
     resizeObserver.observe(board);
@@ -318,6 +448,10 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   }
   if (defs) defs.innerHTML = '';
   arrowsByFrom.clear();
+  // arrowGroup.innerHTML='' wiped every <g> we tracked too — drop the
+  // badge map so renderBadges re-creates fresh entries for the new
+  // arrows instead of trying to reuse stale ones.
+  badgeGroupByMove.clear();
 
   const sorted = [...suggestions].map((s, i) => ({ ...s, index: i }));
   sorted.sort((a, b) => {
@@ -329,11 +463,20 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   for (const s of sorted) {
     drawArrow(s.move.slice(0, 2), s.move.slice(2, 4), s.index, animate, s.labels, s.mateScore);
   }
+  // Badges go on after the arrow drawing animation finishes — matches
+  // the previous timing where labels appeared once the path was drawn.
+  // Without animation, render immediately (no delay needed).
+  if (animate) {
+    setTimeout(() => renderBadges(suggestions, true), DRAW_DURATION * 1000);
+  } else {
+    renderBadges(suggestions, false);
+  }
 }
 
 export function clearArrows() {
   lastSuggestions = [];
   arrowsByFrom.clear();
+  badgeGroupByMove.clear();
   if (!arrowGroup) return;
   const children = Array.from(arrowGroup.children);
   if (!children.length) return;
