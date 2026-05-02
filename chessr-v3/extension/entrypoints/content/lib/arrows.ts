@@ -212,7 +212,15 @@ function buildSuggestionBadges(s: Pick<LabeledSuggestion, 'move' | 'labels' | 'm
  *  set. Idempotent: drops a move's badge group when its `move` is gone,
  *  rebuilds in place when its labels/class changed, leaves others alone.
  *  Called from renderArrows after the paths land, AND from
- *  applyClassificationsToBoard when async torch results stream in. */
+ *  applyClassificationsToBoard when async torch results stream in.
+ *
+ *  Promotion-label dedup: when several suggestions promote to the same
+ *  destination square (engine returned Q/R/B/N alternatives in MultiPV),
+ *  only the FIRST candidate (the top-rated suggestion in the iteration
+ *  order) keeps its `promotion:*` label. The cheaper alternatives lose
+ *  it — same square, same redundant "Promo X" badge would otherwise
+ *  stack visually on the destination corner. Other label types
+ *  (check/capture/mate) still propagate to all matching arrows. */
 function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[], animate: boolean) {
   if (!arrowGroup) return;
   const moveSet = new Set(suggestions.map((s) => s.move));
@@ -223,15 +231,27 @@ function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | '
       badgeGroupByMove.delete(m);
     }
   }
+  const promoSeenAtSquare = new Set<string>();
   for (const s of suggestions) {
-    const stateKey = `${s.class ?? '-'}|${(s.labels ?? []).join(',')}|${s.mateScore ?? '-'}`;
+    const to = s.move.slice(2, 4);
+    const isPromo = (s.labels ?? []).some((l) => l.startsWith('promotion:'));
+    let effectiveLabels = s.labels ?? [];
+    if (isPromo) {
+      if (promoSeenAtSquare.has(to)) {
+        // Drop the promo label — already shown by an earlier (better) candidate.
+        effectiveLabels = effectiveLabels.filter((l) => !l.startsWith('promotion:'));
+      } else {
+        promoSeenAtSquare.add(to);
+      }
+    }
+    const stateKey = `${s.class ?? '-'}|${effectiveLabels.join(',')}|${s.mateScore ?? '-'}`;
     const existing = badgeGroupByMove.get(s.move);
     if (existing && existing.getAttribute('data-state') === stateKey) continue;
     if (existing) {
       existing.remove();
       badgeGroupByMove.delete(s.move);
     }
-    const wrapper = buildSuggestionBadges(s, animate);
+    const wrapper = buildSuggestionBadges({ ...s, labels: effectiveLabels }, animate);
     if (!wrapper) continue;
     wrapper.setAttribute('data-state', stateKey);
     arrowGroup.appendChild(wrapper);
