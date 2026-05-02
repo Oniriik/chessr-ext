@@ -44,7 +44,7 @@
   padding: 8px 14px;
   border-radius: 12px;
   transition: all 0.2s ease;
-  min-width: 72px;
+  min-width: 88px;
 }
 
 .perf-accuracy--idle {
@@ -64,7 +64,7 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  min-width: 2.2ch;
+  min-width: 4ch;
   text-align: right;
 }
 
@@ -159,29 +159,29 @@
   visibility: hidden;
 }
 
-/* ── Torch-only stats: CAPS + Effective Elo ───────────────────────────────── */
-.perf-torch-stats {
-  display: flex;
-  gap: 12px;
-  padding: 6px 12px;
-  margin: 0 0 8px 0;
-  background: rgba(116, 155, 191, 0.08);
-  border-radius: 6px;
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.85);
-}
-.perf-torch-stat {
+/* Torch effective-Elo readout, anchored under the accuracy number.
+ * Replaces the standalone perf-torch-stats row so the user sees Elo
+ * paired with the headline accuracy figure. CAPS isn't shown here —
+ * the accuracy number IS the CAPS now (one decimal, no rounding). */
+.perf-accuracy-elo {
   display: flex;
   align-items: baseline;
   gap: 4px;
-}
-.perf-torch-stat-label {
+  margin-top: 4px;
   font-size: 10px;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+}
+
+.perf-accuracy-elo-label {
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  opacity: 0.6;
+  opacity: 0.7;
 }
-.perf-torch-stat-value {
+
+.perf-accuracy-elo-value {
+  font-size: 11px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
 }

@@ -114,13 +114,16 @@ export default function PerformanceCard() {
   const shouldAnimateAnalysis = !idle && animationGate.consumeEvent('analysis', 'panel-perf');
   const color = getAccuracyColor(accuracy);
 
-  // Animate accuracy number with GSAP — only on real analysis events
+  // Animate accuracy number with GSAP — only on real analysis events.
+  // Show one decimal (matches torch's CAPS precision) so small swings
+  // (61.4 → 61.7) are visible instead of being rounded away.
   useEffect(() => {
     if (idle || !numberRef.current) return;
 
+    const fmt = (v: number) => v.toFixed(1);
     if (!shouldAnimateAnalysis || displayedValue.current.val === accuracy) {
       displayedValue.current.val = accuracy;
-      numberRef.current.textContent = Math.round(accuracy).toString();
+      numberRef.current.textContent = fmt(accuracy);
       return;
     }
 
@@ -130,7 +133,7 @@ export default function PerformanceCard() {
       ease: 'power2.out',
       onUpdate: () => {
         if (numberRef.current) {
-          numberRef.current.textContent = Math.round(displayedValue.current.val).toString();
+          numberRef.current.textContent = fmt(displayedValue.current.val);
         }
       },
     });
@@ -200,19 +203,6 @@ export default function PerformanceCard() {
         </span>
       </div>
 
-      {torchModeActive && !idle && (
-        <div className="perf-torch-stats">
-          <span className="perf-torch-stat">
-            <span className="perf-torch-stat-label">CAPS</span>
-            <span className="perf-torch-stat-value">{playerCaps!.toFixed(1)}</span>
-          </span>
-          <span className="perf-torch-stat">
-            <span className="perf-torch-stat-label">Elo</span>
-            <span className="perf-torch-stat-value">{playerElo}</span>
-          </span>
-        </div>
-      )}
-
       <div className="perf-body">
         <div
           ref={badgeRef}
@@ -225,7 +215,7 @@ export default function PerformanceCard() {
             ) : (
               <>
                 <span ref={numberRef} className="perf-accuracy-number" style={{ color }}>
-                  {Math.round(accuracy)}
+                  {accuracy.toFixed(1)}
                 </span>
                 <span className="perf-accuracy-pct" style={{ color }}>%</span>
               </>
@@ -250,6 +240,12 @@ export default function PerformanceCard() {
               </div>
             )}
           </div>
+          {torchModeActive && !idle && (
+            <div className="perf-accuracy-elo" title="Effective Elo (torch)">
+              <span className="perf-accuracy-elo-label">Elo</span>
+              <span className="perf-accuracy-elo-value">{playerElo}</span>
+            </div>
+          )}
         </div>
 
         <div className="perf-grid">
