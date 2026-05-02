@@ -103,10 +103,12 @@ async function buildLiveAnalysis(): Promise<void> {
       gameStore: useGameStore,
       torchEngine: () => torchAnalysisEngine,
     };
-    // If chessr loaded mid-game and history was already seeded, kick off
-    // an initial fetch_analysis so the Performance Card has stats to show
-    // before the user makes the next move.
-    triggerInitialAnalysisIfSeeded();
+    // NOTE: we used to call triggerInitialAnalysisIfSeeded() here to
+    // populate the Performance Card immediately on continuation games.
+    // That triggered wasm aborts on certain mid-game move sequences
+    // (`UseDeclarativePositionCommand=true` + first call with arbitrary
+    // history is fragile). We now wait for the player's next move
+    // instead — the regular onMove flow will populate stats fine.
     return;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -138,38 +140,6 @@ let lastSearchKey: string | null = null;
 // the message handler below.
 let newGameResetTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingNewGameFen: string | null = null;
-
-/** Fire one fetch_analysis if torch is ready and we have a seeded
- *  startpos-rooted history but no analysis yet. Idempotent — guards
- *  against double-firing if the user makes a move while the initial
- *  analysis is in flight. */
-function triggerInitialAnalysisIfSeeded(): void {
-  if (!torchAnalysisEngine?.ready) return;
-  const history = useGameStore.getState().moveHistoryUci;
-  if (history.length === 0) return;
-  const fen = useGameStore.getState().fen;
-  if (!fen) return;
-  if (!historyMatchesFen(history, fen)) return;
-  if (useAnalysisStore.getState().moveAnalyses.length > 0) return; // already analyzed
-  console.log('[Chessr] firing initial fetch_analysis on seeded history (', history.length, 'moves)');
-  useAnalysisStore.getState().setAnalyzing(true);
-  torchAnalysisEngine.fetchFullAnalysis(history)
-    .then((result) => {
-      useAnalysisStore.getState().applyTorchAnalysis(result);
-      const last = result.moveAnalyses[result.moveAnalyses.length - 1];
-      if (last) {
-        const pc = useGameStore.getState().playerColor;
-        const evalWhite = pc === 'black' ? -last.evaluation : last.evaluation;
-        useEvalStore.getState().setEval(evalWhite);
-      }
-    })
-    .catch((err) => {
-      console.warn('[Chessr] initial fetch_analysis failed:', err);
-    })
-    .finally(() => {
-      useAnalysisStore.getState().setAnalyzing(false);
-    });
-}
 
 /** Convert a list emitted by extractInitialMoves (UCI strings, optionally
  *  prefixed with a single "pgn:<pgn>" sentinel for the PGN-fallback path)
@@ -691,7 +661,7 @@ export default defineContentScript({
         if (uci) useGameStore.getState().pushUciMove(uci);
       }
 
-      if (playerJustMoved && (torchAnalysisEngine?.ready || analysisEngine?.ready)) {
+      if (playerJustMoved && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
         playerMoveCount++;
         const moveNumber = parseMoveNumber(previousFen!);
         const fenBefore = previousFen!;
@@ -782,7 +752,7 @@ export default defineContentScript({
         !state.gameOver &&
         !!state.fen;
 
-      if (opponentJustMoved && (torchAnalysisEngine?.ready || analysisEngine?.ready)) {
+      if (opponentJustMoved && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
         const erid = `e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const src = analysisSource();
         sendWs({ type: 'eval_log_start', requestId: erid, extra: `source=${src}` });
@@ -913,15 +883,13 @@ export default defineContentScript({
         case 'chessr:initialMoves':
           // chessr loaded mid-game (continuation game on chess.com).
           // Seed moveHistoryUci with the moves chess.com had in memory so
-          // historyMatchesFen passes and torch fetch_analysis can run.
+          // the next player move triggers a torch fetch_analysis that
+          // replays correctly from startpos.
           if (Array.isArray(data.moves) && data.moves.length > 0) {
             const seeded = parseInitialMoves(data.moves);
             if (seeded.length > 0) {
               useGameStore.getState().setMoveHistoryUci(seeded);
               console.log('[Chessr] seeded', seeded.length, 'initial moves into history');
-              // Fire an initial analysis if torch is already up. Otherwise
-              // buildLiveAnalysis will trigger it once torch finishes init.
-              triggerInitialAnalysisIfSeeded();
             }
           }
           break;
