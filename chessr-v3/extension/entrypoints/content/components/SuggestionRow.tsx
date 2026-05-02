@@ -135,9 +135,9 @@ export default function SuggestionRow({ suggestion, index, color, fen, compact, 
           <span className="srow-move">{suggestion.move}</span>
           {suggestion.class && (
             <span
-              className="srow-cls-badge"
+              className="srow-label"
               style={{
-                background: hexToRgba(CLASSIFICATION_COLOR[suggestion.class], 0.18),
+                background: hexToRgba(CLASSIFICATION_COLOR[suggestion.class], 0.15),
                 color: CLASSIFICATION_COLOR[suggestion.class],
               }}
               title={CLASSIFICATION_LABEL[suggestion.class]}
