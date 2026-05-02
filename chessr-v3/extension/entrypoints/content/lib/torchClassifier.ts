@@ -1,26 +1,27 @@
 /**
- * TorchClassifier — given a TorchAnalysisEngine instance and a base
- * history, classify a single candidate move via fetch_analysis.
+ * TorchClassifier — classify a single candidate move via the live torch
+ * fetch_analysis engine. Reads the live engine LAZILY through a getter so
+ * that if the live engine is replaced (e.g. crash recovery), subsequent
+ * classify() calls pick up the new instance instead of holding a stale
+ * reference.
  *
- * Cache keyed on `<historyHash>|<candidateUci>`. Sequential queue:
- * torch is single-threaded and the live engine may be mid-call, so
- * stacked classifier requests resolve one after the other rather than
- * racing against live moves.
- *
- * Used by TorchSuggestionEngine to label each top-N PV with its native
- * Chess.com class.
+ * Cache keyed on `<historyHash>|<candidateUci>`. Sequential queue: torch
+ * is single-threaded; stacked classifier requests resolve one after the
+ * other.
  */
 
 import type { TorchAnalysisEngine } from './torchAnalysisEngine.js';
 import type { MoveClassification } from './torchClassification.js';
 
 export class TorchClassifier {
-  private engine: TorchAnalysisEngine;
+  /** Lazy getter: read the current live torch engine on every call. The
+   *  reference can change if buildLiveAnalysis re-inits after a crash. */
+  private getEngine: () => TorchAnalysisEngine | null;
   private cache = new Map<string, MoveClassification>();
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(engine: TorchAnalysisEngine) {
-    this.engine = engine;
+  constructor(getEngine: () => TorchAnalysisEngine | null) {
+    this.getEngine = getEngine;
   }
 
   async classify(history: string[], candidateUci: string): Promise<MoveClassification> {
@@ -29,8 +30,10 @@ export class TorchClassifier {
     if (cached !== undefined) return cached;
 
     const promise = this.queue.then(async () => {
+      const engine = this.getEngine();
+      if (!engine?.ready) return 'good' as MoveClassification;
       try {
-        const a = await this.engine.fetchFullAnalysis([...history, candidateUci]);
+        const a = await engine.fetchFullAnalysis([...history, candidateUci]);
         const last = a.moveAnalyses[a.moveAnalyses.length - 1];
         const klass: MoveClassification = last?.classification ?? 'good';
         this.cache.set(key, klass);

@@ -133,10 +133,19 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     this.worker = this.deps.workerFactory(this.blobUrl, this.deps.wasmUrl);
 
     this.worker.addEventListener('error', (e) => {
-      this._disposed = true;
-      this._ready = false;
       const msg = (e as ErrorEvent).message ?? 'torch worker crashed';
       console.warn('[Chessr][torch] worker error:', msg);
+      // Clean up immediately — no point holding the dead Worker + BlobURL.
+      // Subsequent enqueue() calls will see disposed=true and reject; the
+      // catch handlers in content.tsx re-init via buildLiveAnalysis.
+      this._disposed = true;
+      this._ready = false;
+      try { this.worker?.terminate(); } catch { /* ignore */ }
+      this.worker = null;
+      if (this.blobUrl) {
+        URL.revokeObjectURL(this.blobUrl);
+        this.blobUrl = null;
+      }
     });
 
     await this.cmd('uci', 'uciok', INIT_TIMEOUT_MS);

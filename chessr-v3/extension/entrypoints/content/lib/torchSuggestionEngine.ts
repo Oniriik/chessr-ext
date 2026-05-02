@@ -106,11 +106,11 @@ export class TorchSuggestionEngine implements IEngine {
       throw new Error('Torch WASM does not advertise MultiPV — cannot run suggestions');
     }
 
-    // Wire the classifier to the live analysis engine if it's available.
-    // If not (degraded mode or live still initialising), suggestion list
-    // simply renders without class badges — graceful degradation.
-    const live = getTorchLiveEngine();
-    if (live) this.classifier = new TorchClassifier(live);
+    // Wire the classifier with a lazy getter — it reads the live engine
+    // on every call, so a crash + re-init of the live engine doesn't
+    // leave us with a stale dead reference. If no live engine is up at
+    // call time, the classifier returns 'good' (graceful degradation).
+    this.classifier = new TorchClassifier(getTorchLiveEngine);
 
     this._ready = true;
     await this.newGame();
@@ -203,6 +203,12 @@ export class TorchSuggestionEngine implements IEngine {
         resolve();
       };
       this.sendRaw('stop');
+      // Safety: if torch is wedged and never emits bestmove, the cancel
+      // promise would hang forever — that blocks engine swaps. Bound it.
+      setTimeout(() => {
+        if (this.activeResolve) this.abortActive(new Error('cancel timeout'));
+        resolve();
+      }, 2000);
     });
     await this.cancelling;
     this.cancelling = null;

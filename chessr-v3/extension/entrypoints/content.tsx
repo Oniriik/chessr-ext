@@ -55,11 +55,30 @@ let torchAnalysisEngine: TorchAnalysisEngine | null = null;
  *  the legacy SF AnalysisEngine. Used when game isn't startpos-rooted. */
 let torchUciEngine: TorchAnalysisEngine | null = null;
 
+/** Re-init backoff state. After repeated init failures we space out the
+ *  retries so we don't hammer torch.wasm if it's permanently broken on
+ *  this device (low-mem mobile, AV-stripped binary, etc.). */
+let lastInitAttemptAt = 0;
+let consecutiveInitFailures = 0;
+
 /** WASM-first live analysis. Tries torch.wasm in the extension; on failure,
  *  falls back to the existing server SF native via WebSocket (degraded mode:
  *  eval bar still works, but no CAPS / effective Elo / 11-class native
- *  classifications). Populates one of the two module-scope slots. */
+ *  classifications). Populates one of the two module-scope slots.
+ *
+ *  No-op (resolves immediately) if a recent failure means we're in the
+ *  exponential-backoff window — caller must handle the resulting null slots. */
 async function buildLiveAnalysis(): Promise<void> {
+  // Backoff: 0 / 2s / 8s / 30s / 60s caps, after each failure.
+  const backoffMs = consecutiveInitFailures === 0 ? 0
+    : Math.min(60_000, 2_000 * Math.pow(2, consecutiveInitFailures - 1));
+  const sinceLastAttempt = Date.now() - lastInitAttemptAt;
+  if (sinceLastAttempt < backoffMs) {
+    console.log('[Chessr] live-analysis init backoff:', backoffMs - sinceLastAttempt, 'ms remaining');
+    return;
+  }
+  lastInitAttemptAt = Date.now();
+
   // Reset all slots first (handles re-init after a crash).
   try { torchAnalysisEngine?.destroy(); } catch { /* ignore */ }
   try { torchUciEngine?.destroy(); } catch { /* ignore */ }
@@ -93,6 +112,7 @@ async function buildLiveAnalysis(): Promise<void> {
     torchAnalysisEngine = torchRich;
     torchUciEngine = torchUci;
     setTorchLiveEngine(torchRich);
+    consecutiveInitFailures = 0;
     console.log('[Chessr] live analysis ready (torch WASM × 2: rich for fetch_analysis, uci for any-FEN eval)');
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'wasm', success: true });
     useEngineStore.getState().setTorchAvailable(true);
@@ -112,7 +132,8 @@ async function buildLiveAnalysis(): Promise<void> {
     return;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.warn('[Chessr] Torch WASM failed, falling back to server SF', err);
+    consecutiveInitFailures += 1;
+    console.warn('[Chessr] Torch WASM failed, falling back to server SF (', consecutiveInitFailures, 'consecutive failures)', err);
     try { torchRich.destroy(); } catch { /* ignore */ }
     try { torchUci.destroy(); } catch { /* ignore */ }
     const srv = new ServerAnalysisEngine();
@@ -653,12 +674,40 @@ export default defineContentScript({
       // Maintain moveHistoryUci on every detected move (player OR opponent),
       // before any analysis call — torch's fetch_analysis takes a full
       // history. Derive UCI from previous→current FEN.
+      //
+      // Two desync hazards we guard against:
+      //   1. Takeback: state.fen goes BACKWARDS (chess.com /play/computer
+      //      offers takebacks). uciFromFens returns null. We pop the
+      //      tail of moveHistoryUci instead.
+      //   2. Generic mismatch (uciFromFens returns null but state.fen
+      //      didn't go backwards): non-adjacent positions. We can't
+      //      reconstruct, so we resync — clear history; future fetch_analysis
+      //      will fall back to UCI mode until next chessr:newGame.
       const aMoveHappened =
         previousFen !== null && previousFen !== state.fen && !!state.fen &&
         state.isPlaying && !state.gameOver;
       if (aMoveHappened) {
         const uci = uciFromFens(previousFen!, state.fen!);
-        if (uci) useGameStore.getState().pushUciMove(uci);
+        if (uci) {
+          useGameStore.getState().pushUciMove(uci);
+        } else {
+          // Position is not reachable in 1 move from previousFen. Detect
+          // takeback: if popping the last move from current history yields
+          // a position that matches state.fen, treat as takeback.
+          const hist = useGameStore.getState().moveHistoryUci;
+          if (hist.length > 0 && historyMatchesFen(hist.slice(0, -1), state.fen!)) {
+            useGameStore.getState().setMoveHistoryUci(hist.slice(0, -1));
+            console.log('[Chessr][hist] takeback detected — popped 1 move, history now', hist.length - 1);
+          } else {
+            // Unreachable transition (chess960, sub-variant, page-rebind,
+            // or chessr loaded the page in a weird state). Drop the
+            // history and let UCI-mode handle it from here.
+            if (hist.length > 0) {
+              useGameStore.getState().setMoveHistoryUci([]);
+              console.log('[Chessr][hist] resync (history desynced) — cleared,', hist.length, 'moves dropped');
+            }
+          }
+        }
       }
 
       if (playerJustMoved && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
@@ -686,8 +735,11 @@ export default defineContentScript({
               animationGate.markEvent('analysis');
               const last = result.moveAnalyses[result.moveAnalyses.length - 1];
               if (last) {
-                const pc = useGameStore.getState().playerColor;
-                const evalWhite = pc === 'black' ? -last.evaluation : last.evaluation;
+                // Torch reports eval from the side-to-move-after-the-move
+                // POV (i.e. the opponent's POV after the player's move).
+                // Convert to white POV: if black is now to move, negate.
+                const sideToMoveAfter = state.fen ? state.fen.split(' ')[1] : 'w';
+                const evalWhite = sideToMoveAfter === 'b' ? -last.evaluation : last.evaluation;
                 useEvalStore.getState().setEval(evalWhite);
                 sendWs({ type: 'analysis_log_end', requestId: arid,
                          extra: `${last.classification} (torch)` });
@@ -766,11 +818,11 @@ export default defineContentScript({
             useAnalysisStore.getState().applyTorchAnalysis(result);
             const last = result.moveAnalyses[result.moveAnalyses.length - 1];
             if (last) {
-              const pc = useGameStore.getState().playerColor;
-              // Opponent just moved — last entry is from opponent's POV. Negate
-              // for player POV (consistent with the SF path's evalAfter shape).
-              const evalPlayerPov = -last.evaluation;
-              const evalWhite = pc === 'black' ? -evalPlayerPov : evalPlayerPov;
+              // Torch reports eval from the side-to-move-after-the-move
+              // POV. Same rule as the playerJustMoved branch: negate to
+              // get white POV iff black is now to move.
+              const sideToMoveAfter = state.fen ? state.fen.split(' ')[1] : 'w';
+              const evalWhite = sideToMoveAfter === 'b' ? -last.evaluation : last.evaluation;
               useEvalStore.getState().setEval(evalWhite);
             }
             sendWs({ type: 'eval_log_end', requestId: erid,
@@ -885,11 +937,25 @@ export default defineContentScript({
           // Seed moveHistoryUci with the moves chess.com had in memory so
           // the next player move triggers a torch fetch_analysis that
           // replays correctly from startpos.
+          //
+          // GUARD: only accept the seed if history is still empty. If the
+          // user already played a move during the 250ms-3s seed-poll
+          // window, our pushUciMove path is the source of truth — don't
+          // clobber it with a (potentially stale) seed. The adapter polls
+          // anyway, so a late seed for an in-progress game is dropped.
           if (Array.isArray(data.moves) && data.moves.length > 0) {
+            const currentHist = useGameStore.getState().moveHistoryUci;
+            if (currentHist.length > 0) {
+              console.log('[Chessr] seed ignored — history already populated (', currentHist.length, 'moves)');
+              break;
+            }
             const seeded = parseInitialMoves(data.moves);
             if (seeded.length > 0) {
               useGameStore.getState().setMoveHistoryUci(seeded);
               console.log('[Chessr] seeded', seeded.length, 'initial moves into history');
+              // After seeding, also reset previousFen so the next FEN-diff
+              // observation doesn't pushUciMove a phantom move on top.
+              previousFen = useGameStore.getState().fen;
             }
           }
           break;
