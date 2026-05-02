@@ -107,7 +107,19 @@ export default function App({ streamMode = false }: AppProps = {}) {
 
     if (!alreadyLinked) {
       fetchPlatformProfile(detected.platform, detected.username).then((profile) => {
-        if (profile) setNeedsLinking(true, profile);
+        if (!profile) return;
+        // Backwards-compat: worldchess rows that pre-date the switch from
+        // editable full_name → stable profile id (PR moving to numeric
+        // username) match by displayName. If we find such a legacy row,
+        // accept the link as already-done instead of re-prompting.
+        if (profile.displayName) {
+          const legacyMatch = accounts.some(
+            (a) => a.platform === profile.platform
+                && a.username.toLowerCase() === profile.displayName!.toLowerCase(),
+          );
+          if (legacyMatch) return;
+        }
+        setNeedsLinking(true, profile);
       });
     }
   }, [accountsLoading, accounts, user]);

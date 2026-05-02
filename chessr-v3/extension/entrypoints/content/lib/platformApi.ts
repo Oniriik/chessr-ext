@@ -1,8 +1,16 @@
 export type Platform = 'chesscom' | 'lichess' | 'worldchess';
 
 export interface PlatformProfile {
+  /** Stable platform-specific identifier — used to match `linked_accounts`
+   *  rows on subsequent visits. Slug-style on chess.com / lichess (the
+   *  username); numeric profile id on worldchess (display names there are
+   *  editable so they can't be the linking key). */
   username: string;
   platform: Platform;
+  /** Pretty name for the link-screen card. Defaults to `username` when
+   *  the platform's stable identifier IS the displayed name (chess.com /
+   *  lichess). On worldchess this holds the editable `full_name`. */
+  displayName?: string;
   avatarUrl?: string;
   ratings: {
     bullet?: number;
@@ -81,8 +89,10 @@ export async function fetchWorldchessProfile(profileId: string): Promise<Platfor
       return Number.isFinite(v) && v > 0 ? v : undefined;
     };
     return {
-      username: data.profile?.full_name ?? profileId,
+      // Stable numeric id is the linking key — full_name is editable.
+      username: profileId,
       platform: 'worldchess',
+      displayName: data.profile?.full_name,
       avatarUrl: data.profile?.avatar?.small ?? data.profile?.avatar?.medium ?? data.profile?.avatar?.full,
       ratings: {
         bullet: norm(data.worldchess_bullet),

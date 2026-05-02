@@ -65,7 +65,7 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
           </span>
         </div>
         <div className="link-screen-identity">
-          <span className="link-screen-username">{profile.username}</span>
+          <span className="link-screen-username">{profile.displayName ?? profile.username}</span>
           <span className="link-screen-platform">{platformLabel}</span>
         </div>
         {ratings.length > 0 && (
