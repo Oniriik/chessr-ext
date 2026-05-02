@@ -64,46 +64,30 @@ function readRatings(): { playerRating: number | null; opponentRating: number | 
 function extractInitialMoves(game: any): string[] {
   if (!game) return [];
 
-  // First try the node-walk API: getNodeIds() returns ordered IDs along
-  // the main line; getMove(id) returns the move {from, to, promotion}
-  // for that node. This is the most reliable cross-version surface.
-  try {
-    if (typeof game.getNodeIds === 'function' && typeof game.getMove === 'function') {
-      const ids = game.getNodeIds();
-      if (Array.isArray(ids) && ids.length > 0) {
-        const ucis: string[] = [];
-        for (const id of ids) {
-          const m = game.getMove(id);
-          if (m && typeof m.from === 'string' && typeof m.to === 'string') {
-            ucis.push(`${m.from}${m.to}${m.promotion ?? ''}`);
-          }
-        }
-        if (ucis.length > 0) {
-          console.log('[Chessr chesscom] extracted', ucis.length, 'initial moves via getNodeIds');
-          return ucis;
-        }
-      }
-    }
-  } catch (e) { console.warn('[Chessr chesscom] getNodeIds path failed:', e); }
-
-  // Try the line-getter methods. Each returns an array of node objects
-  // {move: {from, to, promotion}} or similar.
+  // Probe known line-getter methods. Each one is supposed to return an
+  // array of move-nodes. On chess.com's current client (probed via DevTools):
+  //   getCurrentFullLine() → Array<{ from, to, promotion, san, fen, ... }>  ← works
+  //   getRawLines()        → Array<Array<same node shape>>                  ← wraps
+  //   getLine()            → undefined on this build
+  //
+  // IMPORTANT: each node has `from`/`to`/`promotion` DIRECTLY on it. The
+  // `move` property is a NUMERIC id (encoded move), NOT a sub-object.
+  // We tried `node.move ?? node` previously which silently fell through.
   const candidates: any[] = [];
   try { if (typeof game.getCurrentFullLine === 'function') candidates.push(game.getCurrentFullLine()); } catch {}
-  try { if (typeof game.getLine === 'function') candidates.push(game.getLine()); } catch {}
   try { if (typeof game.getRawLines === 'function') candidates.push(game.getRawLines()); } catch {}
+  try { if (typeof game.getLine === 'function') candidates.push(game.getLine()); } catch {}
 
   for (const list of candidates) {
-    const flat = Array.isArray(list) ? list : Array.isArray(list?.[0]) ? list[0] : null;
-    if (!flat || flat.length === 0) continue;
+    // getRawLines() returns [[node, node, ...]] — unwrap one level if needed
+    const flat = Array.isArray(list) && Array.isArray(list[0]) ? list[0] : list;
+    if (!Array.isArray(flat) || flat.length === 0) continue;
     const ucis: string[] = [];
     for (const node of flat) {
       if (!node || typeof node !== 'object') continue;
-      const m = node.move ?? node;
-      if (!m) continue;
-      const from = m.from;
-      const to = m.to;
-      const promotion = m.promotion ?? '';
+      const from = node.from;
+      const to = node.to;
+      const promotion = node.promotion ?? '';
       if (typeof from === 'string' && typeof to === 'string' && from.length === 2 && to.length === 2) {
         ucis.push(`${from}${to}${promotion}`);
       }
