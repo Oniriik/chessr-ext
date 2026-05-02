@@ -483,14 +483,13 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   for (const s of sorted) {
     drawArrow(s.move.slice(0, 2), s.move.slice(2, 4), s.index, animate, s.labels, s.mateScore);
   }
-  // Badges go on after the arrow drawing animation finishes — matches
-  // the previous timing where labels appeared once the path was drawn.
-  // Without animation, render immediately (no delay needed).
-  if (animate) {
-    setTimeout(() => renderBadges(suggestions, true), DRAW_DURATION * 1000);
-  } else {
-    renderBadges(suggestions, false);
-  }
+  // Badges drawn immediately — they animate themselves with their own
+  // back.out scale tween, no need to wait for the path to finish. The
+  // earlier setTimeout-based delay also raced classifyCandidate updates:
+  // if torch returned before the timer fired, applyClassificationsToBoard
+  // would land first, then the delayed callback would re-run with the
+  // pre-classification suggestions snapshot and overwrite the badges.
+  renderBadges(suggestions, animate);
 }
 
 export function clearArrows() {
