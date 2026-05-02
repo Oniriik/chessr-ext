@@ -134,6 +134,28 @@ let lastSearchKey: string | null = null;
 let newGameResetTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingNewGameFen: string | null = null;
 
+/** Convert a list emitted by extractInitialMoves (UCI strings, optionally
+ *  prefixed with a single "pgn:<pgn>" sentinel for the PGN-fallback path)
+ *  into a flat UCI list. */
+function parseInitialMoves(raw: string[]): string[] {
+  if (raw.length === 1 && raw[0].startsWith('pgn:')) {
+    const pgn = raw[0].slice(4);
+    try {
+      // Use a dynamic chess.js Chess instance (already imported elsewhere).
+      // Lazy-require to keep this helper local to content.tsx.
+      const { Chess } = require('chess.js') as typeof import('chess.js');
+      const chess = new Chess();
+      chess.loadPgn(pgn, { strict: false });
+      return chess.history({ verbose: true })
+        .map((m: any) => `${m.from}${m.to}${m.promotion ?? ''}`);
+    } catch (e) {
+      console.warn('[Chessr] PGN seed parse failed:', e);
+      return [];
+    }
+  }
+  return raw;
+}
+
 function parseMoveNumber(fen: string): number {
   const parts = fen.split(' ');
   return parseInt(parts[5] || '1', 10);
@@ -854,7 +876,11 @@ export default defineContentScript({
           // Seed moveHistoryUci with the moves chess.com had in memory so
           // historyMatchesFen passes and torch fetch_analysis can run.
           if (Array.isArray(data.moves) && data.moves.length > 0) {
-            useGameStore.getState().setMoveHistoryUci(data.moves);
+            const seeded = parseInitialMoves(data.moves);
+            if (seeded.length > 0) {
+              useGameStore.getState().setMoveHistoryUci(seeded);
+              console.log('[Chessr] seeded', seeded.length, 'initial moves into history');
+            }
           }
           break;
         case 'chessr:gameOver':

@@ -54,39 +54,61 @@ function readRatings(): { playerRating: number | null; opponentRating: number | 
 }
 
 /** Extract the list of moves already played in the current chess.com game,
- *  in UCI notation. Tries several known API surfaces — chess.com's wc-chess-board
- *  internals have shifted across versions, so we fall through to whatever
- *  works. Returns [] if no moves are available (fresh game / API miss).
+ *  in UCI notation. chess.com's wc-chess-board exposes several methods:
+ *  getCurrentFullLine, getLine, getRawLines, getPGN. We probe in order of
+ *  preference. Returns [] on miss (fresh game or unknown API).
  *
  *  Used for live continuation games: when chessr loads on a /play/computer
  *  game already in progress, we seed moveHistoryUci with the prior moves so
  *  torch's fetch_analysis (which requires startpos-rooted history) can run. */
 function extractInitialMoves(game: any): string[] {
   if (!game) return [];
+
+  // Each of these returns an array of node objects { move: { from, to, promotion } }
+  // or similar. Probe in order of specificity.
   const candidates: any[] = [];
-  try { if (typeof game.getNodes === 'function') candidates.push(game.getNodes()); } catch {}
-  try { if (typeof game.getMainLine === 'function') candidates.push(game.getMainLine()); } catch {}
-  try { if (typeof game.getMoveList === 'function') candidates.push(game.getMoveList()); } catch {}
-  try { if (typeof game.getNodeList === 'function') candidates.push(game.getNodeList()); } catch {}
+  try { if (typeof game.getCurrentFullLine === 'function') candidates.push(game.getCurrentFullLine()); } catch {}
   try { if (typeof game.getLine === 'function') candidates.push(game.getLine()); } catch {}
+  try { if (typeof game.getRawLines === 'function') candidates.push(game.getRawLines()); } catch {}
 
   for (const list of candidates) {
-    if (!Array.isArray(list) || list.length === 0) continue;
+    const flat = Array.isArray(list) ? list : Array.isArray(list?.[0]) ? list[0] : null;
+    if (!flat || flat.length === 0) continue;
     const ucis: string[] = [];
-    for (const node of list) {
-      // Skip the root node if present (no move data)
+    for (const node of flat) {
       if (!node || typeof node !== 'object') continue;
       const m = node.move ?? node;
       if (!m) continue;
       const from = m.from;
       const to = m.to;
       const promotion = m.promotion ?? '';
-      if (typeof from === 'string' && typeof to === 'string') {
+      if (typeof from === 'string' && typeof to === 'string' && from.length === 2 && to.length === 2) {
         ucis.push(`${from}${to}${promotion}`);
       }
     }
-    if (ucis.length > 0) return ucis;
+    if (ucis.length > 0) {
+      console.log('[Chessr chesscom] extracted', ucis.length, 'initial moves via game API');
+      return ucis;
+    }
   }
+
+  // Fallback: parse the PGN. chess.com exposes `getPGN()` returning the
+  // SAN move list — we parse it with chess.js (loaded by chessr) to get
+  // UCI moves. PGN includes headers and tags so we strip those first.
+  try {
+    const pgn = typeof game.getPGN === 'function' ? game.getPGN() : (game.pgn ?? null);
+    if (typeof pgn === 'string' && pgn.length > 0) {
+      // chess.js is bundled with chessr; we run in page-world here so we
+      // can't import it directly. Just emit the SAN list and let the
+      // chessr content-script side parse it. We attach a `pgn` field on
+      // the message for the receiver to handle.
+      console.log('[Chessr chesscom] falling back to PGN parsing,', pgn.length, 'chars');
+      // Encode as a synthetic uci pseudo-list so the receiver knows to
+      // parse this as PGN — prefix with "pgn:" sentinel.
+      return ['pgn:' + pgn];
+    }
+  } catch {}
+
   return [];
 }
 
