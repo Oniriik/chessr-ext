@@ -23,7 +23,7 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthStore();
-  const { linkAccount, setNeedsLinking } = useLinkedAccountsStore();
+  const { linkAccount } = useLinkedAccountsStore();
   // Defensive fallback so an unknown platform doesn't crash the screen
   // (caused a React #418 on worldchess before WorldchessIcon was added).
   const Icon = platformIcons[profile.platform] ?? ChesscomIcon;
@@ -48,9 +48,9 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
     <div className="link-screen">
       <div className="link-screen-header">
         <span className="link-screen-eyebrow">Link account</span>
-        <h3 className="link-screen-title">Confirm your {platformLabel} profile</h3>
+        <h3 className="link-screen-title">Link your {platformLabel} profile</h3>
         <p className="link-screen-subtitle">
-          Linking unlocks per-game stats, classification accuracy and Elo-based suggestions.
+          Required to enable per-game stats, classification accuracy and Elo-based suggestions.
         </p>
       </div>
 
@@ -89,9 +89,9 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
         {loading ? 'Linking…' : `Link this ${platformLabel} account`}
       </button>
 
-      <button className="link-screen-skip" onClick={() => setNeedsLinking(false)}>
-        Not now
-      </button>
+      <p className="link-screen-foot">
+        Wrong account? <button className="link-screen-link" onClick={() => useAuthStore.getState().signOut()}>Sign out</button> and sign back in with the right one.
+      </p>
     </div>
   );
 }
