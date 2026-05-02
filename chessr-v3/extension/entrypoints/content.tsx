@@ -122,6 +122,7 @@ async function buildLiveAnalysis(): Promise<void> {
       const pc = useGameStore.getState().playerColor;
       const userElo = useEngineStore.getState().userElo;
       const oppElo = useEngineStore.getState().opponentElo;
+      console.log('[Chessr] post-init: known ratings', { pc, userElo, oppElo });
       if (userElo > 0 && oppElo > 0) {
         const whiteElo = pc === 'black' ? oppElo : userElo;
         const blackElo = pc === 'black' ? userElo : oppElo;
@@ -1095,6 +1096,7 @@ export default defineContentScript({
           break;
         }
         case 'chessr:ratings':
+          console.log('[Chessr] chessr:ratings received', { playerRating: data.playerRating, opponentRating: data.opponentRating });
           if (data.playerRating) useEngineStore.getState().setUserElo(data.playerRating);
           if (data.opponentRating) useEngineStore.getState().setOpponentElo(data.opponentRating);
           // Forward to torch's rich worker — drives the rating-range
@@ -1107,10 +1109,13 @@ export default defineContentScript({
             const oppElo = useEngineStore.getState().opponentElo;
             const whiteElo = pc === 'black' ? oppElo : userElo;
             const blackElo = pc === 'black' ? userElo : oppElo;
+            console.log('[Chessr] forwarding ratings to torch', { pc, userElo, oppElo, whiteElo, blackElo, willSend: !!(whiteElo && blackElo) });
             if (whiteElo && blackElo) {
               torchAnalysisEngine.setRatings(whiteElo, blackElo).catch((err) =>
                 console.warn('[Chessr][torch] setRatings failed:', err));
             }
+          } else {
+            console.log('[Chessr] torch not ready — ratings will be applied on init');
           }
           break;
       }

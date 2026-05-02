@@ -245,8 +245,11 @@ export class TorchAnalysisEngine implements AnalysisBackend {
   setRatings(whiteElo: number, blackElo: number): Promise<void> {
     if (this.deps.mode !== 'rich') return Promise.resolve();
     return this.enqueue(async () => {
-      this.send(`setoption name WhiteElo value ${Math.round(whiteElo)}`);
-      this.send(`setoption name BlackElo value ${Math.round(blackElo)}`);
+      const w = Math.round(whiteElo);
+      const b = Math.round(blackElo);
+      console.log(`[Chessr][torch] setRatings → WhiteElo=${w} BlackElo=${b}`);
+      this.send(`setoption name WhiteElo value ${w}`);
+      this.send(`setoption name BlackElo value ${b}`);
       // Wait for readyok so a subsequent fetch_analysis sees the new
       // values applied (torch may need an isready handshake to commit
       // setoption changes — confirmed via /tmp/torch-ratings-update.mjs).
