@@ -776,6 +776,9 @@ export default defineContentScript({
         const moveNumber = parseMoveNumber(previousFen!);
         const fenBefore = previousFen!;
         const fenAfter = state.fen!;
+        console.log('[Chessr][analyze] playerJustMoved fired',
+          { moveNumber, historyLen: useGameStore.getState().moveHistoryUci.length,
+            torchReady: torchAnalysisEngine?.ready, torchUciReady: torchUciEngine?.ready });
 
         const arid = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const src = analysisSource();
