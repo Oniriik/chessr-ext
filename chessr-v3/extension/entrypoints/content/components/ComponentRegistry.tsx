@@ -449,9 +449,10 @@ function CompactPerformance() {
   useEffect(() => {
     if (idle || !numberRef.current) return;
     const shouldAnimate = animationGate.consumeEvent('analysis', 'widget-perf');
+    const fmt = (v: number) => `${v.toFixed(1)}%`;
     if (!shouldAnimate || displayedValue.current.val === accuracy) {
       displayedValue.current.val = accuracy;
-      if (numberRef.current) numberRef.current.textContent = `${Math.round(accuracy)}%`;
+      if (numberRef.current) numberRef.current.textContent = fmt(accuracy);
       return;
     }
     gsap.to(displayedValue.current, {
@@ -459,7 +460,7 @@ function CompactPerformance() {
       duration: 0.6,
       ease: 'power2.out',
       onUpdate: () => {
-        if (numberRef.current) numberRef.current.textContent = `${Math.round(displayedValue.current.val)}%`;
+        if (numberRef.current) numberRef.current.textContent = fmt(displayedValue.current.val);
       },
     });
   }, [accuracy, idle]);
@@ -472,7 +473,7 @@ function CompactPerformance() {
   return (
     <div style={{ ...fCard, ...fRow }}>
       <span ref={numberRef} style={{ fontSize: 15, fontWeight: 700, color: idle ? dim : accColor, fontVariantNumeric: 'tabular-nums' }}>
-        {idle ? '—' : `${Math.round(accuracy)}%`}
+        {idle ? '—' : `${accuracy.toFixed(1)}%`}
       </span>
       {!idle && <span style={{ fontSize: 9, color: trendColor }}>{trendSymbol}</span>}
       <div style={{ width: 1, height: 14, background: idle ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.06)', flexShrink: 0 }} />
