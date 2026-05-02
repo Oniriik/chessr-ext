@@ -185,11 +185,3 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.perf-torch-stats--limited {
-  background: rgba(248, 113, 113, 0.06);
-  font-style: italic;
-  opacity: 0.6;
-}
-.perf-torch-stat-limited {
-  font-size: 10px;
-}

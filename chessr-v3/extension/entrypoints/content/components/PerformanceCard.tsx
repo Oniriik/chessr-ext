@@ -206,11 +206,6 @@ export default function PerformanceCard() {
           </span>
         </div>
       )}
-      {!torchModeActive && !idle && (
-        <div className="perf-torch-stats perf-torch-stats--limited">
-          <span className="perf-torch-stat-limited">limited mode</span>
-        </div>
-      )}
 
       <div className="perf-body">
         <div
