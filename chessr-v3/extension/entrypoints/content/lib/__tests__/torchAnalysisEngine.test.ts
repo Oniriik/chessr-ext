@@ -36,6 +36,7 @@ function makeDeps(worker: FakeWorker): TorchAnalysisDeps {
     fetchEngineSource: async () => 'self.onmessage = () => {};',
     workerFactory: () => worker,
     wasmUrl: 'mock://torch.wasm',
+    mode: 'rich',
   };
 }
 

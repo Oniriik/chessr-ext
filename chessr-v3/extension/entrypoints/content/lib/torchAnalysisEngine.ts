@@ -1,31 +1,35 @@
 /**
- * TorchAnalysisEngine — runs torch.wasm in a Worker. Two-mode interface:
+ * TorchAnalysisEngine — runs torch.wasm in a Worker. Mode-specific:
  *
- *   analyze(fen): AnalysisResult
- *     Standard UCI search (`position fen X` + `go depth N`). Works for
- *     ANY position. Drop-in compatible with the AnalysisBackend interface
- *     (same shape as the legacy SF AnalysisEngine + ServerAnalysisEngine).
- *     Used for the eval-bar / per-move classification in the chessr 6-class
- *     style (via analyzeLastMove).
+ *   mode='rich' (default):
+ *     fetchFullAnalysis(history) → TorchAnalysis
+ *       Chess.com pipeline (`position startpos moves <X>` + `fetch analysis`).
+ *       Returns rich JSON with CAPS, effective Elo, native 11-class.
+ *       Only valid when game is rooted at startpos.
+ *     analyze(fen) → throws (wrong mode).
  *
- *   fetchFullAnalysis(history): TorchAnalysis
- *     Custom Chess.com pipeline (`position startpos moves <X>` + `fetch
- *     analysis`). Returns the rich JSON with CAPS, effective Elo, native
- *     11-class classifications. Only works when the game is rooted at
- *     startpos (history replays from startpos to current FEN). content.tsx
- *     gates on historyMatchesFen() before calling this.
+ *   mode='uci':
+ *     analyze(fen) → AnalysisResult
+ *       Standard UCI search (`position fen X` + `go depth N`). Works for
+ *       any position. Drop-in compatible with AnalysisBackend.
+ *     fetchFullAnalysis(history) → throws (wrong mode).
+ *
+ * Why two modes / two workers: torch's `UseDeclarativePositionCommand`
+ * setoption is a Catch-22:
+ *   - true  → fetch_analysis emits CAPS / effectiveElo / tallies, but
+ *             `position fen X` crashes the wasm.
+ *   - false → `position fen X` works, but fetch_analysis emits zeros for
+ *             CAPS / effectiveElo (degenerate output).
+ * Two parallel workers — one per mode — sidestep the dilemma. Memory cost
+ * is 2 × 26 MB ≈ 52 MB.
  *
  * Lifecycle:
- *   const eng = new TorchAnalysisEngine();
- *   await eng.init();
- *   await eng.analyze(fen)                  // any position
- *   await eng.fetchFullAnalysis(history)    // startpos-rooted only
- *   eng.destroy();
- *
- * Init drops `UseDeclarativePositionCommand` (which would force
- * `position startpos moves X` only and crash the wasm on `position fen X`).
- * The other ServeCommandV2 / ClassificationV3 / etc. options stay so
- * fetch_analysis still produces classification fields when called.
+ *   const richEng = new TorchAnalysisEngine({ mode: 'rich' });
+ *   const uciEng  = new TorchAnalysisEngine({ mode: 'uci' });
+ *   await Promise.all([richEng.init(), uciEng.init()]);
+ *   await richEng.fetchFullAnalysis(history)  // startpos-rooted
+ *   await uciEng.analyze(fen)                 // any position
+ *   richEng.destroy(); uciEng.destroy();
  */
 
 import { parseFetchAnalysisJson, type TorchAnalysis } from './torchJson.js';
@@ -36,11 +40,13 @@ const ANALYSIS_TIMEOUT_MS = 5_000;
 const UCI_GO_TIMEOUT_MS = 10_000;
 const UCI_GO_DEPTH = 14;
 
-const SETOPTIONS = [
-  // NOTE: UseDeclarativePositionCommand is intentionally OMITTED — when
-  // true it makes torch reject `position fen <X>` (wasm aborts on parse).
-  // Without it, both `position fen X` and `position startpos moves Y`
-  // work.
+export type TorchEngineMode = 'rich' | 'uci';
+
+/** Setoption pack for the rich (fetch_analysis) mode — UseDeclarativePositionCommand=true
+ *  is required for fetch_analysis to compute effectiveElo/CAPS/tallies. Verified via
+ *  /tmp/torch-game-states.mjs: WITHOUT this option, fetch_analysis returns null Elo. */
+const SETOPTIONS_RICH = [
+  'UseDeclarativePositionCommand value true',
   'BlackElo value 1500',
   'WhiteElo value 1500',
   'HandleContinuations value true',
@@ -55,6 +61,15 @@ const SETOPTIONS = [
   'UCI_Chess960 value false',
   'UseRatingRanges value true',
   'Language value en_US',
+  'MultiPV value 1',
+  'Hash value 32',
+  'Threads value 1',
+];
+
+/** Setoption pack for the UCI standard mode — drops UseDeclarativePositionCommand
+ *  so `position fen <X>` doesn't crash the wasm. Minimal — just what plain
+ *  UCI search needs. */
+const SETOPTIONS_UCI = [
   'MultiPV value 1',
   'Hash value 32',
   'Threads value 1',
@@ -80,6 +95,9 @@ export interface TorchAnalysisDeps {
   workerFactory: (blobUrl: string, wasmUrlHash: string) => WorkerLike;
   /** URL of torch.wasm (passed via worker location hash). */
   wasmUrl: string;
+  /** Mode determines which setoption pack is sent at init and which
+   *  call methods are valid. Default: 'rich'. */
+  mode: TorchEngineMode;
 }
 
 export class TorchAnalysisEngine implements AnalysisBackend {
@@ -100,10 +118,12 @@ export class TorchAnalysisEngine implements AnalysisBackend {
       fetchEngineSource: deps?.fetchEngineSource ?? defaultFetchEngineSource,
       workerFactory: deps?.workerFactory ?? defaultWorkerFactory,
       wasmUrl: deps?.wasmUrl ?? defaultWasmUrl(),
+      mode: deps?.mode ?? 'rich',
     };
   }
 
   get ready() { return this._ready && !this._disposed; }
+  get mode(): TorchEngineMode { return this.deps.mode; }
 
   async init(): Promise<void> {
     if (this._disposed) throw new Error('engine disposed');
@@ -120,7 +140,8 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     });
 
     await this.cmd('uci', 'uciok', INIT_TIMEOUT_MS);
-    for (const opt of SETOPTIONS) this.send(`setoption name ${opt}`);
+    const pack = this.deps.mode === 'rich' ? SETOPTIONS_RICH : SETOPTIONS_UCI;
+    for (const opt of pack) this.send(`setoption name ${opt}`);
     await this.cmd('isready', 'readyok', INIT_TIMEOUT_MS);
     this.send('ucinewgame');
     this._ready = true;
@@ -129,10 +150,11 @@ export class TorchAnalysisEngine implements AnalysisBackend {
   /** Standard UCI search on any position. Drop-in compatible with the
    *  AnalysisBackend.analyze(fen) contract — used for eval-bar / per-move
    *  classification when game isn't startpos-rooted (or as a generic
-   *  single-position eval). */
+   *  single-position eval). Only valid in mode='uci'. */
   async analyze(fen: string): Promise<AnalysisResult> {
     if (this._disposed) throw new Error('engine disposed');
     if (!this._ready || !this.worker) throw new Error('engine not ready');
+    if (this.deps.mode !== 'uci') throw new Error("analyze(fen) requires mode='uci'");
 
     return this.enqueue(async () => {
       this.send(`position fen ${fen}`);
@@ -176,10 +198,12 @@ export class TorchAnalysisEngine implements AnalysisBackend {
 
   /** Custom Chess.com `fetch analysis` pipeline. ONLY valid when `history`
    *  replays from startpos to the current position — caller must validate
-   *  via historyMatchesFen() before invoking. Returns the rich JSON. */
+   *  via historyMatchesFen() before invoking. Returns the rich JSON.
+   *  Only valid in mode='rich'. */
   async fetchFullAnalysis(history: string[]): Promise<TorchAnalysis> {
     if (this._disposed) throw new Error('engine disposed');
     if (!this._ready || !this.worker) throw new Error('engine not ready');
+    if (this.deps.mode !== 'rich') throw new Error("fetchFullAnalysis requires mode='rich'");
 
     return this.enqueue(async () => {
       const movesPart = history.length ? ` moves ${history.join(' ')}` : '';

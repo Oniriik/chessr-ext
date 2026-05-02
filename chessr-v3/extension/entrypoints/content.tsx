@@ -42,22 +42,29 @@ import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/a
 import { isPremiumPlan } from './content/lib/premium';
 import { installStreamSync } from './content/lib/streamSync';
 let lastRequestedFen: string | null = null;
+/** Server SF fallback. Populated only when torch.wasm fails to init; in
+ *  the happy path both torch engines below carry the load. */
 let analysisEngine: (AnalysisBackend & { ready: boolean; destroy(): void }) | null = null;
-/** Primary slot when torch.wasm is available. Coexists with `analysisEngine`
- *  (which is populated only in degraded mode = server SF fallback). The two
- *  slots are mutually exclusive in practice: at any given time, exactly one
- *  is non-null after `buildLiveAnalysis()` resolves. */
+/** Torch in 'rich' mode (with UseDeclarativePositionCommand=true) — used for
+ *  fetch_analysis on startpos-rooted games. Returns CAPS / Effective Elo /
+ *  11-class. Crashes on `position fen X` (so cannot do mid-game eval). */
 let torchAnalysisEngine: TorchAnalysisEngine | null = null;
+/** Torch in 'uci' mode (without UseDeclarativePositionCommand) — used for
+ *  plain UCI `position fen X` + `go depth N` on any position. Drop-in for
+ *  the legacy SF AnalysisEngine. Used when game isn't startpos-rooted. */
+let torchUciEngine: TorchAnalysisEngine | null = null;
 
 /** WASM-first live analysis. Tries torch.wasm in the extension; on failure,
  *  falls back to the existing server SF native via WebSocket (degraded mode:
  *  eval bar still works, but no CAPS / effective Elo / 11-class native
  *  classifications). Populates one of the two module-scope slots. */
 async function buildLiveAnalysis(): Promise<void> {
-  // Reset both slots first (handles re-init after a crash).
+  // Reset all slots first (handles re-init after a crash).
   try { torchAnalysisEngine?.destroy(); } catch { /* ignore */ }
+  try { torchUciEngine?.destroy(); } catch { /* ignore */ }
   try { analysisEngine?.destroy(); } catch { /* ignore */ }
   torchAnalysisEngine = null;
+  torchUciEngine = null;
   analysisEngine = null;
   setTorchLiveEngine(null);
 
@@ -70,28 +77,22 @@ async function buildLiveAnalysis(): Promise<void> {
     return;
   }
 
-  // Always bring up the server-SF fallback alongside torch. Torch can't
-  // analyse mid-game-rooted positions (its `position fen X + fetch
-  // analysis` crashes the wasm), so when chessr loads on a chess.com
-  // /play/computer continuation game, we route eval-bar updates through
-  // the server SF instead. ServerAnalysisEngine.init is a no-op (just
-  // sets _ready = true) so this is essentially free.
-  const srvFallback = new ServerAnalysisEngine();
-  await srvFallback.init();
-  analysisEngine = srvFallback;
-
-  const torch = new TorchAnalysisEngine();
+  const torchRich = new TorchAnalysisEngine({ mode: 'rich' });
+  const torchUci = new TorchAnalysisEngine({ mode: 'uci' });
   try {
     if (forceFailSet().has('torch')) {
       throw new Error('chessrFailWasm set for torch → simulated init failure');
     }
+    // Boot both workers in parallel — same wasm binary, both inits should
+    // succeed/fail together. Total cost ~52 MB RAM, ~2-3s init time.
     await Promise.race([
-      torch.init(),
-      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('torch wasm init timeout')), 3000)),
+      Promise.all([torchRich.init(), torchUci.init()]),
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error('torch wasm init timeout')), 5000)),
     ]);
-    torchAnalysisEngine = torch;
-    setTorchLiveEngine(torch);
-    console.log('[Chessr] live analysis ready (torch WASM + server SF fallback for mid-game starts)');
+    torchAnalysisEngine = torchRich;
+    torchUciEngine = torchUci;
+    setTorchLiveEngine(torchRich);
+    console.log('[Chessr] live analysis ready (torch WASM × 2: rich for fetch_analysis, uci for any-FEN eval)');
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'wasm', success: true });
     useEngineStore.getState().setTorchAvailable(true);
     // Expose stores on window for DevTools inspection (read-only debug aid).
@@ -104,9 +105,12 @@ async function buildLiveAnalysis(): Promise<void> {
     return;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.warn('[Chessr] Torch WASM failed, server SF fallback already up', err);
-    try { torch.destroy(); } catch { /* ignore */ }
-    // analysisEngine (ServerAnalysisEngine) is already populated above.
+    console.warn('[Chessr] Torch WASM failed, falling back to server SF', err);
+    try { torchRich.destroy(); } catch { /* ignore */ }
+    try { torchUci.destroy(); } catch { /* ignore */ }
+    const srv = new ServerAnalysisEngine();
+    await srv.init();
+    analysisEngine = srv;
     console.log('[Chessr] live analysis ready (server fallback, degraded mode)');
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'server', success: true, detail: `wasm fail: ${errMsg}` });
     useEngineStore.getState().setTorchAvailable(false);
@@ -677,9 +681,10 @@ export default defineContentScript({
         } else {
           // UCI standard path — works for any position (mid-game starts,
           // continuation games on chess.com /play/computer, etc.). Prefers
-          // torch.wasm (analyze(fen) does `position fen X` + `go depth N`)
-          // and falls back to ServerAnalysisEngine if torch isn't up.
-          const liveBackend = torchAnalysisEngine?.ready ? torchAnalysisEngine : analysisEngine;
+          // the dedicated torch UCI worker (does `position fen X` +
+          // `go depth N`) and falls back to ServerAnalysisEngine if torch
+          // isn't up at all.
+          const liveBackend = torchUciEngine?.ready ? torchUciEngine : analysisEngine;
           if (liveBackend?.ready) {
             analyzeLastMove(fenBefore, fenAfter, liveBackend)
               .then((result) => {
@@ -747,9 +752,10 @@ export default defineContentScript({
             }
           });
         } else {
-          // UCI standard single-FEN eval — torch.wasm preferred, server SF
-          // fallback. Same path used in the playerJustMoved else-branch.
-          const evalBackend = torchAnalysisEngine?.ready ? torchAnalysisEngine : analysisEngine;
+          // UCI standard single-FEN eval — torch UCI worker preferred,
+          // server SF fallback. Same path used in the playerJustMoved
+          // else-branch.
+          const evalBackend = torchUciEngine?.ready ? torchUciEngine : analysisEngine;
           if (evalBackend?.ready) {
             evalBackend.analyze(state.fen!).then((result) => {
               const pc = useGameStore.getState().playerColor;
