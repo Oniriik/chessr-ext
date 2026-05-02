@@ -128,6 +128,33 @@ function parseRatingText(rawText: string, username: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Worldchess bot names to a heuristic Elo. Bots don't have a
+ *  GameLayoutPlayer card in the DOM (verified) and no rating is
+ *  surfaced anywhere we can scrape — these are the names worldchess
+ *  uses for its "Play vs Computer" levels and rough ratings drawn
+ *  from their published curriculum. Update as new bot names appear. */
+const BOT_ELO: Record<string, number> = {
+  'club player': 1500,
+  'beginner': 800,
+  'intermediate': 1200,
+  'advanced': 1700,
+  'expert': 1900,
+  'master': 2100,
+  'grandmaster': 2400,
+};
+
+/** Extract the opponent's name from the page title — worldchess sets
+ *  it to "<player> vs <opponent> / World Chess - ...". When the
+ *  opponent matches a known bot name we use BOT_ELO; for unknown
+ *  bots / non-game pages we return null (human opponents always have
+ *  a player card so this fallback only fires on bot games). */
+function readBotOpponentRating(): number | null {
+  const m = document.title.match(/\bvs\s+([^/]+?)\s*\//i);
+  if (!m) return null;
+  const name = m[1].trim().toLowerCase();
+  return BOT_ELO[name] ?? null;
+}
+
 /** Scrape player + opponent ratings off the worldchess game card DOM.
  *  Worldchess doesn't expose ratings in its store, only in the rendered
  *  React tree. Stable selectors: data-component="GameLayoutPlayer"
@@ -153,6 +180,13 @@ function readRatings(): { playerRating: number | null; opponentRating: number | 
     const profileHref = nameLink.getAttribute('href') ?? '';
     const isPlayer = profileHref.startsWith(`/profile/${myId}`);
     if (isPlayer) playerRating = rating; else opponentRating = rating;
+  }
+  // Bot games have no opponent card — fall back to the title-based bot
+  // detection so the engine has a sensible per-game opponent rating to
+  // tune against. Only fires when the DOM lookup found nothing for the
+  // opponent (real human games keep their card-derived rating).
+  if (opponentRating === null) {
+    opponentRating = readBotOpponentRating();
   }
   return { playerRating, opponentRating };
 }
