@@ -152,13 +152,10 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     const pack = this.deps.mode === 'rich' ? SETOPTIONS_RICH : SETOPTIONS_UCI;
     for (const opt of pack) this.send(`setoption name ${opt}`);
     await this.cmd('isready', 'readyok', INIT_TIMEOUT_MS);
-    this.send('ucinewgame');
-    // Wait for ucinewgame to be processed before marking ready — the
-    // very first fetch_analysis call would otherwise race against the
-    // engine's internal table reset and occasionally trigger a wasm
-    // abort. The extra isready handshake serialises us behind the
-    // ucinewgame side-effects.
-    await this.cmd('isready', 'readyok', INIT_TIMEOUT_MS);
+    // NOTE: do NOT send `ucinewgame` here. With UseDeclarativePositionCommand=true,
+    // sending ucinewgame puts torch's fetch_analysis pipeline into a state
+    // where ANY subsequent fetch_analysis (even on a 1-move sequence)
+    // crashes the wasm. Verified via /tmp/torch-test-init.mjs.
     this._ready = true;
   }
 
