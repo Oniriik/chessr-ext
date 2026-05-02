@@ -13,7 +13,55 @@ export function detectCurrentUsername(): { platform: Platform; username: string 
     if (username) return { platform: 'lichess', username };
   }
 
+  if (host.includes('worldchess.com')) {
+    const username = getWorldchessUsername();
+    if (username) return { platform: 'worldchess', username };
+  }
+
   return null;
+}
+
+/** Read the worldchess.com profile id of the currently-logged-in user.
+ *  Worldchess shows a "My profile" link in the user dropdown that points
+ *  at `/profile/<numericId>`. We use the numeric id (not the display
+ *  name) as the linking identifier — display names aren't unique on
+ *  worldchess and can be edited freely. */
+export function getWorldchessUserId(): string | null {
+  // The "My profile" entry in the nav dropdown — match by text since
+  // there's no stable data-* attr. English is the canonical UI label;
+  // a few other locales worldchess ships are listed too. Falls back to
+  // the avatar-link in the page header (any /profile/ link outside the
+  // game cards is the logged-in user). */
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/profile/"]'));
+  const byText = links.find((a) => /my profile|mon profil|mein profil|mi perfil|il mio profilo/i.test(a.textContent ?? ''));
+  const href = byText?.getAttribute('href');
+  if (!href) return null;
+  const m = href.match(/^\/profile\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+function getWorldchessUsername(): string | null {
+  // Prefer the displayed name from the user's own player card on a game
+  // page (works on /game/<uuid>): match the card whose profile link
+  // points at the logged-in user's id.
+  const userId = getWorldchessUserId();
+  if (userId) {
+    const cards = document.querySelectorAll<HTMLElement>('[data-component="GameLayoutPlayer"]');
+    for (const card of cards) {
+      const links = card.querySelectorAll<HTMLAnchorElement>(`a[href="/profile/${userId}"]`);
+      for (const a of links) {
+        const text = a.textContent?.trim();
+        if (text) return text;
+      }
+    }
+  }
+  // Off a game page (homepage, profile, settings) — no player cards.
+  // Try the nav avatar link (its text is empty, but the dropdown
+  // username may be readable elsewhere). Falls back to the numeric id
+  // so account linking still works even if we can't see a display name.
+  const navName = document.querySelector('header [data-component="Avatar"] + * a, [data-component="Link"] a[href^="/profile/"]')?.textContent?.trim();
+  if (navName) return navName;
+  return userId; // last resort: linkable id, backend can resolve
 }
 
 /**

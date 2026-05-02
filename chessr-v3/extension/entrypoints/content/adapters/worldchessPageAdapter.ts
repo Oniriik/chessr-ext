@@ -97,6 +97,66 @@ function findChessEngine(gameId: string | null): WorldchessEngine | null {
   return null;
 }
 
+/** Read the logged-in user's worldchess profile id from the nav. The
+ *  "My profile" entry in the user dropdown points at /profile/<id>.
+ *  Falls back to scanning all /profile/<id> links and picking the one
+ *  that doesn't appear inside a player card (the rest are opponent /
+ *  player-card links). Returns null when logged out. */
+function readMyProfileId(): string | null {
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/profile/"]'));
+  // English / FR / DE / ES / IT — covers worldchess's localised UI.
+  const byText = links.find((a) => /my profile|mon profil|mein profil|mi perfil|il mio profilo/i.test(a.textContent ?? ''));
+  let href = byText?.getAttribute('href');
+  if (!href) {
+    // Fallback: any profile link that's not nested in a GameLayoutPlayer
+    // card belongs to the user (their dropdown / settings).
+    const navLink = links.find((a) => !a.closest('[data-component="GameLayoutPlayer"]')
+      && /^\/profile\/\d+/.test(a.getAttribute('href') ?? ''));
+    href = navLink?.getAttribute('href') ?? '';
+  }
+  const m = href?.match(/^\/profile\/(\d+)/);
+  return m ? m[1] : null;
+}
+
+/** Parse a card's rating text (the textContent of GamePlayerInfo with
+ *  the username stripped). Returns null for unrated players ("New") or
+ *  unparseable text. */
+function parseRatingText(rawText: string, username: string): number | null {
+  const stripped = rawText.replace(username, '').trim();
+  if (!stripped || /^new$/i.test(stripped)) return null;
+  const n = parseInt(stripped, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** Scrape player + opponent ratings off the worldchess game card DOM.
+ *  Worldchess doesn't expose ratings in its store, only in the rendered
+ *  React tree. Stable selectors: data-component="GameLayoutPlayer"
+ *  (one per side), data-component="GamePlayerInfo" (name + rating
+ *  block inside). The card whose profile-link matches the user's
+ *  "My profile" id is the player; the other is the opponent. */
+function readRatings(): { playerRating: number | null; opponentRating: number | null } {
+  const myId = readMyProfileId();
+  if (!myId) return { playerRating: null, opponentRating: null };
+
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-component="GameLayoutPlayer"]'));
+  let playerRating: number | null = null;
+  let opponentRating: number | null = null;
+  for (const card of cards) {
+    const info = card.querySelector<HTMLElement>('[data-component="GamePlayerInfo"]');
+    if (!info) continue;
+    const links = Array.from(info.querySelectorAll<HTMLAnchorElement>('a[href^="/profile/"]'));
+    // The first link wraps the avatar (no text); grab the one that has text.
+    const nameLink = links.find((a) => (a.textContent ?? '').trim().length > 0);
+    if (!nameLink) continue;
+    const username = (nameLink.textContent ?? '').trim();
+    const rating = parseRatingText(info.textContent ?? '', username);
+    const profileHref = nameLink.getAttribute('href') ?? '';
+    const isPlayer = profileHref.startsWith(`/profile/${myId}`);
+    if (isPlayer) playerRating = rating; else opponentRating = rating;
+  }
+  return { playerRating, opponentRating };
+}
+
 /** Read board rotation from the chessground custom element. 0 = no flip. */
 function readBoardRotation(): number {
   const board = document.querySelector('cg-board') as (HTMLElement & { rotation?: number }) | null;
@@ -147,6 +207,9 @@ export class WorldchessPageAdapter implements PageContextAdapter {
   private gameId: string | null = null;
   private bootPoll: ReturnType<typeof setInterval> | null = null;
   private urlPoll: ReturnType<typeof setInterval> | null = null;
+  private ratingsPoll: ReturnType<typeof setInterval> | null = null;
+  private ratingsLast: { playerRating: number | null; opponentRating: number | null } =
+    { playerRating: null, opponentRating: null };
   private lastUrl = '';
 
   // Snapshotted at install/new-game so user-toggled flip doesn't change it.
@@ -202,7 +265,39 @@ export class WorldchessPageAdapter implements PageContextAdapter {
       }
     }, 500);
 
+    this.startRatingsPoll(emit);
+
     return () => this.dispose();
+  }
+
+  /** Poll the player cards every 500ms until both ratings resolve OR a
+   *  15s deadline expires — same shape as the chesscom adapter. Worldchess
+   *  doesn't surface ratings on the engine store so DOM scraping is the
+   *  only path. Re-emits on every change so partial detections (player
+   *  card loaded but opponent still in matchmaking) reach the engine
+   *  store and refine when the second card lands. */
+  private startRatingsPoll(emit: Emit) {
+    if (this.ratingsPoll) clearInterval(this.ratingsPoll);
+    this.ratingsLast = { playerRating: null, opponentRating: null };
+    let elapsed = 0;
+    const tick = () => {
+      const r = readRatings();
+      const changed = r.playerRating !== this.ratingsLast.playerRating
+                   || r.opponentRating !== this.ratingsLast.opponentRating;
+      if (changed && (r.playerRating !== null || r.opponentRating !== null)) {
+        this.ratingsLast = r;
+        emit({ type: 'chessr:ratings', playerRating: r.playerRating, opponentRating: r.opponentRating });
+        console.log(`${LOG} ratings`, r);
+      }
+      if ((r.playerRating !== null && r.opponentRating !== null) || elapsed >= 15000) {
+        if (this.ratingsPoll) { clearInterval(this.ratingsPoll); this.ratingsPoll = null; }
+      }
+    };
+    tick();
+    this.ratingsPoll = setInterval(() => {
+      elapsed += 500;
+      tick();
+    }, 500);
   }
 
   /** Idempotent: returns true once attached. */
@@ -312,6 +407,10 @@ export class WorldchessPageAdapter implements PageContextAdapter {
 
     if (this.emit) this.emit({ type: 'chessr:newGame' });
 
+    // Re-poll player cards too — new game = new opponent (rating likely
+    // changed) and the cards are torn down + rebuilt across SPA nav.
+    if (this.emit) this.startRatingsPoll(this.emit);
+
     // Re-poll for a new engine if we're on another game page.
     if (!this.bootPoll) {
       let elapsed = 0;
@@ -331,6 +430,8 @@ export class WorldchessPageAdapter implements PageContextAdapter {
     this.bootPoll = null;
     if (this.urlPoll) clearInterval(this.urlPoll);
     this.urlPoll = null;
+    if (this.ratingsPoll) clearInterval(this.ratingsPoll);
+    this.ratingsPoll = null;
     for (const d of this.disposers) { try { d(); } catch { /* noop */ } }
     this.disposers.length = 0;
     this.engine = null;
