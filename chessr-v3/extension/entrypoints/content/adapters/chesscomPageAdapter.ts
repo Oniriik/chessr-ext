@@ -319,11 +319,36 @@ export class ChesscomPageAdapter implements PageContextAdapter {
     // If chessr loaded mid-game (continuation /play/computer, observed
     // game, etc.), pull the moves already played and seed moveHistoryUci
     // so torch fetch_analysis can run from startpos.
-    const seedMoves = extractInitialMoves(game);
-    if (seedMoves.length > 0) {
-      console.log('[Chessr chesscom] seeding initial moves:', seedMoves.length);
-      emit({ type: 'chessr:initialMoves', moves: seedMoves });
-    }
+    //
+    // Retry-with-poll: chess.com loads the board synchronously but
+    // populates the move tree (game.getCurrentFullLine, getPGN, etc.)
+    // asynchronously a moment later. At patchGame time the PGN is often
+    // just headers + "*" (no moves). Poll for up to 3s, retry every
+    // 250ms, stop as soon as we find moves.
+    let seedAttempts = 0;
+    const maxAttempts = 12;  // 3s @ 250ms
+    const trySeed = () => {
+      seedAttempts++;
+      const seedMoves = extractInitialMoves(game);
+      if (seedMoves.length > 0) {
+        // Skip the case where we only have a `pgn:headers-only` payload
+        // — that means chess.com hasn't populated the moves yet.
+        const isEmptyPgn = seedMoves.length === 1
+          && seedMoves[0].startsWith('pgn:')
+          && !/\d+\.\s*\w/.test(seedMoves[0].slice(4));
+        if (!isEmptyPgn) {
+          console.log('[Chessr chesscom] seeding initial moves:', seedMoves.length, '(attempt', seedAttempts + ')');
+          emit({ type: 'chessr:initialMoves', moves: seedMoves });
+          return;
+        }
+      }
+      if (seedAttempts < maxAttempts) {
+        setTimeout(trySeed, 250);
+      } else {
+        console.log('[Chessr chesscom] no initial moves found after', maxAttempts, 'attempts (probably a fresh game)');
+      }
+    };
+    trySeed();
 
     const originalMove = game.move.bind(game);
     game.move = (moveData: any) => {
