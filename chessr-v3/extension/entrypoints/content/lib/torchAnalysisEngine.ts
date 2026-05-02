@@ -1,30 +1,46 @@
 /**
- * TorchAnalysisEngine — runs torch.wasm in a Worker and exposes a
- * single analyze(history) call that returns a parsed TorchAnalysis.
+ * TorchAnalysisEngine — runs torch.wasm in a Worker. Two-mode interface:
+ *
+ *   analyze(fen): AnalysisResult
+ *     Standard UCI search (`position fen X` + `go depth N`). Works for
+ *     ANY position. Drop-in compatible with the AnalysisBackend interface
+ *     (same shape as the legacy SF AnalysisEngine + ServerAnalysisEngine).
+ *     Used for the eval-bar / per-move classification in the chessr 6-class
+ *     style (via analyzeLastMove).
+ *
+ *   fetchFullAnalysis(history): TorchAnalysis
+ *     Custom Chess.com pipeline (`position startpos moves <X>` + `fetch
+ *     analysis`). Returns the rich JSON with CAPS, effective Elo, native
+ *     11-class classifications. Only works when the game is rooted at
+ *     startpos (history replays from startpos to current FEN). content.tsx
+ *     gates on historyMatchesFen() before calling this.
  *
  * Lifecycle:
  *   const eng = new TorchAnalysisEngine();
- *   await eng.init();                                 // 1× per game
- *   const a = await eng.analyze(['e2e4', 'e7e5', ...]); // after each move
- *   eng.destroy();                                    // on game end / unmount
+ *   await eng.init();
+ *   await eng.analyze(fen)                  // any position
+ *   await eng.fetchFullAnalysis(history)    // startpos-rooted only
+ *   eng.destroy();
  *
- * Init sends the full setoption pack required to enable ServeCommandV2 +
- * ClassificationV3 (see ChessHv3 reference at content.js:1950-1972).
- * analyze() drives `position startpos moves <history>` + `fetch analysis`
- * and waits for the next `json ` line.
- *
- * Does NOT implement AnalysisBackend — its analyze(history) signature
- * differs from the legacy analyze(fen). content.tsx routes around this
- * via a dedicated module-scope slot (see buildLiveAnalysis).
+ * Init drops `UseDeclarativePositionCommand` (which would force
+ * `position startpos moves X` only and crash the wasm on `position fen X`).
+ * The other ServeCommandV2 / ClassificationV3 / etc. options stay so
+ * fetch_analysis still produces classification fields when called.
  */
 
 import { parseFetchAnalysisJson, type TorchAnalysis } from './torchJson.js';
+import type { AnalysisResult, AnalysisBackend } from './moveAnalysis.js';
 
 const INIT_TIMEOUT_MS = 10_000;
 const ANALYSIS_TIMEOUT_MS = 5_000;
+const UCI_GO_TIMEOUT_MS = 10_000;
+const UCI_GO_DEPTH = 14;
 
 const SETOPTIONS = [
-  'UseDeclarativePositionCommand value true',
+  // NOTE: UseDeclarativePositionCommand is intentionally OMITTED — when
+  // true it makes torch reject `position fen <X>` (wasm aborts on parse).
+  // Without it, both `position fen X` and `position startpos moves Y`
+  // work.
   'BlackElo value 1500',
   'WhiteElo value 1500',
   'HandleContinuations value true',
@@ -39,6 +55,9 @@ const SETOPTIONS = [
   'UCI_Chess960 value false',
   'UseRatingRanges value true',
   'Language value en_US',
+  'MultiPV value 1',
+  'Hash value 32',
+  'Threads value 1',
 ];
 
 /** Narrowed Worker shape — only what TorchAnalysisEngine actually uses.
@@ -63,18 +82,18 @@ export interface TorchAnalysisDeps {
   wasmUrl: string;
 }
 
-export class TorchAnalysisEngine {
+export class TorchAnalysisEngine implements AnalysisBackend {
   private worker: WorkerLike | null = null;
   private blobUrl: string | null = null;
   private _ready = false;
   private _disposed = false;
   private deps: TorchAnalysisDeps;
   /** Sequential queue: torch processes UCI commands in order; pipelining
-   *  position+fetch_analysis from concurrent analyze() calls puts the
-   *  json-listeners in a state where listener N can resolve with the
-   *  payload from a previous call (and worse: deeply nested fetch_analysis
-   *  calls have triggered wasm abort()s in production). Serialise. */
-  private analysisQueue: Promise<unknown> = Promise.resolve();
+   *  position+go OR position+fetch_analysis from concurrent calls puts
+   *  the listeners in a state where listener N can resolve with the
+   *  payload from a previous call (and worse: deeply nested calls have
+   *  triggered wasm abort()s in production). Serialise everything. */
+  private cmdQueue: Promise<unknown> = Promise.resolve();
 
   constructor(deps?: Partial<TorchAnalysisDeps>) {
     this.deps = {
@@ -107,19 +126,62 @@ export class TorchAnalysisEngine {
     this._ready = true;
   }
 
-  async analyze(history: string[]): Promise<TorchAnalysis> {
+  /** Standard UCI search on any position. Drop-in compatible with the
+   *  AnalysisBackend.analyze(fen) contract — used for eval-bar / per-move
+   *  classification when game isn't startpos-rooted (or as a generic
+   *  single-position eval). */
+  async analyze(fen: string): Promise<AnalysisResult> {
     if (this._disposed) throw new Error('engine disposed');
     if (!this._ready || !this.worker) throw new Error('engine not ready');
 
-    // Chain on the previous analysis so commands are strictly sequential.
-    // .catch on the prior promise so that if it failed, this one doesn't
-    // immediately reject — we want each call to attempt its own work.
-    const next = this.analysisQueue.catch(() => undefined).then(async () => {
-      // Re-check state at the moment we actually start (may have been
-      // disposed while we were queued).
-      if (this._disposed) throw new Error('engine disposed');
-      if (!this._ready || !this.worker) throw new Error('engine not ready');
+    return this.enqueue(async () => {
+      this.send(`position fen ${fen}`);
+      // Track best info during the search so we can report it on bestmove.
+      let lastInfo: { cp: number | null; mate: number | null; depth: number; pv: string } = {
+        cp: null, mate: null, depth: 0, pv: '',
+      };
+      const onMsg = (e: any) => {
+        const line = typeof e.data === 'string' ? e.data : '';
+        if (!line.startsWith('info ') || !line.includes(' pv ')) return;
+        // Parse `info depth N ... score cp X | score mate Y ... pv MOVE...`
+        const m = line.match(/depth\s+(\d+)/);
+        if (m) lastInfo.depth = parseInt(m[1], 10);
+        const cpM = line.match(/score\s+cp\s+(-?\d+)/);
+        const mateM = line.match(/score\s+mate\s+(-?\d+)/);
+        if (cpM) { lastInfo.cp = parseInt(cpM[1], 10); lastInfo.mate = null; }
+        if (mateM) { lastInfo.mate = parseInt(mateM[1], 10); lastInfo.cp = null; }
+        const pvIdx = line.indexOf(' pv ');
+        if (pvIdx >= 0) lastInfo.pv = line.slice(pvIdx + 4).trim();
+      };
+      this.worker!.addEventListener('message', onMsg);
 
+      try {
+        const bestmoveLine = await this.waitForLinePrefix(
+          'bestmove',
+          () => this.send(`go depth ${UCI_GO_DEPTH}`),
+          UCI_GO_TIMEOUT_MS,
+        );
+        const bestMove = bestmoveLine.split(/\s+/)[1] ?? '';
+        // Mate is mapped to ±10000 cp (sentinel) so callers see a saturated
+        // value; chessr's classifier only uses cp delta so this works.
+        const evaluation = lastInfo.mate !== null
+          ? (lastInfo.mate > 0 ? 10000 : -10000)
+          : (lastInfo.cp ?? 0);
+        return { evaluation, bestMove, depth: lastInfo.depth };
+      } finally {
+        this.worker?.removeEventListener('message', onMsg);
+      }
+    });
+  }
+
+  /** Custom Chess.com `fetch analysis` pipeline. ONLY valid when `history`
+   *  replays from startpos to the current position — caller must validate
+   *  via historyMatchesFen() before invoking. Returns the rich JSON. */
+  async fetchFullAnalysis(history: string[]): Promise<TorchAnalysis> {
+    if (this._disposed) throw new Error('engine disposed');
+    if (!this._ready || !this.worker) throw new Error('engine not ready');
+
+    return this.enqueue(async () => {
       const movesPart = history.length ? ` moves ${history.join(' ')}` : '';
       this.send(`position startpos${movesPart}`);
 
@@ -136,7 +198,17 @@ export class TorchAnalysisEngine {
       }
       return parseFetchAnalysisJson(raw);
     });
-    this.analysisQueue = next;
+  }
+
+  /** Serialise commands on the worker — torch is single-threaded and
+   *  pipelining position+go pairs has triggered wasm aborts in prod. */
+  private enqueue<T>(work: () => Promise<T>): Promise<T> {
+    const next = this.cmdQueue.catch(() => undefined).then(async () => {
+      if (this._disposed) throw new Error('engine disposed');
+      if (!this._ready || !this.worker) throw new Error('engine not ready');
+      return work();
+    });
+    this.cmdQueue = next;
     return next;
   }
 

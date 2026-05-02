@@ -66,7 +66,7 @@ describe('TorchAnalysisEngine', () => {
       }
     };
     await eng.init();
-    const result = await eng.analyze(['e2e4', 'e7e5', 'g1f3', 'b8c6']);
+    const result = await eng.fetchFullAnalysis(['e2e4', 'e7e5', 'g1f3', 'b8c6']);
     assert.equal(typeof result.effectiveElo.white, 'number');
     assert.ok(result.moveAnalyses.length > 0);
     assert.ok(fw.posted.some((c) => c.startsWith('position startpos moves ')));
@@ -83,7 +83,7 @@ describe('TorchAnalysisEngine', () => {
       if (cmd === 'fetch analysis') queueMicrotask(() => fw.emit('json {not-json'));
     };
     await eng.init();
-    await assert.rejects(() => eng.analyze(['e2e4']), /JSON|parse/);
+    await assert.rejects(() => eng.fetchFullAnalysis(['e2e4']), /JSON|parse/);
     eng.destroy();
   });
 
@@ -99,7 +99,7 @@ describe('TorchAnalysisEngine', () => {
       }
     };
     await eng.init();
-    const result = await eng.analyze([]);
+    const result = await eng.fetchFullAnalysis([]);
     assert.equal(result.moveAnalyses.length, 0);
     assert.ok(fw.posted.includes('position startpos'));
     eng.destroy();

@@ -30,7 +30,7 @@ export class TorchClassifier {
 
     const promise = this.queue.then(async () => {
       try {
-        const a = await this.engine.analyze([...history, candidateUci]);
+        const a = await this.engine.fetchFullAnalysis([...history, candidateUci]);
         const last = a.moveAnalyses[a.moveAnalyses.length - 1];
         const klass: MoveClassification = last?.classification ?? 'good';
         this.cache.set(key, klass);

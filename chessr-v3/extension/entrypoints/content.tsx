@@ -640,11 +640,12 @@ export default defineContentScript({
         useAnalysisStore.getState().setAnalyzing(true);
 
         const history = useGameStore.getState().moveHistoryUci;
-        const torchUsable = torchAnalysisEngine?.ready && historyMatchesFen(history, fenAfter);
+        const torchFullUsable = torchAnalysisEngine?.ready && historyMatchesFen(history, fenAfter);
 
-        if (torchUsable) {
-          // Torch primary path — single fetch_analysis on the whole game.
-          torchAnalysisEngine!.analyze(history)
+        if (torchFullUsable) {
+          // Torch fetch_analysis path — full game analysis with CAPS, Elo,
+          // 11-class classifications. Only when game is rooted at startpos.
+          torchAnalysisEngine!.fetchFullAnalysis(history)
             .then((result: TorchAnalysis) => {
               useAnalysisStore.getState().applyTorchAnalysis(result);
               animationGate.markEvent('analysis');
@@ -673,26 +674,34 @@ export default defineContentScript({
             .finally(() => {
               useAnalysisStore.getState().setAnalyzing(false);
             });
-        } else if (analysisEngine?.ready) {
-          // Degraded path: existing two-FEN flow with server SF.
-          analyzeLastMove(fenBefore, fenAfter, analysisEngine)
-            .then((result) => {
-              useAnalysisStore.getState().addAnalysis({ ...result, moveNumber });
-              animationGate.markEvent('analysis');
-              const pc = useGameStore.getState().playerColor;
-              const evalWhite = pc === 'black' ? -result.evalAfter : result.evalAfter;
-              useEvalStore.getState().setEval(evalWhite);
-              sendWs({ type: 'analysis_log_end', requestId: arid,
-                       extra: `${result.classification} caps2=${result.caps2}` });
-            })
-            .catch((err) => {
-              console.error('[Chessr] Analysis error:', err);
-              sendWs({ type: 'analysis_log_end', requestId: arid,
-                       extra: `fail:${err?.message || 'unknown'}` });
-            })
-            .finally(() => {
-              useAnalysisStore.getState().setAnalyzing(false);
-            });
+        } else {
+          // UCI standard path — works for any position (mid-game starts,
+          // continuation games on chess.com /play/computer, etc.). Prefers
+          // torch.wasm (analyze(fen) does `position fen X` + `go depth N`)
+          // and falls back to ServerAnalysisEngine if torch isn't up.
+          const liveBackend = torchAnalysisEngine?.ready ? torchAnalysisEngine : analysisEngine;
+          if (liveBackend?.ready) {
+            analyzeLastMove(fenBefore, fenAfter, liveBackend)
+              .then((result) => {
+                useAnalysisStore.getState().addAnalysis({ ...result, moveNumber });
+                animationGate.markEvent('analysis');
+                const pc = useGameStore.getState().playerColor;
+                const evalWhite = pc === 'black' ? -result.evalAfter : result.evalAfter;
+                useEvalStore.getState().setEval(evalWhite);
+                sendWs({ type: 'analysis_log_end', requestId: arid,
+                         extra: `${result.classification} caps2=${result.caps2}` });
+              })
+              .catch((err) => {
+                console.error('[Chessr] Analysis error:', err);
+                sendWs({ type: 'analysis_log_end', requestId: arid,
+                         extra: `fail:${err?.message || 'unknown'}` });
+              })
+              .finally(() => {
+                useAnalysisStore.getState().setAnalyzing(false);
+              });
+          } else {
+            useAnalysisStore.getState().setAnalyzing(false);
+          }
         }
       }
 
@@ -713,12 +722,11 @@ export default defineContentScript({
         sendWs({ type: 'eval_log_start', requestId: erid, extra: `source=${src}` });
 
         const history = useGameStore.getState().moveHistoryUci;
-        const torchUsableOpp = torchAnalysisEngine?.ready && historyMatchesFen(history, state.fen!);
+        const torchFullUsableOpp = torchAnalysisEngine?.ready && historyMatchesFen(history, state.fen!);
 
-        if (torchUsableOpp) {
-          // Torch path — fetch_analysis on the whole game (includes opponent's
-          // last move). Cheap (~60 ms) and keeps everything consistent.
-          torchAnalysisEngine!.analyze(history).then((result) => {
+        if (torchFullUsableOpp) {
+          // Torch fetch_analysis path — full game stats refresh.
+          torchAnalysisEngine!.fetchFullAnalysis(history).then((result) => {
             useAnalysisStore.getState().applyTorchAnalysis(result);
             const last = result.moveAnalyses[result.moveAnalyses.length - 1];
             if (last) {
@@ -738,22 +746,26 @@ export default defineContentScript({
                 console.error('[Chessr] live-analysis re-init failed:', e));
             }
           });
-        } else if (analysisEngine?.ready) {
-          // Degraded path — existing single-FEN call to server SF.
-          analysisEngine.analyze(state.fen!).then((result) => {
-            const pc = useGameStore.getState().playerColor;
-            const evalWhite = pc === 'black' ? -result.evaluation / 100 : result.evaluation / 100;
-            useEvalStore.getState().setEval(evalWhite);
-            sendWs({ type: 'eval_log_end', requestId: erid,
-                     extra: `bestMove=${result.bestMove} eval=${result.evaluation}cp d${result.depth}` });
-          }).catch((err) => {
-            sendWs({ type: 'eval_log_end', requestId: erid, extra: `fail:${err?.message || 'unknown'}` });
-            // Re-init the live engine if the previous one died.
-            if (!analysisEngine?.ready) {
-              buildLiveAnalysis().catch((e) =>
-                console.error('[Chessr] live-analysis re-init failed:', e));
-            }
-          });
+        } else {
+          // UCI standard single-FEN eval — torch.wasm preferred, server SF
+          // fallback. Same path used in the playerJustMoved else-branch.
+          const evalBackend = torchAnalysisEngine?.ready ? torchAnalysisEngine : analysisEngine;
+          if (evalBackend?.ready) {
+            evalBackend.analyze(state.fen!).then((result) => {
+              const pc = useGameStore.getState().playerColor;
+              const evalWhite = pc === 'black' ? -result.evaluation / 100 : result.evaluation / 100;
+              useEvalStore.getState().setEval(evalWhite);
+              sendWs({ type: 'eval_log_end', requestId: erid,
+                       extra: `bestMove=${result.bestMove} eval=${result.evaluation}cp d${result.depth}` });
+            }).catch((err) => {
+              sendWs({ type: 'eval_log_end', requestId: erid, extra: `fail:${err?.message || 'unknown'}` });
+              // Re-init the live engines if either died.
+              if (!evalBackend?.ready) {
+                buildLiveAnalysis().catch((e) =>
+                  console.error('[Chessr] live-analysis re-init failed:', e));
+              }
+            });
+          }
         }
       }
     });
