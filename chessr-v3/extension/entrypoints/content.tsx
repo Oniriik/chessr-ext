@@ -123,12 +123,10 @@ async function buildLiveAnalysis(): Promise<void> {
       gameStore: useGameStore,
       torchEngine: () => torchAnalysisEngine,
     };
-    // NOTE: we used to call triggerInitialAnalysisIfSeeded() here to
-    // populate the Performance Card immediately on continuation games.
-    // That triggered wasm aborts on certain mid-game move sequences
-    // (`UseDeclarativePositionCommand=true` + first call with arbitrary
-    // history is fragile). We now wait for the player's next move
-    // instead — the regular onMove flow will populate stats fine.
+    // If chessr loaded mid-game and history was already seeded, kick off
+    // an initial fetch_analysis so the Performance Card has stats to show
+    // before the user makes the next move.
+    triggerInitialAnalysisIfSeeded();
     return;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -161,6 +159,58 @@ let lastSearchKey: string | null = null;
 // the message handler below.
 let newGameResetTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingNewGameFen: string | null = null;
+
+/** Run a fetch_analysis on the seeded history so the Performance Card has
+ *  stats to show before the user makes the next move. Idempotent (skips
+ *  if moveAnalyses is already populated). Robust to the occasional wasm
+ *  abort: catches, lets buildLiveAnalysis re-init, then the next move
+ *  will fire the regular flow.
+ *
+ *  Called from two places:
+ *    - buildLiveAnalysis() success path: torch came up after a seeded
+ *      history was already in place
+ *    - chessr:initialMoves handler: seed arrived after torch was up
+ *  Both trigger the same idempotent flow. */
+let initialAnalysisInFlight = false;
+async function triggerInitialAnalysisIfSeeded(): Promise<void> {
+  if (initialAnalysisInFlight) return;
+  if (!torchAnalysisEngine?.ready) return;
+  const history = useGameStore.getState().moveHistoryUci;
+  if (history.length === 0) return;
+  const fen = useGameStore.getState().fen;
+  if (!fen) return;
+  if (!historyMatchesFen(history, fen)) return;
+  if (useAnalysisStore.getState().moveAnalyses.length > 0) return;
+
+  initialAnalysisInFlight = true;
+  console.log('[Chessr] firing initial fetch_analysis on seeded history (', history.length, 'moves)');
+  useAnalysisStore.getState().setAnalyzing(true);
+  try {
+    const result = await torchAnalysisEngine.fetchFullAnalysis(history);
+    useAnalysisStore.getState().applyTorchAnalysis(result);
+    const last = result.moveAnalyses[result.moveAnalyses.length - 1];
+    if (last) {
+      const sideToMoveAfter = fen.split(' ')[1];
+      const evalWhite = sideToMoveAfter === 'b' ? -last.evaluation : last.evaluation;
+      useEvalStore.getState().setEval(evalWhite);
+    }
+    console.log('[Chessr] initial fetch_analysis applied:',
+      result.moveAnalyses.length, 'moves analyzed,',
+      'CAPS w/b:', result.caps.white.all + '/' + result.caps.black.all,
+      'Elo w/b:', result.effectiveElo.white + '/' + result.effectiveElo.black);
+  } catch (err) {
+    console.warn('[Chessr] initial fetch_analysis failed:', err);
+    // If torch died, re-init so the next regular move flow has a fresh
+    // worker. The next chessr:move will retry the analysis through the
+    // normal playerJustMoved/opponentJustMoved branches.
+    if (!torchAnalysisEngine?.ready) {
+      buildLiveAnalysis().catch((e) => console.error('[Chessr] re-init failed:', e));
+    }
+  } finally {
+    useAnalysisStore.getState().setAnalyzing(false);
+    initialAnalysisInFlight = false;
+  }
+}
 
 /** Convert a list emitted by extractInitialMoves (UCI strings, optionally
  *  prefixed with a single "pgn:<pgn>" sentinel for the PGN-fallback path)
@@ -956,6 +1006,9 @@ export default defineContentScript({
               // After seeding, also reset previousFen so the next FEN-diff
               // observation doesn't pushUciMove a phantom move on top.
               previousFen = useGameStore.getState().fen;
+              // Fire initial analysis if torch is already up. (If torch
+              // becomes ready later, buildLiveAnalysis will trigger it.)
+              triggerInitialAnalysisIfSeeded();
             }
           }
           break;

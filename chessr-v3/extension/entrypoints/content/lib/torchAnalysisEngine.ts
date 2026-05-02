@@ -153,6 +153,12 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     for (const opt of pack) this.send(`setoption name ${opt}`);
     await this.cmd('isready', 'readyok', INIT_TIMEOUT_MS);
     this.send('ucinewgame');
+    // Wait for ucinewgame to be processed before marking ready — the
+    // very first fetch_analysis call would otherwise race against the
+    // engine's internal table reset and occasionally trigger a wasm
+    // abort. The extra isready handshake serialises us behind the
+    // ucinewgame side-effects.
+    await this.cmd('isready', 'readyok', INIT_TIMEOUT_MS);
     this._ready = true;
   }
 
