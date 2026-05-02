@@ -53,14 +53,20 @@ export function uciFromFens(fenBefore: string, fenAfter: string): string | null 
   } catch {
     return null;
   }
-  // Compare on the position fields only (ignore halfmove / fullmove counters
-  // which can mismatch if chess.com / our state-tracking diverges by 1).
-  const targetBoard = fenAfter.split(' ').slice(0, 4).join(' ');
+  // Compare on board + side-to-move + castling only. We ignore:
+  //   - en-passant (field 4): chess.com writes '-' when no pawn can
+  //     actually capture en-passant, while chess.js always writes the
+  //     square after a 2-square pawn push. Including this field made
+  //     every 2-square pawn push (e2e4, e7e5, …) fail to match.
+  //   - halfmove / fullmove (fields 5-6): drift by 1 between trackers.
+  // Board+stm+castling is enough to uniquely identify the move from a
+  // given position (different moves produce different boards).
+  const targetBoard = fenAfter.split(' ').slice(0, 3).join(' ');
   const moves = chess.moves({ verbose: true });
   for (const m of moves) {
     const probe = new Chess(fenBefore);
     probe.move(m);
-    const probeBoard = probe.fen().split(' ').slice(0, 4).join(' ');
+    const probeBoard = probe.fen().split(' ').slice(0, 3).join(' ');
     if (probeBoard === targetBoard) {
       return m.from + m.to + (m.promotion ?? '');
     }

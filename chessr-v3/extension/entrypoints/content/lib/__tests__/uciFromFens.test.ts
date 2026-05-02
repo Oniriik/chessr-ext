@@ -35,6 +35,15 @@ describe('uciFromFens', () => {
     const after  = 'r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQ1RK1 b kq - 5 4';
     assert.equal(uciFromFens(before, after), 'e1g1');
   });
+
+  it("matches a 2-square pawn push when chess.com writes '-' for en-passant", () => {
+    // chess.com only sets the en-passant square when an enemy pawn can
+    // actually capture en-passant; chess.js always sets it after a 2-square
+    // pawn push. uciFromFens must compare on board+stm+castling only, not
+    // on the en-passant field.
+    const after = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    assert.equal(uciFromFens(STARTPOS, after), 'e2e4');
+  });
 });
 
 describe('historyMatchesFen', () => {
