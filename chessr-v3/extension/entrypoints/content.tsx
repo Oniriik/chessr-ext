@@ -18,6 +18,7 @@ import { TorchAnalysisEngine } from './content/lib/torchAnalysisEngine';
 import { setTorchLiveEngine } from './content/lib/torchLiveRef';
 import type { TorchAnalysis } from './content/lib/torchJson';
 import { uciFromFens, historyMatchesFen } from './content/lib/uciFromFens';
+import { Chess } from 'chess.js';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
 
 function analysisSource(): 'wasm' | 'server' {
@@ -141,15 +142,17 @@ function parseInitialMoves(raw: string[]): string[] {
   if (raw.length === 1 && raw[0].startsWith('pgn:')) {
     const pgn = raw[0].slice(4);
     try {
-      // Use a dynamic chess.js Chess instance (already imported elsewhere).
-      // Lazy-require to keep this helper local to content.tsx.
-      const { Chess } = require('chess.js') as typeof import('chess.js');
+      // Chess is imported statically at the top of this file (see import
+      // chunks above). Don't `require()` — the Vite/WXT bundle compiles
+      // imports statically and `require` is undefined at runtime.
       const chess = new Chess();
       chess.loadPgn(pgn, { strict: false });
-      return chess.history({ verbose: true })
+      const moves = chess.history({ verbose: true })
         .map((m: any) => `${m.from}${m.to}${m.promotion ?? ''}`);
+      console.log('[Chessr] PGN parsed:', moves.length, 'moves from', pgn.length, 'chars');
+      return moves;
     } catch (e) {
-      console.warn('[Chessr] PGN seed parse failed:', e);
+      console.warn('[Chessr] PGN seed parse failed:', e, '\nPGN:', pgn.slice(0, 200));
       return [];
     }
   }

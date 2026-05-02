@@ -64,8 +64,30 @@ function readRatings(): { playerRating: number | null; opponentRating: number | 
 function extractInitialMoves(game: any): string[] {
   if (!game) return [];
 
-  // Each of these returns an array of node objects { move: { from, to, promotion } }
-  // or similar. Probe in order of specificity.
+  // First try the node-walk API: getNodeIds() returns ordered IDs along
+  // the main line; getMove(id) returns the move {from, to, promotion}
+  // for that node. This is the most reliable cross-version surface.
+  try {
+    if (typeof game.getNodeIds === 'function' && typeof game.getMove === 'function') {
+      const ids = game.getNodeIds();
+      if (Array.isArray(ids) && ids.length > 0) {
+        const ucis: string[] = [];
+        for (const id of ids) {
+          const m = game.getMove(id);
+          if (m && typeof m.from === 'string' && typeof m.to === 'string') {
+            ucis.push(`${m.from}${m.to}${m.promotion ?? ''}`);
+          }
+        }
+        if (ucis.length > 0) {
+          console.log('[Chessr chesscom] extracted', ucis.length, 'initial moves via getNodeIds');
+          return ucis;
+        }
+      }
+    }
+  } catch (e) { console.warn('[Chessr chesscom] getNodeIds path failed:', e); }
+
+  // Try the line-getter methods. Each returns an array of node objects
+  // {move: {from, to, promotion}} or similar.
   const candidates: any[] = [];
   try { if (typeof game.getCurrentFullLine === 'function') candidates.push(game.getCurrentFullLine()); } catch {}
   try { if (typeof game.getLine === 'function') candidates.push(game.getLine()); } catch {}
@@ -87,24 +109,17 @@ function extractInitialMoves(game: any): string[] {
       }
     }
     if (ucis.length > 0) {
-      console.log('[Chessr chesscom] extracted', ucis.length, 'initial moves via game API');
+      console.log('[Chessr chesscom] extracted', ucis.length, 'initial moves via line-getter');
       return ucis;
     }
   }
 
-  // Fallback: parse the PGN. chess.com exposes `getPGN()` returning the
-  // SAN move list — we parse it with chess.js (loaded by chessr) to get
-  // UCI moves. PGN includes headers and tags so we strip those first.
+  // Fallback: parse the PGN. The receiver (content.tsx parseInitialMoves)
+  // uses chess.js to convert SAN to UCI.
   try {
     const pgn = typeof game.getPGN === 'function' ? game.getPGN() : (game.pgn ?? null);
     if (typeof pgn === 'string' && pgn.length > 0) {
-      // chess.js is bundled with chessr; we run in page-world here so we
-      // can't import it directly. Just emit the SAN list and let the
-      // chessr content-script side parse it. We attach a `pgn` field on
-      // the message for the receiver to handle.
-      console.log('[Chessr chesscom] falling back to PGN parsing,', pgn.length, 'chars');
-      // Encode as a synthetic uci pseudo-list so the receiver knows to
-      // parse this as PGN — prefix with "pgn:" sentinel.
+      console.log('[Chessr chesscom] falling back to PGN parsing,', pgn.length, 'chars; preview:', pgn.slice(0, 120));
       return ['pgn:' + pgn];
     }
   } catch {}
