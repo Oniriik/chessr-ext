@@ -776,9 +776,16 @@ export default defineContentScript({
         const moveNumber = parseMoveNumber(previousFen!);
         const fenBefore = previousFen!;
         const fenAfter = state.fen!;
-        console.log('[Chessr][analyze] playerJustMoved fired',
-          { moveNumber, historyLen: useGameStore.getState().moveHistoryUci.length,
-            torchReady: torchAnalysisEngine?.ready, torchUciReady: torchUciEngine?.ready });
+        const _diagHist = useGameStore.getState().moveHistoryUci;
+        const _diagHistMatch = historyMatchesFen(_diagHist, fenAfter);
+        console.log('[Chessr][analyze] playerJustMoved fired ' + JSON.stringify({
+          moveNumber,
+          historyLen: _diagHist.length,
+          historyMatchesFen: _diagHistMatch,
+          torchReady: !!torchAnalysisEngine?.ready,
+          torchUciReady: !!torchUciEngine?.ready,
+          willUseRich: !!(torchAnalysisEngine?.ready && _diagHistMatch),
+        }));
 
         const arid = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const src = analysisSource();

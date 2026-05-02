@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import type { MoveClassification } from '../lib/moveAnalysis';
 import { winProb, computeCAPS2 } from '../lib/moveAnalysis';
 import type { CapsBlock, TallyMap, TorchAnalysis } from '../lib/torchJson';
+import { useGameStore } from './gameStore';
 
 export interface MoveAnalysis {
   moveNumber: number;
@@ -71,7 +72,15 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
     const newAnalyses = [...prev.moveAnalyses, analysis].sort(
       (a, b) => a.moveNumber - b.moveNumber,
     );
-    const newAccuracy = computeAccuracy(newAnalyses);
+    // Keep torch's CAPS as accuracy when it's the most recent stat we have:
+    // mixing torch-derived caps2 (rich path) with SF caps2 (UCI path) in
+    // the same average produces nonsense (rich evals are clipped, so they
+    // recompute to ~100 locally — pulling the displayed accuracy up).
+    const playerColor = useGameStore.getState().playerColor;
+    const torchPlayerCaps = playerColor ? prev.caps[playerColor]?.all : null;
+    const newAccuracy = torchPlayerCaps != null
+      ? prev.accuracy
+      : computeAccuracy(newAnalyses);
     const delta = newAccuracy - prev.accuracy;
     const trend: AccuracyTrend =
       delta > 0.1 ? 'up' : delta < -0.1 ? 'down' : 'stable';
@@ -107,7 +116,14 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
         bestMove: m.moveLan,
       };
     });
-    const accuracy = computeAccuracy(augmented);
+    // Prefer torch's CAPS for the player's side as the displayed accuracy.
+    // Falling back to the local recomputation only when player color is
+    // unknown or torch didn't provide a value (degraded reportCard).
+    const playerColor = useGameStore.getState().playerColor;
+    const torchPlayerCaps = playerColor ? a.caps[playerColor]?.all : null;
+    const accuracy = torchPlayerCaps != null
+      ? Math.round(torchPlayerCaps * 10) / 10
+      : computeAccuracy(augmented);
     set({
       moveAnalyses: augmented,
       accuracy,
