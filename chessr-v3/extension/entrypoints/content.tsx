@@ -180,7 +180,10 @@ async function triggerInitialAnalysisIfSeeded(): Promise<void> {
   const fen = useGameStore.getState().fen;
   if (!fen) return;
   if (!historyMatchesFen(history, fen)) return;
-  if (useAnalysisStore.getState().moveAnalyses.length > 0) return;
+  // Note: we do NOT skip when moveAnalyses is already populated, because
+  // applyTorchAnalysis bulk-replaces it anyway and we want to recover
+  // from cases where torch crashed mid-game and missed a move or two.
+  // Idempotent because applyTorchAnalysis is a pure replace.
 
   initialAnalysisInFlight = true;
   console.log('[Chessr] firing initial fetch_analysis on seeded history (', history.length, 'moves)');
@@ -988,28 +991,38 @@ export default defineContentScript({
           // the next player move triggers a torch fetch_analysis that
           // replays correctly from startpos.
           //
-          // GUARD: only accept the seed if history is still empty. If the
-          // user already played a move during the 250ms-3s seed-poll
-          // window, our pushUciMove path is the source of truth — don't
-          // clobber it with a (potentially stale) seed. The adapter polls
-          // anyway, so a late seed for an in-progress game is dropped.
+          // GUARD: accept seed only if it brings MORE history than what
+          // we currently have. Two race scenarios this handles:
+          //   - User played during the 3s seed-poll: history=[user_move],
+          //     seed=[m1...m12, user_move] (length 13) → replace.
+          //   - Adapter polls multiple times: first poll gets 12 moves,
+          //     a later one gets the same 12. We accept only the longer
+          //     ones, and validate that the seed replays to current FEN.
           if (Array.isArray(data.moves) && data.moves.length > 0) {
             const currentHist = useGameStore.getState().moveHistoryUci;
-            if (currentHist.length > 0) {
-              console.log('[Chessr] seed ignored — history already populated (', currentHist.length, 'moves)');
+            const seeded = parseInitialMoves(data.moves);
+            const fen = useGameStore.getState().fen;
+            if (seeded.length === 0) break;
+            if (seeded.length <= currentHist.length) {
+              console.log('[Chessr] seed ignored — current history (', currentHist.length, ') ≥ seed (', seeded.length, ')');
               break;
             }
-            const seeded = parseInitialMoves(data.moves);
-            if (seeded.length > 0) {
-              useGameStore.getState().setMoveHistoryUci(seeded);
-              console.log('[Chessr] seeded', seeded.length, 'initial moves into history');
-              // After seeding, also reset previousFen so the next FEN-diff
-              // observation doesn't pushUciMove a phantom move on top.
-              previousFen = useGameStore.getState().fen;
-              // Fire initial analysis if torch is already up. (If torch
-              // becomes ready later, buildLiveAnalysis will trigger it.)
-              triggerInitialAnalysisIfSeeded();
+            if (fen && !historyMatchesFen(seeded, fen)) {
+              console.log('[Chessr] seed ignored — replay does not match current FEN');
+              break;
             }
+            useGameStore.getState().setMoveHistoryUci(seeded);
+            console.log('[Chessr] seeded', seeded.length, 'initial moves into history (was', currentHist.length, ')');
+            // After seeding, also reset previousFen so the next FEN-diff
+            // observation doesn't pushUciMove a phantom move on top.
+            previousFen = fen;
+            // Reset moveAnalyses to force the initial analysis to fire
+            // even if there were stale entries from a previous partial
+            // analysis run (e.g. UCI-mode classifier results).
+            useAnalysisStore.getState().reset();
+            // Fire initial analysis if torch is already up. (If torch
+            // becomes ready later, buildLiveAnalysis will trigger it.)
+            triggerInitialAnalysisIfSeeded();
           }
           break;
         case 'chessr:gameOver':
