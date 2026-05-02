@@ -114,6 +114,21 @@ async function buildLiveAnalysis(): Promise<void> {
     setTorchLiveEngine(torchRich);
     consecutiveInitFailures = 0;
     console.log('[Chessr] live analysis ready (torch WASM × 2: rich for fetch_analysis, uci for any-FEN eval)');
+    // Push current ratings into the rich worker so its 11-class classifier
+    // is calibrated for THIS game (not the 1500/1500 init defaults). Same
+    // logic as the chessr:ratings handler — runs here for the case where
+    // ratings arrived before torch finished booting.
+    {
+      const pc = useGameStore.getState().playerColor;
+      const userElo = useEngineStore.getState().userElo;
+      const oppElo = useEngineStore.getState().opponentElo;
+      if (userElo > 0 && oppElo > 0) {
+        const whiteElo = pc === 'black' ? oppElo : userElo;
+        const blackElo = pc === 'black' ? userElo : oppElo;
+        torchRich.setRatings(whiteElo, blackElo).catch((err) =>
+          console.warn('[Chessr][torch] initial setRatings failed:', err));
+      }
+    }
     recordEngineSwap({ slot: 'analysis', engineId: 'torch', mode: 'wasm', success: true });
     useEngineStore.getState().setTorchAvailable(true);
     // Expose stores on window for DevTools inspection (read-only debug aid).
@@ -1082,6 +1097,21 @@ export default defineContentScript({
         case 'chessr:ratings':
           if (data.playerRating) useEngineStore.getState().setUserElo(data.playerRating);
           if (data.opponentRating) useEngineStore.getState().setOpponentElo(data.opponentRating);
+          // Forward to torch's rich worker — drives the rating-range
+          // thresholds for the 11-class classifier and the effectiveElo
+          // it reports. Without this update both stay calibrated for
+          // the hardcoded 1500/1500 init defaults.
+          if (torchAnalysisEngine?.ready) {
+            const pc = useGameStore.getState().playerColor;
+            const userElo = useEngineStore.getState().userElo;
+            const oppElo = useEngineStore.getState().opponentElo;
+            const whiteElo = pc === 'black' ? oppElo : userElo;
+            const blackElo = pc === 'black' ? userElo : oppElo;
+            if (whiteElo && blackElo) {
+              torchAnalysisEngine.setRatings(whiteElo, blackElo).catch((err) =>
+                console.warn('[Chessr][torch] setRatings failed:', err));
+            }
+          }
           break;
       }
     });

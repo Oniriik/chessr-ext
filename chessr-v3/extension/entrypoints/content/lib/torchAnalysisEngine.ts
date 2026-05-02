@@ -236,6 +236,24 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     });
   }
 
+  /** Update the WhiteElo / BlackElo setoptions torch uses for classification
+   *  thresholds (rating ranges drive what counts as "great" vs "excellent",
+   *  inacc vs mistake, etc.). Safe to call between fetch_analysis runs;
+   *  must NOT be called mid-search. Queued through the same cmdQueue as
+   *  position/go to guarantee that. Only meaningful in mode='rich' (the
+   *  UCI mode pack omits these options). */
+  setRatings(whiteElo: number, blackElo: number): Promise<void> {
+    if (this.deps.mode !== 'rich') return Promise.resolve();
+    return this.enqueue(async () => {
+      this.send(`setoption name WhiteElo value ${Math.round(whiteElo)}`);
+      this.send(`setoption name BlackElo value ${Math.round(blackElo)}`);
+      // Wait for readyok so a subsequent fetch_analysis sees the new
+      // values applied (torch may need an isready handshake to commit
+      // setoption changes — confirmed via /tmp/torch-ratings-update.mjs).
+      await this.cmd('isready', 'readyok', INIT_TIMEOUT_MS);
+    });
+  }
+
   /** Serialise commands on the worker — torch is single-threaded and
    *  pipelining position+go pairs has triggered wasm aborts in prod. */
   private enqueue<T>(work: () => Promise<T>): Promise<T> {
