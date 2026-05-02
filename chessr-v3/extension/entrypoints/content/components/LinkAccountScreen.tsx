@@ -49,9 +49,6 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
       <div className="link-screen-header">
         <span className="link-screen-eyebrow">Link account</span>
         <h3 className="link-screen-title">Link your {platformLabel} profile</h3>
-        <p className="link-screen-subtitle">
-          Required to enable per-game stats, classification accuracy and Elo-based suggestions.
-        </p>
       </div>
 
       <div className="link-screen-card">
@@ -88,10 +85,6 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
       <button className="link-screen-btn" onClick={handleLink} disabled={loading}>
         {loading ? 'Linking…' : `Link this ${platformLabel} account`}
       </button>
-
-      <p className="link-screen-foot">
-        Wrong account? <button className="link-screen-link" onClick={() => useAuthStore.getState().signOut()}>Sign out</button> and sign back in with the right one.
-      </p>
     </div>
   );
 }
