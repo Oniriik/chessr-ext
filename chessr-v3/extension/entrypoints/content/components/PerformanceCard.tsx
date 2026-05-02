@@ -98,12 +98,18 @@ export default function PerformanceCard() {
   const trendLabelRef = useRef<HTMLSpanElement>(null);
   const prevTrend = useRef<AccuracyTrend | null>(null);
 
+  // Performance card is per-side (matches chess.com's review card). Show
+  // the player's classifications and ply count only — counting both sides
+  // would inflate everything 2x and look nothing like the review.
   const counts = useMemo(
-    () => computeClassificationCounts(moveAnalyses),
-    [moveAnalyses],
+    () => computeClassificationCounts(moveAnalyses, playerColor ?? undefined),
+    [moveAnalyses, playerColor],
   );
 
-  const moveCount = moveAnalyses.length;
+  const playerMoves = playerColor
+    ? moveAnalyses.filter((m) => m.color === playerColor)
+    : moveAnalyses;
+  const moveCount = playerMoves.length;
   const idle = moveCount === 0;
   const shouldAnimateAnalysis = !idle && animationGate.consumeEvent('analysis', 'panel-perf');
   const color = getAccuracyColor(accuracy);

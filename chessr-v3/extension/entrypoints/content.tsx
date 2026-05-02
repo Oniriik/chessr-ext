@@ -199,9 +199,8 @@ async function triggerInitialAnalysisIfSeeded(): Promise<void> {
     useAnalysisStore.getState().applyTorchAnalysis(result);
     const last = result.moveAnalyses[result.moveAnalyses.length - 1];
     if (last) {
-      const sideToMoveAfter = fen.split(' ')[1];
-      const evalWhite = sideToMoveAfter === 'b' ? -last.evaluation : last.evaluation;
-      useEvalStore.getState().setEval(evalWhite);
+      // Torch evaluation is already white-POV — pass through.
+      useEvalStore.getState().setEval(last.evaluation);
     }
     console.log('[Chessr] initial fetch_analysis applied:',
       result.moveAnalyses.length, 'moves analyzed,',
@@ -751,11 +750,13 @@ export default defineContentScript({
         const uci = uciFromFens(previousFen!, state.fen!);
         if (uci) {
           useGameStore.getState().pushUciMove(uci);
+          console.log('[Chessr][hist] pushed ' + uci + ', historyLen now ' + useGameStore.getState().moveHistoryUci.length);
         } else {
           // Position is not reachable in 1 move from previousFen. Detect
           // takeback: if popping the last move from current history yields
           // a position that matches state.fen, treat as takeback.
           const hist = useGameStore.getState().moveHistoryUci;
+          console.log('[Chessr][hist] uciFromFens NULL — prev=' + (previousFen?.slice(0, 30) ?? 'null') + ' state=' + (state.fen?.slice(0, 30) ?? 'null') + ' histLen=' + hist.length);
           if (hist.length > 0 && historyMatchesFen(hist.slice(0, -1), state.fen!)) {
             useGameStore.getState().setMoveHistoryUci(hist.slice(0, -1));
             console.log('[Chessr][hist] takeback detected — popped 1 move, history now', hist.length - 1);
@@ -806,12 +807,8 @@ export default defineContentScript({
               animationGate.markEvent('analysis');
               const last = result.moveAnalyses[result.moveAnalyses.length - 1];
               if (last) {
-                // Torch reports eval from the side-to-move-after-the-move
-                // POV (i.e. the opponent's POV after the player's move).
-                // Convert to white POV: if black is now to move, negate.
-                const sideToMoveAfter = state.fen ? state.fen.split(' ')[1] : 'w';
-                const evalWhite = sideToMoveAfter === 'b' ? -last.evaluation : last.evaluation;
-                useEvalStore.getState().setEval(evalWhite);
+                // Torch evaluation is already white-POV — pass through.
+                useEvalStore.getState().setEval(last.evaluation);
                 sendWs({ type: 'analysis_log_end', requestId: arid,
                          extra: `${last.classification} (torch)` });
               } else {
@@ -840,9 +837,13 @@ export default defineContentScript({
           // isn't up at all.
           const liveBackend = torchUciEngine?.ready ? torchUciEngine : analysisEngine;
           if (liveBackend?.ready) {
+            // playerJustMoved fired → side that played is the user. Side
+            // to move BEFORE the move = sideToMove from previousFen.
+            const playedColor: 'white' | 'black' =
+              previousFen!.split(' ')[1] === 'w' ? 'white' : 'black';
             analyzeLastMove(fenBefore, fenAfter, liveBackend)
               .then((result) => {
-                useAnalysisStore.getState().addAnalysis({ ...result, moveNumber });
+                useAnalysisStore.getState().addAnalysis({ ...result, moveNumber, color: playedColor });
                 animationGate.markEvent('analysis');
                 const pc = useGameStore.getState().playerColor;
                 const evalWhite = pc === 'black' ? -result.evalAfter : result.evalAfter;
@@ -889,12 +890,8 @@ export default defineContentScript({
             useAnalysisStore.getState().applyTorchAnalysis(result);
             const last = result.moveAnalyses[result.moveAnalyses.length - 1];
             if (last) {
-              // Torch reports eval from the side-to-move-after-the-move
-              // POV. Same rule as the playerJustMoved branch: negate to
-              // get white POV iff black is now to move.
-              const sideToMoveAfter = state.fen ? state.fen.split(' ')[1] : 'w';
-              const evalWhite = sideToMoveAfter === 'b' ? -last.evaluation : last.evaluation;
-              useEvalStore.getState().setEval(evalWhite);
+              // Torch evaluation is already white-POV — pass through.
+              useEvalStore.getState().setEval(last.evaluation);
             }
             sendWs({ type: 'eval_log_end', requestId: erid,
                      extra: `eval=${last?.evaluation ?? '?'} (torch)` });

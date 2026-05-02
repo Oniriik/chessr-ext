@@ -10,6 +10,9 @@ import { useGameStore } from './gameStore';
 
 export interface MoveAnalysis {
   moveNumber: number;
+  /** Side that played this move. Lets the UI count and average per-side
+   *  (chess.com's review card is per-side, not the combined ply list). */
+  color: 'white' | 'black';
   classification: MoveClassification;
   caps2: number;
   diff: number;
@@ -100,13 +103,21 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
     // see populated caps2/diff/wpDiff. Eval BEFORE move i = -eval AFTER
     // move i-1 (POV swap); for move 0 we treat eval-before as 0.
     const augmented: MoveAnalysis[] = a.moveAnalyses.map((m, i) => {
-      const evalBefore = i === 0 ? 0 : -a.moveAnalyses[i - 1].evaluation;
-      const evalAfter = m.evaluation;
+      // Torch evaluations are always white-POV. Convert to "the player who
+      // just moved"-POV for the local CAPS2 / classification math (which
+      // expects positive = good for that player).
+      const color: 'white' | 'black' = i % 2 === 0 ? 'white' : 'black';
+      const flip = color === 'white' ? 1 : -1;
+      const evalAfterWhite = m.evaluation;
+      const evalBeforeWhite = i === 0 ? 0 : a.moveAnalyses[i - 1].evaluation;
+      const evalBefore = flip * evalBeforeWhite;
+      const evalAfter = flip * evalAfterWhite;
       const diff = Math.max(0, evalBefore - evalAfter);
       const wpDiff = Math.max(0, winProb(evalBefore) - winProb(evalAfter));
       const caps2 = computeCAPS2(diff, Math.abs(evalBefore));
       return {
-        moveNumber: i + 1,
+        moveNumber: Math.floor(i / 2) + 1,
+        color,
         classification: m.classification,
         caps2: Math.round(caps2 * 10) / 10,
         diff: Math.round(diff * 100) / 100,
@@ -170,6 +181,7 @@ export const useTallies = () => useAnalysisStore((s) => s.tallies);
 
 export function computeClassificationCounts(
   analyses: MoveAnalysis[],
+  color?: 'white' | 'black',
 ): Record<MoveClassification, number> {
   const counts: Record<MoveClassification, number> = {
     best: 0,
@@ -185,6 +197,7 @@ export function computeClassificationCounts(
     blunder: 0,
   };
   for (const a of analyses) {
+    if (color && a.color !== color) continue;
     counts[a.classification]++;
   }
   return counts;

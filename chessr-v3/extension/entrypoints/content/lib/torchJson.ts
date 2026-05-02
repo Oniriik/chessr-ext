@@ -34,7 +34,10 @@ export interface TallyMap {
 
 export interface TorchMoveAnalysis {
   classification: MoveClassification;
-  evaluation: number;          // pawns, side-to-move-relative
+  /** Pawns, ALWAYS from white's perspective (positive = white better).
+   *  Verified empirically: after 1.e2e4, eval=+0.23 even though
+   *  side-to-move-after=black. Don't negate this field per side-to-move. */
+  evaluation: number;
   mateIn: number | null;
   arrows: string[];            // UCI moves to render as arrows
   squares: string[];           // squares to highlight
