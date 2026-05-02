@@ -41,27 +41,13 @@ export function getWorldchessUserId(): string | null {
 }
 
 function getWorldchessUsername(): string | null {
-  // Prefer the displayed name from the user's own player card on a game
-  // page (works on /game/<uuid>): match the card whose profile link
-  // points at the logged-in user's id.
-  const userId = getWorldchessUserId();
-  if (userId) {
-    const cards = document.querySelectorAll<HTMLElement>('[data-component="GameLayoutPlayer"]');
-    for (const card of cards) {
-      const links = card.querySelectorAll<HTMLAnchorElement>(`a[href="/profile/${userId}"]`);
-      for (const a of links) {
-        const text = a.textContent?.trim();
-        if (text) return text;
-      }
-    }
-  }
-  // Off a game page (homepage, profile, settings) — no player cards.
-  // Try the nav avatar link (its text is empty, but the dropdown
-  // username may be readable elsewhere). Falls back to the numeric id
-  // so account linking still works even if we can't see a display name.
-  const navName = document.querySelector('header [data-component="Avatar"] + * a, [data-component="Link"] a[href^="/profile/"]')?.textContent?.trim();
-  if (navName) return navName;
-  return userId; // last resort: linkable id, backend can resolve
+  // Return the numeric profile id, NOT the display name. The link-account
+  // path passes this string to fetchPlatformProfile which calls
+  // api.worldchess.com — that endpoint only accepts the numeric id, and
+  // returns the canonical full_name + avatar + ratings. Display names
+  // can be edited by the user and aren't unique, so the id is the right
+  // long-term identifier to store anyway.
+  return getWorldchessUserId();
 }
 
 /**

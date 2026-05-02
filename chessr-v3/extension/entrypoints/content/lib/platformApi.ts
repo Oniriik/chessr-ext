@@ -57,8 +57,47 @@ export async function fetchLichessProfile(username: string): Promise<PlatformPro
   }
 }
 
+/** Worldchess profile lookup. The "username" we receive here is the
+ *  profile id (numeric, from /profile/<id>) — getWorldchessUsername
+ *  falls back to it when no display name is in the DOM, and we also
+ *  store ids on the linked-accounts side for stability across renames.
+ *  Endpoint: api.worldchess.com/api/online/players/<id>/ — public,
+ *  no auth required. Returns full_name, avatar URLs, and bullet /
+ *  blitz / rapid ratings under the worldchess_<mode> keys. */
+export async function fetchWorldchessProfile(profileId: string): Promise<PlatformProfile | null> {
+  // The lookup expects a numeric id. If we received a display name
+  // we can't resolve it to an id without scraping (no public search
+  // API), so just bail to the stub.
+  if (!/^\d+$/.test(profileId)) {
+    return { username: profileId, platform: 'worldchess', ratings: {} };
+  }
+  try {
+    const res = await fetch(`https://api.worldchess.com/api/online/players/${profileId}/`);
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const norm = (n: unknown): number | undefined => {
+      const v = typeof n === 'number' ? n : NaN;
+      return Number.isFinite(v) && v > 0 ? v : undefined;
+    };
+    return {
+      username: data.profile?.full_name ?? profileId,
+      platform: 'worldchess',
+      avatarUrl: data.profile?.avatar?.small ?? data.profile?.avatar?.medium ?? data.profile?.avatar?.full,
+      ratings: {
+        bullet: norm(data.worldchess_bullet),
+        blitz: norm(data.worldchess_blitz),
+        rapid: norm(data.worldchess_rapid),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function fetchPlatformProfile(platform: Platform, username: string): Promise<PlatformProfile | null> {
   if (platform === 'chesscom') return fetchChessComProfile(username);
   if (platform === 'lichess') return fetchLichessProfile(username);
-  return Promise.resolve({ username, platform: 'worldchess', ratings: {} });
+  if (platform === 'worldchess') return fetchWorldchessProfile(username);
+  return Promise.resolve({ username, platform, ratings: {} });
 }
