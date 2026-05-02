@@ -522,6 +522,30 @@ function runSuggestionSearch(fen: string) {
       requestId,
       extra: `d${topDepth} n=${suggestions.length}`,
     });
+    // Decorate suggestions with torch's native classification (best /
+    // brilliant / great / etc.) — works for ANY suggestion engine, not
+    // just torch, since classifyCandidate just plays the candidate as the
+    // last move of a fetch_analysis run. Fire-and-forget; each result
+    // updates the store independently. Skipped when:
+    //   - rich engine isn't ready (server fallback / pre-init)
+    //   - history doesn't replay to this fen (continuation game with
+    //     unknown prefix → torch can't seed it from startpos)
+    if (torchAnalysisEngine?.ready) {
+      const history = useGameStore.getState().moveHistoryUci;
+      if (historyMatchesFen(history, fen)) {
+        for (const s of suggestions) {
+          torchAnalysisEngine.classifyCandidate(history, s.move)
+            .then((cls) => {
+              if (cls && requestId === currentRequestId) {
+                useSuggestionStore.getState().setClassification(requestId, s.move, cls);
+              }
+            })
+            .catch((err) => {
+              console.warn('[Chessr][torch] classifyCandidate failed for', s.move, err);
+            });
+        }
+      }
+    }
   }).catch((err) => {
     // Search got cancelled (newer request came in, or game ended). Silent.
     if (err?.name === 'AbortError') {

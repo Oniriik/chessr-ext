@@ -33,7 +33,7 @@
  */
 
 import { parseFetchAnalysisJson, type TorchAnalysis } from './torchJson.js';
-import type { AnalysisResult, AnalysisBackend } from './moveAnalysis.js';
+import type { AnalysisResult, AnalysisBackend, MoveClassification } from './moveAnalysis.js';
 
 const INIT_TIMEOUT_MS = 10_000;
 const ANALYSIS_TIMEOUT_MS = 5_000;
@@ -233,6 +233,36 @@ export class TorchAnalysisEngine implements AnalysisBackend {
         throw new Error(`torch JSON parse error: ${(e as Error).message}`);
       }
       return parseFetchAnalysisJson(raw);
+    });
+  }
+
+  /** Classify a candidate move from the position reached by `history`.
+   *  Runs `position startpos moves <history> <candidate>` + `fetch analysis`
+   *  and returns torch's classification of the LAST move (the candidate).
+   *  Caller must ensure history replays from startpos to the side-to-move
+   *  position (via historyMatchesFen). Only valid in mode='rich'. */
+  async classifyCandidate(history: string[], candidateUci: string): Promise<MoveClassification | null> {
+    if (this._disposed) throw new Error('engine disposed');
+    if (!this._ready || !this.worker) throw new Error('engine not ready');
+    if (this.deps.mode !== 'rich') throw new Error("classifyCandidate requires mode='rich'");
+
+    return this.enqueue(async () => {
+      const moves = [...history, candidateUci];
+      this.send(`position startpos moves ${moves.join(' ')}`);
+      const json = await this.waitForLinePrefix(
+        'json ',
+        () => this.send('fetch analysis'),
+        ANALYSIS_TIMEOUT_MS,
+      );
+      let raw: unknown;
+      try {
+        raw = JSON.parse(json.slice(5));
+      } catch (e) {
+        throw new Error(`torch JSON parse error: ${(e as Error).message}`);
+      }
+      const parsed = parseFetchAnalysisJson(raw);
+      const last = parsed.moveAnalyses[parsed.moveAnalyses.length - 1];
+      return last?.classification ?? null;
     });
   }
 

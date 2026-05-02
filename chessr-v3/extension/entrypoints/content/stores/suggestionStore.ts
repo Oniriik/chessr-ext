@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { LabeledSuggestion, MoveLabel } from '../lib/engineLabeler';
+import type { MoveClassification } from '../lib/moveAnalysis';
 
 export type { MoveLabel };
 export type Suggestion = LabeledSuggestion;
@@ -11,6 +12,10 @@ interface SuggestionState {
 
   setSuggestions: (suggestions: Suggestion[], requestId: string) => void;
   setLoading: (loading: boolean, requestId?: string) => void;
+  /** Decorate a single suggestion with its torch-derived classification.
+   *  No-op if requestId doesn't match (stale) or move doesn't match an
+   *  existing suggestion (suggestion list rotated under us). */
+  setClassification: (requestId: string, move: string, cls: MoveClassification) => void;
   clear: () => void;
 }
 
@@ -43,5 +48,15 @@ export const useSuggestionStore = create<SuggestionState>((set, get) => ({
     set({ suggestions, loading: false, requestId });
   },
   setLoading: (loading, requestId) => set({ loading, ...(requestId ? { requestId } : {}) }),
+  setClassification: (requestId, move, cls) => {
+    const cur = get();
+    if (cur.requestId !== requestId) return;
+    const idx = cur.suggestions.findIndex((s) => s.move === move);
+    if (idx < 0) return;
+    if (cur.suggestions[idx].class === cls) return;
+    const next = cur.suggestions.slice();
+    next[idx] = { ...next[idx], class: cls };
+    set({ suggestions: next });
+  },
   clear: () => set({ suggestions: [], loading: false, requestId: null }),
 }));
