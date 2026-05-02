@@ -172,6 +172,11 @@ let pendingNewGameFen: string | null = null;
  *    - chessr:initialMoves handler: seed arrived after torch was up
  *  Both trigger the same idempotent flow. */
 let initialAnalysisInFlight = false;
+/** Hash of the last history that triggered a fetch_analysis crash. We
+ *  refuse to retry the SAME history — would cause an infinite re-init
+ *  loop (torch aborts → we reinit → trigger same analysis → aborts...).
+ *  Reset when the history grows (player makes a new move). */
+let lastFailedHistoryHash: string | null = null;
 async function triggerInitialAnalysisIfSeeded(): Promise<void> {
   if (initialAnalysisInFlight) return;
   if (!torchAnalysisEngine?.ready) return;
@@ -180,13 +185,14 @@ async function triggerInitialAnalysisIfSeeded(): Promise<void> {
   const fen = useGameStore.getState().fen;
   if (!fen) return;
   if (!historyMatchesFen(history, fen)) return;
-  // Note: we do NOT skip when moveAnalyses is already populated, because
-  // applyTorchAnalysis bulk-replaces it anyway and we want to recover
-  // from cases where torch crashed mid-game and missed a move or two.
-  // Idempotent because applyTorchAnalysis is a pure replace.
+  const histHash = history.join(' ');
+  if (histHash === lastFailedHistoryHash) {
+    console.log('[Chessr] skip initial analysis — same history already failed (', history.length, 'moves). Waiting for next move.');
+    return;
+  }
 
   initialAnalysisInFlight = true;
-  console.log('[Chessr] firing initial fetch_analysis on seeded history (', history.length, 'moves)');
+  console.log('[Chessr] firing initial fetch_analysis on seeded history (', history.length, 'moves):', history.join(' '));
   useAnalysisStore.getState().setAnalyzing(true);
   try {
     const result = await torchAnalysisEngine.fetchFullAnalysis(history);
@@ -201,8 +207,10 @@ async function triggerInitialAnalysisIfSeeded(): Promise<void> {
       result.moveAnalyses.length, 'moves analyzed,',
       'CAPS w/b:', result.caps.white.all + '/' + result.caps.black.all,
       'Elo w/b:', result.effectiveElo.white + '/' + result.effectiveElo.black);
+    lastFailedHistoryHash = null;  // success — clear failure cache
   } catch (err) {
-    console.warn('[Chessr] initial fetch_analysis failed:', err);
+    console.warn('[Chessr] initial fetch_analysis failed on history (', history.length, 'moves):', history.join(' '), '\nerror:', err);
+    lastFailedHistoryHash = histHash;  // remember to skip until history grows
     // If torch died, re-init so the next regular move flow has a fresh
     // worker. The next chessr:move will retry the analysis through the
     // normal playerJustMoved/opponentJustMoved branches.
