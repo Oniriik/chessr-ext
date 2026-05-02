@@ -739,13 +739,21 @@ export default defineContentScript({
       // early in the game (e.g. before `playingAs` stabilizes on SPA nav).
       const sideToMove = previousFen ? previousFen.split(' ')[1] : null;
       const playerChar = state.playerColor === 'white' ? 'w' : state.playerColor === 'black' ? 'b' : null;
+      // Gate on the PRE-transition flags (prev) instead of post (state)
+      // so the move that ends the game (checkmate / resign-after-move /
+      // timeout-on-move) still gets analyzed — chess.com bundles the
+      // gameOver flag into the chessr:move event that delivers the
+      // final FEN, so post-state gameOver is already true on that tick.
+      // prev.isPlaying && !prev.gameOver excludes:
+      //   - new-game starts (was idle, now playing)
+      //   - spurious post-game FEN re-fires (was already gameOver)
       const playerJustMoved =
         previousFen !== null &&
         playerChar !== null &&
         sideToMove === playerChar &&
         previousFen !== state.fen &&
-        state.isPlaying &&
-        !state.gameOver;
+        prev.isPlaying &&
+        !prev.gameOver;
 
       // Maintain moveHistoryUci on every detected move (player OR opponent),
       // before any analysis call — torch's fetch_analysis takes a full
@@ -761,7 +769,7 @@ export default defineContentScript({
       //      will fall back to UCI mode until next chessr:newGame.
       const aMoveHappened =
         previousFen !== null && previousFen !== state.fen && !!state.fen &&
-        state.isPlaying && !state.gameOver;
+        prev.isPlaying && !prev.gameOver;
       if (aMoveHappened) {
         const uci = uciFromFens(previousFen!, state.fen!);
         if (uci) {
@@ -883,13 +891,16 @@ export default defineContentScript({
 
       // Opponent just moved — quick eval for the eval bar
       const fenSideToMove = state.fen ? state.fen.split(' ')[1] : null;
+      // See the playerJustMoved comment above on prev-vs-state gating —
+      // same reasoning, lets the eval bar refresh on a game-ending
+      // opponent move (mate / resign-after-move) before we go idle.
       const opponentJustMoved =
         previousFen !== null &&
         previousFen !== state.fen &&
         playerChar !== null &&
         fenSideToMove === playerChar &&
-        state.isPlaying &&
-        !state.gameOver &&
+        prev.isPlaying &&
+        !prev.gameOver &&
         !!state.fen;
 
       if (opponentJustMoved && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
