@@ -30,6 +30,9 @@ interface GameState {
   setPlaying: (playing: boolean) => void;
   setMove: (fen: string, gameOver: boolean, turn: Color, gameEnd?: GameEndInfo | null) => void;
   pushUciMove: (uci: string) => void;
+  /** Replace the entire moveHistoryUci (used to seed prior moves when
+   *  chessr loads on a continuation game). */
+  setMoveHistoryUci: (moves: string[]) => void;
   setGameOver: (result: GameResult) => void;
   setPlayerColor: (color: Color) => void;
   reset: () => void;
@@ -56,6 +59,7 @@ export const useGameStore = create<GameState>((set) => ({
   setPlaying: (playing) => set({ isPlaying: playing }),
   setMove: (fen, gameOver, turn, gameEnd = null) => set({ fen, gameOver, turn, gameEnd }),
   pushUciMove: (uci) => set((s) => ({ moveHistoryUci: [...s.moveHistoryUci, uci] })),
+  setMoveHistoryUci: (moves) => set({ moveHistoryUci: [...moves] }),
   setGameOver: (result) => set({ gameOver: true, result }),
   setPlayerColor: (color) => set({ playerColor: color }),
   reset: () => set({

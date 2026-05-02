@@ -849,6 +849,14 @@ export default defineContentScript({
         case 'chessr:move':
           if (data.fen) setMove(data.fen, data.gameOver, toColor(data.turn) as Color, data.gameEnd);
           break;
+        case 'chessr:initialMoves':
+          // chessr loaded mid-game (continuation game on chess.com).
+          // Seed moveHistoryUci with the moves chess.com had in memory so
+          // historyMatchesFen passes and torch fetch_analysis can run.
+          if (Array.isArray(data.moves) && data.moves.length > 0) {
+            useGameStore.getState().setMoveHistoryUci(data.moves);
+          }
+          break;
         case 'chessr:gameOver':
           // Server-side game end (resign, timeout, abandon, etc.)
           if (data.result && data.result !== '*') {

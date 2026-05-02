@@ -53,6 +53,43 @@ function readRatings(): { playerRating: number | null; opponentRating: number | 
   };
 }
 
+/** Extract the list of moves already played in the current chess.com game,
+ *  in UCI notation. Tries several known API surfaces — chess.com's wc-chess-board
+ *  internals have shifted across versions, so we fall through to whatever
+ *  works. Returns [] if no moves are available (fresh game / API miss).
+ *
+ *  Used for live continuation games: when chessr loads on a /play/computer
+ *  game already in progress, we seed moveHistoryUci with the prior moves so
+ *  torch's fetch_analysis (which requires startpos-rooted history) can run. */
+function extractInitialMoves(game: any): string[] {
+  if (!game) return [];
+  const candidates: any[] = [];
+  try { if (typeof game.getNodes === 'function') candidates.push(game.getNodes()); } catch {}
+  try { if (typeof game.getMainLine === 'function') candidates.push(game.getMainLine()); } catch {}
+  try { if (typeof game.getMoveList === 'function') candidates.push(game.getMoveList()); } catch {}
+  try { if (typeof game.getNodeList === 'function') candidates.push(game.getNodeList()); } catch {}
+  try { if (typeof game.getLine === 'function') candidates.push(game.getLine()); } catch {}
+
+  for (const list of candidates) {
+    if (!Array.isArray(list) || list.length === 0) continue;
+    const ucis: string[] = [];
+    for (const node of list) {
+      // Skip the root node if present (no move data)
+      if (!node || typeof node !== 'object') continue;
+      const m = node.move ?? node;
+      if (!m) continue;
+      const from = m.from;
+      const to = m.to;
+      const promotion = m.promotion ?? '';
+      if (typeof from === 'string' && typeof to === 'string') {
+        ucis.push(`${from}${to}${promotion}`);
+      }
+    }
+    if (ucis.length > 0) return ucis;
+  }
+  return [];
+}
+
 function findLegalMove(game: any, fromSq: string, toSq: string, promo?: string): any {
   const legal = game.getLegalMoves?.() || [];
   for (const m of legal) {
@@ -257,6 +294,15 @@ export class ChesscomPageAdapter implements PageContextAdapter {
     if (!game || this.patched) return;
     this.patched = true;
     this.lastMode = game.getMode()?.name || null;
+
+    // If chessr loaded mid-game (continuation /play/computer, observed
+    // game, etc.), pull the moves already played and seed moveHistoryUci
+    // so torch fetch_analysis can run from startpos.
+    const seedMoves = extractInitialMoves(game);
+    if (seedMoves.length > 0) {
+      console.log('[Chessr chesscom] seeding initial moves:', seedMoves.length);
+      emit({ type: 'chessr:initialMoves', moves: seedMoves });
+    }
 
     const originalMove = game.move.bind(game);
     game.move = (moveData: any) => {

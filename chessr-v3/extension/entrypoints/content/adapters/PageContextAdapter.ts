@@ -44,6 +44,15 @@ export interface ChessrNewGameMsg {
   type: 'chessr:newGame';
 }
 
+/** Emitted on first observation of a game (or after newGame) when there
+ *  are already moves played — e.g. chess.com /play/computer continuation
+ *  games. Lets the live-analysis path replay history from startpos. */
+export interface ChessrInitialMovesMsg {
+  type: 'chessr:initialMoves';
+  /** UCI moves from startpos to the current position. */
+  moves: string[];
+}
+
 export interface ChessrGameOverMsg {
   type: 'chessr:gameOver';
   result: string;
@@ -62,6 +71,7 @@ export type ChessrPostMessage =
   | ChessrMoveMsg
   | ChessrModeMsg
   | ChessrNewGameMsg
+  | ChessrInitialMovesMsg
   | ChessrGameOverMsg
   | ChessrRatingsMsg;
 
