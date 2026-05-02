@@ -157,9 +157,15 @@ export default function App({ streamMode = false }: AppProps = {}) {
       {!streamMode && (
         <div
           className="chessr-fab-wrapper"
-          data-tooltip={updateRequired ? 'Update required' : !initializing && !user ? 'Sign in required' : undefined}
+          data-tooltip={
+            updateRequired ? 'Update required'
+            : !initializing && !user ? 'Sign in required'
+            : needsLinking ? 'Link your account'
+            : undefined
+          }
         >
           {(updateRequired || (!initializing && !user)) && <span className="chessr-fab-badge" />}
+          {!updateRequired && !!user && needsLinking && <span className="chessr-fab-badge chessr-fab-badge--notice" />}
           <button
             className={`chessr-fab ${open ? 'chessr-fab--active' : 'chessr-fab--disabled'}`}
             onClick={() => open ? handleClose() : setOpen(true)}

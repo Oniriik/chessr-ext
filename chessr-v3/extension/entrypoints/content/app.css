@@ -73,6 +73,13 @@
   z-index: 1;
 }
 
+/* Softer notification — used for "link your account" prompts. Orange
+ * differentiates it from the red destructive badge (update required /
+ * sign-in required) which signals an action that BLOCKS the user. */
+.chessr-fab-badge--notice {
+  background: #f97316;
+}
+
 .chessr-fab {
   width: 56px;
   height: 56px;

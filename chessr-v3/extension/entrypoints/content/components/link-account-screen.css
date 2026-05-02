@@ -1,51 +1,140 @@
 .link-screen {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 16px;
-  padding: 24px 16px;
+  padding: 24px 18px 18px;
   flex: 1;
 }
 
 .link-screen-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
+  text-align: center;
 }
 
-.link-screen-header h3 {
+.link-screen-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: hsl(var(--primary));
+  opacity: 0.85;
+}
+
+.link-screen-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
   color: hsl(var(--foreground));
 }
 
+.link-screen-subtitle {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: hsl(var(--muted-foreground));
+  max-width: 280px;
+}
+
+/* Premium-feel card: gradient backdrop tinted with the primary brand
+ * color + soft border + subtle shadow. Mirrors the perf-card / panel
+ * surface treatment used elsewhere so the link screen doesn't feel
+ * like a stranger to the rest of the UI. */
 .link-screen-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
-  padding: 20px;
-  border-radius: 12px;
-  background: hsl(var(--muted));
-  width: 100%;
+  padding: 22px 18px 18px;
+  border-radius: 14px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, hsl(var(--primary) / 0.12) 0%, transparent 60%),
+    linear-gradient(180deg, hsl(var(--card) / 0.6) 0%, hsl(var(--muted) / 0.7) 100%);
+  border: 1px solid hsl(var(--border) / 0.7);
+  box-shadow: 0 1px 0 hsl(var(--card-foreground) / 0.04) inset, 0 4px 18px -8px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.link-screen-avatar-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 4px;
 }
 
 .link-screen-avatar {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
+  background: hsl(var(--muted));
+  border: 2px solid hsl(var(--card));
+  box-shadow: 0 0 0 1px hsl(var(--primary) / 0.35), 0 6px 14px -6px hsl(var(--primary) / 0.55);
+  object-fit: cover;
+}
+
+.link-screen-avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  text-transform: uppercase;
+}
+
+/* Tiny platform badge anchored bottom-right of the avatar. Same look
+ * as a verification badge — signals "this is the platform we're
+ * linking to" at a glance. */
+.link-screen-avatar-platform {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: hsl(var(--card));
+  border: 2px solid hsl(var(--card));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--primary));
+  box-shadow: 0 2px 6px -2px rgba(0, 0, 0, 0.4);
+}
+
+.link-screen-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
 .link-screen-username {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   color: hsl(var(--foreground));
+}
+
+.link-screen-platform {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
 }
 
 .link-screen-ratings {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+  width: 100%;
 }
 
 .link-screen-rating {
@@ -53,18 +142,26 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-}
-
-.link-screen-rating-mode {
-  font-size: 10px;
-  text-transform: capitalize;
-  color: hsl(var(--muted-foreground));
+  padding: 8px 14px;
+  min-width: 64px;
+  border-radius: 10px;
+  background: hsl(var(--card) / 0.7);
+  border: 1px solid hsl(var(--border) / 0.6);
 }
 
 .link-screen-rating-value {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   color: hsl(var(--foreground));
+}
+
+.link-screen-rating-mode {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
 }
 
 .link-screen-error {
@@ -75,39 +172,50 @@
   border: 1px solid hsl(var(--destructive) / 0.3);
   color: hsl(var(--destructive));
   font-size: 12px;
-  width: 100%;
   text-align: center;
 }
 
 .link-screen-btn {
   width: 100%;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 10px;
   border: none;
   background: linear-gradient(to right, hsl(var(--primary)), hsl(var(--secondary)));
   color: hsl(var(--primary-foreground));
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  box-shadow: 0 4px 14px -4px hsl(var(--primary) / 0.45);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.15s ease;
 }
 
 .link-screen-btn:hover {
-  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -4px hsl(var(--primary) / 0.6);
+}
+
+.link-screen-btn:active {
+  transform: translateY(0);
 }
 
 .link-screen-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .link-screen-skip {
+  align-self: center;
   background: none;
   border: none;
-  padding: 0;
+  padding: 4px 8px;
   font-size: 12px;
+  font-weight: 500;
   color: hsl(var(--muted-foreground));
   cursor: pointer;
+  transition: color 0.15s ease;
 }
 
 .link-screen-skip:hover {

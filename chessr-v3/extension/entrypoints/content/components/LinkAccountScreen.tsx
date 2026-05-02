@@ -47,21 +47,36 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
   return (
     <div className="link-screen">
       <div className="link-screen-header">
-        <Icon size={24} />
-        <h3>Link {platformLabel} account</h3>
+        <span className="link-screen-eyebrow">Link account</span>
+        <h3 className="link-screen-title">Confirm your {platformLabel} profile</h3>
+        <p className="link-screen-subtitle">
+          Linking unlocks per-game stats, classification accuracy and Elo-based suggestions.
+        </p>
       </div>
 
       <div className="link-screen-card">
-        {profile.avatarUrl && (
-          <img className="link-screen-avatar" src={profile.avatarUrl} alt="" />
-        )}
-        <span className="link-screen-username">{profile.username}</span>
+        <div className="link-screen-avatar-wrap">
+          {profile.avatarUrl ? (
+            <img className="link-screen-avatar" src={profile.avatarUrl} alt="" />
+          ) : (
+            <div className="link-screen-avatar link-screen-avatar--placeholder">
+              {profile.username?.charAt(0)?.toUpperCase() ?? '?'}
+            </div>
+          )}
+          <span className="link-screen-avatar-platform" title={platformLabel}>
+            <Icon size={14} />
+          </span>
+        </div>
+        <div className="link-screen-identity">
+          <span className="link-screen-username">{profile.username}</span>
+          <span className="link-screen-platform">{platformLabel}</span>
+        </div>
         {ratings.length > 0 && (
           <div className="link-screen-ratings">
             {ratings.map(([mode, rating]) => (
               <div key={mode} className="link-screen-rating">
-                <span className="link-screen-rating-mode">{mode}</span>
                 <span className="link-screen-rating-value">{rating}</span>
+                <span className="link-screen-rating-mode">{mode}</span>
               </div>
             ))}
           </div>
@@ -71,9 +86,12 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
       {error && <p className="link-screen-error">{error}</p>}
 
       <button className="link-screen-btn" onClick={handleLink} disabled={loading}>
-        {loading ? 'Linking...' : 'Link this account'}
+        {loading ? 'Linking…' : `Link this ${platformLabel} account`}
       </button>
 
+      <button className="link-screen-skip" onClick={() => setNeedsLinking(false)}>
+        Not now
+      </button>
     </div>
   );
 }
