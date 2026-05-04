@@ -16,6 +16,7 @@ dist/
 /Book.bin
 /chessr-v3/dragon3.3.wasm
 /chessr-v3/dragon3.3.zip
+/chessr-v3/torch-lite.wasm
 
 # graphify temp output
 /graphify-out/

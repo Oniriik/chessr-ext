@@ -29,4 +29,14 @@ cpSync(dragonJs, resolve(root, 'public/engine/dragon.js'));
 cpSync(dragonWasm, resolve(root, 'public/engine/dragon.wasm'));
 cpSync(dragonBook, resolve(root, 'public/engine/book.bin'));
 
+// Torch (Chess.com Explanation Engine — "lite" variant, 6.5 MB).
+// Vendored at the repo root because it's binary + chess.com-licensed
+// content, distributed out-of-band like dragon3.3.wasm. The lite model
+// is wire-compatible with our V2 setoption flood (verified) and is 4x
+// smaller than the prior torch.wasm (25 MB) we shipped, dramatically
+// improving init time + memory usage on user devices.
+const torchWasm = resolve(repoRoot, 'torch-lite.wasm');
+if (!existsSync(torchWasm)) throw new Error(`Missing ${torchWasm}`);
+cpSync(torchWasm, resolve(root, 'public/engine/torch.wasm'));
+
 console.log('Engine WASM files copied to public/engine/');
