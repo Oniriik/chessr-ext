@@ -668,6 +668,7 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
 
   if (engineId === 'maia2') return <Maia2Panel />;
   if (engineId === 'maia3') return <Maia3Panel />;
+  if (engineId === 'torch') return <TorchPanel />;
 
   // Filter the user's section order to only those this engine supports —
   // otherwise edit mode shows empty drop slots for sections that render
@@ -894,6 +895,85 @@ function Maia3Panel() {
       <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
         Strength comes from the ELO setting — Maia plays in one forward pass, no depth tuning.
       </span>
+    </div>
+  );
+}
+
+function TorchPanel() {
+  const engine = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
+
+  return (
+    <div className="engine-panel">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span className="engine-name-chip">{ENGINE_INFO.torch?.label ?? 'Torch'}</span>
+      </div>
+
+      <span className="engine-desc" style={{ lineHeight: 1.5 }}>
+        Chess.com's Explanation Engine — runs at full strength. ELO / Personality
+        tuning isn't exposed on the public UCI surface, so the only knob that
+        applies is the search budget.
+      </span>
+
+      <div className="engine-section">
+        <div className="engine-section-header">
+          <span className="engine-section-label">Max search depth</span>
+          <select
+            value={engine.searchMode}
+            disabled={!premium}
+            onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
+            className="engine-select"
+          >
+            <option value="nodes">Nodes</option>
+            <option value="depth">Depth</option>
+            <option value="movetime">Move Time</option>
+          </select>
+        </div>
+        <div className="engine-section-header">
+          {engine.searchMode === 'nodes' && (
+            <>
+              <Slider
+                min={100000} max={5000000} step={100000}
+                value={engine.searchNodes} onChange={engine.setSearchNodes}
+                disabled={!premium}
+                trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 30%, #a855f7 60%, #ef4444 100%)"
+                thumbColorFn={(pct) => pct < 30 ? '#3b82f6' : pct < 60 ? lerpColor('#3b82f6', '#a855f7', (pct - 30) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 60) / 40)}
+              />
+              <span className="engine-hint">{(engine.searchNodes / 1000000) >= 1 ? `${(engine.searchNodes / 1000000).toFixed(1)}M` : `${(engine.searchNodes / 1000).toFixed(0)}k`}</span>
+            </>
+          )}
+          {engine.searchMode === 'depth' && (
+            <>
+              <Slider
+                min={1} max={30} step={1}
+                value={engine.searchDepth} onChange={engine.setSearchDepth}
+                disabled={!premium}
+                trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
+                thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)}
+              />
+              <span className="engine-hint">{engine.searchDepth}</span>
+            </>
+          )}
+          {engine.searchMode === 'movetime' && (
+            <>
+              <Slider
+                min={500} max={5000} step={100}
+                value={engine.searchMovetime} onChange={engine.setSearchMovetime}
+                disabled={!premium}
+                trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 25%, #a855f7 55%, #ef4444 100%)"
+                thumbColorFn={(pct) => pct < 25 ? '#3b82f6' : pct < 55 ? lerpColor('#3b82f6', '#a855f7', (pct - 25) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 55) / 45)}
+              />
+              <span className="engine-hint">{(engine.searchMovetime / 1000).toFixed(1)}s</span>
+            </>
+          )}
+        </div>
+        {!premium && (
+          <span className="engine-desc" style={{ color: '#fbbf24', marginTop: 4 }}>
+            Upgrade to premium to control torch's search budget.
+          </span>
+        )}
+      </div>
     </div>
   );
 }
