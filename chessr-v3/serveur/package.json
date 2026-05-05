@@ -23,10 +23,12 @@
     "hono": "^4.12.14",
     "ioredis": "^5.10.1",
     "jose": "^6.2.2",
-    "onnxruntime-node": "1.23.0"
+    "onnxruntime-node": "1.23.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@types/pg": "^8.11.10",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2"
   }

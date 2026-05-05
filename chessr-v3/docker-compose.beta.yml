@@ -23,6 +23,44 @@
 name: chessr
 
 services:
+  # ─── Postgres analytics — heavy event tables (user_activity, game_reviews) ───
+  # Off-loaded from Supabase to keep us under the 500 MB free tier. Local-only
+  # network (no port exposed to the host); serveur connects via the chessr
+  # docker network. Persisted to a named volume; backed up nightly via pg_dump
+  # to /opt/chessr/backups (mounted volume) — see scripts/pg-backup.sh.
+  postgres-analytics:
+    image: postgres:16-alpine
+    container_name: chessr-postgres-analytics
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chessr_analytics
+      POSTGRES_USER: chessr
+      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD}
+      # Tighten autovacuum on user_activity (heavy churn from inserts +
+      # eventual TTL deletes). Defaults are too lazy for an analytics workload.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - postgres_analytics_data:/var/lib/postgresql/data
+      - ./serveur/migrations/analytics:/docker-entrypoint-initdb.d:ro
+    networks:
+      - chessr
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "chessr", "-d", "chessr_analytics"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
   # ─── Redis — BullMQ broker for the suggestion + analysis queues ────────
   redis:
     image: redis:7-alpine
@@ -67,6 +105,10 @@ services:
       - PORT=8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      # Analytics Postgres (user_activity, game_reviews) — local docker
+      # network, off-Supabase to stay under the free tier.
+      - ANALYTICS_DATABASE_URL=postgresql://chessr:${ANALYTICS_DB_PASSWORD}@postgres-analytics:5432/chessr_analytics
+      - USE_LOCAL_ANALYTICS=${USE_LOCAL_ANALYTICS:-false}
       # Pool sizing — 2 instances of each engine = 8 instances on a CPX41
       # (8 vCPU), one thread per instance, full hardware utilisation.
       # Stockfish suggestions share the analysis pool (see suggestionQueue).
@@ -77,6 +119,8 @@ services:
       - LOG_DIR=/app/logs
     depends_on:
       redis:
+        condition: service_healthy
+      postgres-analytics:
         condition: service_healthy
     networks:
       - chessr

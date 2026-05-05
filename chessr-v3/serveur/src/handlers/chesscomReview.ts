@@ -13,6 +13,12 @@ import { WebSocket } from 'ws';
 import { Chess } from 'chess.js';
 import { supabase } from '../lib/supabase.js';
 import { logEnd } from '../lib/wsLog.js';
+import {
+  countUserActivityToday,
+  getCachedReview,
+  insertUserActivity,
+  upsertCachedReview,
+} from '../lib/analyticsRepo.js';
 
 const REMEMBERME_COOKIE = `CHESSCOM_REMEMBERME=${process.env.CHESSCOM_REMEMBERME || ''}`;
 const DAILY_LIMIT = 5;
@@ -204,13 +210,7 @@ export async function handleChesscomReview(
 
   try {
     // Step 1: Check cache
-    const { data: cached } = await supabase
-      .from('game_reviews')
-      .select('analysis, white_username, black_username')
-      .eq('game_id', gameId)
-      .eq('platform', 'chesscom')
-      .eq('coach_id', coachId)
-      .single();
+    const cached = await getCachedReview(gameId, 'chesscom', coachId);
 
     if (cached?.analysis) {
       console.log(`[Review] Cache hit: ${gameId}`);
@@ -249,17 +249,7 @@ export async function handleChesscomReview(
       const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
 
       if (!isPremium) {
-        const todayUTC = new Date();
-        todayUTC.setUTCHours(0, 0, 0, 0);
-
-        const { count } = await supabase
-          .from('user_activity')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('event_type', 'game_review')
-          .gte('created_at', todayUTC.toISOString());
-
-        const dailyUsage = count || 0;
+        const dailyUsage = await countUserActivityToday(userId, 'game_review');
         if (dailyUsage >= DAILY_LIMIT) {
           console.log(`[Review] Daily limit: ${userId} (${dailyUsage}/${DAILY_LIMIT})`);
           send({ type: 'chesscom_review_error', requestId, error: 'daily_limit', dailyUsage, dailyLimit: DAILY_LIMIT });
@@ -289,7 +279,7 @@ export async function handleChesscomReview(
     const analysisData = analysis as Record<string, unknown>;
     const caps = analysisData.CAPS as Record<string, Record<string, number>> | undefined;
     try {
-      await supabase.from('game_reviews').upsert({
+      await upsertCachedReview({
         game_id: gameId,
         platform: 'chesscom',
         coach_id: coachId,
@@ -298,7 +288,7 @@ export async function handleChesscomReview(
         caps_black: caps?.black?.all ?? null,
         white_username: gameData.headers.White || null,
         black_username: gameData.headers.Black || null,
-      }, { onConflict: 'game_id,platform,coach_id' });
+      });
     } catch (err) {
       console.error('[Review] Cache failed:', (err as Error).message);
     }
@@ -306,7 +296,7 @@ export async function handleChesscomReview(
     // Step 7: Log activity
     if (userId) {
       try {
-        await supabase.from('user_activity').insert({ user_id: userId, event_type: 'game_review' });
+        await insertUserActivity(userId, 'game_review');
       } catch { /* ignore */ }
     }
 

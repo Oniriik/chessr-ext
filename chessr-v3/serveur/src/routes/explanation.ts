@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { generateText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { supabase } from '../lib/supabase.js';
+import { countUserActivityToday, insertUserActivity } from '../lib/analyticsRepo.js';
 
 const openai = createOpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const model = openai('gpt-4.1-nano');
@@ -74,17 +75,7 @@ explanationRoutes.post('/api/explain-move', async (c) => {
   }
 
   // Daily limit
-  const todayUTC = new Date();
-  todayUTC.setUTCHours(0, 0, 0, 0);
-
-  const { count } = await supabase
-    .from('user_activity')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('event_type', 'explanation')
-    .gte('created_at', todayUTC.toISOString());
-
-  const currentUsage = count || 0;
+  const currentUsage = await countUserActivityToday(userId, 'explanation');
   if (currentUsage >= DAILY_LIMIT) {
     return c.json({ error: 'Daily limit reached', dailyUsage: DAILY_LIMIT, dailyLimit: DAILY_LIMIT }, 429);
   }
@@ -114,7 +105,7 @@ Explain why this move is strong for the player (${player}).`;
   if (!text) return c.json({ error: 'No explanation generated' }, 500);
 
   // Log usage
-  await supabase.from('user_activity').insert({ user_id: userId, event_type: 'explanation' });
+  await insertUserActivity(userId, 'explanation');
 
   return c.json({
     explanation: text.trim(),
