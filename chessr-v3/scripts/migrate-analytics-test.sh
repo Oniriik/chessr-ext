@@ -59,8 +59,23 @@ psql "$ANALYTICS_DATABASE_URL" \
   -f "$DUMP_FILE" > /dev/null
 
 echo
-echo "==> Local counts (after import)"
+echo "==> Backfill v2 dims on imported rows (engine + source for legacy events)"
+# Idempotent — `WHERE engine IS NULL` protects rows already filled in by
+# chessr-v3 server writes (when USE_LOCAL_ANALYTICS=true). The
+# maia_suggestion→suggestion collapse is also a no-op on already-collapsed
+# rows. Safe to run on every re-import.
+psql "$ANALYTICS_DATABASE_URL" <<'SQL'
+UPDATE user_activity SET engine = 'maia2',     source = 'server' WHERE event_type = 'maia_suggestion';
+UPDATE user_activity SET engine = 'komodo',    source = 'server' WHERE event_type = 'suggestion' AND engine IS NULL;
+UPDATE user_activity SET engine = 'stockfish', source = 'server' WHERE event_type = 'analysis'   AND engine IS NULL;
+UPDATE user_activity SET event_type = 'suggestion' WHERE event_type = 'maia_suggestion';
+SQL
+
+echo
+echo "==> Local counts (after import + backfill)"
 psql "$ANALYTICS_DATABASE_URL" -c "SELECT 'user_activity' AS t, count(*) FROM user_activity UNION ALL SELECT 'game_reviews', count(*) FROM game_reviews;"
+echo "==> v2 dims breakdown (sanity)"
+psql "$ANALYTICS_DATABASE_URL" -c "SELECT event_type, engine, source, count(*) FROM user_activity GROUP BY event_type, engine, source ORDER BY count(*) DESC;"
 
 echo
 echo "==> Sample sanity check (last 3 user_activity rows on each side)"
