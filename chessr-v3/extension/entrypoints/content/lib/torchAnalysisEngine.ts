@@ -372,10 +372,10 @@ export class TorchAnalysisEngine implements AnalysisBackend {
 async function defaultFetchEngineSource(): Promise<string> {
   const response = await browser.runtime.sendMessage({
     type: 'fetchExtensionFile',
-    path: '/engine/torch.js',
+    path: '/engine/explanation-engine.js',
   }) as { text?: string; error?: string };
   if (response.error || !response.text) {
-    throw new Error(`Failed to fetch torch.js: ${response.error}`);
+    throw new Error(`Failed to fetch explanation-engine.js: ${response.error}`);
   }
   return response.text;
 }
@@ -385,5 +385,5 @@ function defaultWorkerFactory(blobUrl: string, wasmUrlHash: string): WorkerLike 
 }
 
 function defaultWasmUrl(): string {
-  return browser.runtime.getURL('/engine/torch.wasm');
+  return browser.runtime.getURL('/engine/explanation-engine.wasm');
 }

@@ -7,7 +7,7 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
-export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'stockfish' | 'torch';
+export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'stockfish';
 export type MaiaVariant = 'blitz' | 'rapid';
 
 export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string; beta?: boolean }> = {
@@ -31,11 +31,6 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Stockfish',
     desc:  'Open-source classical engine — fast, pure tactical strength, no personality tuning.',
     eloRange: '1320 – 3500',
-  },
-  torch: {
-    label: 'Torch',
-    desc:  'Strongest WASM. No Elo cap or style — full strength only.',
-    eloRange: '~3200',
   },
 };
 
@@ -140,9 +135,10 @@ interface EngineState {
   capabilities: EngineCapabilities;
   setCapabilities: (c: EngineCapabilities) => void;
 
-  /** null = unprobed, true = torch.wasm init OK, false = WASM unavailable.
-   *  Set by buildLiveAnalysis() in content.tsx based on which engine slot
-   *  it populated. SettingsScreen greys the Torch option when false. */
+  /** null = unprobed, true = explanation-engine.wasm init OK, false = WASM unavailable.
+   *  Set by buildLiveAnalysis() in content.tsx based on whether the live
+   *  analysis worker came up. Used for diagnostics; classification + CAPS
+   *  silently degrade when false. */
   torchAvailable: boolean | null;
   setTorchAvailable: (v: boolean) => void;
 

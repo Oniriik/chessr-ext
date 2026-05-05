@@ -223,16 +223,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if ((cloud as any).engine) {
           const eng = (cloud as any).engine;
           const es = useEngineStore.getState();
-          // Sanitize engineId — old cloud rows can have 'patricia' which we
-          // removed in 3.1.0. Drop unknown IDs back to default. Also
-          // downgrade Maia 2 / Maia 3 to Komodo on free users (Maia is a
-          // premium-only engine; a free user with a stale Maia preference
-          // from a previous premium session would otherwise keep using it).
-          const knownIds = ['komodo', 'maia2', 'maia3', 'stockfish', 'torch'];
+          // Sanitize engineId — old cloud rows can have removed IDs like
+          // 'patricia' (dropped in 3.1.0) or 'torch' (dropped when torch
+          // became classification-only). Unknown IDs fall through and the
+          // store keeps its default ('komodo'). Also downgrade Maia 2 /
+          // Maia 3 to Komodo on free users (premium-only engines).
+          const knownIds = ['komodo', 'maia2', 'maia3', 'stockfish'];
           if (knownIds.includes(eng.engineId)) {
             const plan = useAuthStore.getState().plan;
             const premiumPlan = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
-            const FREE_OK = ['komodo', 'stockfish', 'torch'];
+            const FREE_OK = ['komodo', 'stockfish'];
             const finalId = premiumPlan || FREE_OK.includes(eng.engineId)
               ? eng.engineId
               : 'komodo';

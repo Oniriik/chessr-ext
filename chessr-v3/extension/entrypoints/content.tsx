@@ -29,7 +29,6 @@ import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
 import { Maia3SuggestionEngine } from './content/lib/maia3SuggestionEngine';
 import { StockfishSuggestionEngine } from './content/lib/stockfishSuggestionEngine';
-import { TorchSuggestionEngine } from './content/lib/torchSuggestionEngine';
 import { ServerEngine } from './content/lib/serverEngine';
 import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
 import type { EngineId } from './content/stores/engineStore';
@@ -286,7 +285,6 @@ function newWasmEngine(id: EngineId): IEngine {
     case 'maia2':     return new MaiaSuggestionEngine();
     case 'maia3':     return new Maia3SuggestionEngine();
     case 'stockfish': return new StockfishSuggestionEngine();
-    case 'torch':     return new TorchSuggestionEngine();
     default:          return new SuggestionEngine(); // 'komodo'
   }
 }
