@@ -234,6 +234,7 @@ services:
 
 volumes:
   redis_data:
+  postgres_analytics_data:
 
 networks:
   chessr:
