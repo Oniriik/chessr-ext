@@ -4,13 +4,51 @@
  * routes to either Supabase (legacy, default) or the local Postgres
  * (`analyticsDb`) depending on USE_LOCAL_ANALYTICS.
  *
- * Call sites in routes/handlers stay clean — they call e.g.
- * `countUserActivityToday(userId, 'explanation')` instead of doing the
- * supabase/pg branching themselves. This keeps the eventual cleanup
- * (post-migration: drop the supabase branch) to a single file.
+ * Schema versions:
+ *   - Supabase (legacy):  user_activity has only (id, user_id, event_type, created_at).
+ *   - Local Postgres:     user_activity has the same + (engine, source, metadata)
+ *                          for richer breakdowns (see 00002_event_dims.sql).
+ *
+ * The flag toggles BOTH location and format together — when false, writes
+ * land on Supabase with the legacy two-column shape; engine / source /
+ * metadata are silently dropped (their columns don't exist there). When
+ * true, writes land on local Postgres and carry the full dimensions.
+ *
+ * This is intentional: there's no point writing dimensions we couldn't
+ * read back when on Supabase, and dual-shape writers add complexity for
+ * no benefit during the short transition window.
  */
 import { supabase } from './supabase.js';
 import { analyticsQuery, isLocalAnalyticsEnabled } from './analyticsDb.js';
+
+// ─── Types ────────────────────────────────────────────────────────────────
+
+export type ActivityEventType =
+  | 'suggestion'
+  | 'analysis'
+  | 'explanation'
+  | 'game_review'
+  | 'profile_analysis'
+  // 'maia_suggestion' is deprecated — collapsed into 'suggestion' with
+  // engine='maia2'. Kept in the local DB enum for backward-compat reads
+  // of pre-migration rows; never emitted by new code.
+  ;
+
+export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'stockfish';
+export type EventSource = 'server' | 'wasm';
+
+export interface UserActivityInsert {
+  userId: string;
+  eventType: ActivityEventType;
+  /** Engine that did the work — only for `suggestion` and `analysis`.
+   *  Leave undefined for explanation / game_review / profile_analysis. */
+  engine?: EngineId;
+  /** Where the engine ran — only for `suggestion` and `analysis`. */
+  source?: EventSource;
+  /** Free-form per-event extras: model name (explanation), coach_id +
+   *  platform (game_review), platform (profile_analysis), etc. */
+  metadata?: Record<string, unknown>;
+}
 
 // ─── user_activity ────────────────────────────────────────────────────────
 
@@ -18,7 +56,7 @@ import { analyticsQuery, isLocalAnalyticsEnabled } from './analyticsDb.js';
  *  daily free-tier limits in explanation.ts and chesscomReview.ts. */
 export async function countUserActivityToday(
   userId: string,
-  eventType: string,
+  eventType: ActivityEventType,
 ): Promise<number> {
   const todayUTC = new Date();
   todayUTC.setUTCHours(0, 0, 0, 0);
@@ -43,20 +81,28 @@ export async function countUserActivityToday(
   return count ?? 0;
 }
 
-/** Append a user_activity row. Fire-and-forget at call sites — caller
- *  owns the try/catch policy (explanation.ts surfaces errors, the
- *  chesscomReview.ts logger swallows them). */
-export async function insertUserActivity(
-  userId: string,
-  eventType: string,
-): Promise<void> {
+/** Append a user_activity row. Caller owns the try/catch policy. */
+export async function insertUserActivity(input: UserActivityInsert): Promise<void> {
+  const { userId, eventType, engine, source, metadata } = input;
+
   if (isLocalAnalyticsEnabled()) {
     await analyticsQuery(
-      `INSERT INTO user_activity (user_id, event_type) VALUES ($1, $2::activity_event_type)`,
-      [userId, eventType],
+      `INSERT INTO user_activity (user_id, event_type, engine, source, metadata)
+       VALUES ($1, $2::activity_event_type, $3, $4, $5::jsonb)`,
+      [
+        userId,
+        eventType,
+        engine ?? null,
+        source ?? null,
+        metadata ? JSON.stringify(metadata) : null,
+      ],
     );
     return;
   }
+
+  // Supabase legacy path — engine/source/metadata don't exist there, drop
+  // them. Stays compatible with the chessr-next dashboard which only knows
+  // the two-column shape.
   await supabase.from('user_activity').insert({ user_id: userId, event_type: eventType });
 }
 

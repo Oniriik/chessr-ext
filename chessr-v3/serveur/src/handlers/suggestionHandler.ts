@@ -13,6 +13,7 @@ import {
   removePendingSuggestionsForUser,
   type SuggestionJobData,
 } from '../queue/suggestionQueue.js';
+import { insertUserActivity } from '../lib/analyticsRepo.js';
 // NOTE: per-request logStart/logEnd removed from this handler. The extension
 // drives a single `[suggestion] source=wasm|server` line via
 // suggestion_log_start/end (see content.tsx). Logging here too would
@@ -142,6 +143,16 @@ export async function handleSuggestionRequest(
       suggestions: result.suggestions,
       puzzleMode: result.puzzleMode,
     });
+
+    // Analytics — server-side path only. WASM-path suggestions don't
+    // reach this handler; the extension must log those via a separate
+    // server endpoint once that's wired in.
+    insertUserActivity({
+      userId,
+      eventType: 'suggestion',
+      engine: engineType,
+      source: 'server',
+    }).catch((err) => console.warn('[suggestion] analytics log failed:', err));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     send({ type: 'suggestion_error', requestId, error: msg });

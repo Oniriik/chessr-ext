@@ -105,7 +105,11 @@ Explain why this move is strong for the player (${player}).`;
   if (!text) return c.json({ error: 'No explanation generated' }, 500);
 
   // Log usage
-  await insertUserActivity(userId, 'explanation');
+  await insertUserActivity({
+    userId,
+    eventType: 'explanation',
+    metadata: { model: 'gpt-4.1-nano' },
+  });
 
   return c.json({
     explanation: text.trim(),

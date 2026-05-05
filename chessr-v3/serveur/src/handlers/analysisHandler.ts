@@ -12,6 +12,7 @@ import {
   removePendingAnalysisForUser,
 } from '../queue/analysisQueue.js';
 import { logStart, logEnd } from '../lib/wsLog.js';
+import { insertUserActivity } from '../lib/analyticsRepo.js';
 
 export interface AnalysisMessage {
   type: 'analysis_request';
@@ -69,6 +70,15 @@ export async function handleAnalysisRequest(
       evalAfter: r.evalAfter,
       bestMove: r.bestMove,
     });
+
+    // Server-side classify always uses Stockfish (see analysisQueue.ts).
+    // WASM-path analysis doesn't reach this handler.
+    insertUserActivity({
+      userId,
+      eventType: 'analysis',
+      engine: 'stockfish',
+      source: 'server',
+    }).catch((err) => console.warn('[analysis] analytics log failed:', err));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     send({ type: 'analysis_error', requestId, error: msg });

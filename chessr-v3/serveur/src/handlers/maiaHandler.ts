@@ -12,6 +12,7 @@ import {
   removePendingMaiaForUser,
   type MaiaJobData,
 } from '../queue/maiaQueue.js';
+import { insertUserActivity } from '../lib/analyticsRepo.js';
 
 export interface MaiaMessage {
   type: 'maia_request';
@@ -76,6 +77,13 @@ export async function handleMaiaRequest(
       suggestions: result.suggestions,
       puzzleMode: false,
     });
+
+    insertUserActivity({
+      userId,
+      eventType: 'suggestion',
+      engine: 'maia2',
+      source: 'server',
+    }).catch((err) => console.warn('[maia] analytics log failed:', err));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     send({ type: 'suggestion_error', requestId, error: msg });

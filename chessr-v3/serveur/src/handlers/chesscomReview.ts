@@ -296,7 +296,11 @@ export async function handleChesscomReview(
     // Step 7: Log activity
     if (userId) {
       try {
-        await insertUserActivity(userId, 'game_review');
+        await insertUserActivity({
+          userId,
+          eventType: 'game_review',
+          metadata: { coach_id: coachId, platform: 'chesscom' },
+        });
       } catch { /* ignore */ }
     }
 
