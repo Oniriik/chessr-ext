@@ -29,7 +29,10 @@ services:
   # docker network. Persisted to a named volume; backed up nightly via pg_dump
   # to /opt/chessr/backups (mounted volume) — see scripts/pg-backup.sh.
   postgres-analytics:
-    image: postgres:16-alpine
+    # PG17 to match Supabase's server version — pg_dump from a newer
+    # server emits directives (e.g. \restrict) that older psql clients
+    # silently choke on, leaving the local restore empty.
+    image: postgres:17-alpine
     container_name: chessr-postgres-analytics
     restart: unless-stopped
     environment:
