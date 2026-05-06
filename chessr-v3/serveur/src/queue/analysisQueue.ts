@@ -143,6 +143,14 @@ export async function initAnalysisWorker(maxInstances: number): Promise<void> {
   console.log(`[AnalysisQueue] worker ready (concurrency=${maxInstances})`);
 }
 
+/** Errors thrown by EngineManager when the engine isn't responsive.
+ *  When we see one of these we respawn the underlying process so the
+ *  next job acquiring this slot doesn't inherit a wedged engine. */
+function isEngineWedgeError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /Timeout waiting for|Search timeout/.test(err.message);
+}
+
 async function processAnalysisJob(
   job: Job<AnalysisJobData, AnalysisJobResult>,
 ): Promise<AnalysisJobResult> {
@@ -150,52 +158,66 @@ async function processAnalysisJob(
   const engine = await pool.acquire();
   if (!engine) throw new Error('Stockfish pool unavailable');
   try {
-    await engine.configure(getAnalysisConfig());
+    try {
+      await engine.configure(getAnalysisConfig());
 
-    if (job.data.kind === 'eval') {
-      const { fen, depth } = job.data;
-      const searchDepth = Math.max(1, Math.min(ANALYSIS_DEPTH, depth || ANALYSIS_DEPTH));
-      const results = await engine.search(fen, 1, { depth: searchDepth });
-      const top = results[0];
-      // EngineManager.search returns WHITE-POV eval. Un-flip to side-to-move
-      // POV to match the client AnalysisEngine.analyze() contract.
-      const isBlackToMove = fen.split(' ')[1] === 'b';
-      const rawEval = top?.evaluation ?? 0;
+      if (job.data.kind === 'eval') {
+        const { fen, depth } = job.data;
+        const searchDepth = Math.max(1, Math.min(ANALYSIS_DEPTH, depth || ANALYSIS_DEPTH));
+        const results = await engine.search(fen, 1, { depth: searchDepth });
+        const top = results[0];
+        // EngineManager.search returns WHITE-POV eval. Un-flip to side-to-move
+        // POV to match the client AnalysisEngine.analyze() contract.
+        const isBlackToMove = fen.split(' ')[1] === 'b';
+        const rawEval = top?.evaluation ?? 0;
+        return {
+          kind: 'eval',
+          evaluation: isBlackToMove ? -rawEval : rawEval,
+          bestMove: top?.move ?? '',
+          depth: searchDepth,
+        };
+      }
+
+      // 'classify'
+      const { fenBefore, fenAfter, move, playerColor } = job.data;
+      const beforeResults = await engine.search(fenBefore, 1, { depth: ANALYSIS_DEPTH });
+      const afterResults = await engine.search(fenAfter, 1, { depth: ANALYSIS_DEPTH });
+
+      const bestRaw = beforeResults[0]?.evaluation ?? 0;
+      const afterRaw = afterResults[0]?.evaluation ?? 0;
+      const bestMove = beforeResults[0]?.move ?? move;
+
+      const bestEval = normalizeEval(bestRaw, playerColor);
+      const evalAfter = normalizeEval(afterRaw, playerColor);
+      const diff = Math.max(0, bestEval - evalAfter);
+      const wpDiff = Math.max(0, winProb(bestEval) - winProb(evalAfter));
+      const caps2 = computeCAPS2(diff, Math.abs(bestEval));
+      const classification = classifyMove(bestEval, evalAfter);
+
       return {
-        kind: 'eval',
-        evaluation: isBlackToMove ? -rawEval : rawEval,
-        bestMove: top?.move ?? '',
-        depth: searchDepth,
+        kind: 'classify',
+        move,
+        classification,
+        caps2: Math.round(caps2 * 10) / 10,
+        diff: Math.round(diff * 100) / 100,
+        wpDiff: Math.round(wpDiff * 100) / 100,
+        evalBefore: Math.round(bestEval * 100) / 100,
+        evalAfter: Math.round(evalAfter * 100) / 100,
+        bestMove,
       };
+    } catch (err) {
+      // Wedged engine — kill + respawn the process before it pollutes
+      // the next job. We still rethrow so the queue marks this job as
+      // failed (don't silently swallow user-facing errors).
+      if (isEngineWedgeError(err)) {
+        try {
+          await engine.respawn();
+        } catch (respawnErr) {
+          console.error(`[AnalysisQueue] respawn after timeout failed:`, respawnErr);
+        }
+      }
+      throw err;
     }
-
-    // 'classify'
-    const { fenBefore, fenAfter, move, playerColor } = job.data;
-    const beforeResults = await engine.search(fenBefore, 1, { depth: ANALYSIS_DEPTH });
-    const afterResults = await engine.search(fenAfter, 1, { depth: ANALYSIS_DEPTH });
-
-    const bestRaw = beforeResults[0]?.evaluation ?? 0;
-    const afterRaw = afterResults[0]?.evaluation ?? 0;
-    const bestMove = beforeResults[0]?.move ?? move;
-
-    const bestEval = normalizeEval(bestRaw, playerColor);
-    const evalAfter = normalizeEval(afterRaw, playerColor);
-    const diff = Math.max(0, bestEval - evalAfter);
-    const wpDiff = Math.max(0, winProb(bestEval) - winProb(evalAfter));
-    const caps2 = computeCAPS2(diff, Math.abs(bestEval));
-    const classification = classifyMove(bestEval, evalAfter);
-
-    return {
-      kind: 'classify',
-      move,
-      classification,
-      caps2: Math.round(caps2 * 10) / 10,
-      diff: Math.round(diff * 100) / 100,
-      wpDiff: Math.round(wpDiff * 100) / 100,
-      evalBefore: Math.round(bestEval * 100) / 100,
-      evalAfter: Math.round(evalAfter * 100) / 100,
-      bestMove,
-    };
   } finally {
     pool.release(engine);
   }

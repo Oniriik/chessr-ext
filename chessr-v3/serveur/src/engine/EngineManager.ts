@@ -347,4 +347,30 @@ export class EngineManager extends EventEmitter {
       this.isBusy = false;
     }
   }
+
+  /**
+   * Kill the underlying process and start a fresh one. Used by queue
+   * workers when an engine has timed out — at that point we don't know
+   * whether the process is dead, hung, or just slow, but we can't risk
+   * handing it to the next job (it would likely fail again the same
+   * way). Easier to throw away and respawn.
+   *
+   * Drops every pending listener so callbacks queued against the dying
+   * process can't leak into the new one. Caller is responsible for
+   * marking the engine !isBusy and putting it back in the pool.
+   */
+  async respawn(): Promise<void> {
+    console.log(`[Engine ${this.id}] respawning…`);
+    // Drop any in-flight `waitForResponse` / search listeners so they
+    // don't fire on lines from the next process and confuse callers.
+    this.removeAllListeners('line');
+    if (this.process) {
+      try { this.process.kill('SIGKILL'); } catch { /* already dead */ }
+      this.process = null;
+    }
+    this.isReady = false;
+    this.isBusy = false;
+    this.buffer = '';
+    await this.start();
+  }
 }

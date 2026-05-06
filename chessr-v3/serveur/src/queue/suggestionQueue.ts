@@ -100,6 +100,14 @@ export async function initSuggestionWorker(maxInstances: number): Promise<void> 
   console.log(`[SuggestionQueue] worker ready (concurrency=${maxInstances})`);
 }
 
+/** Errors thrown by EngineManager when the engine isn't responsive.
+ *  When we see one we kill+respawn the underlying process so the next
+ *  job acquiring this slot doesn't inherit a wedged engine. */
+function isEngineWedgeError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return /Timeout waiting for|Search timeout/.test(err.message);
+}
+
 async function processSuggestionJob(
   job: Job<SuggestionJobData, SuggestionJobResult>,
 ): Promise<SuggestionJobResult> {
@@ -113,14 +121,22 @@ async function processSuggestionJob(
     const engine = await sfPool.acquire();
     if (!engine) throw new Error('Stockfish pool unavailable');
     try {
-      await engine.configure(config);
-      const raw = await engine.search(fen, pvCount, searchOptions);
-      const suggestions = labelSuggestions(raw);
-      const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
-      const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
-      const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
-      const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
-      return { fen, personality, suggestions, positionEval, mateIn, winRate, puzzleMode, maxDepth };
+      try {
+        await engine.configure(config);
+        const raw = await engine.search(fen, pvCount, searchOptions);
+        const suggestions = labelSuggestions(raw);
+        const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
+        const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
+        const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
+        const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
+        return { fen, personality, suggestions, positionEval, mateIn, winRate, puzzleMode, maxDepth };
+      } catch (err) {
+        if (isEngineWedgeError(err)) {
+          try { await engine.respawn(); }
+          catch (e) { console.error('[SuggestionQueue] stockfish respawn failed:', e); }
+        }
+        throw err;
+      }
     } finally {
       sfPool.release(engine);
     }
@@ -131,23 +147,31 @@ async function processSuggestionJob(
   const engine = await pool.acquire();
   if (!engine) throw new Error('Engine pool unavailable');
   try {
-    await engine.configure(config);
-    const raw = await engine.search(fen, pvCount, searchOptions);
-    const suggestions = labelSuggestions(raw);
-    const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
-    const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
-    const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
-    const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
-    return {
-      fen,
-      personality,
-      suggestions,
-      positionEval,
-      mateIn,
-      winRate,
-      puzzleMode,
-      maxDepth,
-    };
+    try {
+      await engine.configure(config);
+      const raw = await engine.search(fen, pvCount, searchOptions);
+      const suggestions = labelSuggestions(raw);
+      const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
+      const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
+      const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
+      const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
+      return {
+        fen,
+        personality,
+        suggestions,
+        positionEval,
+        mateIn,
+        winRate,
+        puzzleMode,
+        maxDepth,
+      };
+    } catch (err) {
+      if (isEngineWedgeError(err)) {
+        try { await engine.respawn(); }
+        catch (e) { console.error('[SuggestionQueue] komodo respawn failed:', e); }
+      }
+      throw err;
+    }
   } finally {
     pool.release(engine);
   }
