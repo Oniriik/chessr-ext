@@ -108,7 +108,7 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
               <Separator className="my-4" />
               {userEmail && (
                 <div className="flex items-center gap-2.5 px-1">
-                  <Avatar className="h-8 w-8 bg-gradient-to-br from-primary/30 to-primary/10 text-primary">
+                  <Avatar className="h-8 w-8 bg-primary/10 ring-1 ring-inset ring-primary/20 text-primary">
                     <AvatarFallback className="bg-transparent text-primary">{initial}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">

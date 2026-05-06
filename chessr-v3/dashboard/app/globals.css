@@ -80,24 +80,24 @@
 }
 
 @layer utilities {
-  /* Subtle elevation — top-light wash + overlay tint. Used on every card. */
+  /* Card surface — solid card bg with a single 1px top highlight, no
+   * gradient body wash (which created a visible seam where it cut off).
+   * Mirrors the chessr-v3 extension panel approach: flat color +
+   * minimal hint of light from above. */
   .card-elevated {
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 36%),
-      hsl(var(--card));
+    background: hsl(var(--card));
     box-shadow:
-      0 1px 0 0 rgba(255,255,255,0.04) inset,
-      0 8px 24px -12px rgba(0,0,0,0.4);
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
+      0 1px 2px 0 rgba(0, 0, 0, 0.25);
   }
 
-  /* Stronger card for hero numbers / KPIs */
+  /* Same surface as card-elevated — kept as alias so existing call
+   * sites don't churn. (Earlier this had a stronger gradient; gone.) */
   .card-glow {
-    background:
-      linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 30%),
-      hsl(var(--card));
+    background: hsl(var(--card));
     box-shadow:
-      0 1px 0 0 rgba(255,255,255,0.05) inset,
-      0 12px 32px -16px rgba(0,0,0,0.5);
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+      0 1px 2px 0 rgba(0, 0, 0, 0.3);
   }
 
   /* Tabular figures everywhere numbers matter — keeps progress bars +

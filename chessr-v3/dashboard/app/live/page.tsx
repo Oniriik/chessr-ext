@@ -69,10 +69,10 @@ function ResourceCard({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br shadow-inner ring-1 ring-inset ring-white/5',
-                  tier === 'emerald' ? 'from-emerald-500/15 to-emerald-500/5 text-emerald-400'
-                  : tier === 'amber' ? 'from-amber-500/15 to-amber-500/5 text-amber-400'
-                  : 'from-red-500/15 to-red-500/5 text-red-400',
+                  'flex h-7 w-7 items-center justify-center rounded-md ring-1 ring-inset',
+                  tier === 'emerald' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20'
+                  : tier === 'amber' ? 'bg-amber-500/10 text-amber-400 ring-amber-500/20'
+                  : 'bg-red-500/10 text-red-400 ring-red-500/20',
                 )}>
                   <Icon size={14} strokeWidth={2.2} />
                 </div>
@@ -185,7 +185,7 @@ function UserRow({ u, last }: { u: ConnectedUser; last?: boolean }) {
       'flex items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3',
       !last && 'border-b border-border/40',
     )}>
-      <Avatar className="h-8 w-8 bg-gradient-to-br from-primary/25 to-primary/5 text-primary">
+      <Avatar className="h-8 w-8 bg-primary/10 ring-1 ring-inset ring-primary/20 text-primary">
         <AvatarFallback className="bg-transparent text-[10px] text-primary">{initial}</AvatarFallback>
       </Avatar>
 
