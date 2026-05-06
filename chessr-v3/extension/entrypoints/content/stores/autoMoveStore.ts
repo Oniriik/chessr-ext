@@ -49,6 +49,12 @@ interface AutoMoveState {
   hotkey3: string;
   premoveKey: string;
   premoveDelay: [number, number];
+  /** When true, render a floating row of buttons (one per suggestion)
+   *  that triggers the same move as pressing the corresponding hotkey.
+   *  Useful on touch screens / for users who don't want to remember
+   *  the keybindings. Independent of the keyboard listener — both can
+   *  be active at once. */
+  useOnScreenButtons: boolean;
 
   // Auto mode
   autoPlayDelay: [number, number];
@@ -71,6 +77,7 @@ interface AutoMoveState {
   setHotkey: (slot: 1 | 2 | 3, key: string) => void;
   setPremoveKey: (key: string) => void;
   setPremoveDelay: (v: [number, number]) => void;
+  setUseOnScreenButtons: (v: boolean) => void;
 
   setAutoPlayDelay: (v: [number, number]) => void;
   setAutoPremove: (v: boolean) => void;
@@ -95,6 +102,7 @@ const AUTOMOVE_DEFAULTS = {
   hotkey3: '3',
   premoveKey: 'Shift',
   premoveDelay: [500, 1000] as [number, number],
+  useOnScreenButtons: false,
   autoPlayDelay: [650, 1600] as [number, number],
   autoPremove: false,
   autoRematch: false,
@@ -120,6 +128,7 @@ export const useAutoMoveStore = create<AutoMoveState>()(
       setHotkey: (slot, key) => set({ [`hotkey${slot}`]: key } as any),
       setPremoveKey: (premoveKey) => set({ premoveKey }),
       setPremoveDelay: (premoveDelay) => set({ premoveDelay }),
+      setUseOnScreenButtons: (useOnScreenButtons) => set({ useOnScreenButtons }),
 
       setAutoPlayDelay: (autoPlayDelay) => set({ autoPlayDelay }),
       setAutoPremove: (autoPremove) => set({ autoPremove }),

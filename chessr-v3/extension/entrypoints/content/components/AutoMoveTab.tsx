@@ -3,12 +3,22 @@ import gsap from 'gsap';
 import { useAutoMoveStore, type AutoMoveMode, type MovePreset, type HumanizePreset } from '../stores/autoMoveStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore, type Plan } from '../stores/authStore';
+import { usePlatformStore, platformSupportsPremove } from '../stores/platformStore';
 import Slider from './Slider';
 import RangeSlider from './RangeSlider';
 import Toggle from './Toggle';
 import './auto-move-tab.css';
 
 import { isPremium } from '../lib/premium';
+
+function platformLabel(p: ReturnType<typeof usePlatformStore.getState>['platform']): string {
+  switch (p) {
+    case 'lichess':    return 'Lichess';
+    case 'worldchess': return 'World Chess';
+    case 'chesscom':   return 'Chess.com';
+    default:           return 'this platform';
+  }
+}
 
 const MODE_META: Record<AutoMoveMode, { name: string; desc: string; cls: string; bg: string; border: string }> = {
   off:    { name: 'Off',    desc: 'Manual play',          cls: 'off',  bg: 'rgba(255, 255, 255, 0.03)', border: 'rgba(228, 228, 231, 0.6)' },
@@ -145,6 +155,9 @@ function HotkeysCard() {
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
+  const platform = usePlatformStore((st) => st.platform);
+  const premoveOk = platformSupportsPremove(platform);
+  const premoveLocked = !premoveOk;
   const modDisplay = displayKey(s.premoveKey);
   return (
     <div className="am-card am-card--tight">
@@ -166,10 +179,20 @@ function HotkeysCard() {
           ))}
         </div>
       </div>
-      <div className="am-card-head">
+      <div className={`am-card-head ${premoveLocked ? 'am-card-head--disabled' : ''}`}>
         <span className="am-card-sublabel">Premove</span>
-        <KeyInput value={s.premoveKey} onChange={s.setPremoveKey} modifierOnly />
+        <KeyInput
+          value={s.premoveKey}
+          onChange={s.setPremoveKey}
+          modifierOnly
+          disabled={premoveLocked}
+        />
       </div>
+      {premoveLocked && (
+        <div className="am-platform-warn">
+          Premoves are not supported on {platformLabel(platform)} — only Chess.com is enabled for now.
+        </div>
+      )}
       <div className="am-card-example">
         <span className="am-card-example-title">Example · Move 1</span>
         <div className="am-card-example-row">
@@ -178,17 +201,35 @@ function HotkeysCard() {
           </div>
           <span className="am-card-example-text">play the move</span>
         </div>
-        <div className="am-card-example-row">
-          <div className="am-card-example-combo">
-            <span className="am-kbd">{modDisplay}</span>
-            <span className="am-kbd-plus">+</span>
-            <span className="am-kbd">{s.hotkey1}</span>
+        {!premoveLocked && (
+          <div className="am-card-example-row">
+            <div className="am-card-example-combo">
+              <span className="am-kbd">{modDisplay}</span>
+              <span className="am-kbd-plus">+</span>
+              <span className="am-kbd">{s.hotkey1}</span>
+            </div>
+            <span className="am-card-example-text">
+              play + queue premove <em>(if available)</em>
+            </span>
           </div>
-          <span className="am-card-example-text">
-            play + queue premove <em>(if available)</em>
+        )}
+      </div>
+
+      <div className="am-row">
+        <div className="am-row-label-col">
+          <span className="am-row-label-text">Use on-screen buttons</span>
+          <span className="am-row-desc">
+            Show floating buttons on the page. Click to play the move
+            {premoveOk ? ', long-press to play + queue a premove.' : '.'}
           </span>
         </div>
+        <Toggle
+          checked={premium && s.useOnScreenButtons}
+          onChange={(v) => { if (premium) s.setUseOnScreenButtons(v); }}
+          disabled={!premium}
+        />
       </div>
+
       {!premium && (
         <div className="am-upgrade-note">Upgrade to premium to unlock full hotkey tuning</div>
       )}
@@ -202,16 +243,24 @@ function PremoveCard() {
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
+  const platform = usePlatformStore((st) => st.platform);
+  const premoveOk = platformSupportsPremove(platform);
+  const disabled = !premium || !premoveOk;
   return (
-    <div className="am-card">
+    <div className={`am-card ${!premoveOk ? 'am-card--locked' : ''}`}>
       <div className="am-card-head">
         <span className="am-card-title">Premove</span>
         <span className="am-slider-val">{s.premoveDelay[0]}–{s.premoveDelay[1]} ms</span>
       </div>
       <span className="am-card-sub">Time before queuing the premove</span>
       <div className="am-slider-row">
-        <RangeSlider value={s.premoveDelay} onChange={s.setPremoveDelay} min={0} max={3000} step={50} color="#3b82f6" disabled={!premium} />
+        <RangeSlider value={s.premoveDelay} onChange={s.setPremoveDelay} min={0} max={3000} step={50} color="#3b82f6" disabled={disabled} />
       </div>
+      {!premoveOk && (
+        <div className="am-platform-warn">
+          Not supported on {platformLabel(platform)} — premove is only available on Chess.com.
+        </div>
+      )}
     </div>
   );
 }

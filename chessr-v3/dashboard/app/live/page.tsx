@@ -86,7 +86,7 @@ function ResourceCard({
             </div>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
-            <Progress value={pct} className="h-1.5 bg-secondary/60" />
+            <Progress value={pct} className="h-2 bg-secondary/60" />
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-muted-foreground">{primary}</span>
               {secondary && <span className="num text-muted-foreground">{secondary}</span>}
@@ -104,32 +104,32 @@ function QueueCard({ q }: { q: QueueData }) {
   const busy = q.counts.active > 0 || q.counts.waiting > 0;
   return (
     <Card className="card-elevated transition-colors hover:bg-card/80">
-      <CardContent className="p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
+      <CardContent className="p-4 sm:p-5">
+        <div className="mb-3 flex h-6 items-center justify-between">
+          <div className="flex items-center gap-2">
             <span className={cn(
-              'h-1.5 w-1.5 rounded-full',
+              'h-2 w-2 rounded-full',
               busy ? 'bg-primary pulse-dot' : 'bg-muted-foreground/40',
             )} />
-            <span className="text-[12px] font-semibold capitalize tracking-tight">{q.name}</span>
+            <span className="text-[13px] font-semibold capitalize">{q.name}</span>
           </div>
           {q.counts.failed > 0 && (
-            <Badge variant="destructive" className="px-1.5 py-0 text-[9px]">
+            <Badge variant="destructive" className="px-2 py-1 text-[10px]">
               {q.counts.failed} failed
             </Badge>
           )}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-md border border-border/50 bg-background/40 px-2.5 py-2">
-            <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">Active</div>
-            <div className="num mt-0.5 text-lg font-semibold leading-none tabular-nums">
+          <div className="rounded-md border border-border/50 bg-background/40 px-3 py-2">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Active</div>
+            <div className="num mt-1 text-lg font-semibold leading-none tabular-nums">
               {q.counts.active}
             </div>
           </div>
-          <div className="rounded-md border border-border/50 bg-background/40 px-2.5 py-2">
-            <div className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">Waiting</div>
+          <div className="rounded-md border border-border/50 bg-background/40 px-3 py-2">
+            <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Waiting</div>
             <div className={cn(
-              'num mt-0.5 text-lg font-semibold leading-none tabular-nums',
+              'num mt-1 text-lg font-semibold leading-none tabular-nums',
               q.counts.waiting > 0 ? 'text-amber-400' : '',
             )}>
               {q.counts.waiting}
@@ -164,7 +164,7 @@ function ModeBadge({ mode }: { mode: ConnectedUser['mode'] }) {
   const Icon = cfg.icon;
   return (
     <span className={cn(
-      'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium',
+      'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium',
       cfg.cls,
     )}>
       <Icon size={10} strokeWidth={2.2} />
@@ -182,7 +182,7 @@ function UserRow({ u, last }: { u: ConnectedUser; last?: boolean }) {
 
   return (
     <div className={cn(
-      'flex items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3',
+      'flex items-center gap-3 px-3 py-3 sm:gap-4 sm:px-4',
       !last && 'border-b border-border/40',
     )}>
       <Avatar className="h-8 w-8 bg-primary/10 ring-1 ring-inset ring-primary/20 text-primary">
@@ -195,12 +195,12 @@ function UserRow({ u, last }: { u: ConnectedUser; last?: boolean }) {
           <div className="truncate text-[13px] font-medium" title={u.email ?? u.userId}>
             {display}
           </div>
-          <div className="flex items-center gap-1.5 sm:hidden">
+          <div className="flex items-center gap-2 sm:hidden">
             <PlanBadge plan={u.plan} />
             <ModeBadge mode={u.mode} />
           </div>
         </div>
-        <div className="mt-0.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
           <span className="num">{formatRelative(u.connectedAt)}</span>
           <span className="opacity-50">•</span>
           <span className="truncate">
@@ -220,65 +220,98 @@ function UserRow({ u, last }: { u: ConnectedUser; last?: boolean }) {
   );
 }
 
+// Format `lastUpdate` as a live "Xs ago" / "Xm ago" string. We use the
+// `now` argument (re-rendered by a 1s ticker — see useNow below) so the
+// label keeps ticking even when lastUpdate doesn't change between fetches.
+function formatAgo(ts: number, now: number): string {
+  if (!ts) return '—';
+  const diff = Math.max(0, Math.floor((now - ts) / 1000));
+  if (diff < 5)  return 'just now';
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  return `${Math.floor(diff / 3600)}h ago`;
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+function formatClock(ts: number): string {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
 // ─── Compact KPI strip at the top — quick glance bar ────────────────────
 function KpiStrip({
-  connected, modes, queueBusy, lastUpdate,
+  connected, modes, queueBusy, lastUpdate, now,
 }: {
   connected: number;
   modes: Record<string, number>;
   queueBusy: number;
   lastUpdate: number;
+  now: number;
 }) {
   return (
     <Card className="card-elevated">
       <div className="flex flex-wrap items-stretch divide-y divide-border/40 sm:divide-x sm:divide-y-0">
-        <div className="flex-1 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="flex-1 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             <Users size={11} /> Connected
           </div>
-          <div className="num mt-1 flex items-baseline gap-2">
+          <div className="num mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-semibold tracking-tight">{connected}</span>
             <span className="text-[11px] text-muted-foreground">live</span>
           </div>
         </div>
 
-        <div className="flex-1 px-4 py-3 sm:px-5">
+        <div className="flex-1 px-4 py-4 sm:px-6">
           <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Mode breakdown
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {modes.wasm   ? <span className="num inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-400"><Zap size={9} /> {modes.wasm}</span> : null}
-            {modes.server ? <span className="num inline-flex items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"><ServerCog size={9} /> {modes.server}</span> : null}
-            {modes.mixed  ? <span className="num inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-400"><Cloud size={9} /> {modes.mixed}</span> : null}
-            {modes.unknown ? <span className="num inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"><Activity size={9} /> {modes.unknown}</span> : null}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {modes.wasm   ? <span className="num inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-400"><Zap size={10} /> {modes.wasm}</span> : null}
+            {modes.server ? <span className="num inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[11px] text-primary"><ServerCog size={10} /> {modes.server}</span> : null}
+            {modes.mixed  ? <span className="num inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] text-amber-400"><Cloud size={10} /> {modes.mixed}</span> : null}
+            {modes.unknown ? <span className="num inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground"><Activity size={10} /> {modes.unknown}</span> : null}
             {Object.keys(modes).length === 0 && <span className="text-[11px] text-muted-foreground">—</span>}
           </div>
         </div>
 
-        <div className="flex-1 px-4 py-3 sm:px-5">
-          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="flex-1 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             <Layers size={11} /> Queue load
           </div>
-          <div className="num mt-1 flex items-baseline gap-2">
+          <div className="num mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-semibold tracking-tight">{queueBusy}</span>
             <span className="text-[11px] text-muted-foreground">jobs in-flight</span>
           </div>
         </div>
 
-        <div className="flex flex-1 items-center justify-between px-4 py-3 sm:px-5">
+        <div className="flex flex-1 items-center justify-between px-4 py-4 sm:px-6">
           <div>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               <RotateCw size={11} /> Last refresh
             </div>
-            <div className="num mt-1 text-[13px] font-medium tabular-nums">
-              {lastUpdate ? formatRelative(lastUpdate) : '—'}
+            <div className="num mt-2 flex items-baseline gap-2 tabular-nums">
+              <span className="text-[13px] font-medium">{formatClock(lastUpdate)}</span>
+              <span className="text-[11px] text-muted-foreground">{formatAgo(lastUpdate, now)}</span>
             </div>
           </div>
-          <span className="relative ml-3 inline-block h-2 w-2 rounded-full bg-emerald-400 pulse-dot" />
+          <span className="relative ml-4 inline-block h-2 w-2 rounded-full bg-emerald-400 pulse-dot" />
         </div>
       </div>
     </Card>
   );
+}
+
+// 1-second ticker for relative-time labels ("3s ago"). Decoupled from
+// the 5s data fetch so the ago-counter ticks smoothly even when no new
+// data arrives.
+function useNow(intervalMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────
@@ -289,6 +322,7 @@ export default function LivePage() {
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const now = useNow();
 
   useEffect(() => {
     let cancelled = false;
@@ -349,6 +383,7 @@ export default function LivePage() {
               modes={modes}
               queueBusy={queueBusy}
               lastUpdate={lastUpdate}
+              now={now}
             />
           ) : (
             <Skeleton className="h-[78px] w-full" />
@@ -422,7 +457,7 @@ export default function LivePage() {
             <div className="mb-3 flex items-end justify-between gap-2">
               <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 <Users size={12} /> Connected
-                <Badge variant="muted" className="px-1.5 py-0 text-[10px]">{users.length}</Badge>
+                <Badge variant="muted" className="px-2 py-1 text-[10px]">{users.length}</Badge>
               </h2>
             </div>
             {!loaded ? (
@@ -452,7 +487,7 @@ export default function LivePage() {
           <Separator className="my-6 opacity-40" />
 
           <p className="text-center text-[10px] text-muted-foreground/60">
-            Auto-refresh every 5s · Resources from <code className="rounded bg-muted px-1 py-0.5 text-[9px]">/admin/metrics</code>
+            Auto-refresh every 5s · Resources from <code className="rounded bg-muted px-1 py-1 text-[9px]">/admin/metrics</code>
           </p>
         </div>
       </TooltipProvider>

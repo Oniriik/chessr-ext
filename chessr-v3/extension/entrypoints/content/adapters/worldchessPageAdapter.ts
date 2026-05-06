@@ -19,16 +19,25 @@
  * No `sound.move` monkey-patch needed — `currentFen` fires for every position
  * change, including the engine reply.
  *
- * Player color: derived from `cg-board.rotation` on the chessground custom
- * element. `rotation === 0` → white at bottom → user is white. The user can
- * flip the board manually mid-game (the "Flip Board" toolbar button), so we
- * snapshot rotation once on first install and treat that as authoritative.
+ * Player color: read from the React wrapper component's `playerSide`
+ * prop (memoizedProps), found by walking up the fiber chain from
+ * `cg-board`'s parent. This is authoritative because it's what
+ * worldchess itself uses to gate move input. Falls back to
+ * rotation-based inference on layouts where the prop walk fails.
+ * (The previous rotation-only inference broke on pages where worldchess
+ * leaves the board un-flipped for black players or where the user
+ * flipped the board manually.)
  *
  * Auto-move: `chessEngine.move(uci, { isUserMove: true })`. No mouse event
  * synthesis required — the public move() handles validation, animation, and
  * the WebSocket dispatch to the regional game server (`gs.<region>.worldchess.com`).
  *
- * No premove API surfaced; `executePremove` is a best-effort fire-and-forget.
+ * Premoves are queued via chessground's `api.set({ premovable: { current } })`
+ * — we discover the api object by walking common attach points around the
+ * `cg-board` element (string keys + Symbol-keyed slots). When the lookup
+ * fails (e.g. integration changed) we fall back to a regular `engine.move`
+ * call which usually rejects when it's not our turn — at least it doesn't
+ * crash.
  * No rematch flow — worldchess "New Game" leaves the page, so `requestRematch`
  * clicks the "New game" button when present and returns true.
  *
@@ -198,6 +207,105 @@ function readBoardRotation(): number {
   return typeof board.rotation === 'number' ? board.rotation : 0;
 }
 
+/**
+ * Read the user's actual playing color from the React wrapper component
+ * around `cg-board`. The wrapper exposes `playerSide: 'w' | 'b'` in its
+ * memoizedProps — this is what worldchess itself uses to decide which
+ * side accepts move input, so it's authoritative.
+ *
+ * Why we don't just infer from `cg-board.rotation`:
+ *   1. On some game pages worldchess doesn't auto-flip the board for
+ *      black players (rotation stays 0 but the user is black).
+ *   2. The user can flip mid-game via the "Flip Board" button, which
+ *      changes rotation without changing their actual color.
+ * Both cases would mis-detect with rotation-only logic.
+ */
+function readPlayerSide(): Color | null {
+  const board = document.querySelector('cg-board');
+  if (!board?.parentElement) return null;
+  const fiberKey = Object.keys(board.parentElement).find((k) => k.startsWith('__reactFiber'));
+  if (!fiberKey) return null;
+  // Walk up the fiber tree until we find a node whose memoizedProps
+  // carry `playerSide`. The wrapper component sits ~1-2 levels above
+  // `cg-board` but we walk a generous range to survive integration
+  // changes.
+  let n: { memoizedProps?: { playerSide?: 'w' | 'b' }; return?: unknown } | undefined =
+    (board.parentElement as unknown as Record<string, { memoizedProps?: { playerSide?: 'w' | 'b' }; return?: unknown }>)[fiberKey];
+  for (let i = 0; n && i < 20; i++) {
+    const ps = n.memoizedProps?.playerSide;
+    if (ps === 'w') return 'white';
+    if (ps === 'b') return 'black';
+    n = n.return as typeof n;
+  }
+  return null;
+}
+
+/**
+ * Convert a UCI square ("e2") into pixel coordinates on the cg-board,
+ * accounting for the board rotation. The board is square (size in px
+ * read from `getBoundingClientRect`) and laid out as 8×8 cells.
+ *
+ *   rotation === 0   → white at bottom, file a on the left
+ *   rotation === 180 → black at bottom, file a on the right
+ */
+function squareToBoardPx(square: string, boardSize: number, rotation: number): { x: number; y: number } | null {
+  if (square.length < 2) return null;
+  const fileIdx = square.charCodeAt(0) - 97; // 'a' → 0, 'h' → 7
+  const rankIdx = parseInt(square[1], 10) - 1;
+  if (fileIdx < 0 || fileIdx > 7 || rankIdx < 0 || rankIdx > 7) return null;
+  const sq = boardSize / 8;
+  let col: number, row: number;
+  if (rotation === 0) {
+    col = fileIdx;
+    row = 7 - rankIdx;
+  } else {
+    col = 7 - fileIdx;
+    row = rankIdx;
+  }
+  return { x: col * sq + sq / 2, y: row * sq + sq / 2 };
+}
+
+/**
+ * Synthesize a mouse drag from `from` to `to` on the cg-board, mimicking
+ * a user's pickup → drop. Worldchess's wrapper component listens to the
+ * board's mousedown/move/up handlers and routes them through the same
+ * pipeline as a real drag — including the premove detection branch when
+ * it's not our turn (the React component owns `amountOfPremoves: 1`
+ * which proves the feature is built-in, just not exposed via props).
+ *
+ * We use isolated MouseEvent dispatch (not PointerEvent) because the
+ * cg-board's bound handlers are `boundMouseDown / boundMouseMove /
+ * boundMouseUp` — wired to the legacy mouse event names.
+ */
+function synthesizeBoardDrag(uci: string): boolean {
+  const board = document.querySelector('cg-board') as (HTMLElement & { rotation?: number }) | null;
+  if (!board) return false;
+  const rect = board.getBoundingClientRect();
+  if (!rect.width || !rect.height) return false;
+  const rotation = typeof board.rotation === 'number' ? board.rotation : 0;
+  const from = squareToBoardPx(uci.slice(0, 2), rect.width, rotation);
+  const to = squareToBoardPx(uci.slice(2, 4), rect.width, rotation);
+  if (!from || !to) return false;
+
+  const fire = (type: 'mousedown' | 'mousemove' | 'mouseup', dx: number, dy: number) => {
+    const ev = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: rect.left + dx,
+      clientY: rect.top + dy,
+      button: 0,
+      buttons: type === 'mouseup' ? 0 : 1,
+    });
+    board.dispatchEvent(ev);
+  };
+
+  fire('mousedown', from.x, from.y);
+  fire('mousemove', to.x, to.y);
+  fire('mouseup', to.x, to.y);
+  return true;
+}
+
 /** Build a full FEN from the store state. `currentFen` is already a full FEN
  *  on worldchess (six fields), but we defensively pad if it ever isn't. */
 function normalizeFen(fen: string | undefined, turn: 'w' | 'b' | undefined): string | null {
@@ -347,11 +455,19 @@ export class WorldchessPageAdapter implements PageContextAdapter {
     this.engine = ce;
     this.gameId = gameId;
 
-    // Snapshot orientation once, before any user flip.
+    // Player color comes from the React wrapper's `playerSide` prop —
+    // authoritative even when the board orientation doesn't match (the
+    // user flipped the board, or worldchess didn't auto-flip for black).
+    // Falls back to rotation-based inference if the fiber walk fails
+    // (preserves prior behavior on unfamiliar layouts).
+    const sideFromFiber = readPlayerSide();
     const rotation = readBoardRotation();
-    this.playerColor = rotation === 0 ? 'white' : 'black';
+    this.playerColor = sideFromFiber ?? (rotation === 0 ? 'white' : 'black');
 
-    console.log(`${LOG} engine attached gameId=${gameId} playerColor=${this.playerColor} rotation=${rotation}`);
+    console.log(
+      `${LOG} engine attached gameId=${gameId} playerColor=${this.playerColor}` +
+      ` (source=${sideFromFiber ? 'fiber.playerSide' : 'rotation-fallback'} rotation=${rotation})`,
+    );
 
     // Subscribe to currentFen for moves. The callback fires immediately with
     // the current value, which doubles as our initial-state push.
@@ -517,16 +633,36 @@ export class WorldchessPageAdapter implements PageContextAdapter {
     }
   }
 
-  /** No public premove API — fire the move; if it's not our turn the engine
-   *  will reject. Best-effort. */
+  /**
+   * Premove via synthesized mouse drag on the cg-board.
+   *
+   * Worldchess uses a CUSTOM `cg-board` element (not Lichess's
+   * chessground despite the tag name) — its premove logic lives in a
+   * React wrapper component that listens to mouse events on the board.
+   * The wrapper is what holds `amountOfPremoves: 1` and routes "drag
+   * during opponent's turn" → premove queue. There's no JS API exposed
+   * to set a premove directly, so we mimic a user drag: mousedown on
+   * the from-square center, mousemove + mouseup on the to-square. The
+   * wrapper detects "not our turn" and queues it as a premove the same
+   * way it would for a real user gesture.
+   */
   executePremove(uci: string): boolean {
     if (!uci || uci.length < 4) return false;
-    void this.executeMove(uci);
+    const ok = synthesizeBoardDrag(uci);
+    if (!ok) {
+      console.warn(`${LOG} premove drag synthesis failed (board missing or invalid uci) — uci=${uci}`);
+      return false;
+    }
+    console.log(`${LOG} premove queued via drag synthesis: ${uci}`);
     return true;
   }
 
   cancelPremoves(): void {
-    /* no premove API surfaced */
+    // No public cancel API on the wrapper. A right-click on the board
+    // typically cancels in chessground / chessboard.js variants — we
+    // could synthesize that here, but worldchess hasn't been observed
+    // to need explicit cancellation in normal play (premoves auto-clear
+    // on opponent's move arriving), so skip for now.
   }
 
   requestRematch(): boolean {

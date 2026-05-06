@@ -195,11 +195,27 @@ export default function SuggestionRow({ suggestion, index, color, fen, compact, 
         const MAX_PV_DISPLAY = 8;
         const visibleMoves = previewing ? pvMoves : pvMoves.slice(0, MAX_PV_DISPLAY);
         const hiddenCount = pvMoves.length - visibleMoves.length;
+        // pvMoves[i] = suggestion.pv[i+1]. The first pv entry is the
+        // player's suggested move, so pvMoves[0] is always the opponent
+        // and the colors alternate from there. Map index → moving side
+        // and pick dark / light from the actual piece color, not blindly
+        // from i % 2 (which assumed the player is always white).
+        const playerIsWhite = playerColor === 'white';
+        const isMoveByBlack = (i: number) => {
+          const playerToMove = i % 2 === 1;          // i odd = player, i even = opponent
+          const moverIsWhite = playerToMove ? playerIsWhite : !playerIsWhite;
+          return !moverIsWhite;
+        };
         return (
         <div className="srow-pv">
           <div className="srow-pv-moves">
             {visibleMoves.map((move, i) => (
-              <span key={i} className={`srow-pv-move ${i % 2 === 0 ? 'srow-pv-move--dark' : 'srow-pv-move--light'}`}>{move}</span>
+              <span
+                key={i}
+                className={`srow-pv-move ${isMoveByBlack(i) ? 'srow-pv-move--dark' : 'srow-pv-move--light'}`}
+              >
+                {move}
+              </span>
             ))}
             {hiddenCount > 0 && (
               <span className="srow-pv-more">+{hiddenCount}</span>

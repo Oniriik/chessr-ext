@@ -16,6 +16,7 @@ import SettingsScreen, { type SettingsTab } from './components/SettingsScreen';
 import LinkAccountScreen from './components/LinkAccountScreen';
 import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
+import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
 import { useStreamOpen } from './lib/streamOpen';
 // BetaGate removed — free users now have access to the extension with
@@ -240,6 +241,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
       )}
 
       <FloatingWidget />
+      <HotkeyMoveButtons />
     </div>
   );
 }

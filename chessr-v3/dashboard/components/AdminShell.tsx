@@ -25,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2">
       <span className="relative inline-block h-2 w-2 rounded-full bg-emerald-400 pulse-dot" />
       <span className="text-[13px] font-semibold tracking-tight">
         Chessr <span className="text-primary/90">v3</span>
@@ -36,7 +36,7 @@ function Brand() {
 
 function NavLinks({ pathname, onSelect }: { pathname: string; onSelect?: () => void }) {
   return (
-    <nav className="flex flex-col gap-0.5">
+    <nav className="flex flex-col gap-1">
       {NAV_ITEMS.map((n) => {
         const active = pathname === n.href || pathname.startsWith(n.href + '/');
         const Icon = n.icon;
@@ -46,7 +46,7 @@ function NavLinks({ pathname, onSelect }: { pathname: string; onSelect?: () => v
             href={n.href}
             onClick={onSelect}
             className={cn(
-              'group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
+              'group flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
               active
                 ? 'bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.18)]'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -88,7 +88,10 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
 
   return (
     <TooltipProvider delayDuration={250}>
-      <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Outer is locked to viewport height so children can use h-full
+       *  for in-content scrollers (e.g. the log tail on /logs).
+       *  `dvh` handles mobile address-bar-collapse correctly. */}
+      <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
         {/* ─── Mobile top bar ───────────────────────────────────────────── */}
         <header className="flex items-center justify-between gap-3 border-b border-border/60 bg-card/60 px-4 py-3 backdrop-blur-md md:hidden">
           <Brand />
@@ -107,7 +110,7 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
               <NavLinks pathname={pathname} onSelect={() => setSheetOpen(false)} />
               <Separator className="my-4" />
               {userEmail && (
-                <div className="flex items-center gap-2.5 px-1">
+                <div className="flex items-center gap-3 px-1">
                   <Avatar className="h-8 w-8 bg-primary/10 ring-1 ring-inset ring-primary/20 text-primary">
                     <AvatarFallback className="bg-transparent text-primary">{initial}</AvatarFallback>
                   </Avatar>
@@ -127,10 +130,16 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
 
         {/* ─── Desktop sidebar ──────────────────────────────────────────── */}
         <aside className="hidden w-60 shrink-0 flex-col border-r border-border/50 bg-card/30 backdrop-blur-sm md:flex">
-          <div className="flex h-14 items-center border-b border-border/50 px-5">
+          <div className="flex h-14 items-center border-b border-border/50 px-6">
             <Brand />
           </div>
 
+          {/* All sidebar children share a 24px left-inset:
+           *   brand:    px-6 (24)
+           *   nav:      parent px-3 + item px-3 → icon at 24
+           *   "Navigation" caps label: px-3 inside parent px-3 → 24
+           *   user block: px-6 (24)
+           */}
           <div className="flex-1 px-3 py-4">
             <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
               Navigation
@@ -140,7 +149,7 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
 
           <Separator className="bg-border/40" />
 
-          <div className="flex items-center gap-2.5 p-3">
+          <div className="flex items-center gap-3 px-6 py-3">
             {userEmail && (
               <>
                 <Avatar className="h-8 w-8 bg-gradient-to-br from-primary/30 to-primary/10 text-primary">
@@ -164,13 +173,24 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
         </aside>
 
         {/* ─── Main ─────────────────────────────────────────────────────── */}
-        <main className="min-w-0 flex-1 overflow-x-hidden">
+        {/* `flex flex-col` + `min-h-0 flex-1` body lets pages that need a
+         *  full-height inner scroller (e.g. /logs) fill the viewport
+         *  without creating a window-level scrollbar. Pages with normal
+         *  flow (/live, /queues) just sit at the top and let the body
+         *  div's available space stay empty below. */}
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {title && (
-            <header className="border-b border-border/50 bg-background/40 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
+            <header className="shrink-0 border-b border-border/50 bg-background/40 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
               <h1 className="text-base font-semibold tracking-tight sm:text-lg">{title}</h1>
             </header>
           )}
-          <div className="p-4 sm:p-6">{children}</div>
+          {/* Body div: fixed height = main minus header.
+           *  - Pages with normal flow (/live, /queues): content longer
+           *    than the body? body div scrolls (overflow-y-auto).
+           *  - Pages that need an inner scroller (/logs): set their root
+           *    child to `h-full flex flex-col`; the inner scroll element
+           *    handles overflow, body div stays exact-size. */}
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">{children}</div>
         </main>
       </div>
     </TooltipProvider>
@@ -181,7 +201,7 @@ export function ServerStatusBadge({ ok }: { ok: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium',
+        'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium',
         ok
           ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
           : 'border-destructive/30 bg-destructive/10 text-destructive',
