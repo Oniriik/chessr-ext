@@ -3,34 +3,69 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import {
-  Activity, ScrollText, Layers, LogOut, Menu, X, Server,
-} from 'lucide-react';
+import { Activity, ScrollText, Layers, LogOut, Menu, Server } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
+import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 // Legacy CSS — still consumed by /queues and /logs (admin-card etc).
 // Will be removed once those pages are migrated to shadcn components.
 import './admin-shell.css';
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: typeof Activity;
-};
+type NavItem = { href: string; label: string; icon: typeof Activity };
 
-// Trimmed nav: Live (default), Queues, Logs. /metrics + /users folded into
-// /live so there's a single place to glance at the system.
 const NAV_ITEMS: NavItem[] = [
   { href: '/live',    label: 'Live',    icon: Activity   },
   { href: '/queues',  label: 'Queues',  icon: Layers     },
   { href: '/logs',    label: 'Logs',    icon: ScrollText },
 ];
 
+function Brand() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="relative inline-block h-2 w-2 rounded-full bg-emerald-400 pulse-dot" />
+      <span className="text-[13px] font-semibold tracking-tight">
+        Chessr <span className="text-primary/90">v3</span>
+      </span>
+    </div>
+  );
+}
+
+function NavLinks({ pathname, onSelect }: { pathname: string; onSelect?: () => void }) {
+  return (
+    <nav className="flex flex-col gap-0.5">
+      {NAV_ITEMS.map((n) => {
+        const active = pathname === n.href || pathname.startsWith(n.href + '/');
+        const Icon = n.icon;
+        return (
+          <Link
+            key={n.href}
+            href={n.href}
+            onClick={onSelect}
+            className={cn(
+              'group flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
+              active
+                ? 'bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.18)]'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <Icon size={15} strokeWidth={2} className={cn('shrink-0 transition-transform', active && 'scale-105')} />
+            <span>{n.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function AdminShell({ children, title }: { children: ReactNode; title?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -42,7 +77,7 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
   }, [router]);
 
   // Close mobile drawer on navigation.
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
+  useEffect(() => { setSheetOpen(false); }, [pathname]);
 
   async function signOut() {
     await getSupabase().auth.signOut();
@@ -52,124 +87,93 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
   const initial = userEmail?.[0]?.toUpperCase() ?? '?';
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      {/* ─── Mobile top bar ───────────────────────────────────────────── */}
-      <header className="flex items-center justify-between gap-3 border-b border-border bg-card/60 px-4 py-3 backdrop-blur md:hidden">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-400" />
-          <span className="text-sm font-semibold tracking-tight">
-            Chessr <span className="text-primary">v3</span>
-          </span>
-        </div>
-        <button
-          aria-label="Toggle nav"
-          onClick={() => setMobileOpen((v) => !v)}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
-        </button>
-      </header>
+    <TooltipProvider delayDuration={250}>
+      <div className="flex min-h-screen flex-col md:flex-row">
+        {/* ─── Mobile top bar ───────────────────────────────────────────── */}
+        <header className="flex items-center justify-between gap-3 border-b border-border/60 bg-card/60 px-4 py-3 backdrop-blur-md md:hidden">
+          <Brand />
+          <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Open menu">
+                <Menu size={18} />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72 border-border/80">
+              <SheetHeader className="mb-4">
+                <SheetTitle className="flex items-center gap-2">
+                  <Brand />
+                </SheetTitle>
+              </SheetHeader>
+              <NavLinks pathname={pathname} onSelect={() => setSheetOpen(false)} />
+              <Separator className="my-4" />
+              {userEmail && (
+                <div className="flex items-center gap-2.5 px-1">
+                  <Avatar className="h-8 w-8 bg-gradient-to-br from-primary/30 to-primary/10 text-primary">
+                    <AvatarFallback className="bg-transparent text-primary">{initial}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium">{userEmail}</div>
+                    <div className="text-[10px] text-muted-foreground">Admin</div>
+                  </div>
+                </div>
+              )}
+              <Button variant="outline" size="sm" className="mt-4 w-full" onClick={signOut}>
+                <LogOut size={13} />
+                Sign out
+              </Button>
+            </SheetContent>
+          </Sheet>
+        </header>
 
-      {/* ─── Mobile drawer (overlay) ──────────────────────────────────── */}
-      {mobileOpen && (
-        <div className="border-b border-border bg-card md:hidden">
-          <nav className="flex flex-col p-2">
-            {NAV_ITEMS.map((n) => {
-              const active = pathname === n.href || pathname.startsWith(n.href + '/');
-              const Icon = n.icon;
-              return (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className={cn(
-                    'flex items-center gap-2.5 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
-                    active ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                >
-                  <Icon size={16} strokeWidth={2} />
-                  {n.label}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2.5">
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-semibold text-primary">
-                {initial}
-              </div>
-              <span className="truncate text-xs text-muted-foreground" title={userEmail ?? ''}>{userEmail}</span>
-            </div>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-            >
-              <LogOut size={12} />
-              Sign out
-            </button>
+        {/* ─── Desktop sidebar ──────────────────────────────────────────── */}
+        <aside className="hidden w-60 shrink-0 flex-col border-r border-border/50 bg-card/30 backdrop-blur-sm md:flex">
+          <div className="flex h-14 items-center border-b border-border/50 px-5">
+            <Brand />
           </div>
-        </div>
-      )}
 
-      {/* ─── Desktop sidebar ──────────────────────────────────────────── */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card/40 md:flex">
-        <div className="flex h-14 items-center gap-2 border-b border-border px-5">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.4)]" />
-          <span className="text-sm font-semibold tracking-tight">
-            Chessr <span className="text-primary">v3</span>
-          </span>
-        </div>
-
-        <nav className="flex-1 space-y-0.5 p-3">
-          {NAV_ITEMS.map((n) => {
-            const active = pathname === n.href || pathname.startsWith(n.href + '/');
-            const Icon = n.icon;
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
-                className={cn(
-                  'flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-                  active ? 'bg-primary/15 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                <Icon size={15} strokeWidth={2} />
-                {n.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="border-t border-border p-3">
-          {userEmail && (
-            <div className="mb-2 flex items-center gap-2">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[11px] font-semibold text-primary">
-                {initial}
-              </div>
-              <div className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground" title={userEmail}>
-                {userEmail}
-              </div>
+          <div className="flex-1 px-3 py-4">
+            <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+              Navigation
             </div>
-          )}
-          <button
-            onClick={signOut}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border bg-background/40 px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <LogOut size={12} strokeWidth={2.2} />
-            Sign out
-          </button>
-        </div>
-      </aside>
+            <NavLinks pathname={pathname} />
+          </div>
 
-      {/* ─── Main content ─────────────────────────────────────────────── */}
-      <main className="flex-1 overflow-x-hidden">
-        {title && (
-          <header className="border-b border-border px-4 py-4 sm:px-6 sm:py-5">
-            <h1 className="text-lg font-semibold tracking-tight sm:text-xl">{title}</h1>
-          </header>
-        )}
-        <div className="p-4 sm:p-6">{children}</div>
-      </main>
-    </div>
+          <Separator className="bg-border/40" />
+
+          <div className="flex items-center gap-2.5 p-3">
+            {userEmail && (
+              <>
+                <Avatar className="h-8 w-8 bg-gradient-to-br from-primary/30 to-primary/10 text-primary">
+                  <AvatarFallback className="bg-transparent text-primary">{initial}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[11px] font-medium leading-tight">{userEmail}</div>
+                  <div className="text-[10px] text-muted-foreground">Admin</div>
+                </div>
+              </>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={signOut} className="h-8 w-8">
+                  <LogOut size={14} strokeWidth={2.2} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Sign out</TooltipContent>
+            </Tooltip>
+          </div>
+        </aside>
+
+        {/* ─── Main ─────────────────────────────────────────────────────── */}
+        <main className="min-w-0 flex-1 overflow-x-hidden">
+          {title && (
+            <header className="border-b border-border/50 bg-background/40 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
+              <h1 className="text-base font-semibold tracking-tight sm:text-lg">{title}</h1>
+            </header>
+          )}
+          <div className="p-4 sm:p-6">{children}</div>
+        </main>
+      </div>
+    </TooltipProvider>
   );
 }
 

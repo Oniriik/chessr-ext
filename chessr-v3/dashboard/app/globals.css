@@ -2,43 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Design tokens — calibrated against the chessr-v3 extension's palette so
+ * the admin dashboard reads as the same product. The extension's Shadow
+ * Root uses these exact HSL values; mirroring them here keeps cards,
+ * accents and badges visually consistent across surfaces.
+ * ─────────────────────────────────────────────────────────────────────── */
 @layer base {
   :root {
-    /* shadcn dark theme — calibrated against the existing #0a0a14 background
-     * the dashboard already used. Single dark-only palette: this is admin UI,
-     * no light mode needed. */
-    --background: 240 30% 6%;          /* #0a0a14 */
-    --foreground: 240 5% 90%;          /* #e4e4e7 */
+    --background: 240 20% 5%;             /* near-black, very slight blue cast */
+    --foreground: 240 6% 90%;
 
-    --card: 240 22% 9%;                /* #12121d */
-    --card-foreground: 240 5% 90%;
+    --card: 233 19% 8%;                   /* slightly lifted from background */
+    --card-foreground: 240 6% 90%;
+    --card-overlay: 0 0% 100% / 0.03;     /* white-ish wash on top of cards */
 
-    --popover: 240 22% 9%;
-    --popover-foreground: 240 5% 90%;
+    --popover: 233 19% 8%;
+    --popover-foreground: 240 6% 90%;
 
-    --primary: 213 94% 68%;            /* sky-400 / chessr accent */
-    --primary-foreground: 240 30% 6%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 15% 14%;
-    --secondary-foreground: 240 5% 90%;
+    --secondary: 235 21% 13%;
+    --secondary-foreground: 240 6% 90%;
 
-    --muted: 240 15% 14%;
-    --muted-foreground: 240 5% 55%;    /* #71717a */
+    --muted: 235 21% 13%;
+    --muted-foreground: 240 5% 60%;
 
-    --accent: 240 15% 14%;
-    --accent-foreground: 240 5% 90%;
+    --accent: 235 21% 13%;
+    --accent-foreground: 240 6% 90%;
 
-    --destructive: 0 84% 70%;          /* #f87171 */
-    --destructive-foreground: 240 5% 95%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5% 18%;
-    --input: 240 5% 18%;
-    --ring: 213 94% 68%;
+    --success: 142 71% 45%;
+    --warning: 38 92% 50%;
 
-    --radius: 0.5rem;
+    --border: 236 20% 16%;
+    --input: 236 20% 16%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.625rem;
   }
 
   * { @apply border-border; }
+
   html, body {
     @apply bg-background text-foreground;
     margin: 0;
@@ -46,15 +54,72 @@
     min-height: 100vh;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Ambient gradient — barely-there color blob in the corner that
+     * hints at depth without ever being distracting. Same trick the
+     * extension uses behind the FAB / modals. */
+    background:
+      radial-gradient(900px 600px at 0% 0%, hsl(217 91% 60% / 0.04) 0%, transparent 50%),
+      radial-gradient(900px 700px at 100% 100%, hsl(188 86% 53% / 0.03) 0%, transparent 60%),
+      hsl(var(--background));
+    background-attachment: fixed;
   }
+
+  /* Smoother focus rings — match the extension's primary glow style. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.4); }
 }
 
 @layer utilities {
-  /* Subtle elevation gradient on cards — gives them a faint top-light glow
-   * that reads as "premium" without being noisy. */
+  /* Subtle elevation — top-light wash + overlay tint. Used on every card. */
   .card-elevated {
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 40%),
+      linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 36%),
       hsl(var(--card));
+    box-shadow:
+      0 1px 0 0 rgba(255,255,255,0.04) inset,
+      0 8px 24px -12px rgba(0,0,0,0.4);
+  }
+
+  /* Stronger card for hero numbers / KPIs */
+  .card-glow {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 30%),
+      hsl(var(--card));
+    box-shadow:
+      0 1px 0 0 rgba(255,255,255,0.05) inset,
+      0 12px 32px -16px rgba(0,0,0,0.5);
+  }
+
+  /* Tabular figures everywhere numbers matter — keeps progress bars +
+   * counts from twitching as values change. */
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+  /* Pulsing status dot — used in the brand mark and on the live indicator. */
+  .pulse-dot {
+    position: relative;
+  }
+  .pulse-dot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: inherit;
+    opacity: 0.6;
+    animation: chessr-pulse 2s ease-out infinite;
+  }
+  @keyframes chessr-pulse {
+    0%   { transform: scale(1);   opacity: 0.6; }
+    70%  { transform: scale(2.2); opacity: 0;   }
+    100% { transform: scale(2.2); opacity: 0;   }
   }
 }
