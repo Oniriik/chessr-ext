@@ -78,17 +78,43 @@ adminLogsRoutes.get('/admin/queues', async (c) => {
 });
 
 // GET /admin/users/connected — list currently connected WS users with email,
-// connect time, and the engine mode (wasm vs server) inferred from their
-// most recent suggestion / analysis / eval telemetry.
+// plan, connect time, and the engine mode (wasm | server | mixed) derived
+// from their last suggestion / analysis / eval telemetry.
 adminLogsRoutes.get('/admin/users/connected', async (c) => {
   if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
 
   const connected = getConnectedUsersDetailed();
+  const userIds = connected.map((u) => u.userId);
+
+  // Fetch plans in one round-trip (vs N+1).
+  const planById = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data } = await supabase
+      .from('user_settings')
+      .select('user_id, plan')
+      .in('user_id', userIds);
+    for (const row of data ?? []) {
+      planById.set(row.user_id as string, (row.plan as string) || 'free');
+    }
+  }
+
   const users = await Promise.all(
-    connected.map(async (u) => ({
-      ...u,
-      email: await resolveEmail(u.userId),
-    })),
+    connected.map(async (u) => {
+      const sources = [u.lastSuggestion?.source, u.lastAnalysis?.source, u.lastEval?.source]
+        .filter((s): s is 'wasm' | 'server' => !!s);
+      const unique = new Set(sources);
+      let mode: 'wasm' | 'server' | 'mixed' | 'unknown';
+      if (unique.size === 0) mode = 'unknown';
+      else if (unique.size === 1) mode = sources[0];
+      else mode = 'mixed';
+
+      return {
+        ...u,
+        email: await resolveEmail(u.userId),
+        plan: planById.get(u.userId) ?? 'free',
+        mode,
+      };
+    }),
   );
   // Most recent first
   users.sort((a, b) => b.connectedAt - a.connectedAt);

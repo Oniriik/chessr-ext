@@ -1,4 +1,5 @@
 import os from 'os';
+import fs from 'fs';
 
 // Sample CPU times between calls so we report actual usage (not a snapshot average).
 function readCpuTimes() {
@@ -22,6 +23,12 @@ export interface SysSample {
   rss: number;
   load1: number;
   cpuCount: number;
+  /** Disk usage of the volume containing the cwd (typically the host root
+   *  when run in Docker with the workdir bind-mounted). 0 when statfs is
+   *  unavailable on the platform. */
+  diskUsed: number;
+  diskTotal: number;
+  diskPct: number;
 }
 
 let latest: SysSample = {
@@ -33,7 +40,25 @@ let latest: SysSample = {
   rss: 0,
   load1: 0,
   cpuCount: os.cpus().length,
+  diskUsed: 0,
+  diskTotal: 0,
+  diskPct: 0,
 };
+
+// Disk stats use fs.statfs (Node 18.15+). On any failure (unsupported
+// platform, permission, missing path) we fall back to zeros — better than
+// crashing the metrics loop.
+function readDiskStats(): { used: number; total: number; pct: number } {
+  try {
+    const s = fs.statfsSync('/');
+    const total = s.blocks * s.bsize;
+    const free = s.bavail * s.bsize;
+    const used = total - free;
+    return { used, total, pct: total > 0 ? (used / total) * 100 : 0 };
+  } catch {
+    return { used: 0, total: 0, pct: 0 };
+  }
+}
 
 export function getLatestMetrics(): SysSample {
   return latest;
@@ -62,6 +87,7 @@ export function startSysMetrics(intervalMs = 5000) {
 
     const rss = process.memoryUsage.rss();
     const load1 = os.loadavg()[0];
+    const disk = readDiskStats();
 
     latest = {
       ts: Date.now(),
@@ -72,6 +98,9 @@ export function startSysMetrics(intervalMs = 5000) {
       rss,
       load1,
       cpuCount: os.cpus().length,
+      diskUsed: disk.used,
+      diskTotal: disk.total,
+      diskPct: disk.pct,
     };
 
     // Snapshot is exposed via /admin/metrics; no need to spam stdout.
