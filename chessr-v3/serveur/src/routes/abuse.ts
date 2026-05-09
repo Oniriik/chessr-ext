@@ -134,8 +134,10 @@ abuseRoutes.post('/check-signup', async (c) => {
 
   const clientIp = getClientIp(c);
 
-  // Step 1 — local DB cross-check on fingerprint + IP (~1ms each).
-  // Cheap, deterministic, and decisive when a banned account matches.
+  // Step 1 — Supabase cross-check on fingerprint + IP (user_fingerprints
+  // and signup_ips tables, both indexed). Still much cheaper than the
+  // UserCheck call below — and deterministic when a banned account
+  // matches, so we can skip UserCheck entirely on the bad-actor path.
   // No need for the auth.admin.listUsers email→id lookup the chessr-
   // next code did: a signup-flow email shouldn't exist yet, and
   // supabase.auth.signUp will reject duplicates later if it does.
