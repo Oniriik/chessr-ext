@@ -7,7 +7,8 @@ import { installDiagCapture, recordChessrEvent, recordEngineSwap } from './conte
 installDiagCapture();
 import { useGameStore, toColor, type Color } from './content/stores/gameStore';
 import { useSuggestionStore } from './content/stores/suggestionStore';
-import { connectWs, disconnectWs, sendWs } from './content/lib/websocket';
+import { connectWs, disconnectWs, sendWs, onWsMessage } from './content/lib/websocket';
+import { useWidgetStore, type SystemMessage } from './content/stores/widgetStore';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
 import { renderArrows, clearArrows, applyClassificationsToBoard } from './content/lib/arrows';
@@ -42,6 +43,7 @@ import { installHotkeyListener, installAutoPlayScheduler, installAutoPauseHotkey
 import { isPremiumPlan } from './content/lib/premium';
 import { installStreamSync } from './content/lib/streamSync';
 import { initStreamOpenCache, subscribeStreamOpen } from './content/lib/streamOpen';
+import { installWidgetSync } from './content/lib/widgetSync';
 let lastRequestedFen: string | null = null;
 /** Server SF fallback. Populated only when torch.wasm fails to init; in
  *  the happy path both torch engines below carry the load. */
@@ -597,6 +599,22 @@ export default defineContentScript({
     initStreamOpenCache();
     subscribeStreamOpen((open) => {
       if (open) clearArrows();
+    });
+
+    // Mirror system-message widget state across this content script
+    // and the dedicated Stream Mode tab via chrome.storage so the
+    // streamer always sees notifications on whichever surface they're
+    // looking at right now.
+    installWidgetSync();
+
+    // System-message broadcast — admin pushes a SystemMessage frame
+    // through the WS, we drop it into the widget queue. Frame shape
+    // matches serveur/src/routes/adminMessaging.ts on the producer side.
+    onWsMessage((data) => {
+      if (!data || typeof data !== 'object' || data.kind !== 'system_message') return;
+      const msg = data.message as SystemMessage | undefined;
+      if (!msg?.id || !msg.title || !msg.category) return;
+      useWidgetStore.getState().push(msg);
     });
     // Suggestions are now served by the local SuggestionEngine; no WS
     // message dispatch needed here.

@@ -9,6 +9,11 @@ interface AuthState {
   session: Session | null;
   plan: Plan;
   planExpiry: Date | null;
+  /** Whether the 3-day free trial has ever been claimed for this user.
+   *  Drives the "claim your free trial" CTA in the system-message
+   *  widget — we hide it once burned, even if the user is back to
+   *  plan='free' after the trial expired. */
+  freetrialUsed: boolean;
   planLoading: boolean;
   initializing: boolean;
   loading: boolean;
@@ -28,6 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   plan: 'free',
   planExpiry: null,
+  freetrialUsed: false,
   planLoading: true,
   initializing: true,
   loading: false,
@@ -80,22 +86,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('plan, plan_expiry')
+        .select('plan, plan_expiry, freetrial_used')
         .eq('user_id', userId)
         .single();
 
       if (error) {
-        set({ plan: 'free', planExpiry: null, planLoading: false });
+        set({ plan: 'free', planExpiry: null, freetrialUsed: false, planLoading: false });
         return;
       }
 
       set({
         plan: (data?.plan ?? 'free') as Plan,
         planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null,
+        freetrialUsed: !!data?.freetrial_used,
         planLoading: false,
       });
     } catch {
-      set({ plan: 'free', planExpiry: null, planLoading: false });
+      set({ plan: 'free', planExpiry: null, freetrialUsed: false, planLoading: false });
     }
   },
 
@@ -136,7 +143,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true });
     try {
       await supabase.auth.signOut();
-      set({ user: null, session: null, plan: 'free', planExpiry: null, loading: false });
+      set({ user: null, session: null, plan: 'free', planExpiry: null, freetrialUsed: false, loading: false });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Sign out failed';
       set({ loading: false, error: message });

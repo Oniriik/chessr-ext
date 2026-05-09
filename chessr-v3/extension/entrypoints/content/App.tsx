@@ -3,6 +3,9 @@ import gsap from 'gsap';
 import { useAuthStore } from './stores/authStore';
 import { useVersionStore } from './stores/versionStore';
 import { useDiscordStore } from './stores/discordStore';
+import { useWidgetStore } from './stores/widgetStore';
+import { useLayoutStore } from './stores/layoutStore';
+import { pickNextHowTo } from './lib/howtos';
 import { useLinkedAccountsStore } from './stores/linkedAccountsStore';
 import { detectCurrentUsername } from './lib/usernameDetect';
 import { fetchPlatformProfile } from './lib/platformApi';
@@ -16,6 +19,7 @@ import SettingsScreen, { type SettingsTab } from './components/SettingsScreen';
 import LinkAccountScreen from './components/LinkAccountScreen';
 import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
+import { SystemMessageWidget } from './components/SystemMessageWidget';
 import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
 import { useStreamOpen } from './lib/streamOpen';
@@ -62,7 +66,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('account');
   const [gameTab, setGameTab] = useState<GameTab>('game');
   const panelRef = useRef<HTMLDivElement>(null);
-  const { user, initializing, initialize, plan: _plan, planLoading } = useAuthStore();
+  const { user, initializing, initialize, plan, planLoading, freetrialUsed } = useAuthStore();
   const waitingForPlan = !!user && planLoading;
   const { isPlaying, gameOver } = useGameStore();
   const autoOpenOnGameEnd = useSettingsStore((s) => s.autoOpenOnGameEnd);
@@ -77,23 +81,104 @@ export default function App({ streamMode = false }: AppProps = {}) {
     prevGameOver.current = gameOver;
   }, [gameOver, autoOpenOnGameEnd]);
   const { updateRequired, checking, checkVersion } = useVersionStore();
-  const { fetchStatus: fetchDiscord } = useDiscordStore();
+  const { fetchStatus: fetchDiscord, fetchMembership, linked: discordLinked, inGuild } = useDiscordStore();
+  const pushWidget = useWidgetStore((s) => s.push);
   const { fetchAccounts, needsLinking, pendingProfile, setNeedsLinking, accounts, loading: accountsLoading } = useLinkedAccountsStore();
   const disableAnimations = useSettingsStore((s) => s.disableAnimations);
 
   useEffect(() => {
     checkVersion().then(() => {
       if (!useVersionStore.getState().updateRequired) {
-        initialize().then(() => {
-          const u = useAuthStore.getState().user;
-          if (u) {
-            fetchDiscord(u.id);
-            fetchAccounts(u.id);
-          }
-        });
+        initialize();
       }
     });
   }, []);
+
+  // Refetch Discord + linked-accounts whenever the auth user changes
+  // (initial session restore, fresh sign-in, account switch). Without
+  // this, sign-in AFTER the init useEffect leaves discordStore stuck
+  // with loading=true and the Discord card shows "..." forever.
+  useEffect(() => {
+    if (!user) return;
+    fetchDiscord(user.id);
+    fetchMembership(user.id);
+    fetchAccounts(user.id);
+  }, [user?.id, fetchDiscord, fetchMembership, fetchAccounts]);
+
+  // System-message widget login triggers. Fires once the auth and the
+  // Discord state have both settled — `planLoading` covers
+  // freetrialUsed too (same fetch). We deliberately don't push from
+  // inside the fetch effects above so the queue stays predictable:
+  //   1. free + never-claimed   → "link Discord, claim a 3-day trial"
+  //   2. trial-used + linked + not-in-guild → "join the community"
+  //   3. otherwise              → next undismissed how-to (if any)
+  // Only one nudge per login; the others wait for next session.
+  // CTA dispatcher: SystemMessageWidget posts custom events; we route
+  // them here. Keeping the widget itself unaware of which screens / tabs
+  // the panel exposes lets us reorganise the UI without touching it.
+  useEffect(() => {
+    const onOpenTab = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: string }>).detail?.tab ?? '';
+      const [screen, sub] = tab.split(':');
+      if (!screen) return;
+      setOpen(true);
+      if (screen === 'settings') {
+        setShowSettings(true);
+        if (sub) setSettingsTab(sub as SettingsTab);
+      } else if (screen === 'game') {
+        setShowSettings(false);
+        if (sub) setGameTab(sub as GameTab);
+      }
+    };
+    const onToggleEdit = () => {
+      setOpen(true);
+      const ls = useLayoutStore.getState();
+      ls.setEditMode(!ls.editMode);
+    };
+    window.addEventListener('chessr:open-tab', onOpenTab);
+    window.addEventListener('chessr:toggle-edit-layout', onToggleEdit);
+    return () => {
+      window.removeEventListener('chessr:open-tab', onOpenTab);
+      window.removeEventListener('chessr:toggle-edit-layout', onToggleEdit);
+    };
+  }, []);
+
+  const triggersFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || planLoading) return;
+    // Re-fire on user switch, but not on every state churn.
+    if (triggersFiredRef.current === user.id) return;
+
+    if (plan === 'free' && !freetrialUsed) {
+      triggersFiredRef.current = user.id;
+      pushWidget({
+        id: 'login-claim-trial',
+        category: 'trial',
+        title: 'Try chessr Premium for 3 days',
+        body: 'Link your Discord account and we\'ll unlock the full premium experience for 3 days — no card, no strings.',
+        cta: { label: 'Link Discord & claim', action: { kind: 'discord-link' } },
+      });
+      return;
+    }
+
+    if (freetrialUsed && discordLinked && inGuild === false) {
+      triggersFiredRef.current = user.id;
+      pushWidget({
+        id: 'login-join-discord',
+        category: 'discord',
+        title: 'Join the chessr community',
+        body: 'Hop into the Discord — banter, support, and tournaments. We saved you a seat.',
+        cta: { label: 'Join the server', action: { kind: 'discord-join', url: 'https://discord.gg/72j4dUadTu' } },
+      });
+      return;
+    }
+
+    const tip = pickNextHowTo();
+    if (tip) {
+      triggersFiredRef.current = user.id;
+      pushWidget(tip);
+    }
+  }, [user?.id, plan, freetrialUsed, planLoading, discordLinked, inGuild, pushWidget]);
 
   // Check if current platform account needs linking after accounts are loaded
   useEffect(() => {
@@ -242,6 +327,14 @@ export default function App({ streamMode = false }: AppProps = {}) {
 
       <FloatingWidget />
       <HotkeyMoveButtons />
+      {/* The system-message widget hides on the host page (chess.com /
+          lichess / worldchess) whenever the dedicated Stream Mode tab
+          is open — the streamer's audience shouldn't see private
+          notifications, and the stream tab itself renders its own
+          instance of this widget reading the same widgetStore mirror
+          (see widgetSync.ts). The stream page passes streamMode=true,
+          so we keep rendering it there. */}
+      {(streamMode || !streamOpen) && <SystemMessageWidget />}
     </div>
   );
 }

@@ -24,6 +24,7 @@ import App from '../content/App';
 import Chessboard, { ARROW_COLORS } from './Chessboard';
 import EvalBar from './EvalBar';
 import { installStreamHydration } from './streamHydration';
+import { installWidgetSync } from '../content/lib/widgetSync';
 import { useAuthStore } from '../content/stores/authStore';
 
 const STORAGE_KEY = 'chessr_stream_state';
@@ -111,6 +112,10 @@ export default function StreamApp() {
   useEffect(() => {
     initialize();
     installStreamHydration();
+    // Mirror the system-message widget state with the host content
+    // script (chess.com / lichess / worldchess) so admin nudges + login
+    // triggers show up here when the streamer is on this tab.
+    installWidgetSync();
     // Keep the "ago" timestamp fresh.
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
