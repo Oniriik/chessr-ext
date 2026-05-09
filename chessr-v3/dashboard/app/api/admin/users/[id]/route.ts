@@ -1,0 +1,75 @@
+import { NextResponse } from 'next/server';
+import { requireAdmin, isAdminContext } from '@/lib/auth-guard';
+import type { UserRole } from '@/lib/roles';
+
+export const dynamic = 'force-dynamic';
+
+const VALID_PLANS = ['free', 'freetrial', 'premium', 'beta', 'lifetime'] as const;
+const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'user'];
+
+type RouteCtx = { params: Promise<{ id: string }> };
+
+export async function GET(req: Request, { params }: RouteCtx) {
+  const ctx = await requireAdmin(req);
+  if (!isAdminContext(ctx)) return ctx;
+
+  const { id } = await params;
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+  const { data, error } = await ctx.supabase.rpc('admin_get_user_detail', { p_user_id: id });
+  if (error) {
+    console.error('[admin/users/:id] rpc error', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  if (!data) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+  return NextResponse.json(data);
+}
+
+export async function PATCH(req: Request, { params }: RouteCtx) {
+  const ctx = await requireAdmin(req);
+  if (!isAdminContext(ctx)) return ctx;
+
+  const { id } = await params;
+  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+
+  const body = await req.json().catch(() => ({}));
+  const { plan, role, plan_expiry } = body as {
+    plan?: string;
+    role?: UserRole;
+    plan_expiry?: string | null;
+  };
+
+  if (role !== undefined && ctx.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Only super_admin can change roles' }, { status: 403 });
+  }
+  if (role !== undefined && !VALID_ROLES.includes(role)) {
+    return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+  }
+  if (plan !== undefined && !VALID_PLANS.includes(plan as typeof VALID_PLANS[number])) {
+    return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
+  }
+  if (plan_expiry !== undefined && plan_expiry !== null) {
+    const t = Date.parse(plan_expiry);
+    if (Number.isNaN(t)) return NextResponse.json({ error: 'Invalid plan_expiry' }, { status: 400 });
+  }
+
+  const update: Record<string, unknown> = {};
+  if (plan !== undefined) update.plan = plan;
+  if (role !== undefined) update.role = role;
+  if (plan_expiry !== undefined) update.plan_expiry = plan_expiry;
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: 'No changes' }, { status: 400 });
+  }
+
+  // Upsert: a fresh user might not have a user_settings row yet.
+  const { error } = await ctx.supabase
+    .from('user_settings')
+    .upsert({ user_id: id, ...update }, { onConflict: 'user_id' });
+  if (error) {
+    console.error('[admin/users/:id] update error', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}

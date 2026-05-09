@@ -2,7 +2,11 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { AlertCircle, Loader2, Lock, LogIn, Mail } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,62 +45,84 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <form
-        onSubmit={onSubmit}
-        style={{
-          width: 360,
-          background: 'var(--bg-elev)',
-          border: '1px solid var(--border)',
-          borderRadius: 12,
-          padding: 24,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-        }}
-      >
-        <div style={{ marginBottom: 4 }}>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Chessr v3 <span style={{ color: 'var(--accent)' }}>/ admin</span></h1>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>Beta dashboard · admins only</p>
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
-            Email
-          </label>
-          <input
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="admin@chessr.io"
-            required
-          />
-        </div>
-
-        <div>
-          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--muted)' }}>
-            Password
-          </label>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-
-        {error && (
-          <div style={{ fontSize: 12, color: 'var(--error)', background: 'rgba(248,113,113,0.1)', padding: 10, borderRadius: 8 }}>
-            {error}
+    <div className="flex min-h-dvh items-center justify-center px-4 py-10">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="space-y-3 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="relative inline-block h-2 w-2 rounded-full bg-emerald-400 pulse-dot" />
+            <span className="text-[13px] font-semibold tracking-tight">
+              chessr<span className="text-primary/90">.io</span>
+              <span className="text-muted-foreground/70"> / admin</span>
+            </span>
           </div>
-        )}
+          <h1 className="text-lg font-semibold tracking-tight">Sign in</h1>
+        </CardHeader>
 
-        <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? 'Signing in…' : 'Sign in'}
-        </button>
-      </form>
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="email"
+                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+              >
+                <Mail size={11} strokeWidth={2.2} />
+                Email
+              </label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@chessr.io"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="password"
+                className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+              >
+                <Lock size={11} strokeWidth={2.2} />
+                Password
+              </label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                <AlertCircle size={13} className="mt-0.5 shrink-0" />
+                <span className="leading-relaxed">{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Signing in…
+                </>
+              ) : (
+                <>
+                  <LogIn size={14} strokeWidth={2.2} />
+                  Sign in
+                </>
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }

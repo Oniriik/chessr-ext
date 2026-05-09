@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Activity, ScrollText, Layers, LogOut, Menu, Server } from 'lucide-react';
+import { Activity, ScrollText, Layers, LogOut, Menu, Server, Users } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ type NavItem = { href: string; label: string; icon: typeof Activity };
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/live',    label: 'Live',    icon: Activity   },
+  { href: '/users',   label: 'Users',   icon: Users      },
   { href: '/queues',  label: 'Queues',  icon: Layers     },
   { href: '/logs',    label: 'Logs',    icon: ScrollText },
 ];
@@ -28,7 +29,7 @@ function Brand() {
     <div className="flex items-center gap-2">
       <span className="relative inline-block h-2 w-2 rounded-full bg-emerald-400 pulse-dot" />
       <span className="text-[13px] font-semibold tracking-tight">
-        Chessr <span className="text-primary/90">v3</span>
+        chessr<span className="text-primary/90">.io</span>
       </span>
     </div>
   );
@@ -61,7 +62,16 @@ function NavLinks({ pathname, onSelect }: { pathname: string; onSelect?: () => v
   );
 }
 
-export function AdminShell({ children, title }: { children: ReactNode; title?: string }) {
+export function AdminShell({
+  children,
+  title,
+  actions,
+}: {
+  children: ReactNode;
+  title?: string;
+  /** Optional right-aligned content next to the title (e.g. quick links). */
+  actions?: ReactNode;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -180,8 +190,9 @@ export function AdminShell({ children, title }: { children: ReactNode; title?: s
          *  div's available space stay empty below. */}
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {title && (
-            <header className="shrink-0 border-b border-border/50 bg-background/40 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
+            <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/50 bg-background/40 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
               <h1 className="text-base font-semibold tracking-tight sm:text-lg">{title}</h1>
+              {actions && <div className="flex items-center gap-2">{actions}</div>}
             </header>
           )}
           {/* Body div: fixed height = main minus header.
