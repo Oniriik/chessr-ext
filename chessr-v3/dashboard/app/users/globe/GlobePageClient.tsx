@@ -12,18 +12,14 @@ import { AdminShell } from '@/components/AdminShell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { WorldMap2D } from './WorldMap2D';
-import { pickIso, pickName, colorFor, countFor, type CountryFeature, type CountryRow, type PlanFilter } from './lib';
+import { pickIso, pickName, colorFor, countFor, hueForSelection, type CountryFeature, type CountryRow, type PlanKey } from './lib';
 import { getSupabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { PLAN_COLORS } from '@/lib/plan-colors';
 
-const PLAN_FILTERS: PlanFilter[] = ['all', 'free', 'freetrial', 'premium', 'beta', 'lifetime'];
-
-// Order of segments in the plan-distribution bar. Highest tier first
-// so the eye reads "premium↓free" left-to-right.
-const PLAN_BAR_ORDER: Exclude<PlanFilter, 'all'>[] = [
-  'lifetime', 'premium', 'beta', 'freetrial', 'free',
-];
+// Order matters for the chip row + the stacked bar: highest tier first
+// so the eye reads "lifetime↓free" left-to-right.
+const PLAN_KEYS: PlanKey[] = ['lifetime', 'premium', 'beta', 'freetrial', 'free'];
 
 // react-globe.gl ships three.js + WebGL; needs the browser. ssr:false is
 // the documented way to use it under the Next.js app router.
@@ -47,10 +43,13 @@ export function GlobePageClient() {
   const [counts, setCounts] = useState<Record<string, CountryRow>>({});
   const [total, setTotal] = useState(0);
   const [distinct, setDistinct] = useState(0);
-  const [planTotals, setPlanTotals] = useState<Record<Exclude<PlanFilter, 'all'>, number>>({
+  const [planTotals, setPlanTotals] = useState<Record<PlanKey, number>>({
     free: 0, freetrial: 0, premium: 0, beta: 0, lifetime: 0,
   });
-  const [planFilter, setPlanFilter] = useState<PlanFilter>('all');
+  // Multi-select. Empty set = no filter (show every plan combined). The
+  // chip row offers an explicit "All" pseudo-toggle that just clears
+  // the set; otherwise each chip toggles its plan in/out independently.
+  const [selectedPlans, setSelectedPlans] = useState<Set<PlanKey>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
@@ -132,22 +131,22 @@ export function GlobePageClient() {
     c.enableDamping = true;
   }, [autoRotate, loading, countries.length]);
 
-  // ─── Derived: filtered counts by active plan ────────────────────────
+  // ─── Derived: filtered counts by active plan(s) ─────────────────────
   // Returns a counts map identical in shape to the unfiltered one but
-  // with `user_count` replaced by the plan-specific count. The Globe /
-  // WorldMap2D / Top countries list all key off `user_count`, so this
-  // single transform feeds them without needing to plumb the filter
-  // deeper into each component.
+  // with `user_count` replaced by the sum-of-selected-plans count. The
+  // Globe / WorldMap2D / Top countries list all key off `user_count`,
+  // so this single transform feeds them without needing to plumb the
+  // selection deeper into each component.
   const filteredCounts = useMemo(() => {
-    if (planFilter === 'all') return counts;
+    if (selectedPlans.size === 0) return counts;
     const out: Record<string, CountryRow> = {};
     for (const iso in counts) {
       const row = counts[iso];
-      const n = countFor(row, planFilter);
+      const n = countFor(row, selectedPlans);
       if (n > 0) out[iso] = { ...row, user_count: n };
     }
     return out;
-  }, [counts, planFilter]);
+  }, [counts, selectedPlans]);
 
   const filteredTotal = useMemo(
     () => Object.values(filteredCounts).reduce((s, r) => s + r.user_count, 0),
@@ -158,6 +157,17 @@ export function GlobePageClient() {
     () => Object.values(filteredCounts).reduce((m, c) => Math.max(m, c.user_count), 0),
     [filteredCounts],
   );
+
+  const activeHue = useMemo(() => hueForSelection(selectedPlans), [selectedPlans]);
+
+  const togglePlan = (p: PlanKey) => {
+    setSelectedPlans((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  };
 
   // Custom globe material — neutral dark gray ocean so the colored
   // country polygons read as the only saturated element on the sphere.
@@ -223,7 +233,7 @@ export function GlobePageClient() {
                     countries={countries as unknown as Parameters<typeof WorldMap2D>[0]['countries']}
                     counts={filteredCounts}
                     max={max}
-                    colorFor={(count, m) => colorFor(count, m, planFilter)}
+                    colorFor={(count, m) => colorFor(count, m, activeHue)}
                   />
                 ) : size.w > 0 && (
                   <Globe
@@ -249,7 +259,7 @@ export function GlobePageClient() {
                       const f = d as CountryFeature;
                       const iso = pickIso(f);
                       const count = iso ? filteredCounts[iso]?.user_count ?? 0 : 0;
-                      return colorFor(count, max, planFilter);
+                      return colorFor(count, max, activeHue);
                     }}
                     polygonSideColor={() => 'rgba(0,0,0,0.4)'}
                     polygonStrokeColor={() => 'rgba(255,255,255,0.12)'}
@@ -344,10 +354,14 @@ export function GlobePageClient() {
                   </div>
                   <div className="num mt-1 flex items-baseline gap-2">
                     <span className="text-[13px] font-medium text-foreground/80">
-                      {(planFilter === 'all' ? total : filteredTotal).toLocaleString()}
+                      {(selectedPlans.size === 0 ? total : filteredTotal).toLocaleString()}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
-                      {planFilter === 'all' ? 'users with known IP' : `${planFilter} users`}
+                      {selectedPlans.size === 0
+                        ? 'users with known IP'
+                        : selectedPlans.size === 1
+                          ? `${[...selectedPlans][0]} users`
+                          : `users across ${selectedPlans.size} plans`}
                     </span>
                   </div>
                 </div>
@@ -365,7 +379,7 @@ export function GlobePageClient() {
                   {total > 0 ? (
                     <>
                       <div className="flex h-2 w-full overflow-hidden rounded-full bg-secondary/50">
-                        {PLAN_BAR_ORDER.map((p) => {
+                        {PLAN_KEYS.map((p) => {
                           const n = planTotals[p];
                           if (!n) return null;
                           const pct = (n / total) * 100;
@@ -380,7 +394,7 @@ export function GlobePageClient() {
                         })}
                       </div>
                       <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-0.5 text-[10px]">
-                        {PLAN_BAR_ORDER.map((p) => {
+                        {PLAN_KEYS.map((p) => {
                           const n = planTotals[p];
                           const pct = total ? (n / total) * 100 : 0;
                           return (
@@ -403,46 +417,66 @@ export function GlobePageClient() {
                   )}
                 </div>
 
-                {/* ─── Plan filter chips ───────────────────────────────── */}
+                {/* ─── Plan filter chips (multi-select) ────────────────── */}
+                {/* "All" is a clear-selection toggle (active when no plan is
+                    picked); the others toggle individually so the admin can
+                    AND-stack e.g. Premium + Lifetime to see paying-only. */}
                 <div className="space-y-1.5 border-t border-border/40 pt-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Filter by plan
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Filter by plan
+                    </span>
+                    {selectedPlans.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPlans(new Set())}
+                        className="text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1">
-                    {PLAN_FILTERS.map((p) => {
-                      const active = planFilter === p;
-                      const tone = p === 'all' ? null : PLAN_COLORS[p];
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlans(new Set())}
+                      aria-pressed={selectedPlans.size === 0}
+                      className={cn(
+                        'inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-medium transition-colors',
+                        selectedPlans.size === 0
+                          ? 'border-transparent text-foreground'
+                          : 'border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+                      )}
+                      style={
+                        selectedPlans.size === 0
+                          ? { backgroundColor: 'rgba(96,165,250,0.15)', color: '#93C5FD' }
+                          : undefined
+                      }
+                    >
+                      All
+                    </button>
+                    {PLAN_KEYS.map((p) => {
+                      const active = selectedPlans.has(p);
+                      const tone = PLAN_COLORS[p];
                       return (
                         <button
                           key={p}
                           type="button"
-                          onClick={() => setPlanFilter(p)}
+                          onClick={() => togglePlan(p)}
+                          aria-pressed={active}
                           className={cn(
                             'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium capitalize transition-colors',
                             active
                               ? 'border-transparent text-foreground'
                               : 'border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground',
                           )}
-                          style={
-                            active && tone
-                              ? { backgroundColor: tone.bg, color: tone.text }
-                              : active
-                                ? { backgroundColor: 'rgba(96,165,250,0.15)', color: '#93C5FD' }
-                                : undefined
-                          }
-                          aria-pressed={active}
+                          style={active ? { backgroundColor: tone.bg, color: tone.text } : undefined}
                         >
-                          {p === 'all'
-                            ? 'All'
-                            : (
-                              <>
-                                <span
-                                  className="h-1.5 w-1.5 rounded-full"
-                                  style={tone ? { backgroundColor: tone.dot } : undefined}
-                                />
-                                {p}
-                              </>
-                            )}
+                          <span
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ backgroundColor: tone.dot }}
+                          />
+                          {p}
                         </button>
                       );
                     })}
@@ -476,7 +510,7 @@ export function GlobePageClient() {
                 ) : (
                   <ul className="space-y-1.5">
                     {top.map((c, i) => {
-                      const denom = planFilter === 'all' ? total : filteredTotal;
+                      const denom = selectedPlans.size === 0 ? total : filteredTotal;
                       const pct = denom ? (c.user_count / denom) * 100 : 0;
                       return (
                         <li key={c.country_code} className="flex items-center gap-2">
