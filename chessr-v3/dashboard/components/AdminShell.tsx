@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Activity, ScrollText, Layers, LogOut, Menu, Server, Users } from 'lucide-react';
+import { Activity, ScrollText, Layers, LogOut, Menu, MessageSquare, Server, Users } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -18,10 +18,11 @@ import './admin-shell.css';
 type NavItem = { href: string; label: string; icon: typeof Activity };
 
 const NAV_ITEMS: NavItem[] = [
-  { href: '/live',    label: 'Live',    icon: Activity   },
-  { href: '/users',   label: 'Users',   icon: Users      },
-  { href: '/queues',  label: 'Queues',  icon: Layers     },
-  { href: '/logs',    label: 'Logs',    icon: ScrollText },
+  { href: '/live',     label: 'Live',     icon: Activity      },
+  { href: '/users',    label: 'Users',    icon: Users         },
+  { href: '/messages', label: 'Messages', icon: MessageSquare },
+  { href: '/queues',   label: 'Queues',   icon: Layers        },
+  { href: '/logs',     label: 'Logs',     icon: ScrollText    },
 ];
 
 function Brand() {
