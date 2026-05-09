@@ -44,6 +44,14 @@ type Note = {
   author_discord: string | null;
 };
 
+type Subscription = {
+  paddle_subscription_id: string | null;
+  status: string | null;
+  current_period_end: string | null;
+  canceled_at: string | null;
+  interval: string | null;
+};
+
 type UserDetail = {
   user: {
     user_id: string;
@@ -64,6 +72,7 @@ type UserDetail = {
   fingerprints: Fingerprint[];
   ips: Ip[];
   notes: Note[];
+  subscription: Subscription | null;
 };
 
 const PLANS = ['free', 'freetrial', 'premium', 'beta', 'lifetime'] as const;
@@ -195,6 +204,12 @@ export function UserDetailSheet({
   const [resetting, setResetting] = useState(false);
   const [resetLink, setResetLink] = useState<string | null>(null);
 
+  // Paddle extend (separate from manual plan_expiry edit — for users with
+  // an active Paddle subscription where the date is the source of truth).
+  const [extendDays, setExtendDays] = useState<number | ''>(7);
+  const [extendingPaddle, setExtendingPaddle] = useState(false);
+  const [extendError, setExtendError] = useState<string | null>(null);
+
   // Track per-account unlink state. Keyed by `${platform}:${username}`.
   const [unlinkingKey, setUnlinkingKey] = useState<string | null>(null);
 
@@ -229,6 +244,8 @@ export function UserDetailSheet({
       setDestructive(null);
       setDestructivePassword('');
       setDestructiveReason('');
+      setExtendDays(7);
+      setExtendError(null);
       try {
         const token = await getToken();
         if (!token) throw new Error('No session');
@@ -261,6 +278,43 @@ export function UserDetailSheet({
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     return json;
+  }
+
+  async function extendPaddle() {
+    if (!detail || typeof extendDays !== 'number' || extendDays <= 0) return;
+    setExtendingPaddle(true);
+    setExtendError(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `/api/admin/users/${userId}/extend-paddle?token=${encodeURIComponent(token ?? '')}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: extendDays }),
+        },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      // The webhook propagates Paddle's new nextBilledAt to user_settings,
+      // but it can take a couple of seconds. Optimistically reflect the
+      // returned date so the admin sees immediate feedback.
+      if (json.nextBilledAt) {
+        setDetail({
+          ...detail,
+          user: { ...detail.user, plan_expiry: json.nextBilledAt },
+          subscription: detail.subscription
+            ? { ...detail.subscription, current_period_end: json.nextBilledAt }
+            : null,
+        });
+        setEditingExpiry(new Date(json.nextBilledAt));
+      }
+      onUpdated();
+    } catch (err) {
+      setExtendError(err instanceof Error ? err.message : 'Extend failed');
+    } finally {
+      setExtendingPaddle(false);
+    }
   }
 
   async function savePlan() {
@@ -663,6 +717,17 @@ export function UserDetailSheet({
                   // free / lifetime never have an expiry — keep the field
                   // visible but disabled so admins still see what was there.
                   const expiryDisabled = !!editingPlan && PLANS_WITHOUT_EXPIRY.has(editingPlan);
+                  // Paddle owns the renewal date for active paid subs.
+                  // The "Add days" control below pushes nextBilledAt via
+                  // the Paddle SDK — manual date editing is suppressed so
+                  // an admin can't drift user_settings out of sync with
+                  // Paddle's own state.
+                  const isPaddleSub =
+                    !!detail.subscription?.paddle_subscription_id &&
+                    detail.subscription.status !== 'canceled' &&
+                    !detail.subscription.canceled_at &&
+                    !expiryDisabled &&
+                    editingPlan === u.plan; // only when plan isn't being changed in this session
                   return (
                     <>
                       <div className={cn(
@@ -675,14 +740,19 @@ export function UserDetailSheet({
                             — not applicable for {editingPlan}
                           </span>
                         )}
+                        {isPaddleSub && (
+                          <span className="font-normal normal-case tracking-normal text-amber-500">
+                            — managed by Paddle
+                          </span>
+                        )}
                       </div>
                       <button
                         type="button"
-                        onClick={() => !expiryDisabled && setShowCalendar((v) => !v)}
-                        disabled={expiryDisabled}
+                        onClick={() => !expiryDisabled && !isPaddleSub && setShowCalendar((v) => !v)}
+                        disabled={expiryDisabled || isPaddleSub}
                         className={cn(
                           'flex h-9 w-full items-center justify-between rounded-md border border-border bg-background/40 px-3 text-left text-sm transition-colors',
-                          expiryDisabled
+                          (expiryDisabled || isPaddleSub)
                             ? 'cursor-not-allowed opacity-50'
                             : 'hover:bg-muted/40',
                         )}
@@ -692,7 +762,7 @@ export function UserDetailSheet({
                         </span>
                         <ChevronDown size={14} className={cn('text-muted-foreground transition-transform', showCalendar && 'rotate-180')} />
                       </button>
-                      {showCalendar && !expiryDisabled && (
+                      {showCalendar && !expiryDisabled && !isPaddleSub && (
                         <div className="rounded-md border border-border bg-card">
                           <Calendar
                             mode="single"
@@ -715,6 +785,38 @@ export function UserDetailSheet({
                               Done
                             </button>
                           </div>
+                        </div>
+                      )}
+                      {isPaddleSub && (
+                        <div className="space-y-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 p-2">
+                          <div className="text-[10px] font-medium text-amber-500">
+                            Add free days to this Paddle subscription
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min={1}
+                              max={365}
+                              value={extendDays}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setExtendDays(v === '' ? '' : Math.max(1, Math.min(365, parseInt(v, 10) || 0)));
+                              }}
+                              disabled={extendingPaddle}
+                              className="h-8 w-20 rounded-md border border-border bg-background/40 px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            />
+                            <span className="text-[11px] text-muted-foreground">days</span>
+                            <Button
+                              size="sm"
+                              onClick={extendPaddle}
+                              disabled={extendingPaddle || typeof extendDays !== 'number' || extendDays <= 0}
+                            >
+                              {extendingPaddle ? <Loader2 size={12} className="animate-spin" /> : 'Add'}
+                            </Button>
+                          </div>
+                          {extendError && (
+                            <div className="text-[11px] text-red-500">{extendError}</div>
+                          )}
                         </div>
                       )}
                     </>

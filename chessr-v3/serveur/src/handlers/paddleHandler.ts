@@ -1076,6 +1076,97 @@ export async function handleUpgradeLifetimeByToken(c: Context): Promise<Response
   return upgradeLifetime(c, verified.userId, verified.customerId);
 }
 
+// ─── POST /admin/paddle/extend ──────────────────────────────────────────────
+// Admin-token-protected. Adds N days to a user's Paddle subscription by
+// pushing `nextBilledAt` forward without re-billing. Strict guards:
+//   - plan must be premium / freetrial / beta (not free, not lifetime)
+//   - subscriptions.paddle_subscription_id must be set
+//   - subscription must not be canceled or scheduled-to-cancel
+// Non-Paddle plans (gifted via dashboard / freetrial) keep using the
+// existing PATCH on user_settings.plan_expiry — they don't reach here.
+//
+// Body: { userId, days, reason? }
+// Response: { ok: true, nextBilledAt } on success, { error } otherwise.
+export async function handleExtendPaddleSubscription(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+
+  const adminToken = c.req.header('x-admin-token') || '';
+  const expected = process.env.ADMIN_TOKEN || '';
+  if (!expected || adminToken !== expected) return c.json({ error: 'Forbidden' }, 403);
+
+  let body: { userId?: string; days?: number; reason?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+
+  const userId = typeof body.userId === 'string' ? body.userId : '';
+  const days = typeof body.days === 'number' && Number.isFinite(body.days) ? Math.floor(body.days) : 0;
+  if (!userId) return c.json({ error: 'userId required' }, 400);
+  if (days <= 0) return c.json({ error: 'days must be a positive integer' }, 400);
+  if (days > 365) return c.json({ error: 'days must be ≤ 365' }, 400);
+
+  // Plan eligibility — explicit blocks for free / lifetime so the admin
+  // gets a clear message rather than a confusing Paddle error.
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('plan')
+    .eq('user_id', userId)
+    .single();
+  const plan = settings?.plan ?? 'free';
+  if (plan === 'free') return c.json({ error: 'Cannot extend a free plan' }, 400);
+  if (plan === 'lifetime') return c.json({ error: 'Cannot extend a lifetime plan' }, 400);
+
+  // Subscription row must exist + not be canceled. The DB mirror is
+  // updated by the webhook so any cancel / scheduled cancel surfaces here.
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('paddle_subscription_id, status, canceled_at')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+
+  if (!sub?.paddle_subscription_id) {
+    return c.json({ error: 'User does not have a Paddle subscription' }, 400);
+  }
+  if (sub.status === 'canceled' || sub.canceled_at) {
+    return c.json({ error: 'Cannot extend a cancelled subscription' }, 400);
+  }
+
+  try {
+    // Fetch live subscription from Paddle — DB mirror could be stale on
+    // brand-new subs that haven't been synced yet.
+    const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
+    if (subscription.status === 'canceled' || subscription.scheduledChange?.action === 'cancel') {
+      return c.json({ error: 'Cannot extend a cancelled subscription' }, 400);
+    }
+
+    const baseIso = subscription.nextBilledAt || subscription.currentBillingPeriod?.endsAt;
+    if (!baseIso) return c.json({ error: 'Subscription has no billing period' }, 400);
+
+    const newDate = new Date(new Date(baseIso).getTime() + days * 24 * 60 * 60 * 1000);
+    const newIso = newDate.toISOString();
+
+    // do_not_bill: push the date without generating an invoice. Paddle
+    // applies the new date to the current period; webhook fires
+    // `subscription.updated` so user_settings.plan_expiry gets mirrored
+    // through our existing handler — no double-write needed here.
+    await paddle.subscriptions.update(sub.paddle_subscription_id, {
+      nextBilledAt: newIso,
+      prorationBillingMode: 'do_not_bill',
+    });
+
+    logPaddle(
+      null,
+      'extend',
+      `user=${userId}, sub=${sub.paddle_subscription_id}, days=+${days}, newDate=${newIso}, reason=${body.reason || 'none'}`,
+      'processed',
+    );
+
+    return c.json({ ok: true, nextBilledAt: newIso });
+  } catch (err) {
+    logPaddle(null, 'extend', String(err), 'error');
+    return c.json({ error: 'Failed to extend subscription' }, 500);
+  }
+}
+
 // ─── GET /api/paddle/prices ─────────────────────────────────────────────────
 // Public. Optional ?userId= to localise via signup IP. Returns
 // { monthly: {...}, yearly: {...}, lifetime: {...} }.

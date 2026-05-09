@@ -24,7 +24,17 @@ export async function GET(req: Request, { params }: RouteCtx) {
   }
   if (!data) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
-  return NextResponse.json(data);
+  // Subscription summary — added separately from the RPC so the SQL
+  // function doesn't need to know about the paddle table. The detail
+  // sheet uses this to switch between "extend Paddle sub" and the
+  // direct plan_expiry editor for non-Paddle plans.
+  const { data: sub } = await ctx.supabase
+    .from('subscriptions')
+    .select('paddle_subscription_id, status, current_period_end, canceled_at, interval')
+    .eq('user_id', id)
+    .maybeSingle();
+
+  return NextResponse.json({ ...data, subscription: sub || null });
 }
 
 export async function PATCH(req: Request, { params }: RouteCtx) {

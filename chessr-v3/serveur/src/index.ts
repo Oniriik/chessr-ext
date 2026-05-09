@@ -30,6 +30,7 @@ import {
   handlePaddleUpgradeLifetime,
   handleUpgradeLifetimeByToken,
   handlePaddlePrices,
+  handleExtendPaddleSubscription,
 } from './handlers/paddleHandler.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
@@ -79,6 +80,7 @@ app.post('/api/paddle/preview-upgrade-by-token', handlePreviewUpgradeByToken);
 app.post('/api/paddle/upgrade-lifetime', handlePaddleUpgradeLifetime);
 app.post('/api/paddle/upgrade-lifetime-by-token', handleUpgradeLifetimeByToken);
 app.get ('/api/paddle/prices', handlePaddlePrices);
+app.post('/admin/paddle/extend', handleExtendPaddleSubscription);
 
 registerWsRoute({ app, upgradeWebSocket });
 
