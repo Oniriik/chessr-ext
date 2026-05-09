@@ -21,6 +21,15 @@ import { PLAN_COLORS } from '@/lib/plan-colors';
 // so the eye reads "lifetime↓free" left-to-right.
 const PLAN_KEYS: PlanKey[] = ['lifetime', 'premium', 'beta', 'freetrial', 'free'];
 
+// Two business buckets — paying users vs. anyone else. The bar stays a
+// 5-color stack; only the legend collapses into these groups so the
+// admin can read the paying-share at a glance.
+type PlanGroup = { label: string; plans: PlanKey[] };
+const PLAN_GROUPS: PlanGroup[] = [
+  { label: 'Premium',    plans: ['lifetime', 'premium', 'beta'] },
+  { label: 'Free users', plans: ['freetrial', 'free'] },
+];
+
 // react-globe.gl ships three.js + WebGL; needs the browser. ssr:false is
 // the documented way to use it under the Next.js app router.
 const Globe = dynamic(() => import('react-globe.gl').then((m) => m.default), {
@@ -393,24 +402,47 @@ export function GlobePageClient() {
                           );
                         })}
                       </div>
-                      <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-0.5 text-[10px]">
-                        {PLAN_KEYS.map((p) => {
-                          const n = planTotals[p];
-                          const pct = total ? (n / total) * 100 : 0;
+                      {/* Two-tier legend: bucket header (Premium / Free
+                          users) shows the combined %, the indented rows
+                          underneath drill into the per-plan breakdown.
+                          The progress bar above stays fully segmented —
+                          only the legend collapses into groups. */}
+                      <div className="space-y-2 pt-0.5">
+                        {PLAN_GROUPS.map((g) => {
+                          const groupCount = g.plans.reduce((s, p) => s + planTotals[p], 0);
+                          const groupPct = total ? (groupCount / total) * 100 : 0;
                           return (
-                            <li key={p} className="flex items-center gap-1.5 capitalize">
-                              <span
-                                className="h-2 w-2 shrink-0 rounded-full"
-                                style={{ backgroundColor: PLAN_COLORS[p].dot }}
-                              />
-                              <span className="text-muted-foreground">{p}</span>
-                              <span className="num ml-auto tabular-nums text-foreground/80">
-                                {pct.toFixed(1)}%
-                              </span>
-                            </li>
+                            <div key={g.label}>
+                              <div className="flex items-baseline gap-2 text-[10px] font-semibold uppercase tracking-wider">
+                                <span className="text-foreground/90">{g.label}</span>
+                                <span className="num ml-auto tabular-nums text-foreground/80">
+                                  {groupPct.toFixed(1)}%
+                                </span>
+                              </div>
+                              <ul className="mt-0.5 space-y-0.5 pl-1 text-[10px]">
+                                {g.plans.map((p) => {
+                                  const n = planTotals[p];
+                                  const pct = total ? (n / total) * 100 : 0;
+                                  return (
+                                    <li key={p} className="flex items-center gap-1.5 capitalize">
+                                      <span
+                                        className="h-2 w-2 shrink-0 rounded-full"
+                                        style={{ backgroundColor: PLAN_COLORS[p].dot }}
+                                      />
+                                      <span className="text-muted-foreground">
+                                        {p === 'freetrial' ? 'free trial' : p}
+                                      </span>
+                                      <span className="num ml-auto tabular-nums text-foreground/70">
+                                        {pct.toFixed(1)}%
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
                           );
                         })}
-                      </ul>
+                      </div>
                     </>
                   ) : (
                     <p className="text-[11px] text-muted-foreground">No data yet.</p>
