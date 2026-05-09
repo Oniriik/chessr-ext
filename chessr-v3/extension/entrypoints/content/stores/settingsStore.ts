@@ -12,6 +12,11 @@ interface Settings {
   numArrows: number;
   arrowColors: [string, string, string];
   disableAnimations: boolean;
+  /** When true, suppress proactive nudges from the system-message
+   *  widget (how-tos, "join Discord", "claim free trial"). Admin
+   *  broadcasts via WS still come through — they're explicit ops
+   *  messages, not nudges, and bypass this gate. */
+  disableInfoBanner: boolean;
   highlightSquares: boolean;
   anonNames: boolean;
   showTitle: boolean;
@@ -25,6 +30,7 @@ const DEFAULTS: Settings = {
   numArrows: 3,
   arrowColors: ['#22c55e', '#3b82f6', '#f59e0b'],
   disableAnimations: false,
+  disableInfoBanner: false,
   highlightSquares: false,
   anonNames: false,
   showTitle: false,
@@ -38,6 +44,7 @@ export interface SettingsState extends Settings {
   setNumArrows: (n: number) => void;
   setArrowColor: (index: number, color: string) => void;
   setDisableAnimations: (v: boolean) => void;
+  setDisableInfoBanner: (v: boolean) => void;
   setHighlightSquares: (v: boolean) => void;
   setAnonNames: (v: boolean) => void;
   setShowTitle: (v: boolean) => void;
@@ -105,6 +112,7 @@ function getSettingsPayload(state: SettingsState) {
     numArrows: state.numArrows,
     arrowColors: state.arrowColors,
     disableAnimations: state.disableAnimations,
+    disableInfoBanner: state.disableInfoBanner,
     highlightSquares: state.highlightSquares,
     anonNames: state.anonNames,
     showTitle: state.showTitle,
@@ -146,6 +154,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setDisableAnimations: (v) => {
     set({ disableAnimations: v });
+    syncToCloud(get());
+  },
+  setDisableInfoBanner: (v) => {
+    set({ disableInfoBanner: v });
     syncToCloud(get());
   },
   setHighlightSquares: (v) => {
@@ -208,6 +220,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           numArrows: cloud.numArrows ?? DEFAULTS.numArrows,
           arrowColors: cloud.arrowColors ?? DEFAULTS.arrowColors,
           disableAnimations: cloud.disableAnimations ?? DEFAULTS.disableAnimations,
+          disableInfoBanner: cloud.disableInfoBanner ?? DEFAULTS.disableInfoBanner,
           highlightSquares: cloud.highlightSquares ?? DEFAULTS.highlightSquares,
           anonNames: (cloud as any).anonNames ?? DEFAULTS.anonNames,
           showTitle: nextShowTitle,

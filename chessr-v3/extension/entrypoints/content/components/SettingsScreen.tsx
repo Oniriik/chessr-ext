@@ -72,7 +72,7 @@ const TITLE_OPTIONS: { value: import('../stores/settingsStore').ChessTitle; labe
 ];
 
 function GeneralTab() {
-  const { disableAnimations, setDisableAnimations, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, fontSize, setFontSize, resetAll } = useSettingsStore();
+  const { disableAnimations, setDisableAnimations, disableInfoBanner, setDisableInfoBanner, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, fontSize, setFontSize, resetAll } = useSettingsStore();
   const handleReset = () => {
     if (confirm('Reset all settings to defaults? This will clear custom layouts, hotkeys, engine preferences, etc.')) {
       resetAll();
@@ -169,6 +169,10 @@ function GeneralTab() {
       <div className="settings-item">
         <span className="settings-label">Disable animations</span>
         <Toggle checked={disableAnimations} onChange={setDisableAnimations} />
+      </div>
+      <div className="settings-item" title="Hides proactive nudges from chessr (tips, claim free trial, join Discord). Admin announcements still come through.">
+        <span className="settings-label">Disable info banner</span>
+        <Toggle checked={disableInfoBanner} onChange={setDisableInfoBanner} />
       </div>
       <button
         className="settings-stream-btn"

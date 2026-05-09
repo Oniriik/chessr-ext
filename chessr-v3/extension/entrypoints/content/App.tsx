@@ -155,6 +155,13 @@ export default function App({ streamMode = false }: AppProps = {}) {
   useEffect(() => {
     if (!user || planLoading) return;
     if (triggersFiredRef.current === user.id) return;
+    // User opt-out: kill the proactive nudges (claim trial / join
+    // Discord / how-tos). Admin WS broadcasts bypass this — they go
+    // through onWsMessage → useWidgetStore.push directly.
+    if (useSettingsStore.getState().disableInfoBanner) {
+      triggersFiredRef.current = user.id;
+      return;
+    }
 
     const sessionKey = `chessr:login-trigger-fired:${user.id}`;
     try {
