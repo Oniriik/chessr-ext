@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { planBadgeStyle } from '@/lib/plan-colors';
 import { UserDetailSheet } from '@/components/users/UserDetailSheet';
 import { getSupabase } from '@/lib/supabase';
 import type { UserRole } from '@/lib/roles';
@@ -42,12 +43,7 @@ type ListResponse = {
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────
-function planVariant(plan: string): 'success' | 'default' | 'warning' | 'muted' {
-  if (plan === 'lifetime') return 'success';
-  if (plan === 'premium') return 'default';
-  if (plan === 'beta' || plan === 'freetrial') return 'warning';
-  return 'muted';
-}
+// Plan colors are centralised in lib/plan-colors — see planBadgeStyle.
 
 function fmt(ts: string | null): string {
   if (!ts) return '—';
@@ -397,7 +393,7 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
           <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
             {u.email || '—'}
           </span>
-          <Badge variant={planVariant(u.plan)} className="shrink-0 capitalize">{u.plan}</Badge>
+          <Badge className="shrink-0 border-transparent capitalize" style={planBadgeStyle(u.plan)}>{u.plan}</Badge>
         </div>
         <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
           <span className="flex min-w-0 items-center gap-1.5">
@@ -441,7 +437,7 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
       </div>
 
       <div className="hidden items-center gap-1.5 sm:flex">
-        <Badge variant={planVariant(u.plan)} className="capitalize">{u.plan}</Badge>
+        <Badge className="border-transparent capitalize" style={planBadgeStyle(u.plan)}>{u.plan}</Badge>
         {u.role !== 'user' && (
           <Badge variant={u.role === 'super_admin' ? 'destructive' : 'default'} className="capitalize">
             {u.role.replace('_', ' ')}

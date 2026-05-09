@@ -10,6 +10,7 @@ import { format } from 'date-fns';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { planBadgeStyle } from '@/lib/plan-colors';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -82,12 +83,7 @@ const ROLES: UserRole[] = ['user', 'admin', 'super_admin'];
 const PLANS_WITHOUT_EXPIRY: ReadonlySet<string> = new Set(['free', 'lifetime']);
 
 // ─── Helpers ───────────────────────────────────────────────────────────
-function planVariant(plan: string): 'success' | 'default' | 'warning' | 'muted' {
-  if (plan === 'lifetime') return 'success';
-  if (plan === 'premium') return 'default';
-  if (plan === 'beta' || plan === 'freetrial') return 'warning';
-  return 'muted';
-}
+// Plan colors are centralised in lib/plan-colors — see planBadgeStyle.
 
 function roleVariant(role: UserRole): 'destructive' | 'default' | 'muted' {
   if (role === 'super_admin') return 'destructive';
@@ -650,7 +646,7 @@ export function UserDetailSheet({
             <>
               {/* ─── Status row ─────────────────────────────────────── */}
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={planVariant(u.plan)} className="capitalize">{u.plan}</Badge>
+                <Badge className="border-transparent capitalize" style={planBadgeStyle(u.plan)}>{u.plan}</Badge>
                 <Badge variant={roleVariant(u.role)} className="capitalize">{u.role.replace('_', ' ')}</Badge>
                 {u.email_verified ? (
                   <Badge variant="success">verified</Badge>

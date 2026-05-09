@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { getSupabase } from '@/lib/supabase';
+import { planBadgeStyle } from '@/lib/plan-colors';
 import { cn } from '@/lib/utils';
 
 type ConnectedUser = {
@@ -357,13 +358,10 @@ function ExtensionForm() {
                             <div className="truncate text-[12px] font-medium">{u.email || '—'}</div>
                             <div className="truncate font-mono text-[10px] text-muted-foreground">{u.userId}</div>
                           </div>
-                          <span className={cn(
-                            'shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider',
-                            u.plan === 'lifetime' ? 'bg-emerald-500/15 text-emerald-400'
-                            : u.plan === 'premium' ? 'bg-primary/15 text-primary'
-                            : u.plan === 'beta' || u.plan === 'freetrial' ? 'bg-amber-500/15 text-amber-400'
-                            : 'bg-muted text-muted-foreground',
-                          )}>
+                          <span
+                            className="shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider"
+                            style={planBadgeStyle(u.plan)}
+                          >
                             {u.plan}
                           </span>
                         </li>

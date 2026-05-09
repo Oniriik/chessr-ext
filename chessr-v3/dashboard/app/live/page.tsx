@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TooltipProvider, Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn, formatBytes, formatRelative } from '@/lib/utils';
+import { planBadgeStyle } from '@/lib/plan-colors';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 type Sample = {
@@ -143,13 +144,11 @@ function QueueCard({ q }: { q: QueueData }) {
 
 // ─── Plan + mode badges ─────────────────────────────────────────────────
 function PlanBadge({ plan }: { plan: string }) {
-  const v: 'default' | 'success' | 'warning' | 'muted' =
-      plan === 'lifetime' ? 'success'
-    : plan === 'premium'  ? 'default'
-    : plan === 'beta'     ? 'warning'
-    : plan === 'freetrial' ? 'warning'
-    : 'muted';
-  return <Badge variant={v} className="capitalize">{plan}</Badge>;
+  return (
+    <Badge className="border-transparent capitalize" style={planBadgeStyle(plan)}>
+      {plan}
+    </Badge>
+  );
 }
 
 function ModeBadge({ mode }: { mode: ConnectedUser['mode'] }) {
