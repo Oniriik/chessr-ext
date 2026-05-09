@@ -14,7 +14,23 @@ import { adminEventsRoutes } from './routes/adminEvents.js';
 import { freetrialRoutes } from './routes/freetrial.js';
 import { adminMessagingRoutes } from './routes/adminMessaging.js';
 import { abuseRoutes } from './routes/abuse.js';
-import { handlePaddleWebhook, handlePaddleBillingLink } from './handlers/paddleHandler.js';
+import {
+  handlePaddleWebhook,
+  handlePaddleBillingLink,
+  handlePaddleCheckout,
+  handlePaddleCheckoutByToken,
+  handlePaddleSubscriptionStatus,
+  handleStatusByToken,
+  handlePaddleSwitch,
+  handleSwitchByToken,
+  handlePaddleCancel,
+  handleCancelByToken,
+  handlePaddlePreviewUpgrade,
+  handlePreviewUpgradeByToken,
+  handlePaddleUpgradeLifetime,
+  handleUpgradeLifetimeByToken,
+  handlePaddlePrices,
+} from './handlers/paddleHandler.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
 import { initSuggestionWorker, shutdownSuggestionWorker } from './queue/suggestionQueue.js';
@@ -45,11 +61,24 @@ app.route('/', freetrialRoutes);
 app.route('/', adminMessagingRoutes);
 app.route('/', abuseRoutes);
 
-// Paddle billing — webhook (server-to-server, signed) + billing-link
-// (extension-authenticated). Other paddle endpoints (status/switch/cancel/
-// preview-upgrade/upgrade-lifetime/prices) are ported in follow-up commits.
+// Paddle billing — webhook (signed, Paddle → us) + the full set of
+// extension-authenticated and billing-token endpoints. Same routes,
+// params and response shapes as chessr-next so the DNS flip is a no-op.
 app.post('/api/paddle/webhook', handlePaddleWebhook);
 app.post('/api/paddle/billing-link', handlePaddleBillingLink);
+app.post('/api/paddle/checkout', handlePaddleCheckout);
+app.post('/api/paddle/checkout-by-token', handlePaddleCheckoutByToken);
+app.get ('/api/paddle/subscription', handlePaddleSubscriptionStatus);
+app.post('/api/paddle/status-by-token', handleStatusByToken);
+app.post('/api/paddle/switch', handlePaddleSwitch);
+app.post('/api/paddle/switch-by-token', handleSwitchByToken);
+app.post('/api/paddle/cancel', handlePaddleCancel);
+app.post('/api/paddle/cancel-by-token', handleCancelByToken);
+app.post('/api/paddle/preview-upgrade', handlePaddlePreviewUpgrade);
+app.post('/api/paddle/preview-upgrade-by-token', handlePreviewUpgradeByToken);
+app.post('/api/paddle/upgrade-lifetime', handlePaddleUpgradeLifetime);
+app.post('/api/paddle/upgrade-lifetime-by-token', handleUpgradeLifetimeByToken);
+app.get ('/api/paddle/prices', handlePaddlePrices);
 
 registerWsRoute({ app, upgradeWebSocket });
 

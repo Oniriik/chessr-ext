@@ -2,20 +2,28 @@
  * Paddle billing handlers (Hono).
  *
  * Ported from chessr-next/serveur/src/handlers/paddleHandler.ts (raw Node
- * http) — same protocol, same Supabase tables, same Paddle SDK usage.
- * The DNS-flip migration plan: when this v3 server takes over from v2,
- * we just point engine.chessr.io's A-record at the v3 IP. Paddle's
- * webhook endpoint URL doesn't change, dashboard stays untouched.
+ * http) — same protocol, same Supabase tables, same Paddle SDK usage,
+ * same request/response shapes. The DNS-flip migration plan: when this
+ * v3 server takes over from v2, we just point engine.chessr.io's
+ * A-record at the v3 IP. Paddle's webhook endpoint URL doesn't change,
+ * dashboard stays untouched.
  *
- * This first commit lands ONLY:
- *   - POST /api/paddle/webhook        — receives Paddle events, syncs Supabase
- *   - POST /api/paddle/billing-link   — issues a signed billing token used
- *                                        by chessr.io/checkout for tokenized
- *                                        plan operations
- *
- * Subsequent endpoints (status / switch / cancel / preview-upgrade /
- * upgrade-lifetime / prices) come in follow-up commits to keep review
- * surface manageable.
+ * Endpoints:
+ *   - POST /api/paddle/webhook                  — Paddle → us, signed events
+ *   - POST /api/paddle/billing-link             — auth → returns a signed token
+ *   - POST /api/paddle/checkout                 — auth, body: { plan }
+ *   - POST /api/paddle/checkout-by-token        — token, body: { token, plan }
+ *   - GET  /api/paddle/subscription             — auth, returns subscription row
+ *   - POST /api/paddle/status-by-token          — token, plan + sub summary
+ *   - POST /api/paddle/switch                   — auth, monthly ↔ yearly
+ *   - POST /api/paddle/switch-by-token          — token version
+ *   - POST /api/paddle/cancel                   — auth, end-of-period
+ *   - POST /api/paddle/cancel-by-token          — token version
+ *   - POST /api/paddle/preview-upgrade          — auth, prorate calc
+ *   - POST /api/paddle/preview-upgrade-by-token — token version
+ *   - POST /api/paddle/upgrade-lifetime         — auth, cancel + lifetime checkout
+ *   - POST /api/paddle/upgrade-lifetime-by-token — token version
+ *   - GET  /api/paddle/prices                   — public, localized pricing
  */
 
 import type { Context } from 'hono';
@@ -466,4 +474,600 @@ export async function handlePaddleBillingLink(c: Context): Promise<Response> {
   const billingToken = signBillingToken(userId, customerId);
   logPaddle(userEmail, 'billing-link', `customer=${customerId}`, 'ok');
   return c.json({ token: billingToken });
+}
+
+// ─── Helpers shared by the rest of the endpoints ─────────────────────────────
+
+/** First IP we recorded for this user at signup — used to pin Paddle's
+ *  pricing localisation to the country the user signed up from rather
+ *  than letting it follow VPN / travel. Falls back to null silently. */
+async function getSignupIp(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('signup_ips')
+      .select('ip_address')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .single();
+    return data?.ip_address || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Builds the `customerIpAddress` param for Paddle pricingPreview. Prefers
+ *  the user's signup IP, falls back to the current request IP, drops
+ *  loopback addresses (Paddle returns "invalid IP" on those). */
+function buildLocationParam(
+  signupIp: string | null,
+  clientIp: string | undefined,
+): Record<string, unknown> {
+  const ip = signupIp || clientIp;
+  if (ip && !ip.startsWith('127.') && !ip.startsWith('::1')) {
+    return { customerIpAddress: ip };
+  }
+  return {};
+}
+
+function getClientIpFromCtx(c: Context): string | undefined {
+  const xff = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip');
+  if (!xff) return undefined;
+  return xff.split(',')[0]?.trim() || undefined;
+}
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  EUR: '€', USD: '$', GBP: '£', INR: '₹', JPY: '¥', CNY: '¥',
+  KRW: '₩', BRL: 'R$', MXN: '$', AUD: 'A$', CAD: 'C$', CHF: 'CHF ',
+  SEK: 'kr ', NOK: 'kr ', DKK: 'kr ', PLN: 'zł', CZK: 'Kč ',
+  HUF: 'Ft ', TRY: '₺', ZAR: 'R ', SGD: 'S$', HKD: 'HK$', NZD: 'NZ$',
+  THB: '฿', TWD: 'NT$', ARS: 'ARS ', COP: 'COP ', IDR: 'Rp ',
+  MYR: 'RM ', PHP: '₱', VND: '₫', UAH: '₴', ILS: '₪', EGP: 'E£',
+  NGN: '₦', KES: 'KSh ', GHS: 'GH₵', PKR: 'Rs ', BDT: '৳',
+};
+function currencySymbol(code: string): string {
+  return CURRENCY_SYMBOLS[code] || code + ' ';
+}
+function formatAmount(amount: number, currencyCode: string): string {
+  const sym = currencySymbol(currencyCode);
+  return `${sym}${(Math.abs(amount) / 100).toLocaleString('en', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Auth-bearer flow: read the Authorization header, resolve the Supabase
+ *  user. On any failure return a 401 Response so the caller can early-exit
+ *  with `if (response) return response;`. Same convention used for the
+ *  billing-token flow below. */
+async function requireBearerUser(
+  c: Context,
+): Promise<{ userId: string; email: string } | Response> {
+  const authHeader = c.req.header('authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return c.json({ error: 'Authentication required' }, 401);
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) return c.json({ error: 'Invalid token' }, 401);
+  return { userId: data.user.id, email: data.user.email || '' };
+}
+
+const PADDLE_PRICES: Record<string, string | undefined> = {
+  monthly: process.env.PADDLE_PRICE_MONTHLY,
+  yearly:  process.env.PADDLE_PRICE_YEARLY,
+  lifetime: process.env.PADDLE_PRICE_LIFETIME,
+};
+
+// ─── POST /api/paddle/checkout ──────────────────────────────────────────────
+// Body: { plan: 'monthly' | 'yearly' | 'lifetime' }
+// Returns: { transactionId } — used by the front to open a Paddle checkout.
+export async function handlePaddleCheckout(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  const auth = await requireBearerUser(c);
+  if (auth instanceof Response) return auth;
+  const { userId, email: userEmail } = auth;
+
+  let body: { plan?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const plan = body.plan || '';
+  const priceId = PADDLE_PRICES[plan];
+  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, or lifetime' }, 400);
+
+  logPaddle(userEmail, 'checkout', `user=${userId}, plan=${plan}, priceId=${priceId}`, 'ok');
+
+  let customerId: string | undefined;
+  const { data: existingSub } = await supabase
+    .from('subscriptions')
+    .select('paddle_customer_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+
+  if (existingSub?.paddle_customer_id) {
+    try {
+      await paddle.customers.get(existingSub.paddle_customer_id);
+      customerId = existingSub.paddle_customer_id;
+      logPaddle(userEmail, 'checkout', `reusing customer: ${customerId}`, 'ok');
+    } catch {
+      logPaddle(userEmail, 'checkout', `customer ${existingSub.paddle_customer_id} stale, recreating`, 'ok');
+      await supabase.from('subscriptions').delete().eq('user_id', userId);
+    }
+  }
+
+  if (!customerId) {
+    try {
+      const customer = await paddle.customers.create({ email: userEmail });
+      customerId = customer.id;
+      logPaddle(userEmail, 'customer-created', `customer=${customerId}`, 'ok');
+    } catch (createErr: any) {
+      if (createErr?.code === 'conflict' || createErr?.type === 'request_error') {
+        const customers = await paddle.customers.list({ email: [userEmail] });
+        for await (const cust of customers) {
+          customerId = cust.id;
+          logPaddle(userEmail, 'checkout', `found existing customer: ${customerId}`, 'ok');
+          break;
+        }
+      }
+      if (!customerId) {
+        logPaddle(userEmail, 'checkout', String(createErr), 'error');
+        return c.json({ error: 'Internal error' }, 500);
+      }
+    }
+
+    await supabase.from('subscriptions').upsert(
+      {
+        user_id: userId,
+        paddle_customer_id: customerId,
+        status: 'pending',
+        plan: 'free',
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' },
+    );
+  }
+
+  try {
+    const transaction = await paddle.transactions.create({
+      items: [{ priceId, quantity: 1 }],
+      customerId,
+      customData: { userId },
+    });
+    logPaddle(userEmail, 'checkout', `plan=${plan}, txn=${transaction.id}`, 'processed');
+    return c.json({ transactionId: transaction.id });
+  } catch (err) {
+    logPaddle(userEmail, 'checkout', String(err), 'error');
+    return c.json({ error: 'Internal error' }, 500);
+  }
+}
+
+// ─── POST /api/paddle/checkout-by-token ─────────────────────────────────────
+// Body: { token, plan }
+export async function handlePaddleCheckoutByToken(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  let body: { token?: string; plan?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+
+  const verified = body.token ? verifyBillingToken(body.token) : null;
+  if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
+
+  const priceId = PADDLE_PRICES[body.plan || ''];
+  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, or lifetime' }, 400);
+
+  const { userId, customerId } = verified;
+  try {
+    const transaction = await paddle.transactions.create({
+      items: [{ priceId, quantity: 1 }],
+      customerId,
+      customData: { userId },
+    });
+    logPaddle(null, 'checkout', `user=${userId}, plan=${body.plan}, txn=${transaction.id}`, 'processed');
+    return c.json({ transactionId: transaction.id });
+  } catch (err) {
+    logPaddle(null, 'checkout', String(err), 'error');
+    return c.json({ error: 'Internal error' }, 500);
+  }
+}
+
+// ─── GET /api/paddle/subscription ───────────────────────────────────────────
+// Auth-bearer. Returns the entire row (`{ subscription }`) — front uses this
+// for the Manage Plan view.
+export async function handlePaddleSubscriptionStatus(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  const auth = await requireBearerUser(c);
+  if (auth instanceof Response) return auth;
+
+  try {
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', auth.userId)
+      .limit(1)
+      .single();
+    return c.json({ subscription: sub || null });
+  } catch (err) {
+    logPaddle(null, 'status', String(err), 'error');
+    return c.json({ error: 'Internal error' }, 500);
+  }
+}
+
+// ─── POST /api/paddle/status-by-token ───────────────────────────────────────
+// Body: { token } → returns { plan, planExpiry, freetrialUsed, discordLinked,
+// subscription: { interval, currentPeriodEnd, status, canceledAt, hasSubscription } }
+export async function handleStatusByToken(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  let body: { token?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+
+  const verified = body.token ? verifyBillingToken(body.token) : null;
+  if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
+
+  const { userId } = verified;
+  try {
+    const { data: settings } = await supabase
+      .from('user_settings')
+      .select('plan, plan_expiry, freetrial_used, discord_id')
+      .eq('user_id', userId)
+      .single();
+
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('interval, current_period_end, status, canceled_at, paddle_subscription_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .single();
+
+    return c.json({
+      plan: settings?.plan || 'free',
+      planExpiry: settings?.plan_expiry || null,
+      freetrialUsed: settings?.freetrial_used ?? true,
+      discordLinked: !!settings?.discord_id,
+      subscription: sub
+        ? {
+            interval: sub.interval || null,
+            currentPeriodEnd: sub.current_period_end || null,
+            status: sub.status || null,
+            canceledAt: sub.canceled_at || null,
+            hasSubscription: !!sub.paddle_subscription_id,
+          }
+        : null,
+    });
+  } catch (err) {
+    logPaddle(null, 'status', String(err), 'error');
+    return c.json({ error: 'Internal error' }, 500);
+  }
+}
+
+// ─── Switch (auth + token) ──────────────────────────────────────────────────
+// Both flows share the same body { plan } / { token, plan } and same
+// response { ok: true, nextBilledAt }.
+async function switchSubscription(c: Context, userId: string, plan: string): Promise<Response> {
+  const priceId = PADDLE_PRICES[plan];
+  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly or yearly' }, 400);
+
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('paddle_subscription_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+
+  if (!sub?.paddle_subscription_id) return c.json({ error: 'No active subscription found' }, 400);
+
+  try {
+    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+    const updated = await paddle.subscriptions.update(sub.paddle_subscription_id, {
+      items: [{ priceId, quantity: 1 }],
+      prorationBillingMode: 'prorated_immediately',
+      ...(discountId ? { discount: { id: discountId, effectiveFrom: 'immediately' } } : {}),
+    });
+    logPaddle(null, 'switch', `plan=${plan}, user=${userId}, sub=${sub.paddle_subscription_id}`, 'processed');
+    return c.json({ ok: true, nextBilledAt: updated.nextBilledAt });
+  } catch (err) {
+    logPaddle(null, 'switch', String(err), 'error');
+    return c.json({ error: 'Failed to switch plan' }, 500);
+  }
+}
+
+export async function handlePaddleSwitch(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  const auth = await requireBearerUser(c);
+  if (auth instanceof Response) return auth;
+  let body: { plan?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  return switchSubscription(c, auth.userId, body.plan || '');
+}
+
+export async function handleSwitchByToken(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  let body: { token?: string; plan?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const verified = body.token ? verifyBillingToken(body.token) : null;
+  if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
+  return switchSubscription(c, verified.userId, body.plan || '');
+}
+
+// ─── Cancel (auth + token) ──────────────────────────────────────────────────
+// Cancels at end of billing period. Stores the survey reason if provided.
+// Body: { reason?: string, details?: string } — same for both flows.
+async function cancelSubscription(
+  c: Context,
+  userId: string,
+  reason: string | undefined,
+  details: string | undefined,
+): Promise<Response> {
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('paddle_subscription_id, plan, interval')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+  if (!sub?.paddle_subscription_id) return c.json({ error: 'No active subscription found' }, 400);
+
+  try {
+    await paddle.subscriptions.cancel(sub.paddle_subscription_id, {
+      effectiveFrom: 'next_billing_period',
+    });
+    logPaddle(null, 'cancel', `user=${userId}, sub=${sub.paddle_subscription_id}, reason=${reason || 'none'}`, 'processed');
+
+    if (reason) {
+      const { data: userData } = await supabase.auth.admin.getUserById(userId);
+      await supabase.from('cancel_reasons').insert({
+        user_id: userId,
+        user_email: userData?.user?.email || '',
+        reason,
+        details: details || null,
+        plan: sub.plan,
+        interval: sub.interval,
+      });
+    }
+    return c.json({ ok: true });
+  } catch (err) {
+    logPaddle(null, 'cancel', String(err), 'error');
+    return c.json({ error: 'Failed to cancel subscription' }, 500);
+  }
+}
+
+export async function handlePaddleCancel(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  const auth = await requireBearerUser(c);
+  if (auth instanceof Response) return auth;
+  let body: { reason?: string; details?: string };
+  try { body = await c.req.json(); } catch { body = {}; }
+  return cancelSubscription(c, auth.userId, body.reason, body.details);
+}
+
+export async function handleCancelByToken(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  let body: { token?: string; reason?: string; details?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const verified = body.token ? verifyBillingToken(body.token) : null;
+  if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
+  return cancelSubscription(c, verified.userId, body.reason, body.details);
+}
+
+// ─── Preview upgrade (auth + token) ─────────────────────────────────────────
+// Body: { plan: 'yearly' | 'lifetime', currency? }
+// Returns: { planLabel, planPrice, discount, prorate, total, nextBilledAt }
+async function previewUpgrade(
+  c: Context,
+  userId: string,
+  plan: string,
+  requestedCurrency: string | undefined,
+): Promise<Response> {
+  const targetPriceId = PADDLE_PRICES[plan];
+  if (!targetPriceId || (plan !== 'yearly' && plan !== 'lifetime')) {
+    return c.json({ error: 'Invalid plan. Use: yearly or lifetime' }, 400);
+  }
+
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('paddle_subscription_id, interval')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+  if (!sub?.paddle_subscription_id) return c.json({ error: 'No active subscription' }, 400);
+
+  try {
+    const clientIp = getClientIpFromCtx(c);
+    const signupIp = await getSignupIp(userId);
+    const locationParam = buildLocationParam(signupIp, clientIp);
+    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+    // SDK 3.x types currencyCode as a CurrencyCode enum, but the front
+    // forwards arbitrary strings. Cast through any — Paddle validates
+    // server-side and returns a clear error for unknown codes.
+    const currencyParam = requestedCurrency ? ({ currencyCode: requestedCurrency } as any) : {};
+
+    const targetPreview = await paddle.pricingPreview.preview({
+      items: [{ priceId: targetPriceId, quantity: 1 }],
+      ...locationParam,
+      ...currencyParam,
+      ...(discountId ? { discountId } : {}),
+    });
+
+    const targetLine = (targetPreview as any).details?.lineItems?.[0];
+    const targetTotals = targetLine?.totals;
+    const currencyCode = (targetPreview as any).currencyCode || 'USD';
+    const fmt = (amount: number) => formatAmount(amount, currencyCode);
+
+    const targetTotal = Number(targetTotals?.total || 0);
+    const targetDiscount = Number(targetTotals?.discount || 0);
+    const targetOriginal = targetTotal + targetDiscount;
+
+    const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
+    const currentItem = subscription.items?.[0];
+    const billingStart = subscription.currentBillingPeriod?.startsAt;
+    const billingEnd = subscription.currentBillingPeriod?.endsAt;
+
+    let localizedSubPrice = 0;
+    if (currentItem?.price?.id) {
+      const subPreview = await paddle.pricingPreview.preview({
+        items: [{ priceId: currentItem.price.id, quantity: 1 }],
+        ...locationParam,
+        ...currencyParam,
+      });
+      const subLine = (subPreview as any).details?.lineItems?.[0];
+      localizedSubPrice = Number(subLine?.totals?.total || 0);
+    }
+
+    let prorate = 0;
+    if (billingStart && billingEnd && localizedSubPrice > 0) {
+      const start = new Date(billingStart).getTime();
+      const end = new Date(billingEnd).getTime();
+      const now = Date.now();
+      const totalDays = (end - start) / (1000 * 60 * 60 * 24);
+      const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
+      prorate = Math.round((remainingDays / totalDays) * localizedSubPrice);
+    }
+
+    const finalTotal = Math.max(0, targetTotal - prorate);
+
+    let nextBilledAt: string | null = null;
+    if (plan === 'yearly') {
+      nextBilledAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    const planLabel = plan === 'yearly' ? 'Yearly plan' : 'Lifetime';
+
+    return c.json({
+      planLabel,
+      planPrice: fmt(targetOriginal),
+      discount: targetDiscount > 0 ? fmt(targetDiscount) : null,
+      prorate: prorate > 0 ? fmt(prorate) : null,
+      total: fmt(finalTotal),
+      nextBilledAt,
+    });
+  } catch (err) {
+    logPaddle(null, 'preview-upgrade', String(err), 'error');
+    return c.json({ error: 'Failed to preview upgrade' }, 500);
+  }
+}
+
+export async function handlePaddlePreviewUpgrade(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  const auth = await requireBearerUser(c);
+  if (auth instanceof Response) return auth;
+  let body: { plan?: string; currency?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  return previewUpgrade(c, auth.userId, body.plan || '', body.currency);
+}
+
+export async function handlePreviewUpgradeByToken(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  let body: { token?: string; plan?: string; currency?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const verified = body.token ? verifyBillingToken(body.token) : null;
+  if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
+  return previewUpgrade(c, verified.userId, body.plan || '', body.currency);
+}
+
+// ─── Upgrade lifetime (auth + token) ────────────────────────────────────────
+// Cancels current sub immediately, then opens a lifetime checkout.
+// Returns: { transactionId } — same as /checkout.
+async function upgradeLifetime(
+  c: Context,
+  userId: string,
+  fallbackCustomerId: string | undefined,
+): Promise<Response> {
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('paddle_subscription_id, paddle_customer_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+  if (!sub?.paddle_subscription_id) return c.json({ error: 'No active subscription' }, 400);
+
+  try {
+    await paddle.subscriptions.cancel(sub.paddle_subscription_id, { effectiveFrom: 'immediately' });
+    logPaddle(null, 'lifetime-upgrade', `canceled sub ${sub.paddle_subscription_id}`, 'processed');
+
+    const priceId = PADDLE_PRICES['lifetime'];
+    if (!priceId) return c.json({ error: 'Lifetime price not configured' }, 500);
+
+    const transaction = await paddle.transactions.create({
+      items: [{ priceId, quantity: 1 }],
+      customerId: sub.paddle_customer_id || fallbackCustomerId!,
+      customData: { userId },
+    });
+    logPaddle(null, 'lifetime-upgrade', `user=${userId}, txn=${transaction.id}`, 'processed');
+    return c.json({ transactionId: transaction.id });
+  } catch (err) {
+    logPaddle(null, 'lifetime-upgrade', String(err), 'error');
+    return c.json({ error: 'Failed to upgrade to lifetime' }, 500);
+  }
+}
+
+export async function handlePaddleUpgradeLifetime(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  const auth = await requireBearerUser(c);
+  if (auth instanceof Response) return auth;
+  return upgradeLifetime(c, auth.userId, undefined);
+}
+
+export async function handleUpgradeLifetimeByToken(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  let body: { token?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const verified = body.token ? verifyBillingToken(body.token) : null;
+  if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
+  return upgradeLifetime(c, verified.userId, verified.customerId);
+}
+
+// ─── GET /api/paddle/prices ─────────────────────────────────────────────────
+// Public. Optional ?userId= to localise via signup IP. Returns
+// { monthly: {...}, yearly: {...}, lifetime: {...} }.
+export async function handlePaddlePrices(c: Context): Promise<Response> {
+  if (!PADDLE_ENABLED) return c.json({ error: 'Paddle not configured' }, 503);
+  try {
+    const clientIp = getClientIpFromCtx(c);
+    const userId = c.req.query('userId');
+    const signupIp = userId ? await getSignupIp(userId) : null;
+    const locationParam = buildLocationParam(signupIp, clientIp);
+    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+
+    const monthly = PADDLE_PRICES['monthly']!;
+    const yearly = PADDLE_PRICES['yearly']!;
+    const lifetime = PADDLE_PRICES['lifetime']!;
+
+    logPaddle(null, 'prices', `userId=${userId || 'none'}, signupIp=${signupIp || 'none'}`, 'ok');
+
+    const preview = await paddle.pricingPreview.preview({
+      items: [
+        { priceId: monthly,  quantity: 1 },
+        { priceId: yearly,   quantity: 1 },
+        { priceId: lifetime, quantity: 1 },
+      ],
+      ...locationParam,
+      ...(discountId ? { discountId } : {}),
+    });
+
+    const prices: Record<string, { price: string; original: string | null; currency: string }> = {};
+
+    for (const item of (preview as any).details?.lineItems || []) {
+      const priceId = item.price?.id;
+      let planKey: string | null = null;
+      if (priceId === monthly) planKey = 'monthly';
+      else if (priceId === yearly) planKey = 'yearly';
+      else if (priceId === lifetime) planKey = 'lifetime';
+      if (!planKey) continue;
+
+      const formatted = item.formattedTotals;
+      const totals = item.totals;
+      const currencyCode = (preview as any).currencyCode || 'USD';
+
+      const discountAmt = Number(totals?.discount || 0);
+      const totalNum = Number(totals?.total || 0);
+      const originalNum = totalNum + discountAmt;
+      const originalFormatted = discountAmt > 0 ? formatAmount(originalNum, currencyCode) : null;
+
+      prices[planKey] = {
+        price: formatted?.total || (totalNum / 100).toFixed(2),
+        original: originalFormatted,
+        currency: currencyCode,
+      };
+    }
+
+    return c.json(prices);
+  } catch (err) {
+    logPaddle(null, 'prices', String(err), 'error');
+    return c.json({ error: 'Failed to fetch prices' }, 500);
+  }
 }
