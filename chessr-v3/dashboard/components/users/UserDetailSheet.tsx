@@ -206,9 +206,13 @@ export function UserDetailSheet({
 
   // Paddle extend (separate from manual plan_expiry edit — for users with
   // an active Paddle subscription where the date is the source of truth).
+  // Two-step flow: input → "Add" reveals confirm/cancel buttons → confirm
+  // actually fires the request. Avoids accidental clicks pushing renewal
+  // dates we can't easily roll back.
   const [extendDays, setExtendDays] = useState<number | ''>(7);
   const [extendingPaddle, setExtendingPaddle] = useState(false);
   const [extendError, setExtendError] = useState<string | null>(null);
+  const [extendConfirming, setExtendConfirming] = useState(false);
 
   // Track per-account unlink state. Keyed by `${platform}:${username}`.
   const [unlinkingKey, setUnlinkingKey] = useState<string | null>(null);
@@ -246,6 +250,7 @@ export function UserDetailSheet({
       setDestructiveReason('');
       setExtendDays(7);
       setExtendError(null);
+      setExtendConfirming(false);
       try {
         const token = await getToken();
         if (!token) throw new Error('No session');
@@ -309,6 +314,7 @@ export function UserDetailSheet({
         });
         setEditingExpiry(new Date(json.nextBilledAt));
       }
+      setExtendConfirming(false);
       onUpdated();
     } catch (err) {
       setExtendError(err instanceof Error ? err.message : 'Extend failed');
@@ -801,18 +807,48 @@ export function UserDetailSheet({
                               onChange={(e) => {
                                 const v = e.target.value;
                                 setExtendDays(v === '' ? '' : Math.max(1, Math.min(365, parseInt(v, 10) || 0)));
+                                setExtendConfirming(false);
+                                setExtendError(null);
                               }}
-                              disabled={extendingPaddle}
-                              className="h-8 w-20 rounded-md border border-border bg-background/40 px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              disabled={extendingPaddle || extendConfirming}
+                              className="h-8 w-20 rounded-md border border-border bg-background/40 px-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                             />
                             <span className="text-[11px] text-muted-foreground">days</span>
-                            <Button
-                              size="sm"
-                              onClick={extendPaddle}
-                              disabled={extendingPaddle || typeof extendDays !== 'number' || extendDays <= 0}
-                            >
-                              {extendingPaddle ? <Loader2 size={12} className="animate-spin" /> : 'Add'}
-                            </Button>
+                            {!extendConfirming ? (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setExtendError(null);
+                                  setExtendConfirming(true);
+                                }}
+                                disabled={typeof extendDays !== 'number' || extendDays <= 0}
+                              >
+                                Add
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={extendPaddle}
+                                  disabled={extendingPaddle}
+                                >
+                                  {extendingPaddle
+                                    ? <Loader2 size={12} className="animate-spin" />
+                                    : `Confirm +${extendDays}d`}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setExtendConfirming(false);
+                                    setExtendError(null);
+                                  }}
+                                  disabled={extendingPaddle}
+                                >
+                                  Cancel
+                                </Button>
+                              </>
+                            )}
                           </div>
                           {extendError && (
                             <div className="text-[11px] text-red-500">{extendError}</div>
