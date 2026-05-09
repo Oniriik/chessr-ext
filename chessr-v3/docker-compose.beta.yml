@@ -28,23 +28,28 @@ services:
   # network (no port exposed to the host); serveur connects via the chessr
   # docker network. Persisted to a named volume; backed up nightly via pg_dump
   # to /opt/chessr/backups (mounted volume) — see scripts/pg-backup.sh.
-  postgres-analytics:
+  # Renamed from postgres-analytics on 2026-05-09: this DB now holds the
+  # generic events log too (and likely more local tables), so the
+  # "analytics" framing was misleading. Volume + database name kept as
+  # `postgres_analytics_data` / `chessr_analytics` to preserve the
+  # existing data — renaming either would create an empty volume / DB.
+  postgres:
     # PG17 to match Supabase's server version — pg_dump from a newer
     # server emits directives (e.g. \restrict) that older psql clients
     # silently choke on, leaving the local restore empty.
     image: postgres:17-alpine
-    container_name: chessr-postgres-analytics
+    container_name: chessr-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: chessr_analytics
       POSTGRES_USER: chessr
-      POSTGRES_PASSWORD: ${ANALYTICS_DB_PASSWORD}
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD}
       # Tighten autovacuum on user_activity (heavy churn from inserts +
       # eventual TTL deletes). Defaults are too lazy for an analytics workload.
       POSTGRES_INITDB_ARGS: "--data-checksums"
     volumes:
       - postgres_analytics_data:/var/lib/postgresql/data
-      - ./serveur/migrations/analytics:/docker-entrypoint-initdb.d:ro
+      - ./serveur/migrations/db:/docker-entrypoint-initdb.d:ro
     networks:
       - chessr
     healthcheck:
@@ -108,10 +113,11 @@ services:
       - PORT=8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      # Analytics Postgres (user_activity, game_reviews) — local docker
-      # network, off-Supabase to stay under the free tier.
-      - ANALYTICS_DATABASE_URL=postgresql://chessr:${ANALYTICS_DB_PASSWORD}@postgres-analytics:5432/chessr_analytics
-      - USE_LOCAL_ANALYTICS=${USE_LOCAL_ANALYTICS:-false}
+      # Local Postgres (analytics tables, events log, anything off-Supabase
+      # to stay under the free tier). Reachable on the chessr docker
+      # network as `postgres:5432`.
+      - LOCAL_DATABASE_URL=postgresql://chessr:${LOCAL_DB_PASSWORD}@postgres:5432/chessr_analytics
+      - USE_LOCAL_DB=${USE_LOCAL_DB:-false}
       # Pool sizing — 2 instances of each engine = 8 instances on a CPX41
       # (8 vCPU), one thread per instance, full hardware utilisation.
       # Stockfish suggestions share the analysis pool (see suggestionQueue).
@@ -123,7 +129,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      postgres-analytics:
+      postgres:
         condition: service_healthy
     networks:
       - chessr
@@ -234,6 +240,38 @@ services:
     entrypoint: /bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet --deploy-hook "nginx -s reload 2>/dev/null || true"; sleep 12h & wait $${!}; done;'
     networks:
       - chessr
+
+  # ─── Discord bot ─────────────────────────────────────────────────────
+  # Subscribes to the `chessr:events` Redis channel for real-time fanout
+  # (plan changes, bans, link/unlink). Issues HTTP calls to the serveur
+  # for slash commands that need live data. No port exposed — the bot
+  # talks outbound to Discord and inbound only via Redis / serveur.
+  discord-bot:
+    build:
+      context: ./discord-bot
+      dockerfile: Dockerfile
+    container_name: chessr-discord-bot
+    restart: unless-stopped
+    env_file:
+      - ./discord-bot/.env
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # Reach the serveur container by service name on the chessr network.
+      - SERVEUR_URL=http://serveur:8081
+      - SERVEUR_ADMIN_TOKEN=${SERVEUR_ADMIN_TOKEN}
+    depends_on:
+      redis:
+        condition: service_healthy
+      serveur:
+        condition: service_started
+    networks:
+      - chessr
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
 volumes:
   redis_data:

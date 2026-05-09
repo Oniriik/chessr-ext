@@ -2,7 +2,7 @@
  * Analytics repo — single point of truth for reads/writes against the
  * heavy event tables (`user_activity`, `game_reviews`). Each function
  * routes to either Supabase (legacy, default) or the local Postgres
- * (`analyticsDb`) depending on USE_LOCAL_ANALYTICS.
+ * (`db.ts`) depending on USE_LOCAL_DB.
  *
  * Schema versions:
  *   - Supabase (legacy):  user_activity has only (id, user_id, event_type, created_at).
@@ -19,7 +19,7 @@
  * no benefit during the short transition window.
  */
 import { supabase } from './supabase.js';
-import { analyticsQuery, isLocalAnalyticsEnabled } from './analyticsDb.js';
+import { dbQuery, isLocalDbEnabled } from './db.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -62,8 +62,8 @@ export async function countUserActivityToday(
   todayUTC.setUTCHours(0, 0, 0, 0);
   const sinceISO = todayUTC.toISOString();
 
-  if (isLocalAnalyticsEnabled()) {
-    const rows = await analyticsQuery<{ count: string }>(
+  if (isLocalDbEnabled()) {
+    const rows = await dbQuery<{ count: string }>(
       `SELECT count(*)::text AS count
        FROM user_activity
        WHERE user_id = $1 AND event_type = $2::activity_event_type AND created_at >= $3`,
@@ -85,8 +85,8 @@ export async function countUserActivityToday(
 export async function insertUserActivity(input: UserActivityInsert): Promise<void> {
   const { userId, eventType, engine, source, metadata } = input;
 
-  if (isLocalAnalyticsEnabled()) {
-    await analyticsQuery(
+  if (isLocalDbEnabled()) {
+    await dbQuery(
       `INSERT INTO user_activity (user_id, event_type, engine, source, metadata)
        VALUES ($1, $2::activity_event_type, $3, $4, $5::jsonb)`,
       [
@@ -120,8 +120,8 @@ export async function getCachedReview(
   platform: string,
   coachId: string,
 ): Promise<CachedReview | null> {
-  if (isLocalAnalyticsEnabled()) {
-    const rows = await analyticsQuery<CachedReview>(
+  if (isLocalDbEnabled()) {
+    const rows = await dbQuery<CachedReview>(
       `SELECT analysis, white_username, black_username
        FROM game_reviews
        WHERE game_id = $1 AND platform = $2 AND coach_id = $3
@@ -155,8 +155,8 @@ export interface ReviewUpsertInput {
 /** Cache insert/update for a chess.com review. Conflict on
  *  (game_id, platform, coach_id) overwrites the existing row. */
 export async function upsertCachedReview(input: ReviewUpsertInput): Promise<void> {
-  if (isLocalAnalyticsEnabled()) {
-    await analyticsQuery(
+  if (isLocalDbEnabled()) {
+    await dbQuery(
       `INSERT INTO game_reviews (
          game_id, platform, coach_id, analysis,
          caps_white, caps_black, white_username, black_username

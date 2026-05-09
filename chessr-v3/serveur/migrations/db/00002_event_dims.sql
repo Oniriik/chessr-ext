@@ -2,7 +2,7 @@
 -- source (server vs wasm), and add a generic metadata bag for the rest
 -- (model name for explanations, coach_id / platform for game_review, etc.).
 --
--- Single flag drives the new format: when USE_LOCAL_ANALYTICS=true, writes
+-- Single flag drives the new format: when USE_LOCAL_DB=true, writes
 -- land here and include engine/source/metadata. When false, writes still go
 -- to Supabase via the legacy two-column path (engine/source/metadata are
 -- silently dropped — Supabase's user_activity doesn't have these columns).
