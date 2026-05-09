@@ -144,25 +144,28 @@ abuseRoutes.post('/check-signup', async (c) => {
   let matchedUserIds: string[] = [];
   let reason = '';
   if (fingerprint) {
-    const { data: rows } = await supabase
+    const { data: rows, error } = await supabase
       .from('user_fingerprints')
       .select('user_id')
       .eq('fingerprint', fingerprint);
+    if (error) console.warn('[abuse.check-signup] user_fingerprints select:', error);
     if (rows && rows.length > 0) {
       matchedUserIds = rows.map((r) => r.user_id as string);
       reason = 'fingerprint';
     }
   }
   if (clientIp) {
-    const { data: rows } = await supabase
+    const { data: rows, error } = await supabase
       .from('signup_ips')
       .select('user_id')
       .eq('ip_address', clientIp);
+    if (error) console.warn('[abuse.check-signup] signup_ips select:', error);
     if (rows && rows.length > 0) {
       matchedUserIds = [...matchedUserIds, ...rows.map((r) => r.user_id as string)];
       if (!reason) reason = 'ip';
     }
   }
+  console.log(`[abuse.check-signup] fp=${fingerprint?.slice(0,8) ?? 'none'} ip=${clientIp ?? 'none'} matched=${matchedUserIds.length}`);
 
   // Step 2 — if any match, resolve their accounts and check for a ban.
   // Banned linked → block immediately, never call UserCheck (saves
@@ -257,34 +260,28 @@ abuseRoutes.post('/report-signup', async (c) => {
     ? await resolveIpCountry(clientIp)
     : { country: null, countryCode: null };
 
-  // Insert / upsert both records. Each table has a unique index that
-  // prevents duplicates so we use upsert with ignore-duplicates. The
-  // supabase query builder is thenable but not a strict Promise — wrap
-  // with `Promise.resolve` to satisfy Promise.all's type.
-  const tasks: Promise<unknown>[] = [];
+  // Insert / upsert both records. The supabase builder doesn't reject
+  // on DB errors — it resolves with { data, error }. So we have to
+  // inspect `error` explicitly; otherwise schema/RLS/missing-table
+  // failures end up silently swallowed.
   if (fingerprint) {
-    tasks.push(Promise.resolve(
-      supabase
-        .from('user_fingerprints')
-        .upsert(
-          { user_id: userId, fingerprint },
-          { onConflict: 'user_id,fingerprint', ignoreDuplicates: true },
-        ),
-    ));
+    const { error } = await supabase
+      .from('user_fingerprints')
+      .upsert(
+        { user_id: userId, fingerprint },
+        { onConflict: 'user_id,fingerprint', ignoreDuplicates: true },
+      );
+    if (error) console.warn('[abuse.report-signup] user_fingerprints upsert:', error);
   }
   if (clientIp) {
-    tasks.push(Promise.resolve(
-      supabase
-        .from('signup_ips')
-        .upsert(
-          { user_id: userId, ip_address: clientIp, country, country_code: countryCode },
-          { onConflict: 'user_id,ip_address', ignoreDuplicates: true },
-        ),
-    ));
+    const { error } = await supabase
+      .from('signup_ips')
+      .upsert(
+        { user_id: userId, ip_address: clientIp, country, country_code: countryCode },
+        { onConflict: 'user_id,ip_address', ignoreDuplicates: true },
+      );
+    if (error) console.warn('[abuse.report-signup] signup_ips upsert:', error);
   }
-  await Promise.all(tasks).catch((err) => {
-    console.warn('[abuse.report-signup] persist failed:', err);
-  });
 
   // Emit only on the signup path — re-logins don't represent a new
   // user joining and would spam the activity feed.
