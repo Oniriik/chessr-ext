@@ -25,6 +25,7 @@ const VALID_TYPES = [
   'freetrial_claimed',
   'signup_success',
   'signup_blocked',
+  'login_blocked',
 ] as const;
 export type EventType = (typeof VALID_TYPES)[number];
 

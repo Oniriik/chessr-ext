@@ -313,17 +313,41 @@ abuseRoutes.post('/report-signup', async (c) => {
 
 // ─── POST /report-banned-login ──────────────────────────────────────────
 abuseRoutes.post('/report-banned-login', async (c) => {
+  let userId: string | null = null;
   let email = '';
   let banReason = '';
+  let fingerprint: string | null = null;
   try {
     const body = await c.req.json();
-    email     = typeof body?.email === 'string' ? body.email : '';
-    banReason = typeof body?.banReason === 'string' ? body.banReason : '';
+    userId      = typeof body?.userId === 'string' ? body.userId : null;
+    email       = typeof body?.email === 'string' ? body.email : '';
+    banReason   = typeof body?.banReason === 'string' ? body.banReason : '';
+    fingerprint = typeof body?.fingerprint === 'string' ? body.fingerprint : null;
   } catch { /* empty */ }
+
+  const clientIp = getClientIp(c);
+  const { country, countryCode } = clientIp
+    ? await resolveIpCountry(clientIp)
+    : { country: null, countryCode: null };
+
+  // Audit trail — admin dashboard / activity feed reads from `events`,
+  // so this is the durable record. Discord embed below is just the
+  // real-time alert.
+  await emitEvent({
+    type: 'login_blocked',
+    user_id: userId,
+    payload: {
+      email,
+      ip: clientIp,
+      country,
+      countryCode,
+      fingerprint,
+      banReason,
+    },
+  });
 
   if (!BOT_TOKEN || !NOTIF_CHAN) return c.json({ ok: true, sent: false });
 
-  const ip = getClientIp(c) || 'unknown';
   fetch(`${DISCORD_API}/channels/${NOTIF_CHAN}/messages`, {
     method: 'POST',
     headers: {
@@ -336,7 +360,8 @@ abuseRoutes.post('/report-banned-login', async (c) => {
         color: 0xef4444,
         fields: [
           { name: '📧 Email', value: email || 'unknown', inline: true },
-          { name: '🌐 IP',    value: ip,                inline: true },
+          { name: '🌐 IP',    value: clientIp || 'unknown', inline: true },
+          { name: '🌍 Country', value: country || '—',    inline: true },
           { name: '📝 Ban reason', value: banReason || '—', inline: false },
         ],
         timestamp: new Date().toISOString(),

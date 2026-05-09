@@ -60,6 +60,11 @@ export const EVENT_KINDS = [
   //                  account → "you already have an account"
   //   'disposable' — UserCheck flagged the email
   'signup_blocked',
+  // payload: { email, ip, country, countryCode, fingerprint, banReason }
+  // Emitted when a banned user attempts to sign in via the form. The
+  // signIn already calls supabase.auth.signOut so no token leaks.
+  // user_id on the event row identifies the banned account.
+  'login_blocked',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

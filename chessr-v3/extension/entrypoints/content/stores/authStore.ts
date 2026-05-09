@@ -209,12 +209,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .single();
       if (settings?.banned) {
         const reason = settings.ban_reason || 'This account is banned.';
+        const bannedUserId = data.user.id;
         await supabase.auth.signOut();
-        // Fire-and-forget admin notif with the IP server-side resolves.
+        // Fire-and-forget admin notif + login_blocked event. We send
+        // userId so the audit row is keyed to the banned account, and
+        // fingerprint so the dashboard can correlate with signup_ips.
+        const fingerprintForBan = await getFingerprint().catch(() => null);
         fetch(`${SERVER_URL}/report-banned-login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, banReason: reason }),
+          body: JSON.stringify({
+            userId: bannedUserId,
+            email,
+            banReason: reason,
+            fingerprint: fingerprintForBan,
+          }),
         }).catch(() => {});
         set({
           loading: false,
