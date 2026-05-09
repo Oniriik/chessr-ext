@@ -13,12 +13,30 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const rows = (data as Array<{ country_code: string; country: string; user_count: number }>) || [];
+  const rows = (data as Array<{
+    country_code: string;
+    country: string;
+    user_count: number;
+    free_count?: number;
+    freetrial_count?: number;
+    premium_count?: number;
+    beta_count?: number;
+    lifetime_count?: number;
+  }>) || [];
+
   const total = rows.reduce((s, r) => s + r.user_count, 0);
+  const planTotals = {
+    free:      rows.reduce((s, r) => s + (r.free_count      ?? 0), 0),
+    freetrial: rows.reduce((s, r) => s + (r.freetrial_count ?? 0), 0),
+    premium:   rows.reduce((s, r) => s + (r.premium_count   ?? 0), 0),
+    beta:      rows.reduce((s, r) => s + (r.beta_count      ?? 0), 0),
+    lifetime:  rows.reduce((s, r) => s + (r.lifetime_count  ?? 0), 0),
+  };
 
   return NextResponse.json({
     countries: rows,
     total,
     distinct: rows.length,
+    planTotals,
   });
 }

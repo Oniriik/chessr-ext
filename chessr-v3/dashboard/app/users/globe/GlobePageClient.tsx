@@ -12,9 +12,18 @@ import { AdminShell } from '@/components/AdminShell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { WorldMap2D } from './WorldMap2D';
-import { pickIso, pickName, colorFor, type CountryFeature, type CountryRow } from './lib';
+import { pickIso, pickName, colorFor, countFor, type CountryFeature, type CountryRow, type PlanFilter } from './lib';
 import { getSupabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { PLAN_COLORS } from '@/lib/plan-colors';
+
+const PLAN_FILTERS: PlanFilter[] = ['all', 'free', 'freetrial', 'premium', 'beta', 'lifetime'];
+
+// Order of segments in the plan-distribution bar. Highest tier first
+// so the eye reads "premium↓free" left-to-right.
+const PLAN_BAR_ORDER: Exclude<PlanFilter, 'all'>[] = [
+  'lifetime', 'premium', 'beta', 'freetrial', 'free',
+];
 
 // react-globe.gl ships three.js + WebGL; needs the browser. ssr:false is
 // the documented way to use it under the Next.js app router.
@@ -38,6 +47,10 @@ export function GlobePageClient() {
   const [counts, setCounts] = useState<Record<string, CountryRow>>({});
   const [total, setTotal] = useState(0);
   const [distinct, setDistinct] = useState(0);
+  const [planTotals, setPlanTotals] = useState<Record<Exclude<PlanFilter, 'all'>, number>>({
+    free: 0, freetrial: 0, premium: 0, beta: 0, lifetime: 0,
+  });
+  const [planFilter, setPlanFilter] = useState<PlanFilter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [autoRotate, setAutoRotate] = useState(true);
@@ -80,6 +93,15 @@ export function GlobePageClient() {
         setCounts(map);
         setTotal(countsJson.total ?? 0);
         setDistinct(countsJson.distinct ?? 0);
+        if (countsJson.planTotals) {
+          setPlanTotals({
+            free:      countsJson.planTotals.free      ?? 0,
+            freetrial: countsJson.planTotals.freetrial ?? 0,
+            premium:   countsJson.planTotals.premium   ?? 0,
+            beta:      countsJson.planTotals.beta      ?? 0,
+            lifetime:  countsJson.planTotals.lifetime  ?? 0,
+          });
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
@@ -110,9 +132,31 @@ export function GlobePageClient() {
     c.enableDamping = true;
   }, [autoRotate, loading, countries.length]);
 
+  // ─── Derived: filtered counts by active plan ────────────────────────
+  // Returns a counts map identical in shape to the unfiltered one but
+  // with `user_count` replaced by the plan-specific count. The Globe /
+  // WorldMap2D / Top countries list all key off `user_count`, so this
+  // single transform feeds them without needing to plumb the filter
+  // deeper into each component.
+  const filteredCounts = useMemo(() => {
+    if (planFilter === 'all') return counts;
+    const out: Record<string, CountryRow> = {};
+    for (const iso in counts) {
+      const row = counts[iso];
+      const n = countFor(row, planFilter);
+      if (n > 0) out[iso] = { ...row, user_count: n };
+    }
+    return out;
+  }, [counts, planFilter]);
+
+  const filteredTotal = useMemo(
+    () => Object.values(filteredCounts).reduce((s, r) => s + r.user_count, 0),
+    [filteredCounts],
+  );
+
   const max = useMemo(
-    () => Object.values(counts).reduce((m, c) => Math.max(m, c.user_count), 0),
-    [counts],
+    () => Object.values(filteredCounts).reduce((m, c) => Math.max(m, c.user_count), 0),
+    [filteredCounts],
   );
 
   // Custom globe material — neutral dark gray ocean so the colored
@@ -128,8 +172,8 @@ export function GlobePageClient() {
   );
 
   const top = useMemo(
-    () => [...Object.values(counts)].sort((a, b) => b.user_count - a.user_count).slice(0, 10),
-    [counts],
+    () => [...Object.values(filteredCounts)].sort((a, b) => b.user_count - a.user_count).slice(0, 10),
+    [filteredCounts],
   );
 
   // Denominator for the coverage % is the count of countries actually
@@ -177,9 +221,9 @@ export function GlobePageClient() {
                     width={size.w}
                     height={size.h}
                     countries={countries as unknown as Parameters<typeof WorldMap2D>[0]['countries']}
-                    counts={counts}
+                    counts={filteredCounts}
                     max={max}
-                    colorFor={colorFor}
+                    colorFor={(count, m) => colorFor(count, m, planFilter)}
                   />
                 ) : size.w > 0 && (
                   <Globe
@@ -204,15 +248,15 @@ export function GlobePageClient() {
                     polygonCapColor={(d: object) => {
                       const f = d as CountryFeature;
                       const iso = pickIso(f);
-                      const count = iso ? counts[iso]?.user_count ?? 0 : 0;
-                      return colorFor(count, max);
+                      const count = iso ? filteredCounts[iso]?.user_count ?? 0 : 0;
+                      return colorFor(count, max, planFilter);
                     }}
                     polygonSideColor={() => 'rgba(0,0,0,0.4)'}
                     polygonStrokeColor={() => 'rgba(255,255,255,0.12)'}
                     polygonLabel={(d: object) => {
                       const f = d as CountryFeature;
                       const iso = pickIso(f);
-                      const row = iso ? counts[iso] : undefined;
+                      const row = iso ? filteredCounts[iso] : undefined;
                       const name = row?.country || pickName(f);
                       const n = row?.user_count ?? 0;
                       return `
@@ -299,8 +343,109 @@ export function GlobePageClient() {
                     <span className="text-[11px] text-muted-foreground">countries</span>
                   </div>
                   <div className="num mt-1 flex items-baseline gap-2">
-                    <span className="text-[13px] font-medium text-foreground/80">{total.toLocaleString()}</span>
-                    <span className="text-[11px] text-muted-foreground">users with known IP</span>
+                    <span className="text-[13px] font-medium text-foreground/80">
+                      {(planFilter === 'all' ? total : filteredTotal).toLocaleString()}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {planFilter === 'all' ? 'users with known IP' : `${planFilter} users`}
+                    </span>
+                  </div>
+                </div>
+
+                {/* ─── Plan distribution stacked bar ───────────────────── */}
+                <div className="space-y-2 border-t border-border/40 pt-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Plan distribution
+                    </span>
+                    <span className="num text-[11px] text-muted-foreground tabular-nums">
+                      {total.toLocaleString()} total
+                    </span>
+                  </div>
+                  {total > 0 ? (
+                    <>
+                      <div className="flex h-2 w-full overflow-hidden rounded-full bg-secondary/50">
+                        {PLAN_BAR_ORDER.map((p) => {
+                          const n = planTotals[p];
+                          if (!n) return null;
+                          const pct = (n / total) * 100;
+                          return (
+                            <div
+                              key={p}
+                              title={`${p}: ${n.toLocaleString()} (${pct.toFixed(1)}%)`}
+                              style={{ width: `${pct}%`, backgroundColor: PLAN_COLORS[p].dot }}
+                              className="h-full transition-[width] duration-300"
+                            />
+                          );
+                        })}
+                      </div>
+                      <ul className="grid grid-cols-2 gap-x-3 gap-y-1 pt-0.5 text-[10px]">
+                        {PLAN_BAR_ORDER.map((p) => {
+                          const n = planTotals[p];
+                          const pct = total ? (n / total) * 100 : 0;
+                          return (
+                            <li key={p} className="flex items-center gap-1.5 capitalize">
+                              <span
+                                className="h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: PLAN_COLORS[p].dot }}
+                              />
+                              <span className="text-muted-foreground">{p}</span>
+                              <span className="num ml-auto tabular-nums text-foreground/80">
+                                {pct.toFixed(1)}%
+                              </span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">No data yet.</p>
+                  )}
+                </div>
+
+                {/* ─── Plan filter chips ───────────────────────────────── */}
+                <div className="space-y-1.5 border-t border-border/40 pt-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Filter by plan
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {PLAN_FILTERS.map((p) => {
+                      const active = planFilter === p;
+                      const tone = p === 'all' ? null : PLAN_COLORS[p];
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setPlanFilter(p)}
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium capitalize transition-colors',
+                            active
+                              ? 'border-transparent text-foreground'
+                              : 'border-border bg-background/40 text-muted-foreground hover:bg-muted hover:text-foreground',
+                          )}
+                          style={
+                            active && tone
+                              ? { backgroundColor: tone.bg, color: tone.text }
+                              : active
+                                ? { backgroundColor: 'rgba(96,165,250,0.15)', color: '#93C5FD' }
+                                : undefined
+                          }
+                          aria-pressed={active}
+                        >
+                          {p === 'all'
+                            ? 'All'
+                            : (
+                              <>
+                                <span
+                                  className="h-1.5 w-1.5 rounded-full"
+                                  style={tone ? { backgroundColor: tone.dot } : undefined}
+                                />
+                                {p}
+                              </>
+                            )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -331,7 +476,8 @@ export function GlobePageClient() {
                 ) : (
                   <ul className="space-y-1.5">
                     {top.map((c, i) => {
-                      const pct = total ? (c.user_count / total) * 100 : 0;
+                      const denom = planFilter === 'all' ? total : filteredTotal;
+                      const pct = denom ? (c.user_count / denom) * 100 : 0;
                       return (
                         <li key={c.country_code} className="flex items-center gap-2">
                           <span className="num w-6 text-[10px] text-muted-foreground">
