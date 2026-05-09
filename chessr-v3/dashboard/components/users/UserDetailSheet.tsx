@@ -706,15 +706,31 @@ export function UserDetailSheet({
               </div>
 
               {/* ─── Plan & expiry ──────────────────────────────────── */}
+              {(() => {
+                // Active Paddle subscription = Paddle owns plan + expiry.
+                // Editing them from the dashboard would drift from Paddle
+                // and the next webhook would overwrite anyway. Keep the
+                // section read-only with the dedicated extend-days flow
+                // for the only mutation that makes sense (free days).
+                const paddleManaged =
+                  !!detail.subscription?.paddle_subscription_id &&
+                  detail.subscription.status !== 'canceled' &&
+                  !detail.subscription.canceled_at;
+                return (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                   <Crown size={11} /> Plan
+                  {paddleManaged && (
+                    <span className="font-normal normal-case tracking-normal text-amber-500">
+                      — managed by Paddle
+                    </span>
+                  )}
                 </div>
                 <select
                   value={editingPlan ?? 'free'}
                   onChange={(e) => setEditingPlan(e.target.value as typeof PLANS[number])}
-                  className="flex h-9 w-full rounded-md border border-border bg-background/40 px-2 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  disabled={savingPlan}
+                  className="flex h-9 w-full rounded-md border border-border bg-background/40 px-2 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={savingPlan || paddleManaged}
                 >
                   {PLANS.map((p) => <option key={p} value={p} className="capitalize">{p}</option>)}
                 </select>
@@ -859,7 +875,7 @@ export function UserDetailSheet({
                   );
                 })()}
 
-                {planChanged && (
+                {planChanged && !paddleManaged && (
                   <div className="flex gap-2 pt-1">
                     <Button size="sm" onClick={savePlan} disabled={savingPlan}>
                       {savingPlan ? <Loader2 size={12} className="animate-spin" /> : 'Save plan'}
@@ -873,6 +889,8 @@ export function UserDetailSheet({
                   </div>
                 )}
               </div>
+              );
+              })()}
 
               {/* ─── Role (super_admin only) ────────────────────────── */}
               {callerRole === 'super_admin' && (
