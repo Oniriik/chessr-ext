@@ -134,8 +134,74 @@ abuseRoutes.post('/check-signup', async (c) => {
 
   const clientIp = getClientIp(c);
 
-  // Step 0 — disposable / spam-domain filter. Cheap and decisive: a
-  // disposable email is always rejected, no further checks needed.
+  // Step 1 — local DB cross-check on fingerprint + IP (~1ms each).
+  // Cheap, deterministic, and decisive when a banned account matches.
+  // No need for the auth.admin.listUsers email→id lookup the chessr-
+  // next code did: a signup-flow email shouldn't exist yet, and
+  // supabase.auth.signUp will reject duplicates later if it does.
+  let matchedUserIds: string[] = [];
+  let reason = '';
+  if (fingerprint) {
+    const { data: rows } = await supabase
+      .from('user_fingerprints')
+      .select('user_id')
+      .eq('fingerprint', fingerprint);
+    if (rows && rows.length > 0) {
+      matchedUserIds = rows.map((r) => r.user_id as string);
+      reason = 'fingerprint';
+    }
+  }
+  if (clientIp) {
+    const { data: rows } = await supabase
+      .from('signup_ips')
+      .select('user_id')
+      .eq('ip_address', clientIp);
+    if (rows && rows.length > 0) {
+      matchedUserIds = [...matchedUserIds, ...rows.map((r) => r.user_id as string)];
+      if (!reason) reason = 'ip';
+    }
+  }
+
+  // Step 2 — if any match, resolve their accounts and check for a ban.
+  // Banned linked → block immediately, never call UserCheck (saves
+  // rate budget on the bad-actor path).
+  if (matchedUserIds.length > 0) {
+    const matched = await fetchAccountsByIds(matchedUserIds);
+    const bannedHit = matched.find((m) => m.banned);
+    notifyDuplicateSignup({ email, reason, fingerprint, ip: clientIp, matched, blocked: !!bannedHit })
+      .catch(() => {});
+    if (bannedHit) {
+      const { country, countryCode } = clientIp
+        ? await resolveIpCountry(clientIp)
+        : { country: null, countryCode: null };
+      await emitEvent({
+        type: 'signup_blocked',
+        payload: {
+          email,
+          ip: clientIp,
+          country,
+          countryCode,
+          fingerprint,
+          reason: 'banned',
+          linkedAccountIds: [...new Set(matchedUserIds)],
+        },
+      });
+      return c.json({
+        allowed: false,
+        reason: 'banned',
+        banReason: bannedHit.ban_reason ?? 'Your account was banned.',
+        appealUrl: APPEAL_INVITE,
+      });
+    }
+    // Multi-account but nobody banned — fall through to disposable.
+    // Households / shared mobile networks are fine, but we still
+    // want to filter throwaway emails from these matches too.
+  }
+
+  // Step 3 — only NOW do the rate-limited UserCheck call. Skipped
+  // entirely when step 2 already concluded (banned link) — that path
+  // doesn't waste a UserCheck request on someone we've decided to
+  // reject anyway.
   if (email && await isDisposableEmail(email)) {
     const { country, countryCode } = clientIp
       ? await resolveIpCountry(clientIp)
@@ -149,7 +215,7 @@ abuseRoutes.post('/check-signup', async (c) => {
         countryCode,
         fingerprint,
         reason: 'disposable',
-        linkedAccountIds: [],
+        linkedAccountIds: [...new Set(matchedUserIds)],
       },
     });
     return c.json({
@@ -159,86 +225,10 @@ abuseRoutes.post('/check-signup', async (c) => {
     });
   }
 
-  // Resolve the existing user_id for this email so a re-check during
-  // re-signup doesn't false-positive on the user's own footprint.
-  let currentUserId: string | null = null;
-  if (email) {
-    try {
-      const { data } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      const found = data?.users?.find((u) => u.email === email);
-      currentUserId = found?.id ?? null;
-    } catch { /* keep null — fail-open */ }
-  }
-
-  let matchedUserIds: string[] = [];
-  let reason = '';
-
-  // Check 1 — fingerprint (priority, more specific than IP).
-  if (fingerprint) {
-    let q = supabase.from('user_fingerprints').select('user_id').eq('fingerprint', fingerprint);
-    if (currentUserId) q = q.neq('user_id', currentUserId);
-    const { data: rows } = await q;
-    if (rows && rows.length > 0) {
-      matchedUserIds = rows.map((r) => r.user_id as string);
-      reason = 'fingerprint';
-    }
-  }
-
-  // Check 2 — IP (fallback). Even if FP matched, also include IP
-  // matches for the matched-accounts list (gives admins a fuller
-  // picture in the Discord notif).
-  if (clientIp) {
-    let q = supabase.from('signup_ips').select('user_id').eq('ip_address', clientIp);
-    if (currentUserId) q = q.neq('user_id', currentUserId);
-    const { data: rows } = await q;
-    if (rows && rows.length > 0) {
-      matchedUserIds = [...matchedUserIds, ...rows.map((r) => r.user_id as string)];
-      if (!reason) reason = 'ip';
-    }
-  }
-
-  if (matchedUserIds.length === 0) {
-    return c.json({ allowed: true });
-  }
-
-  const matched = await fetchAccountsByIds(matchedUserIds);
-  const bannedHit = matched.find((m) => m.banned);
-
-  // Fire-and-forget Discord notif so admins see the multi-account event
-  // regardless of whether we block. Don't await.
-  notifyDuplicateSignup({ email, reason, fingerprint, ip: clientIp, matched, blocked: !!bannedHit })
-    .catch(() => {});
-
-  if (bannedHit) {
-    // Persistent record of the rejection. user_id is the BLOCKED would-
-    // be account → null (it doesn't exist yet); linkedAccountIds are
-    // the existing accounts that triggered the block.
-    const { country, countryCode } = clientIp
-      ? await resolveIpCountry(clientIp)
-      : { country: null, countryCode: null };
-    await emitEvent({
-      type: 'signup_blocked',
-      payload: {
-        email,
-        ip: clientIp,
-        country,
-        countryCode,
-        fingerprint,
-        reason: 'banned',
-        linkedAccountIds: [...new Set(matchedUserIds)],
-      },
-    });
-    return c.json({
-      allowed: false,
-      reason: 'banned',
-      banReason: bannedHit.ban_reason ?? 'Your account was banned.',
-      appealUrl: APPEAL_INVITE,
-    });
-  }
-
-  // Multi-account but nobody banned: still let the signup through.
-  // Households / shared mobile networks are fine.
-  return c.json({ allowed: true, multiAccount: true });
+  return c.json({
+    allowed: true,
+    multiAccount: matchedUserIds.length > 0 ? true : undefined,
+  });
 });
 
 // ─── POST /report-signup ────────────────────────────────────────────────
