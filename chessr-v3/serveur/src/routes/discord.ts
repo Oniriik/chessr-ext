@@ -174,11 +174,15 @@ app.get('/discord/callback', async (c) => {
   // claimFreeTrial enforces both gates internally, so a paid user (or
   // someone who already burned their trial) just gets a no-op return.
   // The success path emits its own plan_changed event which the bot
-  // picks up to swap their Free role for Freetrial.
+  // picks up to swap their Free role for Freetrial. The deny path
+  // surfaces the reason in the URL so the extension can show a non-
+  // alarming "didn't get the trial because X" message.
   const trial = await claimFreeTrial(userId, userId);
-  const trialFlag = trial.ok ? '&trial=granted' : '';
+  const trialQuery = trial.ok
+    ? '&trial=granted'
+    : `&trial=denied&trial_reason=${encodeURIComponent(trial.reason)}`;
 
-  return c.redirect(`${returnUrl}?discord_linked=true${trialFlag}`);
+  return c.redirect(`${returnUrl}?discord_linked=true${trialQuery}`);
 });
 
 // Unlink Discord
