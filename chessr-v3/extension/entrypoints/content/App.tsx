@@ -143,26 +143,46 @@ export default function App({ streamMode = false }: AppProps = {}) {
     };
   }, []);
 
+  // Gate login triggers to ONE fire per tab session (sessionStorage)
+  // so chess.com's full-page navigations within the same tab don't keep
+  // popping the same nudge. New-tab / cleared-storage = fresh fire.
+  // WS-broadcast messages bypass this entirely (separate path in
+  // content.tsx → useWidgetStore.push).
+  //
+  // Trial CTA is intentionally first in the cascade — eligible-for-trial
+  // beats every other login nudge so users never miss the offer.
   const triggersFiredRef = useRef<string | null>(null);
   useEffect(() => {
     if (!user || planLoading) return;
-    // Re-fire on user switch, but not on every state churn.
     if (triggersFiredRef.current === user.id) return;
 
-    if (plan === 'free' && !freetrialUsed) {
+    const sessionKey = `chessr:login-trigger-fired:${user.id}`;
+    try {
+      if (sessionStorage.getItem(sessionKey) === '1') {
+        triggersFiredRef.current = user.id;
+        return;
+      }
+    } catch { /* sessionStorage blocked → proceed best-effort */ }
+
+    const markFired = () => {
       triggersFiredRef.current = user.id;
+      try { sessionStorage.setItem(sessionKey, '1'); } catch {}
+    };
+
+    if (plan === 'free' && !freetrialUsed) {
+      markFired();
       pushWidget({
         id: 'login-claim-trial',
         category: 'trial',
         title: 'Try chessr Premium for 3 days',
-        body: 'Link your Discord account and we\'ll unlock the full premium experience for 3 days — no card, no strings.',
+        body: 'Link your Discord account and we\'ll unlock the full premium experience for 3 days (no card needed).',
         cta: { label: 'Link Discord & claim', action: { kind: 'discord-link' } },
       });
       return;
     }
 
     if (freetrialUsed && discordLinked && inGuild === false) {
-      triggersFiredRef.current = user.id;
+      markFired();
       pushWidget({
         id: 'login-join-discord',
         category: 'discord',
@@ -175,7 +195,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
 
     const tip = pickNextHowTo();
     if (tip) {
-      triggersFiredRef.current = user.id;
+      markFired();
       pushWidget(tip);
     }
   }, [user?.id, plan, freetrialUsed, planLoading, discordLinked, inGuild, pushWidget]);
