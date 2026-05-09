@@ -53,9 +53,12 @@ export const EVENT_KINDS = [
   'signup_success',
   // payload: { email, ip, country, countryCode, fingerprint, reason,
   //            linkedAccountIds }
-  // Emitted when the abuse check rejects a signup (banned linked
-  // account so far). `reason` mirrors what /check-signup returns:
-  // 'banned' | 'disposable' | …
+  // Emitted when the abuse check rejects a signup. `reason` mirrors
+  // what /check-signup returns:
+  //   'banned'     — a linked account is banned (appeal screen on client)
+  //   'duplicate'  — fingerprint or IP matches an existing non-banned
+  //                  account → "you already have an account"
+  //   'disposable' — UserCheck flagged the email
   'signup_blocked',
 ] as const;
 

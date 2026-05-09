@@ -167,18 +167,20 @@ abuseRoutes.post('/check-signup', async (c) => {
   }
   console.log(`[abuse.check-signup] fp=${fingerprint?.slice(0,8) ?? 'none'} ip=${clientIp ?? 'none'} matched=${matchedUserIds.length}`);
 
-  // Step 2 — if any match, resolve their accounts and check for a ban.
-  // Banned linked → block immediately, never call UserCheck (saves
-  // rate budget on the bad-actor path).
+  // Step 2 — if any match, resolve their accounts and block. A banned
+  // hit gets the dedicated appeal screen; any other match gets a
+  // generic "you already have an account" message. Either way we
+  // never reach UserCheck (saves rate budget on the bad-actor path).
   if (matchedUserIds.length > 0) {
     const matched = await fetchAccountsByIds(matchedUserIds);
     const bannedHit = matched.find((m) => m.banned);
-    notifyDuplicateSignup({ email, reason, fingerprint, ip: clientIp, matched, blocked: !!bannedHit })
+    notifyDuplicateSignup({ email, reason, fingerprint, ip: clientIp, matched, blocked: true })
       .catch(() => {});
+    const { country, countryCode } = clientIp
+      ? await resolveIpCountry(clientIp)
+      : { country: null, countryCode: null };
+
     if (bannedHit) {
-      const { country, countryCode } = clientIp
-        ? await resolveIpCountry(clientIp)
-        : { country: null, countryCode: null };
       await emitEvent({
         type: 'signup_blocked',
         payload: {
@@ -198,9 +200,24 @@ abuseRoutes.post('/check-signup', async (c) => {
         appealUrl: APPEAL_INVITE,
       });
     }
-    // Multi-account but nobody banned — fall through to disposable.
-    // Households / shared mobile networks are fine, but we still
-    // want to filter throwaway emails from these matches too.
+
+    await emitEvent({
+      type: 'signup_blocked',
+      payload: {
+        email,
+        ip: clientIp,
+        country,
+        countryCode,
+        fingerprint,
+        reason: 'duplicate',
+        linkedAccountIds: [...new Set(matchedUserIds)],
+      },
+    });
+    return c.json({
+      allowed: false,
+      reason: 'duplicate',
+      message: 'You already have an account.',
+    });
   }
 
   // Step 3 — only NOW do the rate-limited UserCheck call. Skipped
@@ -230,10 +247,7 @@ abuseRoutes.post('/check-signup', async (c) => {
     });
   }
 
-  return c.json({
-    allowed: true,
-    multiAccount: matchedUserIds.length > 0 ? true : undefined,
-  });
+  return c.json({ allowed: true });
 });
 
 // ─── POST /report-signup ────────────────────────────────────────────────
