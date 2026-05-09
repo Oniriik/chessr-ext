@@ -394,16 +394,8 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
       {/* ─── Mobile compact layout ─────────────────────────────── */}
       <div className="flex flex-col gap-1.5 sm:hidden">
         <div className="flex items-center justify-between gap-2">
-          <span className="flex min-w-0 flex-1 items-center gap-1.5">
-            <span
-              className={cn('shrink-0', u.has_discord ? 'text-[#5865F2]' : 'text-muted-foreground/30')}
-              title={u.has_discord ? 'Discord linked' : 'Discord not linked'}
-            >
-              <DiscordIcon size={13} />
-            </span>
-            <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-              {u.email || '—'}
-            </span>
+          <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+            {u.email || '—'}
           </span>
           <Badge variant={planVariant(u.plan)} className="shrink-0 capitalize">{u.plan}</Badge>
         </div>
@@ -431,22 +423,21 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
               <Badge variant="warning" className="px-1.5 py-0 text-[9px]">unverified</Badge>
             )}
             {u.banned && <Badge variant="destructive" className="px-1.5 py-0 text-[9px]">banned</Badge>}
+            <span
+              className="shrink-0"
+              style={{ color: u.has_discord ? '#5865F2' : undefined }}
+              title={u.has_discord ? 'Discord linked' : 'Discord not linked'}
+            >
+              <DiscordIcon size={12} />
+            </span>
           </span>
         </div>
       </div>
 
       {/* ─── Desktop grid columns ──────────────────────────────── */}
-      <div className="hidden min-w-0 sm:flex sm:items-center sm:gap-2">
-        <span
-          className={cn('shrink-0', u.has_discord ? 'text-[#5865F2]' : 'text-muted-foreground/30')}
-          title={u.has_discord ? 'Discord linked' : 'Discord not linked'}
-        >
-          <DiscordIcon size={14} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-medium">{u.email || '—'}</div>
-          <div className="truncate font-mono text-[10px] text-muted-foreground">{u.user_id}</div>
-        </div>
+      <div className="hidden min-w-0 sm:block">
+        <div className="truncate text-[13px] font-medium">{u.email || '—'}</div>
+        <div className="truncate font-mono text-[10px] text-muted-foreground">{u.user_id}</div>
       </div>
 
       <div className="hidden items-center gap-1.5 sm:flex">
@@ -475,6 +466,13 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
         )}
         {u.freetrial_used && <Badge variant="muted" className="px-1.5 py-0.5 text-[9px]">trial</Badge>}
         {u.banned && <Badge variant="destructive" className="px-1.5 py-0.5 text-[9px]">banned</Badge>}
+        <span
+          className={cn('shrink-0', !u.has_discord && 'opacity-25 text-muted-foreground')}
+          style={{ color: u.has_discord ? '#5865F2' : undefined }}
+          title={u.has_discord ? 'Discord linked' : 'Discord not linked'}
+        >
+          <DiscordIcon size={14} />
+        </span>
       </div>
     </li>
   );
