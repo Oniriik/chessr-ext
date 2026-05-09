@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import crypto from 'node:crypto';
 import { supabase } from '../lib/supabase.js';
 import { emitEvent } from '../lib/events.js';
+import { claimFreeTrial } from './freetrial.js';
 
 const app = new Hono();
 
@@ -168,7 +169,16 @@ app.get('/discord/callback', async (c) => {
     payload: { discordId: discordUser.id, discordUsername: discordUser.username },
   });
 
-  return c.redirect(`${returnUrl}?discord_linked=true`);
+  // Auto-grant the 3-day free trial when a user links Discord — but
+  // ONLY if they're currently on `free` AND haven't ever claimed before.
+  // claimFreeTrial enforces both gates internally, so a paid user (or
+  // someone who already burned their trial) just gets a no-op return.
+  // The success path emits its own plan_changed event which the bot
+  // picks up to swap their Free role for Freetrial.
+  const trial = await claimFreeTrial(userId, userId);
+  const trialFlag = trial.ok ? '&trial=granted' : '';
+
+  return c.redirect(`${returnUrl}?discord_linked=true${trialFlag}`);
 });
 
 // Unlink Discord
@@ -204,6 +214,44 @@ app.post('/discord/unlink', async (c) => {
   });
 
   return c.json({ success: true });
+});
+
+// Get Discord guild-membership status — used by the extension to
+// decide whether to nudge the user to join the community server. The
+// answer can shift between login and now (user could leave the guild),
+// so we ask Discord live every time. Cheap query, no caching needed
+// for the foreseeable load.
+app.get('/discord/membership-status', async (c) => {
+  const userId = c.req.query('userId');
+  if (!userId) return c.json({ error: 'Missing userId' }, 400);
+  if (!GUILD_ID || !BOT_TOKEN) {
+    // Not configured — pretend they're members so we don't pester the
+    // user with "join us" CTAs that point nowhere.
+    return c.json({ inGuild: true, configured: false });
+  }
+
+  const { data } = await supabase
+    .from('user_settings')
+    .select('discord_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  const discordId = data?.discord_id as string | null | undefined;
+  if (!discordId) return c.json({ inGuild: false, configured: true, linked: false });
+
+  try {
+    const res = await fetch(
+      `${DISCORD_API}/guilds/${GUILD_ID}/members/${discordId}`,
+      { headers: { Authorization: `Bot ${BOT_TOKEN}` } },
+    );
+    // 200 = is a member, 404 = not a member, anything else = transient
+    // Discord error → tell the client we don't know rather than guess.
+    if (res.status === 200) return c.json({ inGuild: true, configured: true, linked: true });
+    if (res.status === 404) return c.json({ inGuild: false, configured: true, linked: true });
+    return c.json({ inGuild: null, configured: true, linked: true, error: `discord ${res.status}` });
+  } catch (err) {
+    console.warn('[discord/membership-status]', err instanceof Error ? err.message : err);
+    return c.json({ inGuild: null, configured: true, linked: true, error: 'network' });
+  }
 });
 
 // Get Discord link status
