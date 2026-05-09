@@ -42,9 +42,11 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
   };
 
   // Pull current values for the event diff payload before we mutate.
+  // discord_id is included so the bot can sync the corresponding Discord
+  // role on plan_changed without a follow-up Supabase round-trip.
   const { data: prev } = await ctx.supabase
     .from('user_settings')
-    .select('plan, plan_expiry, role')
+    .select('plan, plan_expiry, role, discord_id')
     .eq('user_id', id)
     .maybeSingle();
 
@@ -92,6 +94,7 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
         newPlan: plan ?? prev?.plan ?? 'free',
         oldExpiry: prev?.plan_expiry ?? null,
         newExpiry: plan_expiry ?? prev?.plan_expiry ?? null,
+        discordId: prev?.discord_id ?? null,
       },
     });
   }

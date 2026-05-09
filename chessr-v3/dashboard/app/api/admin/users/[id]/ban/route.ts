@@ -27,6 +27,14 @@ export async function POST(req: Request, { params }: RouteCtx) {
   const banReason = typeof reason === 'string' && reason.trim() ? reason.trim().slice(0, 500) : null;
   const nowIso = new Date().toISOString();
 
+  // Capture discord_id before the ban update so the event payload lets
+  // the bot strip the Premium role from the linked Discord member.
+  const { data: prevSettings } = await ctx.supabase
+    .from('user_settings')
+    .select('discord_id')
+    .eq('user_id', id)
+    .maybeSingle();
+
   // Set ban flags + downgrade plan to free (matches chessr-next behavior).
   const { error: updateErr } = await ctx.supabase
     .from('user_settings')
@@ -55,7 +63,10 @@ export async function POST(req: Request, { params }: RouteCtx) {
     type: 'user_banned',
     user_id: id,
     actor_id: ctx.user.id,
-    payload: banReason ? { reason: banReason } : {},
+    payload: {
+      ...(banReason ? { reason: banReason } : {}),
+      ...(prevSettings?.discord_id ? { discordId: prevSettings.discord_id } : {}),
+    },
   });
 
   return NextResponse.json({ ok: true });

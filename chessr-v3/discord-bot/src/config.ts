@@ -38,5 +38,17 @@ export const config = {
     url:        optional('SERVEUR_URL') ?? 'http://localhost:8080',
     adminToken: optional('SERVEUR_ADMIN_TOKEN') ?? '',
   },
+  // Plan → role-id map. Empty / unset means "this tier has no role"
+  // (sync just removes any of the others when entering it). Free is a
+  // real role here: linked-but-free users keep visibility of their
+  // tier on Discord. "No role at all" is reserved for the unlinked /
+  // deleted state, handled by passing null to syncPlanRole.
+  planRoles: {
+    free:      optional('DISCORD_ROLE_ID_FREE'),
+    freetrial: optional('DISCORD_ROLE_ID_FREETRIAL'),
+    premium:   optional('DISCORD_ROLE_ID_PREMIUM'),
+    beta:      optional('DISCORD_ROLE_ID_BETA'),
+    lifetime:  optional('DISCORD_ROLE_ID_LIFETIME'),
+  } as Record<string, string | undefined>,
   logLevel: (optional('LOG_LEVEL') ?? 'info') as 'debug' | 'info' | 'warn' | 'error',
 } as const;

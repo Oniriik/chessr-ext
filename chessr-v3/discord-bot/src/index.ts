@@ -23,6 +23,10 @@ import {
 import { command as pingCommand } from './commands/ping.js';
 registerCommand(pingCommand);
 
+// ─── Event handlers ─────────────────────────────────────────────────────
+import { registerPlanSyncHandlers } from './handlers/planSync.js';
+registerPlanSyncHandlers();
+
 // ─── Discord client ─────────────────────────────────────────────────────
 // Intents are minimal until features need more. Adding more later only
 // requires:
@@ -31,8 +35,13 @@ registerCommand(pingCommand);
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    // GuildMembers + DirectMessages + MessageContent are all toggled via
+    // the "Privileged Gateway Intents" section of the Discord dev portal
+    // — having them in the array isn't enough on its own.
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.MessageContent,
   ],
   partials: [Partials.GuildMember, Partials.Message, Partials.Channel],
 });

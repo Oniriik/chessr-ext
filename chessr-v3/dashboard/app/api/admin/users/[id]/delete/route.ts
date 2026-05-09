@@ -42,12 +42,15 @@ export async function POST(req: Request, { params }: RouteCtx) {
   const ok = await verifyAdminPassword(ctx.user.email, password);
   if (!ok) return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
 
-  // Capture the email + plan before deletion for the response and event payload.
+  // Capture the email + plan + discord_id before deletion. discord_id is
+  // included in the event payload so the bot can strip the user's plan
+  // role from the now-orphaned Discord member (the user_settings row is
+  // about to be wiped, so the bot can't look it up after the fact).
   const { data: target } = await ctx.supabase.auth.admin.getUserById(id);
   const targetEmail = target?.user?.email ?? null;
   const { data: prevSettings } = await ctx.supabase
     .from('user_settings')
-    .select('plan')
+    .select('plan, discord_id')
     .eq('user_id', id)
     .maybeSingle();
 
@@ -70,7 +73,11 @@ export async function POST(req: Request, { params }: RouteCtx) {
     type: 'user_deleted',
     user_id: id,
     actor_id: ctx.user.id,
-    payload: { previousPlan: prevSettings?.plan ?? 'free', email: targetEmail },
+    payload: {
+      previousPlan: prevSettings?.plan ?? 'free',
+      email: targetEmail,
+      ...(prevSettings?.discord_id ? { discordId: prevSettings.discord_id } : {}),
+    },
   });
 
   return NextResponse.json({ ok: true, email: targetEmail });

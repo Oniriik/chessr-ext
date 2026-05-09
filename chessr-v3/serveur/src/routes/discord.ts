@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import crypto from 'node:crypto';
 import { supabase } from '../lib/supabase.js';
+import { emitEvent } from '../lib/events.js';
 
 const app = new Hono();
 
@@ -8,6 +9,11 @@ const DISCORD_API = 'https://discord.com/api/v10';
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID!;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET!;
 const REDIRECT_URI = process.env.DISCORD_REDIRECT_URI!;
+// Auto-join: when set, the OAuth callback PUTs the user into this guild
+// using the bot token. Optional — if either of these is unset, we just
+// skip the join and the link still completes.
+const GUILD_ID  = process.env.DISCORD_GUILD_ID;
+const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 
 // Nonce store — 5 min TTL
 const nonces = new Map<string, { userId: string; returnUrl: string; createdAt: number }>();
@@ -36,7 +42,11 @@ app.get('/discord/link', (c) => {
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     response_type: 'code',
-    scope: 'identify',
+    // identify: read the user's profile (id, username, avatar).
+    // guilds.join: lets us PUT the user into the configured guild via
+    // the bot token after the callback. Discord requires the user to
+    // grant this scope explicitly during consent.
+    scope: 'identify guilds.join',
     state,
   });
 
@@ -129,6 +139,35 @@ app.get('/discord/callback', async (c) => {
 
   if (error) return c.redirect(`${returnUrl}?discord_error=save_failed`);
 
+  // Auto-join the configured guild. Best-effort — a 204 means "already
+  // a member" (success), 201 means "added", anything else just gets
+  // logged and the link still completes. Only runs when both vars are
+  // set so this stays optional per environment.
+  if (GUILD_ID && BOT_TOKEN) {
+    try {
+      const joinRes = await fetch(`${DISCORD_API}/guilds/${GUILD_ID}/members/${discordUser.id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bot ${BOT_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ access_token: accessToken }),
+      });
+      if (joinRes.status !== 201 && joinRes.status !== 204) {
+        const body = await joinRes.text().catch(() => '');
+        console.warn('[discord] guilds.add failed', joinRes.status, body);
+      }
+    } catch (err) {
+      console.warn('[discord] guilds.add threw:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  await emitEvent({
+    type: 'discord_linked',
+    user_id: userId,
+    payload: { discordId: discordUser.id, discordUsername: discordUser.username },
+  });
+
   return c.redirect(`${returnUrl}?discord_linked=true`);
 });
 
@@ -136,6 +175,15 @@ app.get('/discord/callback', async (c) => {
 app.post('/discord/unlink', async (c) => {
   const { userId } = await c.req.json() as { userId: string };
   if (!userId) return c.json({ error: 'Missing userId' }, 400);
+
+  // Capture the discord_id BEFORE clearing it — the bot needs it in the
+  // event payload to strip the plan role from the now-orphaned Discord
+  // member (otherwise an unlinked user keeps their Premium role forever).
+  const { data: prev } = await supabase
+    .from('user_settings')
+    .select('discord_id')
+    .eq('user_id', userId)
+    .maybeSingle();
 
   const { error } = await supabase
     .from('user_settings')
@@ -148,6 +196,12 @@ app.post('/discord/unlink', async (c) => {
     .eq('user_id', userId);
 
   if (error) return c.json({ error: 'Failed to unlink' }, 500);
+
+  await emitEvent({
+    type: 'discord_unlinked',
+    user_id: userId,
+    payload: prev?.discord_id ? { discordId: prev.discord_id } : {},
+  });
 
   return c.json({ success: true });
 });
