@@ -2,6 +2,7 @@ import gsap from 'gsap';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { boardSelectors } from '../adapters/BoardSelectors';
+import { isStreamOpen } from './streamOpen';
 import type { LabeledSuggestion } from './engineLabeler';
 import type { MoveClassification } from './moveAnalysis';
 
@@ -429,6 +430,16 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
 }
 
 export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore'>[], isFlipped: boolean, animate = true) {
+  // Stream Mode hides the chessr UI from the host page so the streamer
+  // can share their board without leaking moves on stream. The arrow
+  // overlay sits on the host's chess board (not on our shadow root), so
+  // it must be gated separately — the App-level CSS that hides the FAB
+  // can't reach it.
+  if (isStreamOpen()) {
+    clearArrows();
+    return;
+  }
+
   const board = getBoard();
   if (!board) return;
 

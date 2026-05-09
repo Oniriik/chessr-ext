@@ -14,6 +14,7 @@
 
 import { useGameStore } from '../content/stores/gameStore';
 import { useSuggestionStore } from '../content/stores/suggestionStore';
+import { usePlatformStore, type Platform } from '../content/stores/platformStore';
 import type { Color } from '../content/stores/gameStore';
 
 const STORAGE_KEY = 'chessr_stream_state';
@@ -21,6 +22,10 @@ const STORAGE_KEY = 'chessr_stream_state';
 interface StreamSnapshot {
   ts: number;
   source: string;
+  /** Source-tab platform. Optional — older snapshots written before the
+   *  field was added simply leave the platform store at its detected
+   *  default, which is fine. */
+  platform?: Platform;
   fen: string | null;
   playerColor: 'white' | 'black' | null;
   turn: 'white' | 'black' | null;
@@ -47,6 +52,13 @@ function apply(snap: StreamSnapshot): void {
     gameOver: snap.gameOver,
     isPlaying: snap.fen !== null && !snap.gameOver,
   });
+  // Mirror the source tab's platform so platform-gated UI in the stream
+  // tab (e.g. premove enabled only on chess.com) reflects the actual
+  // source — without this it stays `null` because window.location is
+  // chrome-extension://.
+  if (snap.platform !== undefined) {
+    usePlatformStore.setState({ platform: snap.platform });
+  }
   // Suggestions: provide a synthetic requestId so any subscribers that
   // gate on requestId match still pass.
   const requestId = `stream-${snap.ts}`;

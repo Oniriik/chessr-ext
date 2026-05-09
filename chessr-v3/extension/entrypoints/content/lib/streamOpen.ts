@@ -72,3 +72,51 @@ export function useStreamOpen(): boolean {
 }
 
 export const STREAM_OPEN_STORAGE_KEY = KEY;
+
+// ─── Sync cache for non-React consumers ────────────────────────────────
+// Some content-script subscriptions (e.g. arrow rendering on the chess
+// board) need a synchronous read of the stream-open flag — they can't
+// `await getStreamOpen()` mid-render. We mirror the storage value into
+// a module-level boolean kept in sync via storage.onChanged.
+let cachedValue = false;
+let initialized = false;
+type StreamOpenListener = (open: boolean) => void;
+const listeners = new Set<StreamOpenListener>();
+
+/** Synchronous read. Returns the last known value; will be `false` until
+ *  initStreamOpenCache() has resolved its initial read. */
+export function isStreamOpen(): boolean {
+  return cachedValue;
+}
+
+/** Subscribe to changes (non-React). Returns an unsubscribe function. */
+export function subscribeStreamOpen(fn: StreamOpenListener): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
+/** Initialize the cache + subscription. Idempotent. Safe to call from
+ *  every content-script entrypoint — the listener is bound once. */
+export function initStreamOpenCache(): void {
+  if (initialized) return;
+  initialized = true;
+
+  browser.storage.local.get(KEY).then((res) => {
+    const flag = (res as Record<string, StreamOpenFlag>)[KEY];
+    const next = !!flag?.value;
+    if (next !== cachedValue) {
+      cachedValue = next;
+      listeners.forEach((l) => l(cachedValue));
+    }
+  });
+
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    const change = changes[KEY];
+    if (!change) return;
+    const next = (change.newValue as StreamOpenFlag | undefined)?.value ?? false;
+    if (next === cachedValue) return;
+    cachedValue = next;
+    listeners.forEach((l) => l(cachedValue));
+  });
+}

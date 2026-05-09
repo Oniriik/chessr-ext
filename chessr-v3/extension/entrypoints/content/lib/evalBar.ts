@@ -8,6 +8,7 @@ import { useEvalStore } from '../stores/evalStore';
 import { useGameStore } from '../stores/gameStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { boardSelectors } from '../adapters/BoardSelectors';
+import { isStreamOpen, subscribeStreamOpen } from './streamOpen';
 
 const BAR_WIDTH = 22;
 const BAR_ID = 'chessr-eval-bar';
@@ -95,6 +96,13 @@ function positionBar() {
 function updateBar() {
   if (!fillEl || !textEl || !barEl) return;
 
+  // Stream Mode: hide on the host page so the streamer's audience can't
+  // see the live evaluation when they share the chess.com tab.
+  if (isStreamOpen()) {
+    barEl.style.display = 'none';
+    return;
+  }
+
   const evalPawns = useEvalStore.getState().eval;
   const mateIn = useEvalStore.getState().mateIn;
   const playerColor = useGameStore.getState().playerColor;
@@ -174,6 +182,9 @@ export function initEvalBar() {
       updateBar();
     }
   });
+
+  // Hide/show the bar reactively when the streamer toggles Stream Mode.
+  subscribeStreamOpen(() => updateBar());
 
   // Also watch for board appearing later
   const observer = new MutationObserver(() => {

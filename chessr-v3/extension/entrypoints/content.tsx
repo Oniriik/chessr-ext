@@ -41,6 +41,7 @@ import { useEvalStore } from './content/stores/evalStore';
 import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
 import { isPremiumPlan } from './content/lib/premium';
 import { installStreamSync } from './content/lib/streamSync';
+import { initStreamOpenCache, subscribeStreamOpen } from './content/lib/streamOpen';
 let lastRequestedFen: string | null = null;
 /** Server SF fallback. Populated only when torch.wasm fails to init; in
  *  the happy path both torch engines below carry the load. */
@@ -587,6 +588,15 @@ export default defineContentScript({
     installStreamSync();
     // Shrink suggestion arrows in real time when the user grabs a matching piece.
     installArrowDrag();
+
+    // Stream Mode flag — kept in chrome.storage by the dedicated stream
+    // tab. Cache the value synchronously so renderArrows() can no-op
+    // when stream is open, and wipe any already-drawn arrows the moment
+    // the streamer opens the tab.
+    initStreamOpenCache();
+    subscribeStreamOpen((open) => {
+      if (open) clearArrows();
+    });
     // Suggestions are now served by the local SuggestionEngine; no WS
     // message dispatch needed here.
 

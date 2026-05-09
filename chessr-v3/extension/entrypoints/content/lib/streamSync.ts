@@ -17,6 +17,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useEngineStore } from '../stores/engineStore';
 import { useAuthStore } from '../stores/authStore';
+import { usePlatformStore, type Platform } from '../stores/platformStore';
 
 export interface StreamSnapshot {
   /** ms since epoch — lets the stream page detect stale snapshots when
@@ -24,6 +25,10 @@ export interface StreamSnapshot {
   ts: number;
   /** Hostname of the source tab (chess.com / lichess.org / worldchess.com). */
   source: string;
+  /** Platform detected by the source content script. Propagated so the
+   *  stream tab (whose own location is chrome-extension://) doesn't fall
+   *  through to `null` and disable platform-gated UI like premove. */
+  platform: Platform;
   fen: string | null;
   playerColor: 'white' | 'black' | null;
   turn: 'white' | 'black' | null;
@@ -52,6 +57,7 @@ function buildSnapshot(): StreamSnapshot {
   return {
     ts: Date.now(),
     source: location.hostname,
+    platform: usePlatformStore.getState().platform,
     fen: game.fen,
     playerColor: game.playerColor,
     turn: game.turn,

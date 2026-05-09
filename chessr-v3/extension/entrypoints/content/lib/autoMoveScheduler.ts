@@ -125,11 +125,10 @@ export function installHotkeyListener(): void {
     const target = e.target as HTMLElement;
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
 
-    const key = e.key;
     let slot: 0 | 1 | 2 | null = null;
-    if (keysMatch(key, s.hotkey1)) slot = 0;
-    else if (keysMatch(key, s.hotkey2)) slot = 1;
-    else if (keysMatch(key, s.hotkey3)) slot = 2;
+    if (keysMatch(e, s.hotkey1)) slot = 0;
+    else if (keysMatch(e, s.hotkey2)) slot = 1;
+    else if (keysMatch(e, s.hotkey3)) slot = 2;
     if (slot === null) return;
 
     const fired = triggerHotkeyMove(slot, isPremoveHeld(e, s.premoveKey));
@@ -140,9 +139,27 @@ export function installHotkeyListener(): void {
   }, true);
 }
 
-function keysMatch(pressed: string, configured: string): boolean {
+// Modifier-independent representation of the physical key. e.key is what
+// the OS would type — Shift+1 = '!', AltGr+e on French layout = '€', etc.
+// — which silently breaks the hotkey match the moment a user combines
+// the digit hotkey with a Shift premove modifier (Windows users hit this
+// constantly because they don't have ⌘ as an alternative). e.code is the
+// physical key location and is stable across modifiers and keyboard
+// layouts, so we use it for digits and letters where layout-independence
+// matters most.
+function canonicalKey(e: KeyboardEvent): string {
+  if (/^Digit[0-9]$/.test(e.code)) return e.code.slice(5);
+  if (/^Key[A-Z]$/.test(e.code))   return e.code.slice(3).toLowerCase();
+  return e.key.toLowerCase();
+}
+
+function keysMatch(e: KeyboardEvent, configured: string): boolean {
   if (!configured) return false;
-  return pressed.toLowerCase() === configured.toLowerCase();
+  const c = configured.toLowerCase();
+  // Match against both the canonical (modifier-stripped) form AND the
+  // raw e.key so legacy configs that captured shifted symbols (e.g. '!')
+  // keep working when the same Shift+1 chord is pressed.
+  return canonicalKey(e) === c || e.key.toLowerCase() === c;
 }
 
 function isPremoveHeld(e: KeyboardEvent, key: string): boolean {

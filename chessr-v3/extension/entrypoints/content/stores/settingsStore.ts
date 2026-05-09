@@ -88,6 +88,7 @@ function getAutoMovePayload() {
     hotkey3: a.hotkey3,
     premoveKey: a.premoveKey,
     premoveDelay: a.premoveDelay,
+    useOnScreenButtons: a.useOnScreenButtons,
     autoPlayDelay: a.autoPlayDelay,
     autoPremove: a.autoPremove,
     autoRematch: a.autoRematch,
