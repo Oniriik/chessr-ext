@@ -56,6 +56,7 @@ interface AppProps {
 // Keys mirror the strings the serveur emits (see routes/discord.ts and
 // routes/freetrial.ts ClaimResult.reason).
 const DISCORD_ERROR_TEXT: Record<string, string> = {
+  denied:          'You cancelled at the Discord prompt. No worries — click Link Discord again whenever you\'re ready.',
   token_failed:    'Discord didn\'t hand back a valid token. Try linking again.',
   unknown:         'Couldn\'t fetch your Discord identity. Try again.',
   already_linked:  'That Discord account is already linked to a different chessr user.',

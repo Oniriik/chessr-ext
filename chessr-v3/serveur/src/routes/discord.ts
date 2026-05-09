@@ -58,6 +58,24 @@ app.get('/discord/link', (c) => {
 app.get('/discord/callback', async (c) => {
   const code = c.req.query('code');
   const stateParam = c.req.query('state');
+  const oauthError = c.req.query('error');
+
+  // User clicked Cancel / denied access on the Discord consent screen.
+  // We still get a `state` param so we know where to redirect back to.
+  // Map to a friendly `discord_error` the extension recognises.
+  if (oauthError) {
+    let returnUrlOnError = 'https://chess.com';
+    if (stateParam) {
+      try {
+        const decoded = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
+        if (typeof decoded?.r === 'string') returnUrlOnError = decoded.r;
+        // Drop the nonce — never used.
+        if (typeof decoded?.n === 'string') nonces.delete(decoded.n);
+      } catch { /* fall back to chess.com */ }
+    }
+    const errCode = oauthError === 'access_denied' ? 'denied' : 'unknown';
+    return c.redirect(`${returnUrlOnError}?discord_error=${errCode}`);
+  }
 
   if (!code || !stateParam) return c.text('Missing code or state', 400);
 
