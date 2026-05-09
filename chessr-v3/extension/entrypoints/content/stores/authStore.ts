@@ -25,7 +25,9 @@ interface AuthState {
    *  banned (post-Supabase auth check). The form renders a dedicated
    *  ban screen with a Discord appeal link when this is non-null. */
   bannedReason: string | null;
-  /** Optional appeal URL the form links to from the ban screen. */
+  /** Help / appeal URL displayed alongside auth errors. Used both by
+   *  the dedicated ban screen and as a "Need help?" button next to
+   *  inline errors (e.g. duplicate-account on signup). */
   appealUrl: string | null;
 
   initialize: () => Promise<void>;
@@ -156,7 +158,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
           const msg = payload.message ||
             (payload.reason === 'disposable' ? DISPOSABLE_EMAIL_ERROR : 'Sign up not allowed.');
-          set({ loading: false, error: msg });
+          set({ loading: false, error: msg, appealUrl: payload.appealUrl ?? null });
           return { success: false, error: msg };
         }
       }
@@ -287,5 +289,5 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, appealUrl: null }),
 }));

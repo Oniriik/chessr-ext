@@ -82,6 +82,12 @@
   cursor: not-allowed;
 }
 
+.auth-error-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .auth-error {
   margin: 0;
   padding: 8px 12px;
@@ -90,6 +96,21 @@
   border: 1px solid hsl(var(--destructive) / 0.3);
   color: hsl(var(--destructive));
   font-size: 12px;
+}
+
+.auth-error-help {
+  align-self: flex-start;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  text-decoration: underline;
+  text-decoration-color: hsl(var(--muted-foreground) / 0.4);
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.auth-error-help:hover {
+  color: hsl(var(--foreground));
+  text-decoration-color: currentColor;
 }
 
 .auth-switch {

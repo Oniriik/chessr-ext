@@ -217,6 +217,7 @@ abuseRoutes.post('/check-signup', async (c) => {
       allowed: false,
       reason: 'duplicate',
       message: 'You already have an account.',
+      appealUrl: APPEAL_INVITE,
     });
   }
 

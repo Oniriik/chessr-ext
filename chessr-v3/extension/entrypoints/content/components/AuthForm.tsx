@@ -15,6 +15,8 @@ export default function AuthForm() {
   const [localError, setLocalError] = useState<string | null>(null);
 
   const { loading, error, signIn, signUp, clearError, bannedReason, appealUrl, clearBanned } = useAuthStore();
+  const displayError = localError || error;
+  const helpUrl = !bannedReason && error ? appealUrl : null;
 
   const switchMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
@@ -40,8 +42,6 @@ export default function AuthForm() {
       if (result.success) setConfirmSent(true);
     }
   };
-
-  const displayError = localError || error;
 
   // Ban screen — blocks the form entirely until the user navigates
   // away or clicks "Try a different account" (which clears the flag
@@ -138,7 +138,21 @@ export default function AuthForm() {
           />
         )}
 
-        {displayError && <p className="auth-error">{displayError}</p>}
+        {displayError && (
+          <div className="auth-error-block">
+            <p className="auth-error">{displayError}</p>
+            {helpUrl && (
+              <a
+                className="auth-error-help"
+                href={helpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Need help?
+              </a>
+            )}
+          </div>
+        )}
 
         <button type="submit" className="auth-submit" disabled={loading}>
           {loading ? 'Loading...' : mode === 'signin' ? 'Sign in' : 'Sign up'}
