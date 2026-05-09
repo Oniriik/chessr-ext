@@ -130,6 +130,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       await get().fetchPlan(data.user.id);
+      // Explicit form login — clear the per-tab login-trigger flag so
+      // the system-message widget can re-evaluate the cascade and show
+      // a fresh nudge (claim trial / join discord / how-to). Page
+      // reloads + session restores DON'T pass through here, so they
+      // keep the gate intact (intentional).
+      try {
+        sessionStorage.removeItem(`chessr:login-trigger-fired:${data.user.id}`);
+      } catch { /* sessionStorage blocked — fine */ }
       set({ user: data.user, session: data.session, loading: false });
       return { success: true };
     } catch (e: unknown) {

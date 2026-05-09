@@ -52,6 +52,24 @@ interface AppProps {
   streamMode?: boolean;
 }
 
+// Friendly text for the Discord callback's error / trial-denied params.
+// Keys mirror the strings the serveur emits (see routes/discord.ts and
+// routes/freetrial.ts ClaimResult.reason).
+const DISCORD_ERROR_TEXT: Record<string, string> = {
+  token_failed:    'Discord didn\'t hand back a valid token. Try linking again.',
+  unknown:         'Couldn\'t fetch your Discord identity. Try again.',
+  already_linked:  'That Discord account is already linked to a different chessr user.',
+  save_failed:     'We couldn\'t save the link. Try again — if it persists, ping support.',
+  expired:         'The link request expired. Click "Link Discord" again to start fresh.',
+};
+const TRIAL_DENY_TEXT: Record<string, string> = {
+  not_eligible: 'Trial wasn\'t granted.',
+  already_used: 'Trial already used on this account.',
+  paid_plan:    'You\'re already on a paid plan — no trial needed.',
+  not_found:    'Couldn\'t find your account.',
+  db_error:     'Trial couldn\'t be saved. Ping support if it matters.',
+};
+
 export default function App({ streamMode = false }: AppProps = {}) {
   // Auto-open panel on review/analysis pages (gated by user setting). In
   // stream mode the panel is always open — no toggle, no auto-open logic.
@@ -105,6 +123,75 @@ export default function App({ streamMode = false }: AppProps = {}) {
     fetchAccounts(user.id);
   }, [user?.id, fetchDiscord, fetchMembership, fetchAccounts]);
 
+  // Discord link callback hand-off — the serveur redirects back to the
+  // host page with one of:
+  //   ?discord_linked=true                              — link OK
+  //   ?discord_linked=true&trial=granted                — link + trial OK
+  //   ?discord_linked=true&trial=denied&trial_reason=X  — link OK, trial refused
+  //   ?discord_error=token_failed | unknown | already_linked | save_failed | expired
+  // We surface each as a one-shot widget then strip the params so a
+  // manual reload doesn't repeat. Gated on `user` — a stale URL on a
+  // logged-out tab leaves the params untouched until the user signs in,
+  // at which point we fire + strip; if they never sign in we never
+  // bother them about it. Bypasses the cascade gate.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    const linked      = params.get('discord_linked') === 'true';
+    const trialState  = params.get('trial');
+    const trialReason = params.get('trial_reason');
+    const discordErr  = params.get('discord_error');
+    if (!linked && !discordErr) return;
+
+    if (discordErr) {
+      pushWidget({
+        id: 'discord-error-' + Date.now(),
+        category: 'info',
+        title: 'Discord link failed',
+        body: DISCORD_ERROR_TEXT[discordErr] ?? 'Something went wrong while linking Discord. Try again or contact support.',
+        ttl: 12000,
+      });
+    } else if (trialState === 'granted') {
+      pushWidget({
+        id: 'trial-granted-' + Date.now(),
+        category: 'trial',
+        title: 'Your free trial is live',
+        body: 'Premium unlocked for the next 3 days. Switch engine, tune the personality, run game reviews — go nuts.',
+        cta: { label: 'Open Settings', action: { kind: 'open-tab', tab: 'settings:engine' } },
+        ttl: 12000,
+      });
+    } else if (trialState === 'denied') {
+      pushWidget({
+        id: 'trial-denied-' + Date.now(),
+        category: 'discord',
+        title: 'Discord linked',
+        body:
+          (TRIAL_DENY_TEXT[trialReason ?? ''] ?? 'Trial wasn\'t granted, but your Discord is connected.') +
+          ' Welcome to the community.',
+        cta: { label: 'Open server', action: { kind: 'discord-join', url: 'https://discord.gg/72j4dUadTu' } },
+        ttl: 12000,
+      });
+    } else if (linked) {
+      pushWidget({
+        id: 'discord-linked-' + Date.now(),
+        category: 'discord',
+        title: 'Discord linked',
+        body: 'Your account is connected. Join the community on Discord any time.',
+        cta: { label: 'Open server', action: { kind: 'discord-join', url: 'https://discord.gg/72j4dUadTu' } },
+        ttl: 10000,
+      });
+    }
+
+    // Strip the query so a manual reload doesn't re-trigger the toast.
+    params.delete('discord_linked');
+    params.delete('trial');
+    params.delete('trial_reason');
+    params.delete('discord_error');
+    const next = window.location.pathname + (params.toString() ? `?${params}` : '') + window.location.hash;
+    window.history.replaceState(null, '', next);
+  }, [user?.id, pushWidget]);
+
   // System-message widget login triggers. Fires once the auth and the
   // Discord state have both settled — `planLoading` covers
   // freetrialUsed too (same fetch). We deliberately don't push from
@@ -145,34 +232,25 @@ export default function App({ streamMode = false }: AppProps = {}) {
 
   // Gate login triggers to ONE fire per tab session (sessionStorage)
   // so chess.com's full-page navigations within the same tab don't keep
-  // popping the same nudge. New-tab / cleared-storage = fresh fire.
-  // WS-broadcast messages bypass this entirely (separate path in
-  // content.tsx → useWidgetStore.push).
+  // popping the same nudge. New-tab / cleared-storage / explicit form
+  // sign-in (which clears the flag in authStore) = fresh fire.
+  // WS-broadcast messages bypass this entirely — they're routed through
+  // content.tsx's onWsMessage → useWidgetStore.push.
   //
   // Trial CTA is intentionally first in the cascade — eligible-for-trial
   // beats every other login nudge so users never miss the offer.
-  const triggersFiredRef = useRef<string | null>(null);
   useEffect(() => {
     if (!user || planLoading) return;
-    if (triggersFiredRef.current === user.id) return;
     // User opt-out: kill the proactive nudges (claim trial / join
-    // Discord / how-tos). Admin WS broadcasts bypass this — they go
-    // through onWsMessage → useWidgetStore.push directly.
-    if (useSettingsStore.getState().disableInfoBanner) {
-      triggersFiredRef.current = user.id;
-      return;
-    }
+    // Discord / how-tos). Admin WS broadcasts bypass this.
+    if (useSettingsStore.getState().disableInfoBanner) return;
 
     const sessionKey = `chessr:login-trigger-fired:${user.id}`;
     try {
-      if (sessionStorage.getItem(sessionKey) === '1') {
-        triggersFiredRef.current = user.id;
-        return;
-      }
+      if (sessionStorage.getItem(sessionKey) === '1') return;
     } catch { /* sessionStorage blocked → proceed best-effort */ }
 
     const markFired = () => {
-      triggersFiredRef.current = user.id;
       try { sessionStorage.setItem(sessionKey, '1'); } catch {}
     };
 
