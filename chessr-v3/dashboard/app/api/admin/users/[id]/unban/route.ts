@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, isAdminContext, verifyAdminPassword } from '@/lib/auth-guard';
+import { emitEvent } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,12 @@ export async function POST(req: Request, { params }: RouteCtx) {
     console.error('[admin/users/:id/unban]', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await emitEvent({
+    type: 'user_unbanned',
+    user_id: id,
+    actor_id: ctx.user.id,
+  });
 
   return NextResponse.json({ ok: true });
 }

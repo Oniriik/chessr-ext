@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, isAdminContext, verifyAdminPassword } from '@/lib/auth-guard';
+import { emitEvent } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,13 @@ export async function POST(req: Request, { params }: RouteCtx) {
     .update({ unlinked_at: nowIso })
     .eq('user_id', id)
     .is('unlinked_at', null);
+
+  await emitEvent({
+    type: 'user_banned',
+    user_id: id,
+    actor_id: ctx.user.id,
+    payload: banReason ? { reason: banReason } : {},
+  });
 
   return NextResponse.json({ ok: true });
 }

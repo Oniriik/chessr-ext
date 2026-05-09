@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, isAdminContext, verifyAdminPassword } from '@/lib/auth-guard';
+import { emitEvent } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,9 +42,14 @@ export async function POST(req: Request, { params }: RouteCtx) {
   const ok = await verifyAdminPassword(ctx.user.email, password);
   if (!ok) return NextResponse.json({ error: 'Invalid password' }, { status: 401 });
 
-  // Capture the email before deletion for the response (and any logging).
+  // Capture the email + plan before deletion for the response and event payload.
   const { data: target } = await ctx.supabase.auth.admin.getUserById(id);
   const targetEmail = target?.user?.email ?? null;
+  const { data: prevSettings } = await ctx.supabase
+    .from('user_settings')
+    .select('plan')
+    .eq('user_id', id)
+    .maybeSingle();
 
   for (const table of TABLES_TO_CLEAR) {
     const { error } = await ctx.supabase.from(table).delete().eq('user_id', id);
@@ -59,6 +65,13 @@ export async function POST(req: Request, { params }: RouteCtx) {
     console.error('[admin/users/:id/delete] auth.deleteUser:', authErr);
     return NextResponse.json({ error: authErr.message }, { status: 500 });
   }
+
+  await emitEvent({
+    type: 'user_deleted',
+    user_id: id,
+    actor_id: ctx.user.id,
+    payload: { previousPlan: prevSettings?.plan ?? 'free', email: targetEmail },
+  });
 
   return NextResponse.json({ ok: true, email: targetEmail });
 }

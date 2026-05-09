@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, isAdminContext } from '@/lib/auth-guard';
+import { emitEvent } from '@/lib/events';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +39,13 @@ export async function POST(req: Request, { params }: RouteCtx) {
   if (!data || data.length === 0) {
     return NextResponse.json({ error: 'Active link not found' }, { status: 404 });
   }
+
+  await emitEvent({
+    type: 'chess_account_unlinked',
+    user_id: id,
+    actor_id: ctx.user.id,
+    payload: { platform, platform_username },
+  });
 
   return NextResponse.json({ ok: true, unlinked: data.length });
 }

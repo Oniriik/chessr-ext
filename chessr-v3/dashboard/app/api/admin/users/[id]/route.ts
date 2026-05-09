@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin, isAdminContext } from '@/lib/auth-guard';
+import { emitEvent } from '@/lib/events';
 import type { UserRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +41,13 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
     plan_expiry?: string | null;
   };
 
+  // Pull current values for the event diff payload before we mutate.
+  const { data: prev } = await ctx.supabase
+    .from('user_settings')
+    .select('plan, plan_expiry, role')
+    .eq('user_id', id)
+    .maybeSingle();
+
   if (role !== undefined && ctx.role !== 'super_admin') {
     return NextResponse.json({ error: 'Only super_admin can change roles' }, { status: 403 });
   }
@@ -69,6 +77,31 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
   if (error) {
     console.error('[admin/users/:id] update error', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Emit one event per concern that actually changed. Plan + expiry get
+  // collapsed into a single 'plan_changed' since they're set together
+  // from the UI; role stands alone.
+  if (plan !== undefined || plan_expiry !== undefined) {
+    await emitEvent({
+      type: 'plan_changed',
+      user_id: id,
+      actor_id: ctx.user.id,
+      payload: {
+        oldPlan: prev?.plan ?? 'free',
+        newPlan: plan ?? prev?.plan ?? 'free',
+        oldExpiry: prev?.plan_expiry ?? null,
+        newExpiry: plan_expiry ?? prev?.plan_expiry ?? null,
+      },
+    });
+  }
+  if (role !== undefined && role !== prev?.role) {
+    await emitEvent({
+      type: 'role_changed',
+      user_id: id,
+      actor_id: ctx.user.id,
+      payload: { oldRole: prev?.role ?? 'user', newRole: role },
+    });
   }
 
   return NextResponse.json({ ok: true });
