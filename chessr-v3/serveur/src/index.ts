@@ -13,6 +13,7 @@ import { adminLogsRoutes } from './routes/adminLogs.js';
 import { adminEventsRoutes } from './routes/adminEvents.js';
 import { freetrialRoutes } from './routes/freetrial.js';
 import { adminMessagingRoutes } from './routes/adminMessaging.js';
+import { abuseRoutes } from './routes/abuse.js';
 import { handlePaddleWebhook, handlePaddleBillingLink } from './handlers/paddleHandler.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
@@ -42,6 +43,7 @@ app.route('/', adminLogsRoutes);
 app.route('/', adminEventsRoutes);
 app.route('/', freetrialRoutes);
 app.route('/', adminMessagingRoutes);
+app.route('/', abuseRoutes);
 
 // Paddle billing — webhook (server-to-server, signed) + billing-link
 // (extension-authenticated). Other paddle endpoints (status/switch/cancel/

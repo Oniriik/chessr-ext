@@ -14,12 +14,13 @@ export default function AuthForm() {
   const [confirmSent, setConfirmSent] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const { loading, error, signIn, signUp, clearError } = useAuthStore();
+  const { loading, error, signIn, signUp, clearError, bannedReason, appealUrl, clearBanned } = useAuthStore();
 
   const switchMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setLocalError(null);
     clearError();
+    clearBanned();
     setConfirmSent(false);
   };
 
@@ -41,6 +42,41 @@ export default function AuthForm() {
   };
 
   const displayError = localError || error;
+
+  // Ban screen — blocks the form entirely until the user navigates
+  // away or clicks "Try a different account" (which clears the flag
+  // and exposes the form again). Shown both on banned-login and on
+  // signup blocked because a linked account is banned.
+  if (bannedReason) {
+    return (
+      <div className="auth-form">
+        <img className="auth-logo" src={browser.runtime.getURL('/icons/chessr-logo.png')} alt="Chessr" />
+        <h1 className="auth-title">
+          <span className="auth-title-name">chessr</span>
+          <span className="auth-title-dot">.io</span>
+        </h1>
+        <div className="auth-banned">
+          <h3>Access denied</h3>
+          <p className="auth-banned-reason">{bannedReason}</p>
+          <p className="auth-banned-help">
+            Think this is a mistake? Open an appeal in our Discord — the
+            team will review it.
+          </p>
+          <a
+            className="auth-banned-cta"
+            href={appealUrl ?? 'https://discord.gg/72j4dUadTu'}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Appeal on Discord
+          </a>
+          <button className="auth-link" onClick={clearBanned}>
+            Try a different account
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (confirmSent) {
     return (

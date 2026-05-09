@@ -22,6 +22,9 @@ const VALID_TYPES = [
   'chess_account_unlinked',
   'role_changed',
   'email_changed',
+  'freetrial_claimed',
+  'signup_success',
+  'signup_blocked',
 ] as const;
 export type EventType = (typeof VALID_TYPES)[number];
 

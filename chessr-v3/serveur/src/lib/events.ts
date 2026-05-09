@@ -41,6 +41,22 @@ export const EVENT_KINDS = [
   'role_changed',
   // payload: { oldEmail, newEmail }
   'email_changed',
+  // payload: { expiresAt, durationDays, discordId? }
+  // Emitted alongside plan_changed when a free trial gets claimed
+  // (self-claim from the extension or auto-claim on Discord link).
+  // Plan_changed handles the role sync; this kind is for clean
+  // activity-log filtering ("how many trials this week").
+  'freetrial_claimed',
+  // payload: { email, ip, country, countryCode, fingerprint }
+  // Emitted on every successful signup. Powers a Discord channel feed
+  // ("new user from FR — visitor: abc123…") and onboarding analytics.
+  'signup_success',
+  // payload: { email, ip, country, countryCode, fingerprint, reason,
+  //            linkedAccountIds }
+  // Emitted when the abuse check rejects a signup (banned linked
+  // account so far). `reason` mirrors what /check-signup returns:
+  // 'banned' | 'disposable' | …
+  'signup_blocked',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

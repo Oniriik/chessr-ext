@@ -20,12 +20,13 @@
 import { Hono } from 'hono';
 import { supabase } from '../lib/supabase.js';
 import { emitEvent } from '../lib/events.js';
+import { dbQuery } from '../lib/db.js';
 
 export const FREE_TRIAL_DAYS = 3;
 
 export type ClaimResult =
   | { ok: true; plan: 'freetrial'; expiresAt: string }
-  | { ok: false; reason: 'not_eligible' | 'already_used' | 'paid_plan' | 'not_found' | 'db_error' };
+  | { ok: false; reason: 'not_eligible' | 'already_used' | 'paid_plan' | 'not_found' | 'db_error' | 'discord_already_used' };
 
 export async function claimFreeTrial(userId: string, actorId?: string | null): Promise<ClaimResult> {
   if (!userId) return { ok: false, reason: 'not_found' };
@@ -43,6 +44,39 @@ export async function claimFreeTrial(userId: string, actorId?: string | null): P
   // trial), we don't want to retroactively shorten their access.
   if (prev.plan && prev.plan !== 'free') return { ok: false, reason: 'paid_plan' };
 
+  // Anti-abuse: a user could create chessr account A, link Discord X,
+  // claim → unlink → create account B with a new email, link the SAME
+  // Discord X again, and claim a second time (B has freetrial_used=
+  // false by default). To close that, we query the events log for any
+  // prior `freetrial_claimed` whose payload.discordId matches the
+  // currently-linked Discord. If found, deny — even though the chessr
+  // account itself is fresh.
+  // Note: this only fires when the *current* claim attempt has a
+  // linked Discord (the auto-claim path always does). Trials granted
+  // through some future no-Discord path would skip this guard, which
+  // is fine since they don't establish a discord_id fingerprint to
+  // dodge in the first place.
+  if (prev.discord_id) {
+    try {
+      const rows = await dbQuery<{ exists: boolean }>(
+        `SELECT 1 AS exists
+         FROM events
+         WHERE type = 'freetrial_claimed'
+           AND payload->>'discordId' = $1
+         LIMIT 1`,
+        [prev.discord_id],
+      );
+      if (rows.length > 0) {
+        return { ok: false, reason: 'discord_already_used' };
+      }
+    } catch (err) {
+      // If the analytics DB is unreachable we don't want to block
+      // legit claims indefinitely — log and fail open. The
+      // `freetrial_used` per-account gate is still in place above.
+      console.warn('[freetrial.claim] discord-history check failed:', err);
+    }
+  }
+
   const expiresAt = new Date(Date.now() + FREE_TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { error } = await supabase
@@ -59,19 +93,33 @@ export async function claimFreeTrial(userId: string, actorId?: string | null): P
     return { ok: false, reason: 'db_error' };
   }
 
+  // Two emits, one logical action:
+  //   - plan_changed: drives the bot's role sync (Free → Freetrial) via
+  //     the existing handler that watches every plan transition.
+  //   - freetrial_claimed: dedicated discriminator for activity feeds /
+  //     dashboards / analytics ("how many claims this week"). Cheap to
+  //     query without payload->>'reason' gymnastics.
+  const sharedPayload = {
+    oldPlan: 'free',
+    newPlan: 'freetrial' as const,
+    oldExpiry: prev.plan_expiry ?? null,
+    newExpiry: expiresAt,
+    discordId: prev.discord_id ?? null,
+  };
   await emitEvent({
     type: 'plan_changed',
     user_id: userId,
     actor_id: actorId ?? null,
+    payload: { ...sharedPayload, reason: 'freetrial_claim' },
+  });
+  await emitEvent({
+    type: 'freetrial_claimed',
+    user_id: userId,
+    actor_id: actorId ?? null,
     payload: {
-      oldPlan: 'free',
-      newPlan: 'freetrial',
-      oldExpiry: prev.plan_expiry ?? null,
-      newExpiry: expiresAt,
-      // Snapshot discord_id so the bot can sync the Freetrial role
-      // without a round-trip — same pattern as the dashboard emitter.
+      expiresAt,
+      durationDays: FREE_TRIAL_DAYS,
       discordId: prev.discord_id ?? null,
-      reason: 'freetrial_claim',
     },
   });
 

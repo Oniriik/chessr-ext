@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { SERVER_URL } from '../lib/config';
+import { DISPOSABLE_EMAIL_ERROR } from '../lib/emailValidator';
+import { getFingerprint } from '../lib/fingerprint';
 
 export type Plan = 'lifetime' | 'beta' | 'premium' | 'freetrial' | 'free';
 
@@ -18,11 +21,19 @@ interface AuthState {
   initializing: boolean;
   loading: boolean;
   error: string | null;
+  /** Set when a sign-in attempt is rejected because the account is
+   *  banned (post-Supabase auth check). The form renders a dedicated
+   *  ban screen with a Discord appeal link when this is non-null. */
+  bannedReason: string | null;
+  /** Optional appeal URL the form links to from the ban screen. */
+  appealUrl: string | null;
 
   initialize: () => Promise<void>;
   fetchPlan: (userId: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; banned?: boolean }>;
+  /** Clear the ban screen so the form goes back to its normal state. */
+  clearBanned: () => void;
   signOut: () => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
@@ -38,6 +49,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializing: true,
   loading: false,
   error: null,
+  bannedReason: null,
+  appealUrl: null,
+
+  clearBanned: () => set({ bannedReason: null, appealUrl: null, error: null }),
 
   initialize: async () => {
     try {
@@ -107,14 +122,66 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, bannedReason: null, appealUrl: null });
+
+    // Pre-flight: serveur runs disposable check + multi-account abuse
+    // check (fingerprint + IP) in one call. If a banned linked account
+    // is found, response carries banReason + appealUrl → render the
+    // ban screen. Fail-open on serveur unreachable.
+    const fingerprint = await getFingerprint();
     try {
-      const { error } = await supabase.auth.signUp({
+      const checkRes = await fetch(`${SERVER_URL}/check-signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint, email }),
+      });
+      if (checkRes.ok) {
+        const payload = await checkRes.json() as {
+          allowed: boolean;
+          reason?: string;
+          banReason?: string;
+          appealUrl?: string;
+          message?: string;
+        };
+        if (!payload.allowed) {
+          if (payload.reason === 'banned') {
+            const reason = payload.banReason || 'This account is banned.';
+            set({
+              loading: false,
+              bannedReason: reason,
+              appealUrl: payload.appealUrl ?? null,
+              error: reason,
+            });
+            return { success: false, error: reason };
+          }
+          const msg = payload.message ||
+            (payload.reason === 'disposable' ? DISPOSABLE_EMAIL_ERROR : 'Sign up not allowed.');
+          set({ loading: false, error: msg });
+          return { success: false, error: msg };
+        }
+      }
+    } catch { /* serveur unreachable → fail-open */ }
+
+    // 3) Create the account.
+    try {
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: 'https://chessr.io/email-confirmed' },
       });
       if (error) throw error;
+
+      // 4) Persist fingerprint + signup IP for the new user_id so the
+      //    next abuse check has a footprint to match against. Best-
+      //    effort, fire-and-forget.
+      if (data.user?.id) {
+        fetch(`${SERVER_URL}/report-signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: data.user.id, email, fingerprint, kind: 'signup' }),
+        }).catch(() => {});
+      }
+
       set({ loading: false });
       return { success: true };
     } catch (e: unknown) {
@@ -125,10 +192,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signIn: async (email, password) => {
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, bannedReason: null, appealUrl: null });
     try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+
+      // Ban check — supabase auth has no concept of bans, we keep the
+      // flag in user_settings. Sign the user back out immediately if
+      // banned so no Bearer token leaks into the rest of the app.
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('banned, ban_reason')
+        .eq('user_id', data.user.id)
+        .single();
+      if (settings?.banned) {
+        const reason = settings.ban_reason || 'This account is banned.';
+        await supabase.auth.signOut();
+        // Fire-and-forget admin notif with the IP server-side resolves.
+        fetch(`${SERVER_URL}/report-banned-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, banReason: reason }),
+        }).catch(() => {});
+        set({
+          loading: false,
+          bannedReason: reason,
+          appealUrl: 'https://discord.gg/72j4dUadTu',
+          error: reason,
+          user: null,
+          session: null,
+        });
+        return { success: false, banned: true, error: reason };
+      }
+
       await get().fetchPlan(data.user.id);
       // Explicit form login — clear the per-tab login-trigger flag so
       // the system-message widget can re-evaluate the cascade and show
@@ -138,6 +234,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
         sessionStorage.removeItem(`chessr:login-trigger-fired:${data.user.id}`);
       } catch { /* sessionStorage blocked — fine */ }
+
+      // Refresh the abuse footprint — login from a new device / IP /
+      // browser profile registers a new row in user_fingerprints +
+      // signup_ips so future checks see the broader trail. Upsert is
+      // idempotent so re-logging from the same machine is a no-op.
+      const fingerprint = await getFingerprint().catch(() => null);
+      fetch(`${SERVER_URL}/report-signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: data.user.id, email, fingerprint, kind: 'login' }),
+      }).catch(() => {});
+
       set({ user: data.user, session: data.session, loading: false });
       return { success: true };
     } catch (e: unknown) {
