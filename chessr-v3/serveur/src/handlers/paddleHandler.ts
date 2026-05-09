@@ -30,6 +30,7 @@ import type { Context } from 'hono';
 import { createClient } from '@supabase/supabase-js';
 import { Paddle, Environment } from '@paddle/paddle-node-sdk';
 import crypto from 'node:crypto';
+import { emitEvent } from '../lib/events.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,17 @@ async function updateUserPlan(
     return;
   }
 
+  // Snapshot the previous plan/expiry before mutating so we can emit a
+  // proper `plan_changed` event downstream — the bot uses oldPlan/newPlan
+  // to decide whether to swap the Discord role.
+  const { data: prevSettings } = await supabase
+    .from('user_settings')
+    .select('plan, plan_expiry')
+    .eq('user_id', userId)
+    .single();
+  const oldPlan = prevSettings?.plan ?? null;
+  const oldExpiry = prevSettings?.plan_expiry ?? null;
+
   // Update subscription record (upsert by user_id — one subscription per user).
   await supabase.from('subscriptions').upsert(
     {
@@ -174,6 +186,11 @@ async function updateUserPlan(
     { onConflict: 'user_id' },
   );
 
+  // Compute the post-mutation plan/expiry mirror so the emit can describe
+  // exactly what landed in user_settings.
+  let newPlan: string = oldPlan ?? 'free';
+  let newExpiry: string | null = oldExpiry;
+
   // Update user_settings based on subscription status.
   if (status === 'active' || status === 'trialing') {
     const planExpiry = mapping.plan === 'lifetime' ? null : nextBilledAt;
@@ -183,6 +200,8 @@ async function updateUserPlan(
       .update({ plan: mapping.plan, plan_expiry: planExpiry, updated_at: new Date().toISOString() })
       .eq('user_id', userId);
 
+    newPlan = mapping.plan;
+    newExpiry = planExpiry;
     logPaddle(null, 'webhook', `${userId} → plan=${mapping.plan}, expiry=${planExpiry}`, 'processed');
   } else if (status === 'canceled' || status === 'past_due') {
     const expiresAt = nextBilledAt || canceledAt;
@@ -193,12 +212,15 @@ async function updateUserPlan(
         .from('user_settings')
         .update({ plan: 'free', plan_expiry: null, updated_at: new Date().toISOString() })
         .eq('user_id', userId);
+      newPlan = 'free';
+      newExpiry = null;
       logPaddle(null, 'webhook', `${userId} → canceled immediately, set to free`, 'processed');
     } else if (expiresAt) {
       await supabase
         .from('user_settings')
         .update({ plan_expiry: expiresAt, updated_at: new Date().toISOString() })
         .eq('user_id', userId);
+      newExpiry = expiresAt;
       logPaddle(null, 'webhook', `${userId} → canceled, active until ${expiresAt}`, 'processed');
     }
   }
@@ -213,6 +235,23 @@ async function updateUserPlan(
     old_plan: null,
     reason: `Paddle ${status} (${subscriptionId})`,
   });
+
+  // Drive the bot's role sync + activity feed via the events bus. Skip
+  // the emit if nothing observably changed (rare — webhook replay with
+  // unchanged plan + expiry).
+  if (oldPlan !== newPlan || oldExpiry !== newExpiry) {
+    await emitEvent({
+      type: 'plan_changed',
+      user_id: userId,
+      payload: {
+        oldPlan,
+        newPlan,
+        oldExpiry,
+        newExpiry,
+        reason: `paddle_${status}`,
+      },
+    });
+  }
 }
 
 // ─── Handle one-time purchase (lifetime) ─────────────────────────────────────
@@ -259,6 +298,15 @@ async function handleTransactionCompleted(event: any): Promise<void> {
         return;
       }
 
+      // Snapshot prior plan/expiry for the plan_changed event below.
+      const { data: prevSettings } = await supabase
+        .from('user_settings')
+        .select('plan, plan_expiry')
+        .eq('user_id', userId)
+        .single();
+      const oldPlan = prevSettings?.plan ?? null;
+      const oldExpiry = prevSettings?.plan_expiry ?? null;
+
       await supabase.from('subscriptions').upsert(
         {
           user_id: userId,
@@ -290,6 +338,23 @@ async function handleTransactionCompleted(event: any): Promise<void> {
         new_plan: 'lifetime',
         reason: `Paddle transaction ${transaction.id}`,
       });
+
+      // Bot needs to swap the Lifetime role; activity feed needs the
+      // entry. Skip if it's a duplicate webhook delivery on an already-
+      // lifetime account.
+      if (oldPlan !== 'lifetime') {
+        await emitEvent({
+          type: 'plan_changed',
+          user_id: userId,
+          payload: {
+            oldPlan,
+            newPlan: 'lifetime',
+            oldExpiry,
+            newExpiry: null,
+            reason: 'paddle_lifetime_purchase',
+          },
+        });
+      }
     }
   }
 }
