@@ -62,6 +62,10 @@ interface AutoMoveState {
   autoRematch: boolean;
   autoPaused: boolean;
   autoCountdownMs: number | null;
+  /** Key that toggles autoPaused on/off while in auto mode. The
+   *  listener is gated on `mode === 'auto'` so it doesn't intercept
+   *  Space (the default) anywhere else on the page. */
+  autoPlayPauseKey: string;
   movePreset: MovePreset;
   moveWeights: [number, number, number];
   moveWeightsCustom: [number, number, number];
@@ -84,6 +88,7 @@ interface AutoMoveState {
   setAutoRematch: (v: boolean) => void;
   setAutoPaused: (v: boolean) => void;
   setAutoCountdown: (ms: number | null) => void;
+  setAutoPlayPauseKey: (key: string) => void;
   setMovePreset: (p: MovePreset) => void;
   setMoveWeight: (i: 0 | 1 | 2, v: number) => void;
   setPrioritizeForcing: (v: boolean) => void;
@@ -108,6 +113,7 @@ const AUTOMOVE_DEFAULTS = {
   autoRematch: false,
   autoPaused: true,
   autoCountdownMs: null as number | null,
+  autoPlayPauseKey: 'Space',
   movePreset: 'mostly-best' as MovePreset,
   moveWeights: MOVE_PRESETS['mostly-best'],
   moveWeightsCustom: MOVE_PRESETS['mostly-best'],
@@ -135,6 +141,7 @@ export const useAutoMoveStore = create<AutoMoveState>()(
       setAutoRematch: (autoRematch) => set({ autoRematch }),
       setAutoPaused: (autoPaused) => set({ autoPaused, autoCountdownMs: autoPaused ? null : get().autoCountdownMs }),
       setAutoCountdown: (autoCountdownMs) => set({ autoCountdownMs }),
+      setAutoPlayPauseKey: (autoPlayPauseKey) => set({ autoPlayPauseKey }),
       setMovePreset: (movePreset) => {
         if (movePreset === 'manual') {
           set({ movePreset, moveWeights: get().moveWeightsCustom });

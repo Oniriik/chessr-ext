@@ -37,8 +37,36 @@ export function displayKey(key: string): string {
     case 'Control': return 'Ctrl';
     case 'Alt':     return IS_MAC ? 'Option' : 'Alt';
     case 'Meta':    return IS_MAC ? 'Cmd'    : 'Win';
+    case 'Space':
+    case ' ':       return 'Space';
+    case 'Enter':   return 'Enter';
+    case 'Tab':     return 'Tab';
+    case 'Escape':  return 'Esc';
     default:        return key;
   }
+}
+
+// Format a single millisecond value — `<1000` stays in ms, `≥1000` flips
+// to seconds with up to 2 decimals stripped of trailing zeros so 1000 is
+// "1s", 1500 is "1.5s", 1650 is "1.65s".
+function fmtMs(v: number): string {
+  if (v >= 1000) {
+    const s = (v / 1000).toFixed(2).replace(/\.?0+$/, '');
+    return `${s}s`;
+  }
+  return `${v}ms`;
+}
+
+// Range formatter — picks one unit for the whole range so "500ms–1.5s"
+// (mixed) doesn't appear; if either bound crosses 1000ms, both render in
+// seconds.
+function fmtMsRange([lo, hi]: [number, number]): string {
+  if (hi >= 1000) {
+    const loS = (lo / 1000).toFixed(2).replace(/\.?0+$/, '');
+    const hiS = (hi / 1000).toFixed(2).replace(/\.?0+$/, '');
+    return `${loS}–${hiS} s`;
+  }
+  return `${lo}–${hi} ms`;
 }
 
 // Compact abbreviation / symbol — shown inside kbd chips in the example
@@ -250,11 +278,11 @@ function PremoveCard() {
     <div className={`am-card ${!premoveOk ? 'am-card--locked' : ''}`}>
       <div className="am-card-head">
         <span className="am-card-title">Premove</span>
-        <span className="am-slider-val">{s.premoveDelay[0]}–{s.premoveDelay[1]} ms</span>
+        <span className="am-slider-val">{fmtMsRange(s.premoveDelay)}</span>
       </div>
       <span className="am-card-sub">Time before queuing the premove</span>
       <div className="am-slider-row">
-        <RangeSlider value={s.premoveDelay} onChange={s.setPremoveDelay} min={0} max={3000} step={50} color="#3b82f6" disabled={disabled} />
+        <RangeSlider value={s.premoveDelay} onChange={s.setPremoveDelay} min={0} max={60000} step={50} color="#3b82f6" disabled={disabled} />
       </div>
       {!premoveOk && (
         <div className="am-platform-warn">
@@ -291,13 +319,20 @@ function AutoPlayCard() {
       <div className="am-slider-row">
         <div className="am-slider-head">
           <span className="am-slider-label">Play delay</span>
-          <span className="am-slider-val">{s.autoPlayDelay[0]}–{s.autoPlayDelay[1]} ms</span>
+          <span className="am-slider-val">{fmtMsRange(s.autoPlayDelay)}</span>
         </div>
         {/* Play delay stays customizable on free — it's the one auto-mode
             knob the user can tune even without premium. The auto MODE
             itself is locked at the mode-switch level above; if a free
             user is here it's because they were premium previously. */}
-        <RangeSlider value={s.autoPlayDelay} onChange={s.setAutoPlayDelay} min={0} max={3000} step={50} color="#a855f7" />
+        <RangeSlider value={s.autoPlayDelay} onChange={s.setAutoPlayDelay} min={0} max={60000} step={50} color="#a855f7" />
+      </div>
+      <div className="am-card-head">
+        <span className="am-card-sublabel">Play / Pause</span>
+        <KeyInput
+          value={s.autoPlayPauseKey}
+          onChange={s.setAutoPlayPauseKey}
+        />
       </div>
       <div className="am-row">
         <div className="am-row-label-col">
@@ -415,7 +450,7 @@ function HumanizeCard() {
     <div className="am-card" style={accentStyle}>
       <div className="am-card-head">
         <span className="am-card-title">Humanize</span>
-        <span className="am-slider-val">≈ {Math.round(total)} ms</span>
+        <span className="am-slider-val">≈ {fmtMs(Math.round(total))}</span>
       </div>
       <div className="am-card-sub">Randomized delays around each move</div>
       <div className="am-presets">
@@ -448,7 +483,7 @@ function DelayRange({ label, value, onChange, min, max, color, disabled }: {
     <div className="am-slider-row">
       <div className="am-slider-head">
         <span className="am-slider-label">{label}</span>
-        <span className="am-slider-val">{value[0]}–{value[1]} ms</span>
+        <span className="am-slider-val">{fmtMsRange(value)}</span>
       </div>
       <RangeSlider value={value} onChange={onChange} min={min} max={max} step={10} color={color} disabled={disabled} />
     </div>
@@ -467,7 +502,15 @@ function KeyInput({ value, onChange, modifierOnly, disabled }: { value: string; 
     e.preventDefault();
     e.stopPropagation();
     if (!capturing) return;
-    const k = e.key;
+    // Normalize a few non-printables so the stored value is searchable
+    // (e.key for Space is the literal ' ' which renders blank). The
+    // matcher's canonicalKey() understands the lowercase tokens.
+    let k = e.key;
+    if (e.code === 'Space')          k = 'Space';
+    else if (e.code === 'Enter')     k = 'Enter';
+    else if (e.code === 'Tab')       k = 'Tab';
+    else if (e.code === 'Escape')    k = 'Escape';
+    else if (e.code === 'Backspace') k = 'Backspace';
     if (modifierOnly && !['Shift', 'Control', 'Alt', 'Meta'].includes(k)) return;
     onChange(k);
     setCapturing(false);

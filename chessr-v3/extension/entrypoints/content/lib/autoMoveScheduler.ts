@@ -113,6 +113,33 @@ function schedulePremove(premoveUci: string): void {
 
 let hotkeyInstalled = false;
 
+/** Install the play/pause hotkey for auto mode. The listener is always
+ *  bound but no-ops outside `mode === 'auto'`, so binding once at startup
+ *  is fine and we don't have to track install/teardown across mode flips. */
+let pauseHotkeyInstalled = false;
+export function installAutoPauseHotkey(): void {
+  if (pauseHotkeyInstalled) return;
+  pauseHotkeyInstalled = true;
+
+  window.addEventListener('keydown', (e) => {
+    const s = useAutoMoveStore.getState();
+    if (s.mode !== 'auto') return;
+    if (!s.autoPlayPauseKey) return;
+
+    // Don't intercept while the user is typing in chess.com chat,
+    // search, etc. — same guard as the hotkey listener.
+    const target = e.target as HTMLElement;
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+
+    if (!keysMatch(e, s.autoPlayPauseKey)) return;
+
+    // Toggle paused. preventDefault so Space doesn't also scroll the page.
+    s.setAutoPaused(!s.autoPaused);
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+}
+
 export function installHotkeyListener(): void {
   if (hotkeyInstalled) return;
   hotkeyInstalled = true;
@@ -150,6 +177,13 @@ export function installHotkeyListener(): void {
 function canonicalKey(e: KeyboardEvent): string {
   if (/^Digit[0-9]$/.test(e.code)) return e.code.slice(5);
   if (/^Key[A-Z]$/.test(e.code))   return e.code.slice(3).toLowerCase();
+  // Map a few common non-printables to readable tokens so configs and the
+  // UI ('Space', 'Enter', …) match what the matcher expects.
+  if (e.code === 'Space')    return 'space';
+  if (e.code === 'Enter')    return 'enter';
+  if (e.code === 'Tab')      return 'tab';
+  if (e.code === 'Escape')   return 'escape';
+  if (e.code === 'Backspace') return 'backspace';
   return e.key.toLowerCase();
 }
 

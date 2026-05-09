@@ -38,7 +38,7 @@ import { useExplanationStore } from './content/stores/explanationStore';
 import { useEngineStore } from './content/stores/engineStore';
 import { animationGate } from './content/stores/animationStore';
 import { useEvalStore } from './content/stores/evalStore';
-import { installHotkeyListener, installAutoPlayScheduler } from './content/lib/autoMoveScheduler';
+import { installHotkeyListener, installAutoPlayScheduler, installAutoPauseHotkey } from './content/lib/autoMoveScheduler';
 import { isPremiumPlan } from './content/lib/premium';
 import { installStreamSync } from './content/lib/streamSync';
 import { initStreamOpenCache, subscribeStreamOpen } from './content/lib/streamOpen';
@@ -580,8 +580,9 @@ export default defineContentScript({
     // Init eval bar in page DOM (outside Shadow Root)
     initEvalBar();
 
-    // Auto Move: install hotkey listener + auto-play scheduler
+    // Auto Move: install hotkey listener + auto-play scheduler + pause toggle
     installHotkeyListener();
+    installAutoPauseHotkey();
     installAutoPlayScheduler();
     // Mirror the live game state to chrome.storage so the Stream Mode
     // page (separate extension tab) can render the same board + arrows.

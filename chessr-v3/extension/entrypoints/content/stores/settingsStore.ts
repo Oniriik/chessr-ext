@@ -90,6 +90,7 @@ function getAutoMovePayload() {
     premoveDelay: a.premoveDelay,
     useOnScreenButtons: a.useOnScreenButtons,
     autoPlayDelay: a.autoPlayDelay,
+    autoPlayPauseKey: a.autoPlayPauseKey,
     autoPremove: a.autoPremove,
     autoRematch: a.autoRematch,
     movePreset: a.movePreset,
