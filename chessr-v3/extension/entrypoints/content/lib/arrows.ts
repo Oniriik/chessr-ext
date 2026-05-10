@@ -261,8 +261,15 @@ function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | '
 }
 
 /** Public hook: torch's async classifyCandidate stream lands here. Just
- *  refresh badges — the underlying arrows stay put. */
+ *  refresh badges — the underlying arrows stay put.
+ *
+ *  Gated on isStreamOpen: when Stream Mode is active the on-platform
+ *  overlay is intentionally empty (the streamer's audience sees the
+ *  board in the dedicated tab, not on chess.com). renderArrows has the
+ *  same gate, but torch results arrive async and can land after stream
+ *  opens — without this check they re-inject badges on the host board. */
 export function applyClassificationsToBoard(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[]) {
+  if (isStreamOpen()) return;
   renderBadges(suggestions, true);
 }
 
