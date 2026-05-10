@@ -285,27 +285,38 @@ async function handleCloseConfirm(interaction: ButtonInteraction, _ticketId: num
   // DB flip first — if Discord ops fail mid-way we re-attempt next click.
   await closeTicket(ticket.id, interaction.user.id);
 
-  // Move + rename + remove opener access. Each step is best-effort
-  // (rate-limit on rename happens fast in Discord).
+  // Send the close message FIRST. setName / setParent rate-limit
+  // aggressively (channel updates have their own bucket) and a slow
+  // failure cascade can starve channel.send, leaving the channel
+  // visibly closed in DB but with no closure message in Discord.
+  try {
+    // Auto-delete countdown shown as a Discord relative timestamp —
+    // renders client-side as "in 12 hours" / "in 5h" / "in 30m".
+    const deleteTs = Math.floor((Date.now() + 12 * 60 * 60 * 1000) / 1000);
+    await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR_CLOSED)
+          .setDescription(
+            `🔒 Ticket closed by <@${interaction.user.id}>\n\n` +
+            `🗑 This channel will be auto-deleted <t:${deleteTs}:R> (<t:${deleteTs}:F>).\n` +
+            'Use the buttons below to **Reopen** or **Delete** now.',
+          )
+          .setTimestamp(),
+      ],
+      components: [closedTicketButtons(ticket.id)],
+    });
+  } catch (err) {
+    log.error('[tickets] close message send failed:', err);
+  }
+
+  // Now the slow ops. Each is best-effort.
   const closedCatId = config.discord.ticketClosedCategoryId;
   if (closedCatId) {
     await channel.setParent(closedCatId, { lockPermissions: false }).catch((e) => log.warn('[tickets] move-to-closed failed:', e));
   }
   await channel.setName(`closed-${padded}-${username}`).catch((e) => log.warn('[tickets] rename failed:', e));
   await channel.permissionOverwrites.edit(ticket.opener_discord_id, { ViewChannel: false }).catch(() => {});
-
-  await channel.send({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(COLOR_CLOSED)
-        .setDescription(
-          `🔒 Ticket closed by <@${interaction.user.id}>\n` +
-          'This channel will be **auto-deleted in 12 hours**. Reopen or Delete now using the buttons below.',
-        )
-        .setTimestamp(),
-    ],
-    components: [closedTicketButtons(ticket.id)],
-  });
 
   log.info(`[tickets] ${interaction.user.tag} closed #${padded}`);
 }
