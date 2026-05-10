@@ -18,6 +18,7 @@ import {
   deployCommands,
   registerCommand,
 } from './lib/commands.js';
+import { loadPlatformEmojis } from './lib/platformEmoji.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -58,6 +59,11 @@ client.once('clientReady', async () => {
   // the bot we just authed as. A mismatched ID silently 404s.
   try { await deployCommands(); }
   catch (err) { log.error('[commands] deploy failed:', err); }
+  // Cache the custom platform emojis (:chesscom:, :lichess:,
+  // :worldchess:) from the guild so commands can format them without
+  // hardcoded IDs.
+  try { await loadPlatformEmojis(client); }
+  catch (err) { log.error('[emoji] load failed:', err); }
 });
 
 client.on('error', (err) => log.error('[discord] client error:', err));

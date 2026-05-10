@@ -8,6 +8,7 @@ import type { BotCommand } from '../lib/commands.js';
 import { config } from '../config.js';
 import { supabase } from '../lib/supabase.js';
 import { platformLabel } from '../lib/ratings.js';
+import { platformEmoji } from '../lib/platformEmoji.js';
 
 // /lookup <member> — admin-only deep dump on a Discord member's Chessr
 // account: email, plan + paddle subscription state, country, linked
@@ -105,7 +106,7 @@ export const command: BotCommand = {
             a.rating_bullet && a.rating_bullet > 0 ? `⚡:${a.rating_bullet}` : null,
           ].filter(Boolean).join(' ');
           const display = a.display_name || a.platform_username;
-          return `**${platformLabel(a.platform)}** ${display}${ratings ? ` (${ratings})` : ''}`;
+          return `${platformEmoji(a.platform)} **${platformLabel(a.platform)}** ${display}${ratings ? ` (${ratings})` : ''}`;
         }).join('\n')
       : 'None';
 

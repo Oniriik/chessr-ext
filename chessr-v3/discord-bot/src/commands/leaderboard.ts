@@ -2,6 +2,7 @@ import { SlashCommandBuilder } from 'discord.js';
 import type { BotCommand } from '../lib/commands.js';
 import { supabase } from '../lib/supabase.js';
 import { MODE_CONFIG, type Mode } from '../lib/ratings.js';
+import { platformEmoji } from '../lib/platformEmoji.js';
 
 // /leaderboard [mode] — top 10 by Bullet/Blitz/Rapid Elo across all
 // linked platforms (chess.com, lichess, worldchess). One row per
@@ -94,15 +95,9 @@ export const command: BotCommand = {
     }
 
     const medals = ['🥇', '🥈', '🥉'];
-    const platformBadge: Record<string, string> = {
-      chesscom:   '🏛️',
-      lichess:    '♞',
-      worldchess: '🌐',
-    };
     const lines = rows.map((r, i) => {
       const prefix = i < 3 ? medals[i] : `\`${i + 1}.\``;
-      const badge = platformBadge[r.platform] ?? '•';
-      return `${prefix} <@${r.discordId}> — **${r.elo}** ${badge}`;
+      return `${prefix} <@${r.discordId}> — **${r.elo}** ${platformEmoji(r.platform)}`;
     });
 
     await interaction.editReply({

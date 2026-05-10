@@ -8,6 +8,7 @@ import {
   MODE_CONFIG,
   platformLabel,
 } from '../lib/ratings.js';
+import { platformEmoji } from '../lib/platformEmoji.js';
 
 // /rank [member] — show a member's Chessr profile + their highest
 // Bullet/Blitz/Rapid rating across every linked platform (chess.com,
@@ -66,14 +67,14 @@ export const command: BotCommand = {
           a.rating_blitz  ? `🔥${a.rating_blitz}`  : null,
           a.rating_rapid  ? `🕐${a.rating_rapid}`  : null,
         ].filter(Boolean).join(' · ');
-        return `**${platformLabel(a.platform)}** · ${a.platform_username}${r ? ` — ${r}` : ''}`;
+        return `${platformEmoji(a.platform)} **${platformLabel(a.platform)}** · ${a.platform_username}${r ? ` — ${r}` : ''}`;
       });
       fields.push({ name: 'Linked accounts', value: lines.join('\n') });
     } else if (accounts.length === 1) {
       const a = accounts[0];
       fields.push({
         name: 'Linked account',
-        value: `**${platformLabel(a.platform)}** · ${a.platform_username}`,
+        value: `${platformEmoji(a.platform)} **${platformLabel(a.platform)}** · ${a.platform_username}`,
       });
     }
 
