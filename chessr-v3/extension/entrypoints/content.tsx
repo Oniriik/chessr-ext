@@ -595,10 +595,19 @@ export default defineContentScript({
     // Stream Mode flag — kept in chrome.storage by the dedicated stream
     // tab. Cache the value synchronously so renderArrows() can no-op
     // when stream is open, and wipe any already-drawn arrows the moment
-    // the streamer opens the tab.
+    // the streamer opens the tab. When stream closes, redraw the
+    // current suggestions immediately so the host board doesn't stay
+    // arrow-less until the engine produces the next batch.
     initStreamOpenCache();
     subscribeStreamOpen((open) => {
-      if (open) clearArrows();
+      if (open) {
+        clearArrows();
+        return;
+      }
+      const { suggestions } = useSuggestionStore.getState();
+      if (suggestions.length === 0) return;
+      const isFlipped = useGameStore.getState().playerColor === 'black';
+      renderArrows(suggestions, isFlipped, true);
     });
 
     // Mirror system-message widget state across this content script
