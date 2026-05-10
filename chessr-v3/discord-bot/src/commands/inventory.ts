@@ -104,7 +104,7 @@ function homeEmbed(inv: Inventory): EmbedBuilder {
 
   lines.push('### 🎟️ Spin Tokens');
   if (inv.tokens.length === 0) {
-    lines.push('_No tokens — boost the server to earn one._');
+    lines.push('_No tokens — get 1 token by boosting the server or during events._');
   } else {
     lines.push(`**${inv.tokens.length}** unused`);
   }
@@ -252,6 +252,10 @@ async function handleSpinConfirm(interaction: ButtonInteraction): Promise<void> 
     // Lifetime jackpot pings the spinner (rare moment, server-wide
     // celebration). Days spins post silently — the spinner already saw
     // the reveal in their ephemeral, no need to double-notify.
+    // Footer reminds onlookers they can spin too — drives /inventory
+    // discovery without needing a separate dedicated message.
+    const footer = { text: 'Use /inventory to roll your tokens' };
+
     if (isLifetime) {
       await (ch as TextChannel).send({
         content: `<@${interaction.user.id}>`,
@@ -262,7 +266,8 @@ async function handleSpinConfirm(interaction: ButtonInteraction): Promise<void> 
             .setDescription(
               `<@${interaction.user.id}> just hit the jackpot on the wheel — **1 spin in 1000**!\n` +
               'Lifetime Premium incoming 💜',
-            ),
+            )
+            .setFooter(footer),
         ],
         allowedMentions: { users: [interaction.user.id] },
       });
@@ -271,7 +276,8 @@ async function handleSpinConfirm(interaction: ButtonInteraction): Promise<void> 
         embeds: [
           new EmbedBuilder()
             .setColor(COLOR_DAYS)
-            .setDescription(`🎉 <@${interaction.user.id}> spun and won **${days} days**!`),
+            .setDescription(`🎉 <@${interaction.user.id}> spun and won **${days} days**!`)
+            .setFooter(footer),
         ],
         allowedMentions: { parse: [] },
       });
@@ -735,7 +741,8 @@ async function handleGiftConfirm(interaction: ButtonInteraction, rewardId: numbe
       embeds: [
         new EmbedBuilder()
           .setColor(COLOR_GIFT)
-          .setDescription(`🎁 <@${interaction.user.id}> gifted **${rewardWord}** to <@${targetId}>!`),
+          .setDescription(`🎁 <@${interaction.user.id}> gifted **${rewardWord}** to <@${targetId}>!`)
+          .setFooter({ text: 'Use /inventory to roll your tokens' }),
       ],
       allowedMentions: { users: [targetId] },
     });
