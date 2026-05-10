@@ -66,9 +66,13 @@ export const useWidgetStore = create<WidgetState>((set, get) => ({
     if (queue.some((m) => m.id === msg.id)) return;
     if (!current) {
       set({ current: msg });
-    } else {
-      set({ queue: [...queue, msg] });
+      return;
     }
+    // Override: new message takes the floor immediately. The displaced
+    // message goes to the FRONT of the queue, so when the user dismisses
+    // the new one (e.g. an error toast), the previous nudge resumes
+    // rather than getting silently dropped.
+    set({ current: msg, queue: [current, ...queue] });
   },
 
   next: () => {

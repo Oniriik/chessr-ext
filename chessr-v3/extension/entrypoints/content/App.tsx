@@ -64,11 +64,12 @@ const DISCORD_ERROR_TEXT: Record<string, string> = {
   expired:         'The link request expired. Click "Link Discord" again to start fresh.',
 };
 const TRIAL_DENY_TEXT: Record<string, string> = {
-  not_eligible: 'Trial wasn\'t granted.',
-  already_used: 'Trial already used on this account.',
-  paid_plan:    'You\'re already on a paid plan — no trial needed.',
-  not_found:    'Couldn\'t find your account.',
-  db_error:     'Trial couldn\'t be saved. Ping support if it matters.',
+  not_eligible:        'Trial wasn\'t granted.',
+  already_used:        'Trial already used on this account.',
+  paid_plan:           'You\'re already on a paid plan — no trial needed.',
+  not_found:           'Couldn\'t find your account.',
+  db_error:            'Trial couldn\'t be saved. Ping support if it matters.',
+  discord_already_used:'This Discord account already used a free trial on chessr.',
 };
 
 export default function App({ streamMode = false }: AppProps = {}) {
