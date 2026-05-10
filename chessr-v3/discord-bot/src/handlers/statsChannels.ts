@@ -86,14 +86,17 @@ async function playingNow(): Promise<number | null> {
  *  no-op renames silently — same effect on the rate budget either way
  *  — but skipping the call entirely keeps logs clean. */
 async function renameIfChanged(channel: GuildChannel, name: string): Promise<void> {
-  if (channel.name === name) return;
+  if (channel.name === name) {
+    log.info(`[stats] ${channel.id} already named "${name}", skipping`);
+    return;
+  }
   try {
     await channel.setName(name, 'stats refresh');
-    log.debug(`[stats] renamed ${channel.id} → "${name}"`);
+    log.info(`[stats] renamed ${channel.id} → "${name}"`);
   } catch (err) {
-    // 50035 (Invalid Form Body) usually means the new name violates
-    // Discord's rules (length, control chars). 30019 / 429 = rate
-    // limited — log + move on, next tick will retry.
+    // 50013 = Missing Permissions on this channel.
+    // 50035 = Invalid Form Body (length / control chars).
+    // 30019 / 429 = rate limited — log + move on, next tick retries.
     log.warn(`[stats] rename failed for ${channel.id}:`, err);
   }
 }
