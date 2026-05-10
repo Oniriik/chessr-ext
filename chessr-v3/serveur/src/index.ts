@@ -45,6 +45,7 @@ import { initMaia3Worker, shutdownMaia3Worker } from './queue/maia3Queue.js';
 import { startQueueStats, stopQueueStats } from './queue/stats.js';
 import { registerCron, startCrons, stopCrons } from './lib/cron.js';
 import { runGiveawayDraw } from './jobs/giveawayDraw.js';
+import { runTicketAutoDelete } from './jobs/ticketAutoDelete.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -134,6 +135,12 @@ registerCron({
   intervalMs: 60_000,
   runImmediately: true,
   run: runGiveawayDraw,
+});
+registerCron({
+  name: 'ticket-auto-delete',
+  intervalMs: 5 * 60_000,
+  runImmediately: true,
+  run: runTicketAutoDelete,
 });
 startCrons();
 

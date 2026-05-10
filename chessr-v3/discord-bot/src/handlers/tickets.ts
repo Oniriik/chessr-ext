@@ -42,6 +42,7 @@ import {
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
 import type { BotCommand } from '../lib/commands.js';
+import { onEvent } from '../lib/events.js';
 import { resolveRoleByDiscordId } from '../lib/roleCheck.js';
 import {
   closeTicket,
@@ -297,7 +298,10 @@ async function handleCloseConfirm(interaction: ButtonInteraction, _ticketId: num
     embeds: [
       new EmbedBuilder()
         .setColor(COLOR_CLOSED)
-        .setDescription(`🔒 Ticket closed by <@${interaction.user.id}>`)
+        .setDescription(
+          `🔒 Ticket closed by <@${interaction.user.id}>\n` +
+          'This channel will be **auto-deleted in 12 hours**. Reopen or Delete now using the buttons below.',
+        )
         .setTimestamp(),
     ],
     components: [closedTicketButtons(ticket.id)],
@@ -496,9 +500,39 @@ async function ensureAdmin(interaction: ButtonInteraction): Promise<boolean> {
   return false;
 }
 
+// ─── Auto-delete event handler ───────────────────────────────────────────
+
+async function handleAutoDelete(client: Client, raw: Record<string, unknown>): Promise<void> {
+  const ticketId = Number((raw as { ticketId?: unknown }).ticketId);
+  const channelId = String((raw as { channelId?: unknown }).channelId ?? '');
+  if (!Number.isFinite(ticketId) || !channelId) return;
+
+  // Best-effort channel.delete(). NotFound (channel already gone) is
+  // fine — we still want to flip the DB row.
+  try {
+    const ch = await client.channels.fetch(channelId).catch(() => null);
+    if (ch && 'delete' in ch) {
+      await ch.delete(`Auto-delete after 12h closed window (ticket #${ticketId})`);
+      log.info(`[tickets] auto-deleted channel ${channelId} for ticket #${ticketId}`);
+    } else {
+      log.info(`[tickets] auto-delete: channel ${channelId} already gone (ticket #${ticketId})`);
+    }
+  } catch (err) {
+    log.warn(`[tickets] auto-delete channel.delete failed for ${channelId}:`, err);
+  }
+
+  try { await deleteTicket(ticketId, ''); }
+  catch (err) { log.warn(`[tickets] auto-delete DB flip failed for #${ticketId}:`, err); }
+}
+
 // ─── Wire up the interaction router ──────────────────────────────────────
 
 export function registerTicketHandlers(client: Client): void {
+  onEvent('ticket_auto_delete', async (e) => {
+    try { await handleAutoDelete(client, e.payload); }
+    catch (err) { log.error('[tickets] auto-delete handler threw:', err); }
+  });
+
   client.on('interactionCreate', async (interaction: Interaction) => {
     if (!interaction.isButton()) return;
     if (!interaction.customId.startsWith(PREFIX)) return;

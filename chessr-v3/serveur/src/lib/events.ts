@@ -98,6 +98,13 @@ export const EVENT_KINDS = [
   // existing announce_message_id with the fresh embed so the channel
   // doesn't fall out of sync with the dashboard.
   'giveaway_updated',
+  // payload: { ticketId, channelId, openerDiscordId }
+  // Emitted by the ticket auto-delete cron when a closed ticket has
+  // been sitting longer than the retention window (12h). The bot
+  // deletes the Discord channel and POSTs /admin/tickets/:id/delete
+  // to flip the row to 'deleted'. Idempotent — if the bot was offline
+  // when the event fired, the next cron tick re-emits.
+  'ticket_auto_delete',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
