@@ -13,8 +13,12 @@ export type PlanKind = 'lifetime' | 'premium';
 export interface Giveaway {
   id: number;
   name: string;
+  starts_at: string;
   ends_at: string;
   status: GiveawayStatus;
+  announce_channel_id: string | null;
+  announce_message_id: string | null;
+  announced_at: string | null;
   created_at: string;
   created_by_user_id: string | null;
   drawn_at: string | null;

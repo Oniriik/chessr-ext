@@ -21,23 +21,34 @@ function toDatetimeLocal(d: Date): string {
 export default function NewGiveawayPage() {
   const router = useRouter();
   const [name, setName] = useState('');
-  // Default the picker to "tomorrow at 18:00 local" — typical reveal slot.
+  // Defaults: starts now + 1 hour (gives time to publish/edit before the
+  // bot announces), ends at next day 18:00.
+  const [startsAtLocal, setStartsAtLocal] = useState(() => {
+    const d = new Date();
+    d.setHours(d.getHours() + 1, 0, 0, 0);
+    return toDatetimeLocal(d);
+  });
   const [endsAtLocal, setEndsAtLocal] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
     d.setHours(18, 0, 0, 0);
     return toDatetimeLocal(d);
   });
+  const [announceChannelId, setAnnounceChannelId] = useState('');
   const [prizes, setPrizes] = useState<Prize[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tsCopied, setTsCopied] = useState(false);
 
+  const startsAtIso = useMemo(() => {
+    if (!startsAtLocal) return null;
+    const d = new Date(startsAtLocal);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }, [startsAtLocal]);
   const endsAtIso = useMemo(() => {
     if (!endsAtLocal) return null;
     const d = new Date(endsAtLocal);
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toISOString();
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
   }, [endsAtLocal]);
 
   const tsTag = endsAtIso ? discordTimestamp(endsAtIso, 'F') : '';
@@ -53,7 +64,11 @@ export default function NewGiveawayPage() {
   async function submit() {
     setError(null);
     if (!name.trim())     { setError('Name required'); return; }
+    if (!startsAtIso)     { setError('Start date required'); return; }
     if (!endsAtIso)       { setError('End date required'); return; }
+    if (Date.parse(startsAtIso) >= Date.parse(endsAtIso)) {
+      setError('Start must be before end'); return;
+    }
     if (prizes.length === 0) { setError('Add at least one prize'); return; }
 
     setSubmitting(true);
@@ -62,7 +77,13 @@ export default function NewGiveawayPage() {
       const res = await fetch(`/api/admin/giveaways?token=${t}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), endsAt: endsAtIso, prizes }),
+        body: JSON.stringify({
+          name: name.trim(),
+          startsAt: startsAtIso,
+          endsAt: endsAtIso,
+          announceChannelId: announceChannelId.trim() || null,
+          prizes,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
@@ -103,32 +124,67 @@ export default function NewGiveawayPage() {
               />
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Starts at (local)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={startsAtLocal}
+                  onChange={(e) => setStartsAtLocal(e.target.value)}
+                  disabled={submitting}
+                />
+                <div className="text-[10px] text-muted-foreground">
+                  The bot posts the announcement at this moment.
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Ends at (local)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={endsAtLocal}
+                  onChange={(e) => setEndsAtLocal(e.target.value)}
+                  disabled={submitting}
+                />
+                <div className="text-[10px] text-muted-foreground">
+                  Tickets stop counting after this.
+                </div>
+              </div>
+            </div>
+
+            {endsAtIso && (
+              <div className="rounded-md border border-border bg-background/40 p-3 text-[11px]">
+                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Discord timestamp for end date
+                </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-[11px]">{tsTag}</code>
+                  <Button size="sm" variant="outline" onClick={copyTs} className="h-7 gap-1 px-2 text-[11px]">
+                    {tsCopied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
+                  </Button>
+                </div>
+                <div className="mt-2 text-[10px] text-muted-foreground">
+                  Renders as <strong>viewer local time</strong> · also <code>{tsRel}</code> for relative.
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Ends at (local time)
+                Announce channel ID (optional)
               </label>
               <Input
-                type="datetime-local"
-                value={endsAtLocal}
-                onChange={(e) => setEndsAtLocal(e.target.value)}
+                value={announceChannelId}
+                onChange={(e) => setAnnounceChannelId(e.target.value)}
+                placeholder="Empty = use DISCORD_GIVEAWAY_CHANNEL_ID env"
                 disabled={submitting}
               />
-              {endsAtIso && (
-                <div className="rounded-md border border-border bg-background/40 p-3 text-[11px]">
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Discord timestamp (copy into your announcement)
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-[11px]">{tsTag}</code>
-                    <Button size="sm" variant="outline" onClick={copyTs} className="h-7 gap-1 px-2 text-[11px]">
-                      {tsCopied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
-                    </Button>
-                  </div>
-                  <div className="mt-2 text-[10px] text-muted-foreground">
-                    Renders as: <strong>local time of the viewer</strong> · also <code>{tsRel}</code> for relative.
-                  </div>
-                </div>
-              )}
+              <div className="text-[10px] text-muted-foreground">
+                Override the default channel for this giveaway only. Snowflake ID.
+              </div>
             </div>
 
             <div className="space-y-2">

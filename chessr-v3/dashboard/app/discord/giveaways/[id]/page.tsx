@@ -39,7 +39,9 @@ export default function GiveawayDetailPage() {
   // Edit-mode local state for header.
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
+  const [editStartsAt, setEditStartsAt] = useState('');
   const [editEndsAt, setEditEndsAt] = useState('');
+  const [editAnnounceChannelId, setEditAnnounceChannelId] = useState('');
   const [savingHeader, setSavingHeader] = useState(false);
 
   // Prize editor local state. Persisted via PUT on Save.
@@ -94,7 +96,9 @@ export default function GiveawayDetailPage() {
   function startEdit() {
     if (!detail) return;
     setEditName(detail.giveaway.name);
+    setEditStartsAt(toDatetimeLocal(detail.giveaway.starts_at));
     setEditEndsAt(toDatetimeLocal(detail.giveaway.ends_at));
+    setEditAnnounceChannelId(detail.giveaway.announce_channel_id ?? '');
     setEditing(true);
   }
 
@@ -104,12 +108,20 @@ export default function GiveawayDetailPage() {
     setError(null);
     try {
       const t = await authQS();
+      const starts = new Date(editStartsAt);
       const ends = new Date(editEndsAt);
-      if (Number.isNaN(ends.getTime())) throw new Error('Invalid date');
+      if (Number.isNaN(starts.getTime())) throw new Error('Invalid start date');
+      if (Number.isNaN(ends.getTime())) throw new Error('Invalid end date');
+      if (starts.getTime() >= ends.getTime()) throw new Error('Start must be before end');
       const res = await fetch(`/api/admin/giveaways/${id}?token=${t}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: editName.trim(), endsAt: ends.toISOString() }),
+        body: JSON.stringify({
+          name: editName.trim(),
+          startsAt: starts.toISOString(),
+          endsAt: ends.toISOString(),
+          announceChannelId: editAnnounceChannelId.trim() || null,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
@@ -207,10 +219,20 @@ export default function GiveawayDetailPage() {
                       <div className="flex items-center gap-2">
                         <h2 className="text-base font-semibold">{detail.giveaway.name}</h2>
                         <StatusBadge status={detail.giveaway.status} />
+                        {detail.giveaway.announced_at && (
+                          <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                            Announced
+                          </span>
+                        )}
                       </div>
                       <div className="num text-[11px] text-muted-foreground">
-                        Ends {format(new Date(detail.giveaway.ends_at), 'PPp')} · ID #{detail.giveaway.id}
+                        Starts {format(new Date(detail.giveaway.starts_at), 'PPp')} · Ends {format(new Date(detail.giveaway.ends_at), 'PPp')} · ID #{detail.giveaway.id}
                       </div>
+                      {detail.giveaway.announce_channel_id && (
+                        <div className="num text-[10px] text-muted-foreground">
+                          Channel override: <code className="rounded bg-muted px-1 py-0.5 font-mono">{detail.giveaway.announce_channel_id}</code>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="ghost" onClick={load} className="h-8 gap-1">
@@ -260,13 +282,40 @@ export default function GiveawayDetailPage() {
                     <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Name</label>
                     <Input value={editName} onChange={(e) => setEditName(e.target.value)} disabled={savingHeader} />
                   </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Starts at</label>
+                      <Input
+                        type="datetime-local"
+                        value={editStartsAt}
+                        onChange={(e) => setEditStartsAt(e.target.value)}
+                        disabled={savingHeader || !!detail.giveaway.announced_at}
+                      />
+                      {!!detail.giveaway.announced_at && (
+                        <div className="text-[10px] text-muted-foreground">
+                          Locked — already announced.
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ends at</label>
+                      <Input
+                        type="datetime-local"
+                        value={editEndsAt}
+                        onChange={(e) => setEditEndsAt(e.target.value)}
+                        disabled={savingHeader}
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ends at</label>
+                    <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Announce channel ID (optional)
+                    </label>
                     <Input
-                      type="datetime-local"
-                      value={editEndsAt}
-                      onChange={(e) => setEditEndsAt(e.target.value)}
-                      disabled={savingHeader}
+                      value={editAnnounceChannelId}
+                      onChange={(e) => setEditAnnounceChannelId(e.target.value)}
+                      placeholder="Empty = use DISCORD_GIVEAWAY_CHANNEL_ID env"
+                      disabled={savingHeader || !!detail.giveaway.announced_at}
                     />
                   </div>
                   <div className="flex justify-end gap-2 pt-2">

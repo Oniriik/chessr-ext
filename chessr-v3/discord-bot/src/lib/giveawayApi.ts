@@ -13,10 +13,18 @@ export type PlanKind = 'lifetime' | 'premium';
 export interface Giveaway {
   id: number;
   name: string;
+  starts_at: string;
   ends_at: string;
   status: GiveawayStatus;
+  announce_channel_id: string | null;
+  announce_message_id: string | null;
+  announced_at: string | null;
   created_at: string;
   drawn_at: string | null;
+}
+
+export interface PendingAnnounce extends Giveaway {
+  prizes: Prize[];
 }
 
 export interface Prize {
@@ -74,6 +82,48 @@ export async function getMyStanding(giveawayId: number, discordId: string): Prom
   );
   if (!res.ok) throw new Error(`giveaway/me HTTP ${res.status}`);
   return (await res.json()) as MyStanding;
+}
+
+export async function getPendingAnnounce(): Promise<PendingAnnounce[]> {
+  const res = await fetch(url('/admin/giveaways/pending-announce'), { headers: adminHeaders() });
+  if (!res.ok) throw new Error(`giveaways/pending-announce HTTP ${res.status}`);
+  const json = (await res.json()) as { giveaways: PendingAnnounce[] };
+  return json.giveaways;
+}
+
+export async function markAnnounced(
+  giveawayId: number,
+  messageId: string,
+  channelId: string,
+): Promise<void> {
+  const res = await fetch(url(`/admin/giveaway/${giveawayId}/announce`), {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify({ messageId, channelId }),
+  });
+  // 409 = already announced — fine, the row is in the desired state.
+  if (!res.ok && res.status !== 409) {
+    throw new Error(`giveaway/announce HTTP ${res.status}`);
+  }
+}
+
+export interface RegisterResult {
+  registered?: boolean;
+  already?: boolean;
+  error?: string;
+  status?: string;
+}
+
+export async function registerForGiveaway(
+  giveawayId: number,
+  discordId: string,
+): Promise<RegisterResult> {
+  const res = await fetch(url(`/admin/giveaway/${giveawayId}/register`), {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify({ discordId }),
+  });
+  return res.json() as Promise<RegisterResult>;
 }
 
 export async function getLeaderboard(giveawayId: number, limit = 10): Promise<LeaderboardRow[]> {

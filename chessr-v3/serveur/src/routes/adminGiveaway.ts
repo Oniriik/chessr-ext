@@ -44,8 +44,12 @@ function hasValidAdminToken(c: Context): boolean {
 interface GiveawayRow {
   id: number;
   name: string;
+  starts_at: string;
   ends_at: string;
   status: 'scheduled' | 'cancelled' | 'completed';
+  announce_channel_id: string | null;
+  announce_message_id: string | null;
+  announced_at: string | null;
   created_at: string;
   created_by_user_id: string | null;
   drawn_at: string | null;
@@ -96,13 +100,25 @@ function validatePrize(p: PrizeInput): string | null {
 adminGiveawayRoutes.post('/admin/giveaway', async (c) => {
   if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
 
-  let body: { name?: string; endsAt?: string; createdByUserId?: string; prizes?: PrizeInput[] };
+  let body: {
+    name?: string;
+    startsAt?: string;
+    endsAt?: string;
+    announceChannelId?: string | null;
+    createdByUserId?: string;
+    prizes?: PrizeInput[];
+  };
   try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
 
   const name = (body.name ?? '').trim();
+  const startsAt = body.startsAt;
   const endsAt = body.endsAt;
   if (!name) return c.json({ error: 'name required' }, 400);
+  if (!startsAt || Number.isNaN(Date.parse(startsAt))) return c.json({ error: 'startsAt invalid' }, 400);
   if (!endsAt || Number.isNaN(Date.parse(endsAt))) return c.json({ error: 'endsAt invalid' }, 400);
+  if (Date.parse(startsAt) >= Date.parse(endsAt)) return c.json({ error: 'startsAt must be before endsAt' }, 400);
+
+  const announceChannelId = (body.announceChannelId ?? '').toString().trim() || null;
 
   const prizes = body.prizes ?? [];
   for (const p of prizes) {
@@ -113,10 +129,10 @@ adminGiveawayRoutes.post('/admin/giveaway', async (c) => {
   // Insert giveaway + prizes in a single transaction so a partial
   // create can't leak into the DB.
   const created = await dbQuery<{ id: number }>(
-    `INSERT INTO giveaways (name, ends_at, created_by_user_id)
-     VALUES ($1, $2, $3)
+    `INSERT INTO giveaways (name, starts_at, ends_at, announce_channel_id, created_by_user_id)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING id`,
-    [name, endsAt, body.createdByUserId ?? null],
+    [name, startsAt, endsAt, announceChannelId, body.createdByUserId ?? null],
   );
   const giveawayId = created[0].id;
 
@@ -238,7 +254,7 @@ adminGiveawayRoutes.patch('/admin/giveaway/:id', async (c) => {
   const id = Number(c.req.param('id'));
   if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
 
-  let body: { name?: string; endsAt?: string };
+  let body: { name?: string; startsAt?: string; endsAt?: string; announceChannelId?: string | null };
   try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
 
   const fields: string[] = [];
@@ -247,9 +263,19 @@ adminGiveawayRoutes.patch('/admin/giveaway/:id', async (c) => {
     params.push(body.name.trim());
     fields.push(`name = $${params.length}`);
   }
+  if (typeof body.startsAt === 'string' && !Number.isNaN(Date.parse(body.startsAt))) {
+    params.push(body.startsAt);
+    fields.push(`starts_at = $${params.length}`);
+  }
   if (typeof body.endsAt === 'string' && !Number.isNaN(Date.parse(body.endsAt))) {
     params.push(body.endsAt);
     fields.push(`ends_at = $${params.length}`);
+  }
+  if (body.announceChannelId !== undefined) {
+    const normalized = body.announceChannelId === null ? null
+      : (body.announceChannelId.toString().trim() || null);
+    params.push(normalized);
+    fields.push(`announce_channel_id = $${params.length}`);
   }
   if (fields.length === 0) return c.json({ error: 'no fields to update' }, 400);
 
@@ -262,6 +288,127 @@ adminGiveawayRoutes.patch('/admin/giveaway/:id', async (c) => {
   );
   if (rows.length === 0) return c.json({ error: 'not_found_or_locked' }, 404);
   return c.json({ updated: true });
+});
+
+// ─── GET /admin/giveaways/pending-announce ───────────────────────────────
+// Bot's tick: every N seconds, ask "what scheduled giveaways have started
+// but haven't been announced yet?" — bot posts the embed + Register button
+// and then calls /announce to mark the row.
+
+adminGiveawayRoutes.get('/admin/giveaways/pending-announce', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  const rows = await dbQuery<GiveawayRow>(
+    `SELECT * FROM giveaways
+      WHERE status = 'scheduled'
+        AND announce_message_id IS NULL
+        AND starts_at <= now()
+        AND ends_at   >  now()
+      ORDER BY starts_at ASC
+      LIMIT 20`,
+  );
+
+  // Need prizes too so the bot can render the embed in one go.
+  const ids = rows.map((r) => r.id);
+  const prizes = ids.length === 0 ? [] : await dbQuery<PrizeRow>(
+    `SELECT * FROM giveaway_prizes
+      WHERE giveaway_id = ANY($1::bigint[])
+      ORDER BY giveaway_id, position ASC`,
+    [ids],
+  );
+  const prizesByGid = new Map<number, PrizeRow[]>();
+  for (const p of prizes) {
+    const arr = prizesByGid.get(p.giveaway_id) ?? [];
+    arr.push(p);
+    prizesByGid.set(p.giveaway_id, arr);
+  }
+
+  return c.json({
+    giveaways: rows.map((g) => ({ ...g, prizes: prizesByGid.get(g.id) ?? [] })),
+  });
+});
+
+// ─── POST /admin/giveaway/:id/announce ───────────────────────────────────
+// Bot calls this once it's posted the announcement message; we record
+// the message id so a restart of the bot doesn't double-post.
+
+adminGiveawayRoutes.post('/admin/giveaway/:id/announce', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  let body: { messageId?: string; channelId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const messageId = (body.messageId ?? '').trim();
+  const channelId = (body.channelId ?? '').trim();
+  if (!messageId || !channelId) return c.json({ error: 'messageId and channelId required' }, 400);
+
+  // Only flip rows that haven't been announced yet — race-safe across
+  // multiple bot replicas.
+  const rows = await dbQuery<{ id: number }>(
+    `UPDATE giveaways
+        SET announce_message_id = $1,
+            announce_channel_id = COALESCE(announce_channel_id, $2),
+            announced_at = now()
+      WHERE id = $3 AND status = 'scheduled' AND announce_message_id IS NULL
+      RETURNING id`,
+    [messageId, channelId, id],
+  );
+  if (rows.length === 0) return c.json({ error: 'already_announced_or_locked' }, 409);
+  return c.json({ announced: true });
+});
+
+// ─── POST /admin/giveaway/:id/register ───────────────────────────────────
+// Idempotent. First call inserts the registration row + grants 1 ticket
+// (source='registration'). Subsequent calls return { already: true }.
+
+adminGiveawayRoutes.post('/admin/giveaway/:id/register', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  let body: { discordId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const discordId = (body.discordId ?? '').trim();
+  if (!discordId) return c.json({ error: 'discordId required' }, 400);
+
+  // Reject registration if the giveaway is locked / not open yet / over.
+  // The bot's button shouldn't show outside [starts_at, ends_at) but we
+  // double-check server-side.
+  const gw = await dbQuery<{ id: number; status: string; starts_at: string; ends_at: string }>(
+    `SELECT id, status, starts_at::text, ends_at::text FROM giveaways WHERE id = $1`, [id],
+  );
+  if (gw.length === 0) return c.json({ error: 'not_found' }, 404);
+  if (gw[0].status !== 'scheduled') return c.json({ error: 'giveaway_locked', status: gw[0].status }, 409);
+  const now = Date.now();
+  if (Date.parse(gw[0].starts_at) > now) return c.json({ error: 'not_started' }, 409);
+  if (Date.parse(gw[0].ends_at)   <= now) return c.json({ error: 'ended' }, 409);
+
+  // ON CONFLICT DO NOTHING + RETURNING gives us the row only when newly
+  // inserted — perfect for the "grant ticket once" branch.
+  const inserted = await dbQuery<{ id: number }>(
+    `INSERT INTO giveaway_registrations (giveaway_id, discord_id)
+     VALUES ($1, $2)
+     ON CONFLICT (giveaway_id, discord_id) DO NOTHING
+     RETURNING id`,
+    [id, discordId],
+  );
+  if (inserted.length === 0) {
+    return c.json({ registered: true, already: true });
+  }
+
+  await dbQuery(
+    `INSERT INTO giveaway_tickets (giveaway_id, owner_discord_id, source, count)
+     VALUES ($1, $2, 'registration', 1)`,
+    [id, discordId],
+  );
+  await emitEvent({
+    type: 'giveaway_ticket_earned',
+    actor_id: null,
+    payload: { giveawayId: id, count: 1, source: 'registration', discordId },
+  });
+
+  return c.json({ registered: true, already: false });
 });
 
 // ─── POST /admin/giveaway/:id/cancel ─────────────────────────────────────

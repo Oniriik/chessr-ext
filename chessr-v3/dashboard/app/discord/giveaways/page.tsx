@@ -99,7 +99,9 @@ export default function GiveawaysPage() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-semibold">{g.name}</div>
                     <div className="num mt-1 text-[10px] text-muted-foreground">
-                      {format(new Date(g.ends_at), 'PP p')} · {relTime(g.ends_at)}
+                      {Date.parse(g.starts_at) > Date.now()
+                        ? <>Starts {relTime(g.starts_at)} · ends {format(new Date(g.ends_at), 'PP p')}</>
+                        : <>Ends {format(new Date(g.ends_at), 'PP p')} · {relTime(g.ends_at)}</>}
                     </div>
                   </div>
                   <StatusBadge status={g.status} />

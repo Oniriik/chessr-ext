@@ -21,6 +21,7 @@ import {
 import { loadPlatformEmojis } from './lib/platformEmoji.js';
 import { startStatsChannels } from './handlers/statsChannels.js';
 import { registerBoostReward } from './handlers/boostReward.js';
+import { registerGiveawayAnnouncer } from './handlers/giveawayAnnouncer.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -80,6 +81,7 @@ client.once('clientReady', async () => {
   startStatsChannels(client);
   registerBoostReward(client);
   registerInventoryHandlers(client);
+  registerGiveawayAnnouncer(client);
 });
 
 client.on('error', (err) => log.error('[discord] client error:', err));

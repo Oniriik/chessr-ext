@@ -67,6 +67,10 @@ export const command: BotCommand = {
     }
 
     const lines: string[] = [];
+    const notStartedYet = Date.parse(giveaway.starts_at) > Date.now();
+    if (notStartedYet) {
+      lines.push(`**Starts:** ${discordTs(giveaway.starts_at, 'F')} · ${discordTs(giveaway.starts_at, 'R')}`);
+    }
     lines.push(`**Ends:** ${discordTs(giveaway.ends_at, 'F')} · ${discordTs(giveaway.ends_at, 'R')}`);
     lines.push('');
     lines.push('### 🎟️ Your tickets');

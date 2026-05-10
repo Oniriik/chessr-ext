@@ -36,6 +36,11 @@ export const config = {
      *  the message falls back to "open a support ticket" without a
      *  link. */
     ticketChannelId: optional('DISCORD_TICKET_CHANNEL_ID'),
+    /** Default channel where giveaway announcements get posted. The
+     *  giveaway row can override this; when neither is set the bot
+     *  logs a warning and skips the announcement (giveaway stays
+     *  pending until configured). */
+    giveawayChannelId: optional('DISCORD_GIVEAWAY_CHANNEL_ID'),
     /** Stats voice channels — names are rewritten on a 10-min cadence.
      *  Discord caps channel renames at 2 per 10 min per channel, so we
      *  stagger updates with 1-minute offsets between channels. Any
