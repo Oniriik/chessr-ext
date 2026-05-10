@@ -82,6 +82,15 @@ export const EVENT_KINDS = [
   // A single grant of N tickets emits one event with count=N (matches
   // the 1-row, 1-DM model on the giveaway_tickets table).
   'giveaway_ticket_earned',
+  // payload: { giveawayId, name, announceChannelId?, announceMessageId?,
+  //            winners: [{ position, prizeId, discordId|null, prize: {...},
+  //                        deliverable: {kind:'wheel_reward'|'wheel_tokens'|'lifetime_manual',
+  //                                      rewardId?|tokenIds?|count?} }] }
+  // Emitted by the giveaway-draw cron after winners are picked AND
+  // prize deliverables are persisted (wheel_rewards / wheel_tokens
+  // rows). The bot listens to post the public announcement + DM
+  // winners.
+  'giveaway_drawn',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

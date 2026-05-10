@@ -42,6 +42,8 @@ import { initAnalysisWorker, shutdownAnalysisWorker } from './queue/analysisQueu
 import { initMaiaWorker, shutdownMaiaWorker } from './queue/maiaQueue.js';
 import { initMaia3Worker, shutdownMaia3Worker } from './queue/maia3Queue.js';
 import { startQueueStats, stopQueueStats } from './queue/stats.js';
+import { registerCron, startCrons, stopCrons } from './lib/cron.js';
+import { runGiveawayDraw } from './jobs/giveawayDraw.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -123,10 +125,21 @@ initMaia3Worker(MAX_MAIA3)
 
 startQueueStats();
 
+// In-process crons. Add new jobs here via registerCron(). Each one runs
+// on its own setInterval; overlapping ticks are skipped.
+registerCron({
+  name: 'giveaway-draw',
+  intervalMs: 60_000,
+  runImmediately: true,
+  run: runGiveawayDraw,
+});
+startCrons();
+
 // Graceful shutdown
 async function shutdown() {
   console.log('[Engines] Shutting down BullMQ workers...');
   stopQueueStats();
+  stopCrons();
   await Promise.allSettled([
     shutdownSuggestionWorker(),
     shutdownAnalysisWorker(),

@@ -26,12 +26,14 @@ import {
 } from 'discord.js';
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
+import { onEvent } from '../lib/events.js';
 import {
   type PendingAnnounce,
   discordTs,
   getPendingAnnounce,
   markAnnounced,
   prizeLabel,
+  type Prize,
   registerForGiveaway,
 } from '../lib/giveawayApi.js';
 
@@ -134,6 +136,132 @@ export function registerGiveawayAnnouncer(client: Client): void {
     try { await handleRegister(interaction); }
     catch (err) { log.error('[giveaway-announce] register handler failed:', err); }
   });
+
+  // Draw event — serveur emits this after picking winners and pre-minting
+  // deliverables. We post the public results, edit the original
+  // announcement (lock the Register button), and DM each winner with
+  // claim instructions.
+  onEvent('giveaway_drawn', async (e) => {
+    try { await handleDrawn(client, e.payload); }
+    catch (err) { log.error('[giveaway-draw] handler failed:', err); }
+  });
+}
+
+// ─── Draw event handler ──────────────────────────────────────────────────
+
+interface DrawnWinner {
+  position: number;
+  prizeId: number;
+  discordId: string | null;
+  prize: Prize;
+  deliverable:
+    | { kind: 'wheel_reward'; rewardId: number; rewardKind: 'days' | 'lifetime'; rewardDays: number | null }
+    | { kind: 'wheel_tokens'; tokenIds: number[]; count: number }
+    | { kind: 'no_winner' };
+}
+
+interface DrawnPayload {
+  giveawayId: number;
+  name: string;
+  announceChannelId: string | null;
+  announceMessageId: string | null;
+  winners: DrawnWinner[];
+}
+
+async function handleDrawn(client: Client, raw: Record<string, unknown>): Promise<void> {
+  const p = raw as unknown as DrawnPayload;
+  const channelId = p.announceChannelId ?? config.discord.giveawayChannelId;
+  if (!channelId) {
+    log.warn(`[giveaway-draw] no channel for giveaway ${p.giveawayId}`);
+    return;
+  }
+  const ch = await client.channels.fetch(channelId).catch(() => null);
+  if (!ch || !ch.isTextBased() || !('send' in ch)) {
+    log.warn(`[giveaway-draw] channel ${channelId} not reachable`);
+    return;
+  }
+  const channel = ch as TextChannel;
+
+  // Edit original announcement: drop the Register button, append a
+  // results block. Falls back gracefully if the message was deleted.
+  if (p.announceMessageId) {
+    try {
+      const original = await channel.messages.fetch(p.announceMessageId);
+      await original.edit({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x6b7280)
+            .setTitle(`🎁 ${p.name} — drawn`)
+            .setDescription('This giveaway has ended. See the results below.'),
+        ],
+        components: [],
+      });
+    } catch (err) {
+      log.warn(`[giveaway-draw] couldn't edit original message ${p.announceMessageId}:`, err);
+    }
+  }
+
+  // Public results embed.
+  const lines: string[] = [];
+  for (const w of p.winners) {
+    if (w.discordId) {
+      lines.push(`**#${w.position}** — ${prizeLabel(w.prize)} → <@${w.discordId}>`);
+    } else {
+      lines.push(`**#${w.position}** — ${prizeLabel(w.prize)} → _no eligible winner_`);
+    }
+  }
+
+  const winnerIds = p.winners.map((w) => w.discordId).filter((id): id is string => !!id);
+  await channel.send({
+    content: winnerIds.length > 0 ? winnerIds.map((id) => `<@${id}>`).join(' ') : undefined,
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xa855f7)
+        .setTitle(`🏆 ${p.name} — winners`)
+        .setDescription(lines.join('\n') + '\n\nWinners — check your DMs and use `/inventory` to claim.')
+        .setTimestamp(new Date()),
+    ],
+    allowedMentions: { users: winnerIds },
+  });
+
+  // DM each winner. DM failures (closed DMs) are logged but non-fatal.
+  for (const w of p.winners) {
+    if (!w.discordId) continue;
+    try {
+      const user = await client.users.fetch(w.discordId);
+      await user.send({ embeds: [winnerDmEmbed(w, p.name)] });
+    } catch (err) {
+      log.warn(`[giveaway-draw] DM to winner ${w.discordId} failed:`, err);
+    }
+  }
+
+  log.info(`[giveaway-draw] announced winners for giveaway ${p.giveawayId} (${winnerIds.length} winners)`);
+}
+
+function winnerDmEmbed(w: DrawnWinner, giveawayName: string): EmbedBuilder {
+  const e = new EmbedBuilder().setColor(0xa855f7).setTitle(`🏆 You won — ${giveawayName}`);
+  if (w.deliverable.kind === 'wheel_reward') {
+    if (w.deliverable.rewardKind === 'lifetime') {
+      e.setDescription(
+        `**#${w.position}** — 🌟 **Lifetime Premium**\n\n` +
+        'Your reward has been added to your inventory. Use `/inventory` to claim — ' +
+        'lifetime claims are processed manually, the bot will tell you which channel to use.',
+      );
+    } else {
+      e.setDescription(
+        `**#${w.position}** — 💎 **Premium ${w.deliverable.rewardDays} days**\n\n` +
+        'Your reward has been added to your inventory. Use `/inventory` to claim and apply it.',
+      );
+    }
+  } else if (w.deliverable.kind === 'wheel_tokens') {
+    e.setDescription(
+      `**#${w.position}** — 🎟️ **${w.deliverable.count} spin token${w.deliverable.count === 1 ? '' : 's'}**\n\n` +
+      'Tokens added to your inventory. Use `/inventory` to spin them on the wheel of fortune.',
+    );
+  } else {
+    e.setDescription(`**#${w.position}** — congrats!`);
+  }
+  return e;
 }
 
 async function handleRegister(interaction: ButtonInteraction): Promise<void> {
