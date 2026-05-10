@@ -235,8 +235,9 @@ async function handleSpinConfirm(interaction: ButtonInteraction): Promise<void> 
     );
   await interaction.editReply({ content: '', embeds: [reveal], components: [backHomeRow()] });
 
-  // Public ping in #general — separate so the channel sees the reveal
-  // even if the spinner closes the ephemeral.
+  // Public reveal in #general — embed so it stands out from chat. We
+  // don't @-ping the spinner (they triggered it, no notification needed);
+  // mentions in embeds still render as colored chips.
   const channelId = config.discord.boostChannelId;
   if (!channelId) {
     log.warn('[inv] DISCORD_BOOST_CHANNEL_ID not set — skipping spin public ping');
@@ -248,14 +249,34 @@ async function handleSpinConfirm(interaction: ButtonInteraction): Promise<void> 
       log.warn(`[inv] boost channel ${channelId} not reachable / not text-based`);
       return;
     }
-    const msg = isLifetime
-      ? `🌟 <@${interaction.user.id}> just hit the **LIFETIME** jackpot on the wheel! 1 spin in 1000.`
-      : `🎉 <@${interaction.user.id}> spun and won **${days} days**!`;
-    await (ch as TextChannel).send({
-      content: msg,
-      allowedMentions: { users: [interaction.user.id] },
-    });
-    log.info(`[inv] spin public ping sent (${interaction.user.id} → ${isLifetime ? 'lifetime' : `${days}d`})`);
+    // Lifetime jackpot pings the spinner (rare moment, server-wide
+    // celebration). Days spins post silently — the spinner already saw
+    // the reveal in their ephemeral, no need to double-notify.
+    if (isLifetime) {
+      await (ch as TextChannel).send({
+        content: `<@${interaction.user.id}>`,
+        embeds: [
+          new EmbedBuilder()
+            .setColor(COLOR_LIFETIME)
+            .setTitle('🌟 LIFETIME JACKPOT')
+            .setDescription(
+              `<@${interaction.user.id}> just hit the jackpot on the wheel — **1 spin in 1000**!\n` +
+              'Lifetime Premium incoming 💜',
+            ),
+        ],
+        allowedMentions: { users: [interaction.user.id] },
+      });
+    } else {
+      await (ch as TextChannel).send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(COLOR_DAYS)
+            .setDescription(`🎉 <@${interaction.user.id}> spun and won **${days} days**!`),
+        ],
+        allowedMentions: { parse: [] },
+      });
+    }
+    log.info(`[inv] spin public embed sent (${interaction.user.id} → ${isLifetime ? 'lifetime' : `${days}d`})`);
   } catch (err) {
     log.warn('[inv] public spin ping failed:', err);
   }
@@ -706,11 +727,19 @@ async function handleGiftConfirm(interaction: ButtonInteraction, rewardId: numbe
       log.warn(`[inv] boost channel ${channelId} not reachable / not text-based`);
       return;
     }
+    // Mention the recipient in `content` so they get a notification
+    // (mentions in embed description don't ping). The embed below
+    // carries the visual; recipient knows to check their /inventory.
     await (ch as TextChannel).send({
-      content: `🎁 <@${interaction.user.id}> gifted **${rewardWord}** to <@${targetId}>!`,
-      allowedMentions: { users: [targetId, interaction.user.id] },
+      content: `<@${targetId}>`,
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR_GIFT)
+          .setDescription(`🎁 <@${interaction.user.id}> gifted **${rewardWord}** to <@${targetId}>!`),
+      ],
+      allowedMentions: { users: [targetId] },
     });
-    log.info(`[inv] gift public ping sent (${interaction.user.id} → ${targetId}, ${rewardWord})`);
+    log.info(`[inv] gift public embed sent (${interaction.user.id} → ${targetId}, ${rewardWord})`);
   } catch (err) {
     log.warn('[inv] public gift ping failed:', err);
   }
