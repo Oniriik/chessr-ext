@@ -42,6 +42,7 @@ import {
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
 import type { BotCommand } from '../lib/commands.js';
+import { resolveRoleByDiscordId } from '../lib/roleCheck.js';
 import {
   closeTicket,
   deleteTicket,
@@ -132,11 +133,25 @@ const ticketSetupCommand: BotCommand = {
   data: new SlashCommandBuilder()
     .setName('ticket-setup')
     .setDescription('Post the ticket panel embed in this channel (admin only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageChannels.toString()),
+    // Discord-side gate: only members with Administrator see the
+    // command in the picker. Server-side super_admin check below is
+    // the authoritative gate.
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString()),
 
   async execute(interaction: ChatInputCommandInteraction) {
     if (!interaction.guild || !interaction.channel || !('send' in interaction.channel)) {
       await interaction.reply({ content: 'This command must be used in a guild text channel.', ephemeral: true });
+      return;
+    }
+    // Server-side gate — Discord perms can be spoofed by re-publishing
+    // the command with broader access; the role lookup against
+    // user_settings is the source of truth.
+    const role = await resolveRoleByDiscordId(interaction.user.id);
+    if (role !== 'super_admin') {
+      await interaction.reply({
+        content: '❌ super_admin required (link your Chessr account first if you are one).',
+        ephemeral: true,
+      });
       return;
     }
     await (interaction.channel as TextChannel).send({
