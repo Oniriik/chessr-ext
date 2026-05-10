@@ -160,7 +160,7 @@ export function PrizeEditor({
           ))}
         </ul>
       )}
-      <Button type="button" size="sm" variant="outline" onClick={add} disabled={disabled} className="h-7 gap-1.5">
+      <Button type="button" size="sm" variant="outline" onClick={add} disabled={disabled} className="h-7 gap-2">
         <Plus size={12} /> Add prize
       </Button>
     </div>

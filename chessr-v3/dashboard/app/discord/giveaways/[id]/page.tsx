@@ -181,7 +181,7 @@ export default function GiveawayDetailPage() {
       title={detail?.giveaway.name ?? 'Giveaway'}
       actions={
         <Link href="/discord/giveaways"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card/40 px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card/40 px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft size={13} /> Back
         </Link>
@@ -233,7 +233,7 @@ export default function GiveawayDetailPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-md border border-border bg-background/40 p-2.5 text-[11px]">
+                  <div className="rounded-md border border-border bg-background/40 p-3 text-[11px]">
                     <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                       Discord timestamp
                     </div>
@@ -246,21 +246,21 @@ export default function GiveawayDetailPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-4 text-[12px]">
-                    <span className="num inline-flex items-center gap-1.5 tabular-nums">
+                    <span className="num inline-flex items-center gap-2 tabular-nums">
                       <Ticket size={13} className="text-muted-foreground" /> {detail.stats.tickets} tickets
                     </span>
-                    <span className="num inline-flex items-center gap-1.5 tabular-nums">
+                    <span className="num inline-flex items-center gap-2 tabular-nums">
                       <Users size={13} className="text-muted-foreground" /> {detail.stats.participants} participants
                     </span>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Name</label>
                     <Input value={editName} onChange={(e) => setEditName(e.target.value)} disabled={savingHeader} />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Ends at</label>
                     <Input
                       type="datetime-local"
@@ -271,7 +271,7 @@ export default function GiveawayDetailPage() {
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="ghost" size="sm" onClick={() => setEditing(false)} disabled={savingHeader}>Cancel</Button>
-                    <Button size="sm" onClick={saveHeader} disabled={savingHeader} className="gap-1.5">
+                    <Button size="sm" onClick={saveHeader} disabled={savingHeader} className="gap-2">
                       {savingHeader ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                       Save
                     </Button>
@@ -303,7 +303,7 @@ export default function GiveawayDetailPage() {
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[13px] font-semibold">Prizes</h3>
                 {prizesDirty && !isLocked && (
-                  <Button size="sm" onClick={savePrizes} disabled={savingPrizes || !isSuper} className="gap-1.5">
+                  <Button size="sm" onClick={savePrizes} disabled={savingPrizes || !isSuper} className="gap-2">
                     {savingPrizes ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
                     Save changes
                   </Button>
@@ -311,7 +311,7 @@ export default function GiveawayDetailPage() {
               </div>
               {isLocked ? (
                 // Read-only summary on cancelled/completed giveaways.
-                <ul className="space-y-1.5">
+                <ul className="space-y-2">
                   {prizes.map((p) => (
                     <li key={p.position} className="flex items-center gap-2 text-[12px]">
                       <span className="num w-6 text-right tabular-nums text-muted-foreground">#{p.position}</span>

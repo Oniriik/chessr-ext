@@ -50,7 +50,7 @@ export default function GiveawaysPage() {
       actions={
         <Link
           href="/discord/giveaways/new"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="inline-flex h-8 items-center gap-2 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
           <Plus size={13} /> New giveaway
         </Link>
@@ -61,7 +61,7 @@ export default function GiveawaysPage() {
           <div className="text-[11px] text-muted-foreground">
             {loading ? 'Loading…' : `${rows.length} giveaway${rows.length === 1 ? '' : 's'}`}
           </div>
-          <Button size="sm" variant="outline" onClick={load} disabled={loading} className="h-7 gap-1.5">
+          <Button size="sm" variant="outline" onClick={load} disabled={loading} className="h-7 gap-2">
             {loading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
             Refresh
           </Button>
@@ -74,15 +74,19 @@ export default function GiveawaysPage() {
         )}
 
         {!loading && rows.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-2 p-10 text-center">
-              <Ticket size={28} className="text-muted-foreground" />
-              <div className="text-sm font-medium">No giveaways yet</div>
-              <div className="text-xs text-muted-foreground">
-                Create one to start collecting tickets.
-              </div>
-            </CardContent>
-          </Card>
+          // Empty state stays narrow + centered — a full-width banner
+          // for two lines of copy looks lost on a wide viewport.
+          <div className="mx-auto w-full max-w-md">
+            <Card>
+              <CardContent className="flex flex-col items-center gap-2 p-8 text-center">
+                <Ticket size={28} className="text-muted-foreground" />
+                <div className="text-sm font-medium">No giveaways yet</div>
+                <div className="text-xs text-muted-foreground">
+                  Create one to start collecting tickets.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {rows.map((g) => (
@@ -94,7 +98,7 @@ export default function GiveawaysPage() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[14px] font-semibold">{g.name}</div>
-                    <div className="num mt-0.5 text-[10px] text-muted-foreground">
+                    <div className="num mt-1 text-[10px] text-muted-foreground">
                       {format(new Date(g.ends_at), 'PP p')} · {relTime(g.ends_at)}
                     </div>
                   </div>

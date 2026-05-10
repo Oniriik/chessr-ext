@@ -58,19 +58,19 @@ export function PrizeChip({ p }: { p: Prize }) {
   if (p.prize_kind === 'plan') {
     if (p.plan_kind === 'lifetime') {
       return (
-        <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-400">
+        <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-medium text-amber-400">
           <Crown size={11} /> Lifetime
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 rounded border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-medium text-blue-400">
+      <span className="inline-flex items-center gap-1 rounded border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] font-medium text-blue-400">
         <Gift size={11} /> Premium · {p.plan_days}d
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/10 px-1.5 py-0.5 text-[11px] font-medium text-purple-400">
+    <span className="inline-flex items-center gap-1 rounded border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-[11px] font-medium text-purple-400">
       <Ticket size={11} /> {p.token_count} tokens
     </span>
   );

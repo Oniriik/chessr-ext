@@ -55,7 +55,7 @@ export function GrantTicketPanel({
 
   if (!open) {
     return (
-      <Button size="sm" onClick={() => setOpen(true)} disabled={disabled} className="gap-1.5">
+      <Button size="sm" onClick={() => setOpen(true)} disabled={disabled} className="gap-2">
         <Plus size={13} /> Grant tickets
       </Button>
     );
@@ -108,7 +108,7 @@ export function GrantTicketPanel({
 
       <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
         <span>One row, one event, one DM — no matter the count.</span>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => { setOpen(false); reset(); }} disabled={busy}>
             Cancel
           </Button>

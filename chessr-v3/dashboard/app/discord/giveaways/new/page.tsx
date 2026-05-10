@@ -78,7 +78,7 @@ export default function NewGiveawayPage() {
       title="New giveaway"
       actions={
         <Link href="/discord/giveaways"
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card/40 px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-card/40 px-3 text-[12px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <ArrowLeft size={13} /> Back
         </Link>
@@ -93,7 +93,7 @@ export default function NewGiveawayPage() {
 
         <Card>
           <CardContent className="space-y-4 p-4 sm:p-6">
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Name</label>
               <Input
                 value={name}
@@ -103,7 +103,7 @@ export default function NewGiveawayPage() {
               />
             </div>
 
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Ends at (local time)
               </label>
@@ -114,7 +114,7 @@ export default function NewGiveawayPage() {
                 disabled={submitting}
               />
               {endsAtIso && (
-                <div className="rounded-md border border-border bg-background/40 p-2.5 text-[11px]">
+                <div className="rounded-md border border-border bg-background/40 p-3 text-[11px]">
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Discord timestamp (copy into your announcement)
                   </div>
@@ -124,7 +124,7 @@ export default function NewGiveawayPage() {
                       {tsCopied ? <><Check size={11} /> Copied</> : <><Copy size={11} /> Copy</>}
                     </Button>
                   </div>
-                  <div className="mt-1.5 text-[10px] text-muted-foreground">
+                  <div className="mt-2 text-[10px] text-muted-foreground">
                     Renders as: <strong>local time of the viewer</strong> · also <code>{tsRel}</code> for relative.
                   </div>
                 </div>
