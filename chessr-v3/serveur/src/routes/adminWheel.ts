@@ -416,6 +416,89 @@ async function extendPaddle(userId: string, days: number): Promise<void> {
   }
 }
 
+// ─── POST /admin/wheel/token/grant ───────────────────────────────────────
+// Bulk-mint admin_grant tokens for a user. Each row gets external_ref
+// = null so the unique-index dedup is bypassed (you can grant the same
+// user multiple times).
+//
+// Audit: each row produces a wheel_token_earned event with the actor
+// user_id + reason in payload.
+
+adminWheelRoutes.post('/admin/wheel/token/grant', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  let body: { discordId?: string; count?: number; reason?: string; actorUserId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+
+  const { discordId } = body;
+  const count = Number(body.count ?? 1);
+  const reason = (body.reason ?? '').trim();
+  if (!discordId) return c.json({ error: 'discordId required' }, 400);
+  if (!reason) return c.json({ error: 'reason required' }, 400);
+  if (!Number.isFinite(count) || count < 1 || count > 100) {
+    return c.json({ error: 'count must be 1..100' }, 400);
+  }
+
+  const created: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const rows = await dbQuery<{ id: number }>(
+      `INSERT INTO wheel_tokens (owner_discord_id, source, external_ref)
+       VALUES ($1, 'admin_grant', NULL)
+       RETURNING id`,
+      [discordId],
+    );
+    const tokenId = rows[0].id;
+    created.push(tokenId);
+    await emitEvent({
+      type: 'wheel_token_earned',
+      actor_id: body.actorUserId ?? null,
+      payload: {
+        tokenId,
+        source: 'admin_grant',
+        externalRef: null,
+        discordId,
+        reason,
+      },
+    });
+  }
+  return c.json({ granted: created.length, tokenIds: created });
+});
+
+// ─── POST /admin/wheel/token/revoke ──────────────────────────────────────
+// Delete an unspun token. Spun tokens stay — the resulting reward might
+// already be in someone's inventory, deleting the token would orphan
+// the source link.
+
+adminWheelRoutes.post('/admin/wheel/token/revoke', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  let body: { tokenId?: number; actorUserId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+
+  const tokenId = Number(body.tokenId);
+  if (!Number.isFinite(tokenId)) return c.json({ error: 'tokenId required' }, 400);
+
+  const rows = await dbQuery<{ id: number; owner_discord_id: string; source: string }>(
+    `DELETE FROM wheel_tokens
+       WHERE id = $1 AND spun_at IS NULL
+     RETURNING id, owner_discord_id, source`,
+    [tokenId],
+  );
+  if (rows.length === 0) return c.json({ error: 'token_not_found_or_already_spun' }, 404);
+
+  await emitEvent({
+    type: 'wheel_token_earned', // reuse the kind with a synthetic payload — wheel_token_revoked could be added later
+    actor_id: body.actorUserId ?? null,
+    payload: {
+      tokenId: rows[0].id,
+      revoked: true,
+      discordId: rows[0].owner_discord_id,
+      source: rows[0].source,
+    },
+  });
+  return c.json({ revoked: true });
+});
+
 // ─── GET /admin/wheel/pending-lifetime ───────────────────────────────────
 // Lifetime rewards that admins still need to apply manually. Joined with
 // auth.users (via Supabase) for email + chessr user_id, so the dashboard

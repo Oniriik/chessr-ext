@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { planBadgeStyle } from '@/lib/plan-colors';
+import { BoostInventory } from './BoostInventory';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuSeparator,
@@ -954,6 +955,13 @@ export function UserDetailSheet({
                 deletingId={deletingNoteId}
                 onDelete={deleteNote}
               />
+
+              {/* ─── Boost Inventory ────────────────────────────────── */}
+              {/* Shows the user's wheel tokens + rewards. Lazy-loaded
+                  on expand so the sheet stays fast for users who don't
+                  care about boosts. Super-admin gets grant/revoke
+                  buttons inline. */}
+              <BoostInventory discordId={u.discord_id} callerRole={callerRole} />
 
               {/* ─── Linked accounts ────────────────────────────────── */}
               <Section icon={Link2} label="Linked accounts" count={detail!.linked_accounts.length}>
