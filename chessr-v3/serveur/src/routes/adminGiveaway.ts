@@ -394,7 +394,7 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/register', async (c) => {
     [id, discordId],
   );
   if (inserted.length === 0) {
-    return c.json({ registered: true, already: true });
+    return c.json({ registered: true, already: true, registrationTickets: 0, inviteBackfillTickets: 0 });
   }
 
   await dbQuery(
@@ -408,7 +408,46 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/register', async (c) => {
     payload: { giveawayId: id, count: 1, source: 'registration', discordId },
   });
 
-  return c.json({ registered: true, already: false });
+  // Backfill: count invites this user generated during [starts_at, NOW()]
+  // (clipped at ends_at) and grant them as a single grouped row. The
+  // table is shared with future-period grants done via the realtime
+  // path, so we limit the count to invites that actually fall inside
+  // this giveaway's window.
+  const backfill = await dbQuery<{ n: string }>(
+    `SELECT COUNT(*)::text AS n
+       FROM invite_uses
+      WHERE inviter_discord_id = $1
+        AND joined_at >= $2::timestamptz
+        AND joined_at <  LEAST($3::timestamptz, now())`,
+    [discordId, gw[0].starts_at, gw[0].ends_at],
+  );
+  const backfillCount = Number(backfill[0]?.n ?? 0);
+  if (backfillCount > 0) {
+    await dbQuery(
+      `INSERT INTO giveaway_tickets
+         (giveaway_id, owner_discord_id, source, count, reason)
+       VALUES ($1, $2, 'invite', $3, 'registration_backfill')`,
+      [id, discordId, backfillCount],
+    );
+    await emitEvent({
+      type: 'giveaway_ticket_earned',
+      actor_id: null,
+      payload: {
+        giveawayId: id,
+        count: backfillCount,
+        source: 'invite',
+        discordId,
+        backfill: true,
+      },
+    });
+  }
+
+  return c.json({
+    registered: true,
+    already: false,
+    registrationTickets: 1,
+    inviteBackfillTickets: backfillCount,
+  });
 });
 
 // ─── POST /admin/giveaway/:id/cancel ─────────────────────────────────────

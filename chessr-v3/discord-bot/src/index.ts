@@ -22,6 +22,7 @@ import { loadPlatformEmojis } from './lib/platformEmoji.js';
 import { startStatsChannels } from './handlers/statsChannels.js';
 import { registerBoostReward } from './handlers/boostReward.js';
 import { registerGiveawayAnnouncer } from './handlers/giveawayAnnouncer.js';
+import { registerInviteTracker } from './handlers/inviteTracker.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -59,6 +60,10 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.MessageContent,
+    // Required for the invite cache + diffing in inviteTracker. Doesn't
+    // need a portal toggle (non-privileged), but the bot role still needs
+    // "Manage Server" or per-channel "Create Invites" to read invites.
+    GatewayIntentBits.GuildInvites,
   ],
   partials: [Partials.GuildMember, Partials.Message, Partials.Channel],
 });
@@ -83,6 +88,8 @@ client.once('clientReady', async () => {
   registerInventoryHandlers(client);
   registerGiveawayAnnouncer(client);
 });
+
+registerInviteTracker(client);
 
 client.on('error', (err) => log.error('[discord] client error:', err));
 

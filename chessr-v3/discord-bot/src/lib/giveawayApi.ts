@@ -136,6 +136,29 @@ export async function getLeaderboard(giveawayId: number, limit = 10): Promise<Le
   return json.leaderboard;
 }
 
+// ─── Invite tracking ─────────────────────────────────────────────────────
+
+export interface InviteUseResult {
+  logged?: boolean;
+  already?: boolean;
+  ticketsGranted?: number;
+  error?: string;
+}
+
+export async function logInviteUse(args: {
+  guildId: string;
+  inviteeDiscordId: string;
+  inviterDiscordId: string | null;
+  inviteCode: string | null;
+}): Promise<InviteUseResult> {
+  const res = await fetch(url('/admin/invites/use'), {
+    method: 'POST',
+    headers: adminHeaders(),
+    body: JSON.stringify(args),
+  });
+  return res.json() as Promise<InviteUseResult>;
+}
+
 /** Pretty-print a prize as a single chip-friendly string. */
 export function prizeLabel(p: Prize): string {
   if (p.prize_kind === 'plan') {
