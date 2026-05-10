@@ -44,6 +44,8 @@ interface StreamSnapshot {
     mateScore: number | null;
     depth: number;
     winRate: number;
+    labels?: string[];
+    class?: string;
   }>;
   engineId: string;
   plan: string | null;
@@ -223,6 +225,9 @@ export default function StreamApp() {
               to: s.move.slice(2, 4),
               color: ARROW_COLORS[i] ?? '#71717a',
               rank: i,
+              labels: s.labels,
+              mateScore: s.mateScore,
+              cls: s.class,
             }))}
             size={boardSize}
           />

@@ -37,6 +37,8 @@ interface StreamSnapshot {
     mateScore: number | null;
     depth: number;
     winRate: number;
+    labels?: string[];
+    class?: string;
   }>;
   engineId: string;
   plan: string | null;
@@ -70,6 +72,8 @@ function apply(snap: StreamSnapshot): void {
       mateScore: s.mateScore,
       depth: s.depth,
       winRate: s.winRate,
+      labels: s.labels ?? [],
+      class: s.class,
       // Fields not part of the stream sync — fill with zeros so the
       // suggestion type is satisfied.
       multipv: 0,

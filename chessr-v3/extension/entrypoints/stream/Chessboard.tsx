@@ -69,6 +69,47 @@ interface ArrowSpec {
   to: string;
   color: string;
   rank: number;
+  /** Chess-state labels (check / mate / capture / promotion:*). Rendered
+   *  as colored chips stacked on the destination square. Optional —
+   *  older snapshots / fresh suggestions don't include them. */
+  labels?: string[];
+  mateScore?: number | null;
+  /** Move quality classification (best / brilliant / great / …). Sits
+   *  on top of the label stack at slot 0, matching the on-platform
+   *  arrows.ts convention. */
+  cls?: string;
+}
+
+// Mirror PerformanceCard / arrows.ts palette — keep in sync if those
+// move.
+const CLASSIFICATION_COLOR: Record<string, string> = {
+  best: '#81B64C',       brilliant: '#26C2A3',  great: '#749BBF',
+  excellent: '#6ee7b7',  good: '#95B776',       book: '#D5A47D',
+  forced: '#96AF8B',     inaccuracy: '#F7C631', mistake: '#FFA459',
+  miss: '#FF7769',       blunder: '#FA412D',
+};
+const CLASSIFICATION_LABEL: Record<string, string> = {
+  best: 'Best', brilliant: 'Brill', great: 'Great', excellent: 'Excel',
+  good: 'Good', book: 'Book', forced: 'Frcd',
+  inaccuracy: 'Inacc', mistake: 'Mist', miss: 'Miss', blunder: 'Blund',
+};
+const LABEL_COLOR: Record<string, string> = {
+  check: '#fb923c', mate: '#c084fc', capture: '#94a3b8',
+};
+const PROMO_SYMBOL: Record<string, string> = {
+  q: 'Q', r: 'R', b: 'B', n: 'N',
+};
+
+/** Resolve a chess-state label to display text + chip color. */
+function resolveLabelDisplay(label: string, mateScore?: number | null): { text: string; color: string } {
+  if (label.startsWith('promotion:')) {
+    const piece = label.split(':')[1];
+    return { text: `Promo ${PROMO_SYMBOL[piece] ?? '♛'}`, color: '#c084fc' };
+  }
+  if (label === 'mate' && mateScore != null) {
+    return { text: Math.abs(mateScore) === 1 ? 'Mate' : `M${Math.abs(mateScore)}`, color: LABEL_COLOR.mate };
+  }
+  return { text: label.charAt(0).toUpperCase() + label.slice(1), color: LABEL_COLOR[label] ?? '#94a3b8' };
 }
 
 interface Props {
@@ -189,7 +230,70 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480 }
         const y2 = toXY[1] * sq + sq / 2;
         return <Arrow key={`arr-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} color={a.color} squareSize={sq} />;
       })}
+
+      {/* Badges (classification + chess-state labels) on each arrow's
+          destination. Rendered after the arrows so they paint on top. */}
+      {arrows.map((a, i) => {
+        const toXY = squareToCoords(a.to, orientation);
+        if (!toXY) return null;
+        const cx = toXY[0] * sq + sq / 2;
+        const cy = toXY[1] * sq + sq / 2;
+        const chips: { text: string; color: string }[] = [];
+        if (a.cls && CLASSIFICATION_LABEL[a.cls]) {
+          chips.push({ text: CLASSIFICATION_LABEL[a.cls], color: CLASSIFICATION_COLOR[a.cls] });
+        }
+        for (const l of a.labels ?? []) {
+          chips.push(resolveLabelDisplay(l, a.mateScore));
+        }
+        if (chips.length === 0) return null;
+        return <BadgeStack key={`badges-${i}`} cx={cx} cy={cy} chips={chips} squareSize={sq} />;
+      })}
     </svg>
+  );
+}
+
+/** Stack of chips floating just inside the destination square's top
+ *  edge. Mirrors arrows.ts makeBadge layout (slot 0 at top, others
+ *  below). */
+function BadgeStack({
+  cx, cy, chips, squareSize,
+}: { cx: number; cy: number; chips: { text: string; color: string }[]; squareSize: number }) {
+  const fontSize = Math.max(6, squareSize / 11);
+  const padX = fontSize * 0.6;
+  const padY = fontSize * 0.2;
+  const badgeH = fontSize + padY * 2;
+  const inset = 8;
+  return (
+    <g>
+      {chips.map((chip, i) => {
+        const badgeW = chip.text.length * fontSize * 0.65 + padX * 2;
+        const x = cx - badgeW / 2 - inset;
+        const y = cy - squareSize / 2 + badgeH / 2 + inset + i * (badgeH + 2);
+        const r = parseInt(chip.color.slice(1, 3), 16);
+        const g = parseInt(chip.color.slice(3, 5), 16);
+        const b = parseInt(chip.color.slice(5, 7), 16);
+        return (
+          <g key={`chip-${i}`} transform={`translate(${x}, ${y})`}>
+            <rect
+              x={-badgeW / 2} y={-badgeH / 2}
+              width={badgeW} height={badgeH}
+              rx={fontSize * 0.3}
+              fill={`rgba(${r}, ${g}, ${b}, 0.85)`}
+            />
+            <text
+              x={0} y={fontSize * 0.35}
+              textAnchor="middle"
+              fontSize={fontSize} fontWeight={700}
+              fontFamily="-apple-system, BlinkMacSystemFont, sans-serif"
+              letterSpacing="0.04em"
+              fill="white"
+            >
+              {chip.text.toUpperCase()}
+            </text>
+          </g>
+        );
+      })}
+    </g>
   );
 }
 

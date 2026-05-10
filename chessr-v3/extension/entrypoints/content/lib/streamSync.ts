@@ -33,7 +33,10 @@ export interface StreamSnapshot {
   playerColor: 'white' | 'black' | null;
   turn: 'white' | 'black' | null;
   gameOver: boolean;
-  /** Top suggestions — same shape as suggestionStore but truncated to 3. */
+  /** Top suggestions — same shape as suggestionStore but truncated to 3.
+   *  `labels` and `class` are propagated so the stream-mode board can
+   *  render mate/capture/check/promotion + classification (Best /
+   *  Brilliant / …) badges on each arrow's destination square. */
   suggestions: Array<{
     move: string;
     pv: string[];
@@ -41,6 +44,8 @@ export interface StreamSnapshot {
     mateScore: number | null;
     depth: number;
     winRate: number;
+    labels?: string[];
+    class?: string;
   }>;
   engineId: string;
   plan: string | null;
@@ -69,6 +74,8 @@ function buildSnapshot(): StreamSnapshot {
       mateScore: s.mateScore,
       depth: s.depth,
       winRate: s.winRate,
+      labels: s.labels,
+      class: s.class,
     })),
     engineId: engine.engineId,
     plan: auth.plan ?? null,
