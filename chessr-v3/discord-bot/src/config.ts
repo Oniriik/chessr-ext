@@ -24,6 +24,10 @@ export const config = {
     /** When set, slash commands register guild-scoped (instant). When
      *  empty, they register globally (≈1h propagation). */
     guildId:  optional('DISCORD_GUILD_ID'),
+    /** Channel where /lookup posts the resulting embed so any admin
+     *  can read it. When unset the command falls back to an ephemeral
+     *  reply visible only to the caller. */
+    lookupChannelId: optional('DISCORD_LOOKUP_CHANNEL_ID'),
   },
   supabase: {
     url:        required('SUPABASE_URL'),
