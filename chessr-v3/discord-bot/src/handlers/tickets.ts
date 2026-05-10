@@ -163,7 +163,121 @@ const ticketSetupCommand: BotCommand = {
   },
 };
 
-export const ticketCommands: BotCommand[] = [ticketSetupCommand];
+// ─── Slash command: /new-ticket ──────────────────────────────────────────
+// Admin-initiated ticket creation. Same channel layout, perms and
+// lifecycle (close → 12h auto-delete, reopen, manual delete, info) as
+// a user-clicked Open. Useful for opening a ticket for someone
+// proactively (abuse review, lifetime claim hand-holding, …).
+
+const newTicketCommand: BotCommand = {
+  data: new SlashCommandBuilder()
+    .setName('new-ticket')
+    .setDescription('Create a support ticket for a user (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator.toString())
+    .addUserOption((opt) =>
+      opt.setName('member')
+        .setDescription('The user to create a ticket for')
+        .setRequired(true),
+    ) as unknown as SlashCommandBuilder,
+
+  async execute(interaction: ChatInputCommandInteraction) {
+    if (!interaction.guild) {
+      await interaction.reply({ content: 'This command must be used in a guild.', ephemeral: true });
+      return;
+    }
+    const role = await resolveRoleByDiscordId(interaction.user.id);
+    if (role !== 'super_admin') {
+      await interaction.reply({
+        content: '❌ super_admin required.',
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const member = interaction.options.getUser('member', true);
+    if (member.bot) {
+      await interaction.reply({ content: 'Cannot open a ticket for a bot.', ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const openCatId = config.discord.ticketOpenCategoryId;
+    if (!openCatId) {
+      await interaction.editReply({ content: 'Ticket system not fully configured (DISCORD_TICKET_OPEN_CATEGORY_ID).' });
+      return;
+    }
+
+    // One open ticket per opener — same constraint as user-initiated.
+    const existing = await getOpenForOpener(member.id).catch(() => null);
+    if (existing) {
+      await interaction.editReply({ content: `<@${member.id}> already has an open ticket: <#${existing.channel_id}>` });
+      return;
+    }
+
+    const username = member.username.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20) || 'user';
+    const guild = interaction.guild;
+
+    let channel: TextChannel;
+    try {
+      channel = await guild.channels.create({
+        name: `help-pending-${username}`,
+        type: ChannelType.GuildText,
+        parent: openCatId,
+        permissionOverwrites: [
+          { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+          {
+            id: member.id,
+            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
+          },
+        ],
+      }) as TextChannel;
+    } catch (err) {
+      log.error('[tickets] /new-ticket channel create failed:', err);
+      await interaction.editReply({ content: 'Could not create the channel.' });
+      return;
+    }
+
+    let row;
+    try {
+      row = await openTicket({
+        openerDiscordId: member.id,
+        openerUsername: member.username,
+        channelId: channel.id,
+      });
+    } catch (err) {
+      log.error('[tickets] /new-ticket DB insert failed; rolling back channel:', err);
+      await channel.delete().catch(() => {});
+      await interaction.editReply({ content: 'Could not register the ticket.' });
+      return;
+    }
+
+    const padded = pad4(row.id);
+    await channel.setName(`help-${padded}-${username}`).catch(() => {});
+    await channel.setTopic(
+      `Ticket #${padded} | Opened by ${member.tag} (${member.id}) | Created by ${interaction.user.tag}`,
+    ).catch(() => {});
+
+    await channel.send({
+      content: `🎫 **Ticket #${padded}** — opened for <@${member.id}> by <@${interaction.user.id}>`,
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR_OPEN)
+          .setDescription(
+            `Hi <@${member.id}>! Our team has opened this ticket on your behalf.\n` +
+            'Please describe your situation here.\n\n' +
+            'Use the button below to **close** the ticket once it\'s resolved.',
+          ),
+      ],
+      components: [openTicketButtons(row.id)],
+    });
+
+    await interaction.editReply({ content: `✅ Ticket created for <@${member.id}>: <#${channel.id}>` });
+    log.info(`[tickets] ${interaction.user.tag} created ticket #${padded} for ${member.tag} via /new-ticket`);
+  },
+};
+
+export const ticketCommands: BotCommand[] = [ticketSetupCommand, newTicketCommand];
 
 // ─── Open flow ───────────────────────────────────────────────────────────
 
