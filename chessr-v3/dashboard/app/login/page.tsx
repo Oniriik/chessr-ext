@@ -58,7 +58,7 @@ export default function LoginPage() {
           <h1 className="text-lg font-semibold tracking-tight">Sign in</h1>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="pt-0">
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <label

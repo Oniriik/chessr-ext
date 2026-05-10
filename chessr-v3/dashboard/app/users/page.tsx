@@ -171,9 +171,6 @@ export default function UsersPage() {
       <div className="space-y-4">
         {/* ─── Search bar + plan filter ─────────────────────────── */}
         <Card className="card-elevated">
-          {/* CardContent ships `p-4 pt-0 sm:p-5 sm:pt-0` by default
-              (assumes a preceding CardHeader). Override both breakpoints
-              so top/bottom padding stays symmetrical. */}
           <CardContent className="space-y-2 p-3 sm:p-3">
             {/* Single flex-wrap row so search + chips + total share one
                 line on desktop, but search takes full width on mobile and
