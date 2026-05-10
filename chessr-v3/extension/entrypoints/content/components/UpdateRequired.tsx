@@ -1,11 +1,15 @@
 import { useVersionStore } from '../stores/versionStore';
 import './update-required.css';
 
-const DOWNLOAD_URL = 'https://beta.chessr.io/download/latest';
+// Fallback if /health is unreachable (rare — versionStore only sets
+// updateRequired=true when /health succeeded, so downloadUrl should
+// be populated). Kept just so the button never points nowhere.
+const FALLBACK_DOWNLOAD_URL = 'https://download.chessr.io/latest';
 const DISCORD_URL = 'https://discord.gg/72j4dUadTu';
 
 export default function UpdateRequired() {
-  const { currentVersion, minVersion } = useVersionStore();
+  const { currentVersion, minVersion, downloadUrl } = useVersionStore();
+  const href = downloadUrl || FALLBACK_DOWNLOAD_URL;
 
   return (
     <div className="update-required">
@@ -34,7 +38,7 @@ export default function UpdateRequired() {
           </svg>
           <span className="update-version-target">v{minVersion}</span>
         </div>
-        <a href={DOWNLOAD_URL} target="_blank" rel="noopener noreferrer" className="update-btn">
+        <a href={href} target="_blank" rel="noopener noreferrer" className="update-btn">
           Download update
         </a>
       </div>
