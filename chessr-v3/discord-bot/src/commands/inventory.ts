@@ -238,21 +238,26 @@ async function handleSpinConfirm(interaction: ButtonInteraction): Promise<void> 
   // Public ping in #general — separate so the channel sees the reveal
   // even if the spinner closes the ephemeral.
   const channelId = config.discord.boostChannelId;
-  if (channelId) {
-    try {
-      const ch = await interaction.client.channels.fetch(channelId);
-      if (ch && ch.isTextBased() && 'send' in ch) {
-        const msg = isLifetime
-          ? `🌟 <@${interaction.user.id}> just hit the **LIFETIME** jackpot! 1 spin in 1000.`
-          : `🎉 <@${interaction.user.id}> won **${days} days**!`;
-        await (ch as TextChannel).send({
-          content: msg,
-          allowedMentions: { users: [interaction.user.id] },
-        });
-      }
-    } catch (err) {
-      log.warn('[inv] public spin ping failed:', err);
+  if (!channelId) {
+    log.warn('[inv] DISCORD_BOOST_CHANNEL_ID not set — skipping spin public ping');
+    return;
+  }
+  try {
+    const ch = await interaction.client.channels.fetch(channelId);
+    if (!ch || !ch.isTextBased() || !('send' in ch)) {
+      log.warn(`[inv] boost channel ${channelId} not reachable / not text-based`);
+      return;
     }
+    const msg = isLifetime
+      ? `🌟 <@${interaction.user.id}> just hit the **LIFETIME** jackpot on the wheel! 1 spin in 1000.`
+      : `🎉 <@${interaction.user.id}> spun and won **${days} days**!`;
+    await (ch as TextChannel).send({
+      content: msg,
+      allowedMentions: { users: [interaction.user.id] },
+    });
+    log.info(`[inv] spin public ping sent (${interaction.user.id} → ${isLifetime ? 'lifetime' : `${days}d`})`);
+  } catch (err) {
+    log.warn('[inv] public spin ping failed:', err);
   }
 }
 
@@ -642,6 +647,16 @@ async function handleGiftPickUser(interaction: UserSelectMenuInteraction, reward
 async function handleGiftConfirm(interaction: ButtonInteraction, rewardId: number, targetId: string): Promise<void> {
   await interaction.update({ content: 'Sending gift…', embeds: [], components: [] });
 
+  // Snapshot the reward BEFORE the gift fires — the gift API only
+  // returns { gifted: true } and the row's owner_discord_id has flipped
+  // to the recipient by the time we'd query again. We need the kind +
+  // days for the public announcement.
+  const inv = await getInventory(interaction.user.id);
+  const reward = inv.rewards.find((r) => r.id === rewardId);
+  const rewardWord = reward
+    ? reward.reward_kind === 'lifetime' ? 'Lifetime' : `${reward.reward_days} days`
+    : 'a reward';
+
   let result;
   try {
     result = await gift(rewardId, interaction.user.id, targetId);
@@ -673,26 +688,31 @@ async function handleGiftConfirm(interaction: ButtonInteraction, rewardId: numbe
       new EmbedBuilder()
         .setTitle('📤 Gift sent!')
         .setColor(COLOR_GIFT)
-        .setDescription(`Sent to <@${targetId}>. They can claim it from their \`/inventory\`.`),
+        .setDescription(`Sent **${rewardWord}** to <@${targetId}>. They can claim it from their \`/inventory\`.`),
     ],
     components: [backHomeRow()],
   });
 
-  // Optional public ping — shows the gift to the channel and pings the
-  // recipient so they know to check.
+  // Public ping — channel sees the gift, recipient is mentioned so
+  // they know to check their inventory.
   const channelId = config.discord.boostChannelId;
-  if (channelId) {
-    try {
-      const ch = await interaction.client.channels.fetch(channelId);
-      if (ch && ch.isTextBased() && 'send' in ch) {
-        await (ch as TextChannel).send({
-          content: `🎁 <@${interaction.user.id}> gifted a reward to <@${targetId}> — check your \`/inventory\`!`,
-          allowedMentions: { users: [targetId] },
-        });
-      }
-    } catch (err) {
-      log.warn('[inv] public gift ping failed:', err);
+  if (!channelId) {
+    log.warn('[inv] DISCORD_BOOST_CHANNEL_ID not set — skipping gift public ping');
+    return;
+  }
+  try {
+    const ch = await interaction.client.channels.fetch(channelId);
+    if (!ch || !ch.isTextBased() || !('send' in ch)) {
+      log.warn(`[inv] boost channel ${channelId} not reachable / not text-based`);
+      return;
     }
+    await (ch as TextChannel).send({
+      content: `🎁 <@${interaction.user.id}> gifted **${rewardWord}** to <@${targetId}>!`,
+      allowedMentions: { users: [targetId, interaction.user.id] },
+    });
+    log.info(`[inv] gift public ping sent (${interaction.user.id} → ${targetId}, ${rewardWord})`);
+  } catch (err) {
+    log.warn('[inv] public gift ping failed:', err);
   }
 }
 
