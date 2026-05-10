@@ -742,7 +742,7 @@ async function handleGiftConfirm(interaction: ButtonInteraction, rewardId: numbe
         new EmbedBuilder()
           .setColor(COLOR_GIFT)
           .setDescription(`🎁 <@${interaction.user.id}> gifted **${rewardWord}** to <@${targetId}>!`)
-          .setFooter({ text: 'Use /inventory to roll your tokens' }),
+          .setFooter({ text: 'Use /inventory to claim your gift' }),
       ],
       allowedMentions: { users: [targetId] },
     });
