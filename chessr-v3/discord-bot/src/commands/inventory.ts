@@ -122,7 +122,7 @@ function homeEmbed(inv: Inventory): EmbedBuilder {
   }
 
   return new EmbedBuilder()
-    .setTitle('🎒 Your Boost Inventory')
+    .setTitle('🎒 Your Inventory')
     .setColor(COLOR_HOME)
     .setDescription(lines.join('\n'));
 }

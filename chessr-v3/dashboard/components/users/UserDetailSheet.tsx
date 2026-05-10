@@ -956,11 +956,10 @@ export function UserDetailSheet({
                 onDelete={deleteNote}
               />
 
-              {/* ─── Boost Inventory ────────────────────────────────── */}
-              {/* Shows the user's wheel tokens + rewards. Lazy-loaded
-                  on expand so the sheet stays fast for users who don't
-                  care about boosts. Super-admin gets grant/revoke
-                  buttons inline. */}
+              {/* ─── Inventory ──────────────────────────────────────── */}
+              {/* Wheel tokens + rewards. Eager-loaded on sheet open so
+                  the count chip in the header is accurate immediately.
+                  Super-admin gets grant/revoke buttons inline. */}
               <BoostInventory discordId={u.discord_id} callerRole={callerRole} />
 
               {/* ─── Linked accounts ────────────────────────────────── */}

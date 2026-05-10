@@ -670,6 +670,31 @@ adminWheelRoutes.get('/admin/wheel/claims', async (c) => {
   return c.json({ claims: rows, total: Number(totalRow[0]?.n ?? 0), limit, offset });
 });
 
+// ─── GET /admin/discord/usernames ───────────────────────────────────────
+// Resolves a list of Discord IDs to chessr-known handles via
+// user_settings.discord_username. Unknown IDs (Discord users not linked
+// to a Chessr account) come back null so the client can fall back to
+// the raw mention. Useful for any admin view that displays Discord IDs.
+
+adminWheelRoutes.get('/admin/discord/usernames', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const idsParam = new URL(c.req.url).searchParams.get('ids') ?? '';
+  const ids = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))].slice(0, 200);
+  if (ids.length === 0) return c.json({ usernames: {} });
+
+  const { data } = await supabase
+    .from('user_settings')
+    .select('discord_id, discord_username')
+    .in('discord_id', ids);
+
+  const map: Record<string, string | null> = {};
+  for (const id of ids) map[id] = null;
+  for (const row of data ?? []) {
+    if (row.discord_id) map[row.discord_id as string] = (row.discord_username as string | null) ?? null;
+  }
+  return c.json({ usernames: map });
+});
+
 // ─── GET /admin/wheel/activity ──────────────────────────────────────────
 // Recent wheel_* events for the Overview tab's activity timeline.
 

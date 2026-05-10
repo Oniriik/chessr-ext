@@ -24,10 +24,12 @@ export function timeAgo(iso: string | null | undefined): string {
   return `${months}mo ago`;
 }
 
-/** Render a Discord ID. When `username` is provided we show the
- *  human-friendly handle (resolved via /admin/discord/usernames);
- *  otherwise fall back to the raw `<@id>` mention so the value is at
- *  least copy-pasteable. */
+/** Render a Discord ID. When `username` is provided (resolved via
+ *  /admin/discord/usernames) we show the human-friendly handle. When
+ *  not — typically because the user hasn't linked their Discord to a
+ *  Chessr account — we fall back to a shortened `user #ABCD` (last 4
+ *  of the Snowflake) with the full ID in a tooltip. The raw 19-digit
+ *  mention is too long to read inline. */
 export function DiscordTag({
   id, username,
 }: {
@@ -42,7 +44,12 @@ export function DiscordTag({
       </span>
     );
   }
-  return <span className="font-mono text-[11px]" title={id}>&lt;@{id}&gt;</span>;
+  const short = id.length > 4 ? id.slice(-4) : id;
+  return (
+    <span className="font-mono text-[11px] text-muted-foreground" title={id}>
+      user #{short}
+    </span>
+  );
 }
 
 /** Module-level cache so each tab swap doesn't re-fetch handles we

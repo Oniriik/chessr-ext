@@ -87,18 +87,18 @@ export function BoostInventory({
     }
   }
 
-  // Lazy-load: only fetch on first expand to keep the sheet open fast.
+  // Eager load on mount so the count chip in the header is accurate
+  // before the user expands. Cheap query — partial indexes make it
+  // sub-ms even at scale.
   useEffect(() => {
-    if (open && tokens.length === 0 && rewards.length === 0 && !loading && !error) {
-      load();
-    }
+    if (discordId) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [discordId]);
 
   if (!discordId) {
     return (
       <div className="rounded-md border border-border bg-background/40 px-3 py-2.5 text-[12px] text-muted-foreground">
-        🎒 Boost Inventory unavailable — Discord not linked.
+        🎒 Inventory unavailable — Discord not linked.
       </div>
     );
   }
@@ -160,7 +160,7 @@ export function BoostInventory({
       >
         <span className="flex items-center gap-2">
           <Ticket size={13} className="text-muted-foreground" />
-          Boost Inventory
+          Inventory
           <Badge variant="muted" className="px-1.5 py-0.5 text-[10px]">{counts}</Badge>
         </span>
         <ChevronDown size={14} className={cn('text-muted-foreground transition-transform', open && 'rotate-180')} />
