@@ -28,6 +28,16 @@ export const config = {
      *  can read it. When unset the command falls back to an ephemeral
      *  reply visible only to the caller. */
     lookupChannelId: optional('DISCORD_LOOKUP_CHANNEL_ID'),
+    /** Stats voice channels — names are rewritten on a 10-min cadence.
+     *  Discord caps channel renames at 2 per 10 min per channel, so we
+     *  stagger updates with 1-minute offsets between channels. Any
+     *  unset ID is silently skipped — partial setup is fine. */
+    statsChannels: {
+      users:    optional('DISCORD_STATS_USERS_CHANNEL_ID'),
+      playing:  optional('DISCORD_STATS_PLAYING_CHANNEL_ID'),
+      moves:    optional('DISCORD_STATS_MOVES_CHANNEL_ID'),
+      premium:  optional('DISCORD_STATS_PREMIUM_CHANNEL_ID'),
+    },
   },
   supabase: {
     url:        required('SUPABASE_URL'),

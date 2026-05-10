@@ -19,6 +19,7 @@ import {
   registerCommand,
 } from './lib/commands.js';
 import { loadPlatformEmojis } from './lib/platformEmoji.js';
+import { startStatsChannels } from './handlers/statsChannels.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -64,6 +65,9 @@ client.once('clientReady', async () => {
   // hardcoded IDs.
   try { await loadPlatformEmojis(client); }
   catch (err) { log.error('[emoji] load failed:', err); }
+  // Stats voice channels — silently no-ops when no DISCORD_STATS_*
+  // channel IDs are configured.
+  startStatsChannels(client);
 });
 
 client.on('error', (err) => log.error('[discord] client error:', err));
