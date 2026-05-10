@@ -3,7 +3,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Activity, ScrollText, Layers, LogOut, Menu, MessageSquare, Server, Users } from 'lucide-react';
+import {
+  Activity, BarChart3, Globe, Layers, LayoutDashboard, LogOut,
+  Menu, MessageSquare, ScrollText, Server, Sparkles, Users,
+} from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -16,13 +19,41 @@ import { cn } from '@/lib/utils';
 import './admin-shell.css';
 
 type NavItem = { href: string; label: string; icon: typeof Activity };
+type NavSection = { label: string; items: NavItem[] };
 
-const NAV_ITEMS: NavItem[] = [
-  { href: '/live',     label: 'Live',     icon: Activity      },
-  { href: '/users',    label: 'Users',    icon: Users         },
-  { href: '/messages', label: 'Messages', icon: MessageSquare },
-  { href: '/queues',   label: 'Queues',   icon: Layers        },
-  { href: '/logs',     label: 'Logs',     icon: ScrollText    },
+// Sidebar grouped by workflow category. Items inside a section are
+// ordered roughly by daily-use frequency. Adding a section: append
+// here, the renderer picks it up automatically.
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: 'Overview',
+    items: [
+      { href: '/',       label: 'Dashboard', icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: 'Users',
+    items: [
+      { href: '/users',        label: 'All users', icon: Users },
+      { href: '/users/globe',  label: 'Globe',     icon: Globe },
+    ],
+  },
+  {
+    label: 'Discord',
+    items: [
+      { href: '/discord/wheel', label: 'Wheel Spin', icon: Sparkles },
+      { href: '/messages',      label: 'Messages',   icon: MessageSquare },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { href: '/live',    label: 'Live',    icon: Activity   },
+      { href: '/metrics', label: 'Metrics', icon: BarChart3  },
+      { href: '/logs',    label: 'Logs',    icon: ScrollText },
+      { href: '/queues',  label: 'Queues',  icon: Layers     },
+    ],
+  },
 ];
 
 function Brand() {
@@ -36,29 +67,53 @@ function Brand() {
   );
 }
 
-function NavLinks({ pathname, onSelect }: { pathname: string; onSelect?: () => void }) {
+function NavLinks({
+  pathname,
+  onSelect,
+  badges,
+}: {
+  pathname: string;
+  onSelect?: () => void;
+  badges?: Record<string, number>;
+}) {
   return (
-    <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map((n) => {
-        const active = pathname === n.href || pathname.startsWith(n.href + '/');
-        const Icon = n.icon;
-        return (
-          <Link
-            key={n.href}
-            href={n.href}
-            onClick={onSelect}
-            className={cn(
-              'group flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
-              active
-                ? 'bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.18)]'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-            )}
-          >
-            <Icon size={15} strokeWidth={2} className={cn('shrink-0 transition-transform', active && 'scale-105')} />
-            <span>{n.label}</span>
-          </Link>
-        );
-      })}
+    <nav className="flex flex-col gap-4">
+      {NAV_SECTIONS.map((section) => (
+        <div key={section.label} className="flex flex-col gap-1">
+          <div className="px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
+            {section.label}
+          </div>
+          {section.items.map((n) => {
+            // `/` activeté seulement quand exact — sinon ça matcherait toutes les routes.
+            const active = n.href === '/'
+              ? pathname === '/'
+              : pathname === n.href || pathname.startsWith(n.href + '/');
+            const Icon = n.icon;
+            const badge = badges?.[n.href] ?? 0;
+            return (
+              <Link
+                key={n.href}
+                href={n.href}
+                onClick={onSelect}
+                className={cn(
+                  'group flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium transition-colors',
+                  active
+                    ? 'bg-primary/15 text-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.18)]'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                <Icon size={15} strokeWidth={2} className={cn('shrink-0 transition-transform', active && 'scale-105')} />
+                <span className="flex-1">{n.label}</span>
+                {badge > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500/90 px-1 text-[10px] font-semibold text-white">
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
@@ -77,6 +132,10 @@ export function AdminShell({
   const pathname = usePathname();
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Sidebar badges. Fetched on mount + every 30s. The map is keyed
+  // by nav href so each section can quietly add its own indicator
+  // without changing AdminShell internals later.
+  const [badges, setBadges] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
@@ -86,6 +145,26 @@ export function AdminShell({
       setUserEmail(data.session.user.email || null);
     })();
   }, [router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const supabase = getSupabase();
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (!token) return;
+        const res = await fetch(`/api/admin/wheel/pending-lifetime/count?token=${encodeURIComponent(token)}`);
+        if (!res.ok) return;
+        const json = (await res.json()) as { count?: number };
+        if (cancelled) return;
+        setBadges((prev) => ({ ...prev, '/discord/wheel': json.count ?? 0 }));
+      } catch { /* badges are best-effort */ }
+    }
+    refresh();
+    const id = setInterval(refresh, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
 
   // Close mobile drawer on navigation.
   useEffect(() => { setSheetOpen(false); }, [pathname]);
@@ -118,7 +197,7 @@ export function AdminShell({
                   <Brand />
                 </SheetTitle>
               </SheetHeader>
-              <NavLinks pathname={pathname} onSelect={() => setSheetOpen(false)} />
+              <NavLinks pathname={pathname} onSelect={() => setSheetOpen(false)} badges={badges} />
               <Separator className="my-4" />
               {userEmail && (
                 <div className="flex items-center gap-3 px-1">
@@ -151,11 +230,8 @@ export function AdminShell({
            *   "Navigation" caps label: px-3 inside parent px-3 → 24
            *   user block: px-6 (24)
            */}
-          <div className="flex-1 px-3 py-4">
-            <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/70">
-              Navigation
-            </div>
-            <NavLinks pathname={pathname} />
+          <div className="flex-1 overflow-y-auto px-3 py-4">
+            <NavLinks pathname={pathname} badges={badges} />
           </div>
 
           <Separator className="bg-border/40" />

@@ -27,10 +27,23 @@
  */
 
 import { Hono, type Context } from 'hono';
+import { Paddle, Environment } from '@paddle/paddle-node-sdk';
 import { dbQuery } from '../lib/db.js';
 import { emitEvent } from '../lib/events.js';
 import { supabase } from '../lib/supabase.js';
 import { rollWheel, type WheelOutcome } from '../lib/wheel.js';
+
+// Lazy Paddle client — needed for the lifetime-apply path that cancels
+// the user's active subscription. Re-initialised on each call to avoid
+// importing the heavy SDK at module load when the env is missing.
+function getPaddle(): Paddle | null {
+  const key = process.env.PADDLE_API_KEY;
+  if (!key) return null;
+  const env = (process.env.PADDLE_ENVIRONMENT || 'sandbox') as 'sandbox' | 'production';
+  return new Paddle(key, {
+    environment: env === 'sandbox' ? Environment.sandbox : Environment.production,
+  });
+}
 
 export const adminWheelRoutes = new Hono();
 
@@ -402,3 +415,225 @@ async function extendPaddle(userId: string, days: number): Promise<void> {
     throw new Error(`paddle extend HTTP ${res.status}: ${json.error ?? ''}`);
   }
 }
+
+// ─── GET /admin/wheel/pending-lifetime ───────────────────────────────────
+// Lifetime rewards that admins still need to apply manually. Joined with
+// auth.users (via Supabase) for email + chessr user_id, so the dashboard
+// can render the apply modal in one round-trip.
+
+interface PendingLifetimeRow {
+  reward_id: number;
+  spun_by_discord_id: string;
+  owner_discord_id: string;
+  spun_at: string;
+  gifted_from_discord_id: string | null;
+  gifted_at: string | null;
+}
+
+interface PendingLifetimeEnriched extends PendingLifetimeRow {
+  owner_user_id: string | null;
+  owner_email: string | null;
+  owner_plan: string | null;
+  owner_paddle_subscription_id: string | null;
+  owner_paddle_status: string | null;
+}
+
+adminWheelRoutes.get('/admin/wheel/pending-lifetime', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  const rows = await dbQuery<PendingLifetimeRow>(
+    `SELECT id AS reward_id,
+            spun_by_discord_id,
+            owner_discord_id,
+            spun_at::text,
+            gifted_from_discord_id,
+            gifted_at::text
+       FROM wheel_rewards
+      WHERE reward_kind = 'lifetime' AND claimed_at IS NULL
+      ORDER BY spun_at DESC`,
+  );
+
+  // Enrich each row with the owner's chessr identity + paddle state.
+  // Done outside SQL because user_settings + auth lives on Supabase,
+  // not on the local pg.
+  const enriched: PendingLifetimeEnriched[] = await Promise.all(
+    rows.map(async (r) => {
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('user_id, plan')
+        .eq('discord_id', r.owner_discord_id)
+        .maybeSingle();
+
+      let email: string | null = null;
+      let paddleSubId: string | null = null;
+      let paddleStatus: string | null = null;
+      if (settings?.user_id) {
+        const { data: auth } = await supabase.auth.admin.getUserById(settings.user_id);
+        email = auth?.user?.email ?? null;
+        const { data: sub } = await supabase
+          .from('subscriptions')
+          .select('paddle_subscription_id, status')
+          .eq('user_id', settings.user_id)
+          .maybeSingle();
+        paddleSubId = sub?.paddle_subscription_id ?? null;
+        paddleStatus = sub?.status ?? null;
+      }
+      return {
+        ...r,
+        owner_user_id: settings?.user_id ?? null,
+        owner_email: email,
+        owner_plan: settings?.plan ?? null,
+        owner_paddle_subscription_id: paddleSubId,
+        owner_paddle_status: paddleStatus,
+      };
+    }),
+  );
+
+  return c.json({ rewards: enriched });
+});
+
+// ─── GET /admin/wheel/pending-lifetime/count ─────────────────────────────
+// Lightweight version for the sidebar badge — no user enrichment.
+
+adminWheelRoutes.get('/admin/wheel/pending-lifetime/count', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const rows = await dbQuery<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+       FROM wheel_rewards
+      WHERE reward_kind = 'lifetime' AND claimed_at IS NULL`,
+  );
+  return c.json({ count: Number(rows[0]?.count ?? '0') });
+});
+
+// ─── POST /admin/wheel/apply-lifetime ────────────────────────────────────
+// Super-admin only (gated at the dashboard route layer; the serveur
+// trusts the admin token here).
+//
+// Applies a pending lifetime reward end-to-end:
+//   1. Mark reward claimed (atomic)
+//   2. If user has an active Paddle sub, cancel it immediately (no
+//      refund — Paddle's default for cancel-immediate is to NOT issue
+//      a credit note unless requested separately)
+//   3. Set user_settings.plan = 'lifetime', plan_expiry = null
+//   4. Emit plan_changed (drives Discord role sync via the bus)
+//
+// Failures roll back the claim so the admin can retry.
+
+adminWheelRoutes.post('/admin/wheel/apply-lifetime', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  let body: { rewardId?: number; actorUserId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const rewardId = Number(body.rewardId);
+  if (!Number.isFinite(rewardId)) return c.json({ error: 'rewardId required' }, 400);
+
+  // 1. Read reward + verify it's a pending lifetime.
+  const reward = await dbQuery<{
+    id: number;
+    owner_discord_id: string;
+    reward_kind: 'days' | 'lifetime';
+  }>(
+    `SELECT id, owner_discord_id, reward_kind
+       FROM wheel_rewards
+      WHERE id = $1 AND claimed_at IS NULL`,
+    [rewardId],
+  );
+  if (reward.length === 0) return c.json({ error: 'not_found_or_already_claimed' }, 404);
+  if (reward[0].reward_kind !== 'lifetime') return c.json({ error: 'not_a_lifetime' }, 400);
+
+  // 2. Resolve owner's chessr account.
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('user_id, plan, plan_expiry')
+    .eq('discord_id', reward[0].owner_discord_id)
+    .maybeSingle();
+  if (!settings) return c.json({ error: 'owner_not_linked' }, 409);
+
+  // 3. Lock the row by stamping claimed_at first. If anyone else stole
+  // the claim, we bail.
+  const claim = await dbQuery<{ id: number }>(
+    `UPDATE wheel_rewards
+        SET claimed_at = now(),
+            claimed_by_user_id = $1,
+            reward_path = 'lifetime_set'
+      WHERE id = $2 AND claimed_at IS NULL
+      RETURNING id`,
+    [settings.user_id, rewardId],
+  );
+  if (claim.length === 0) return c.json({ error: 'claim_race_lost' }, 409);
+
+  // From here on, any failure rolls the claim back.
+  try {
+    // 4. Cancel any active Paddle subscription. effectiveFrom:
+    // 'immediately' ends the sub now and Paddle does NOT auto-refund
+    // the prorated unused portion — the customer keeps the period
+    // they already paid for as consumed, no money back.
+    const { data: sub } = await supabase
+      .from('subscriptions')
+      .select('paddle_subscription_id, status, canceled_at')
+      .eq('user_id', settings.user_id)
+      .maybeSingle();
+    const isActivePaddle =
+      !!sub?.paddle_subscription_id &&
+      sub.status !== 'canceled' &&
+      !sub.canceled_at;
+    if (isActivePaddle) {
+      const paddle = getPaddle();
+      if (!paddle) throw new Error('paddle SDK not configured');
+      await paddle.subscriptions.cancel(sub!.paddle_subscription_id!, {
+        effectiveFrom: 'immediately',
+      });
+    }
+
+    // 5. Set lifetime in user_settings.
+    const { error: updErr } = await supabase
+      .from('user_settings')
+      .update({
+        plan: 'lifetime',
+        plan_expiry: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', settings.user_id);
+    if (updErr) throw new Error(`user_settings update: ${updErr.message}`);
+
+    // 6. Drive role sync via the events bus.
+    await emitEvent({
+      type: 'plan_changed',
+      user_id: settings.user_id,
+      actor_id: body.actorUserId ?? null,
+      payload: {
+        oldPlan: settings.plan,
+        newPlan: 'lifetime',
+        oldExpiry: settings.plan_expiry,
+        newExpiry: null,
+        reason: 'wheel_lifetime_claim',
+      },
+    });
+
+    await emitEvent({
+      type: 'wheel_claim',
+      user_id: settings.user_id,
+      actor_id: body.actorUserId ?? null,
+      payload: {
+        rewardId,
+        rewardKind: 'lifetime',
+        rewardPath: 'lifetime_set',
+        discordId: reward[0].owner_discord_id,
+      },
+    });
+
+    return c.json({ applied: true, userId: settings.user_id });
+  } catch (err) {
+    // Roll the claim back — admin can retry.
+    await dbQuery(
+      `UPDATE wheel_rewards
+          SET claimed_at = NULL,
+              claimed_by_user_id = NULL,
+              reward_path = NULL
+        WHERE id = $1`,
+      [rewardId],
+    );
+    console.error('[admin/wheel/apply-lifetime] failed, rolled back:', err);
+    return c.json({ error: 'apply_failed', message: String(err) }, 500);
+  }
+});
