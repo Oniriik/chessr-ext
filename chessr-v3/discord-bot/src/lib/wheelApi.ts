@@ -44,7 +44,16 @@ export async function getInventory(discordId: string): Promise<Inventory> {
     { headers: adminHeaders() },
   );
   if (!res.ok) throw new Error(`inventory HTTP ${res.status}`);
-  return res.json() as Promise<Inventory>;
+  const raw = (await res.json()) as Inventory;
+  // Postgres returns bigint (bigserial PK) as strings over the wire so
+  // a 64-bit value doesn't lose precision in JSON. Coerce here so the
+  // bot's `r.id === rewardId` comparisons after select work — the
+  // dropdown round-trips IDs as strings, then we Number() them in the
+  // handler. Without this, inv.rewards.find never matches.
+  return {
+    tokens: raw.tokens.map((t) => ({ ...t, id: Number(t.id) })),
+    rewards: raw.rewards.map((r) => ({ ...r, id: Number(r.id) })),
+  };
 }
 
 export interface SpinResult {
@@ -62,7 +71,11 @@ export async function spin(discordId: string): Promise<SpinResult> {
     body: JSON.stringify({ discordId }),
   });
   if (!res.ok) throw new Error(`spin HTTP ${res.status}`);
-  return res.json() as Promise<SpinResult>;
+  const raw = (await res.json()) as SpinResult;
+  // Same bigint-as-string normalisation as getInventory().
+  if (raw.tokenId !== undefined && raw.tokenId !== null) raw.tokenId = Number(raw.tokenId);
+  if (raw.rewardId !== undefined && raw.rewardId !== null) raw.rewardId = Number(raw.rewardId);
+  return raw;
 }
 
 export interface ClaimResult {
