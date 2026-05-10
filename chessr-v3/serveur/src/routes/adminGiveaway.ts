@@ -30,6 +30,7 @@
 import { Hono, type Context } from 'hono';
 import { dbQuery } from '../lib/db.js';
 import { emitEvent } from '../lib/events.js';
+import { forceDrawGiveaway } from '../jobs/giveawayDraw.js';
 
 export const adminGiveawayRoutes = new Hono();
 
@@ -454,6 +455,27 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/register', async (c) => {
     registrationTickets: 1,
     inviteBackfillTickets: backfillCount,
   });
+});
+
+// ─── POST /admin/giveaway/:id/draw ───────────────────────────────────────
+// Manual override of the scheduled draw. Picks winners + mints
+// deliverables right now regardless of ends_at. Atomic-flips status to
+// 'completed' so the cron tick won't double-draw.
+
+adminGiveawayRoutes.post('/admin/giveaway/:id/draw', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  try {
+    await forceDrawGiveaway(id);
+    return c.json({ drawn: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'draw_failed';
+    if (msg === 'not_found_or_locked') return c.json({ error: msg }, 404);
+    console.error(`[giveaway] force draw failed for ${id}:`, err);
+    return c.json({ error: 'draw_failed' }, 500);
+  }
 });
 
 // ─── POST /admin/giveaway/:id/cancel ─────────────────────────────────────

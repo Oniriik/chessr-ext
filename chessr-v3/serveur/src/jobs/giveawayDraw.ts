@@ -70,6 +70,29 @@ export async function runGiveawayDraw(): Promise<void> {
   }
 }
 
+/** Force-draw a single giveaway by id, regardless of ends_at. Used by
+ *  the dashboard's "Force draw" button. Throws on not-found / wrong
+ *  status so the route can return a 4xx. */
+export async function forceDrawGiveaway(id: number): Promise<void> {
+  const rows = await dbQuery<DueGiveaway>(
+    `SELECT id, name, announce_channel_id, announce_message_id
+       FROM giveaways
+      WHERE id = $1 AND status = 'scheduled'`,
+    [id],
+  );
+  if (rows.length === 0) throw new Error('not_found_or_locked');
+
+  // Pull ends_at forward to now() so a future cron tick won't try to
+  // draw it again — keeps the row's lifecycle consistent.
+  await dbQuery(
+    `UPDATE giveaways SET ends_at = now()
+      WHERE id = $1 AND status = 'scheduled' AND ends_at > now()`,
+    [id],
+  );
+
+  await drawOne(rows[0]);
+}
+
 async function drawOne(g: DueGiveaway): Promise<void> {
   const prizes = await dbQuery<PrizeRow>(
     `SELECT id, position, prize_kind, plan_kind, plan_days, token_count

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
-  AlertCircle, ArrowLeft, Check, Copy, Loader2, RefreshCw, Save, Trash2, Users, Ticket,
+  AlertCircle, ArrowLeft, Check, Copy, Loader2, RefreshCw, Save, Sparkles, Trash2, Users, Ticket,
 } from 'lucide-react';
 import { AdminShell } from '@/components/AdminShell';
 import { Card, CardContent } from '@/components/ui/card';
@@ -49,6 +49,7 @@ export default function GiveawayDetailPage() {
   const [savingPrizes, setSavingPrizes] = useState(false);
   const [tsCopied, setTsCopied] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [drawing, setDrawing] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -173,6 +174,27 @@ export default function GiveawayDetailPage() {
     }
   }
 
+  async function drawNow() {
+    if (!confirm(
+      'Draw winners now?\n\n' +
+      'This selects winners from current tickets, mints rewards/tokens in their inventories, ' +
+      'edits the announcement, pings winners. Cannot be undone.',
+    )) return;
+    setDrawing(true);
+    setError(null);
+    try {
+      const t = await authQS();
+      const res = await fetch(`/api/admin/giveaways/${id}/draw?token=${t}`, { method: 'POST' });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Draw failed');
+    } finally {
+      setDrawing(false);
+    }
+  }
+
   async function copyTs() {
     if (!tsTag) return;
     await navigator.clipboard.writeText(tsTag);
@@ -243,6 +265,12 @@ export default function GiveawayDetailPage() {
                           <Button size="sm" variant="outline" onClick={startEdit} disabled={!isSuper}
                             title={!isSuper ? 'super_admin required' : undefined}>
                             Edit
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={drawNow} disabled={!isSuper || drawing}
+                            className="gap-1 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                            title={!isSuper ? 'super_admin required' : 'Pick winners now, regardless of ends_at'}>
+                            {drawing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            Force draw
                           </Button>
                           <Button size="sm" variant="ghost" onClick={cancelGiveaway} disabled={!isSuper || cancelling}
                             className="text-destructive hover:text-destructive"
