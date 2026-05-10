@@ -20,8 +20,12 @@ import {
 } from './lib/commands.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
-import { command as pingCommand } from './commands/ping.js';
+import { command as pingCommand }        from './commands/ping.js';
+import { command as rankCommand }        from './commands/rank.js';
+import { command as leaderboardCommand } from './commands/leaderboard.js';
 registerCommand(pingCommand);
+registerCommand(rankCommand);
+registerCommand(leaderboardCommand);
 
 // ─── Event handlers ─────────────────────────────────────────────────────
 import { registerPlanSyncHandlers } from './handlers/planSync.js';
