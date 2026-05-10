@@ -30,10 +30,14 @@ import {
   command as inventoryCommand,
   registerInventoryHandlers,
 } from './commands/inventory.js';
+import { command as giveawayCommand }            from './commands/giveaway.js';
+import { command as giveawayLeaderboardCommand } from './commands/giveawayLeaderboard.js';
 registerCommand(rankCommand);
 registerCommand(leaderboardCommand);
 registerCommand(lookupCommand);
 registerCommand(inventoryCommand);
+registerCommand(giveawayCommand);
+registerCommand(giveawayLeaderboardCommand);
 
 // ─── Event handlers ─────────────────────────────────────────────────────
 import { registerPlanSyncHandlers } from './handlers/planSync.js';

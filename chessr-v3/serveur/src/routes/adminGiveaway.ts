@@ -13,12 +13,14 @@
  *
  *   POST   /admin/giveaway                       create
  *   GET    /admin/giveaways                      list (filter by status)
+ *   GET    /admin/giveaway/current               currently-active scheduled giveaway
  *   GET    /admin/giveaway/:id                   detail (with prizes + counts)
  *   PATCH  /admin/giveaway/:id                   edit name / ends_at
  *   POST   /admin/giveaway/:id/cancel            status='cancelled'
  *   PUT    /admin/giveaway/:id/prizes            replace prize list atomically
  *   POST   /admin/giveaway/:id/tickets/grant     grant N tickets (1 row, 1 event)
  *   GET    /admin/giveaway/:id/leaderboard       SUM(count) DESC
+ *   GET    /admin/giveaway/:id/me                tickets + rank for one Discord ID
  *   GET    /admin/giveaway/:id/tickets           full ticket history (admin)
  *
  * Auth: x-admin-token. The dashboard route layer does the super_admin
@@ -157,6 +159,43 @@ adminGiveawayRoutes.get('/admin/giveaways', async (c) => {
       tickets: Number(r.tickets),
       prize_count: Number(r.prize_count),
     })),
+  });
+});
+
+// ─── GET /admin/giveaway/current ─────────────────────────────────────────
+// "Active" = scheduled with the soonest ends_at. Used by the bot's
+// /giveaway and /giveaway-leaderboard so they always target the current
+// period without having to know an ID. 404 when no scheduled giveaway —
+// the bot turns that into a friendly "no giveaway right now" message.
+
+adminGiveawayRoutes.get('/admin/giveaway/current', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  const giveaway = await dbQuery<GiveawayRow>(
+    `SELECT * FROM giveaways
+      WHERE status = 'scheduled'
+      ORDER BY ends_at ASC
+      LIMIT 1`,
+  );
+  if (giveaway.length === 0) return c.json({ error: 'no_active_giveaway' }, 404);
+
+  const id = giveaway[0].id;
+  const prizes = await dbQuery<PrizeRow>(
+    `SELECT * FROM giveaway_prizes WHERE giveaway_id = $1 ORDER BY position ASC`, [id],
+  );
+  const stats = await dbQuery<{ tickets: string; participants: string }>(
+    `SELECT COALESCE(SUM(count), 0)::text AS tickets,
+            COUNT(DISTINCT owner_discord_id)::text AS participants
+       FROM giveaway_tickets WHERE giveaway_id = $1`, [id],
+  );
+
+  return c.json({
+    giveaway: giveaway[0],
+    prizes,
+    stats: {
+      tickets: Number(stats[0]?.tickets ?? 0),
+      participants: Number(stats[0]?.participants ?? 0),
+    },
   });
 });
 
@@ -362,6 +401,55 @@ adminGiveawayRoutes.get('/admin/giveaway/:id/leaderboard', async (c) => {
       discord_id: r.owner_discord_id,
       tickets: Number(r.tickets),
     })),
+  });
+});
+
+// ─── GET /admin/giveaway/:id/me?discordId=X ──────────────────────────────
+// Used by the bot's /giveaway command. Returns the caller's tickets +
+// rank for this giveaway in one round-trip. Rank is dense (ties share a
+// rank) so two users with the same SUM(count) both show as "#3".
+
+adminGiveawayRoutes.get('/admin/giveaway/:id/me', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+  const discordId = (new URL(c.req.url).searchParams.get('discordId') ?? '').trim();
+  if (!discordId) return c.json({ error: 'discordId required' }, 400);
+
+  const totals = await dbQuery<{ tickets: string; participants: string }>(
+    `SELECT COALESCE(SUM(count), 0)::text AS tickets,
+            COUNT(DISTINCT owner_discord_id)::text AS participants
+       FROM giveaway_tickets WHERE giveaway_id = $1`, [id],
+  );
+
+  const mine = await dbQuery<{ tickets: string }>(
+    `SELECT COALESCE(SUM(count), 0)::text AS tickets
+       FROM giveaway_tickets
+      WHERE giveaway_id = $1 AND owner_discord_id = $2`, [id, discordId],
+  );
+  const myTickets = Number(mine[0]?.tickets ?? 0);
+
+  // Dense rank: how many distinct users have STRICTLY MORE tickets than me?
+  // My rank is that count + 1. If I have 0 tickets, rank is null (not playing).
+  let rank: number | null = null;
+  if (myTickets > 0) {
+    const ahead = await dbQuery<{ n: string }>(
+      `SELECT COUNT(*)::text AS n FROM (
+         SELECT owner_discord_id, SUM(count) AS s
+           FROM giveaway_tickets
+          WHERE giveaway_id = $1
+          GROUP BY owner_discord_id
+         HAVING SUM(count) > $2
+       ) sub`, [id, myTickets],
+    );
+    rank = Number(ahead[0]?.n ?? 0) + 1;
+  }
+
+  return c.json({
+    tickets: myTickets,
+    rank,
+    total_tickets: Number(totals[0]?.tickets ?? 0),
+    total_participants: Number(totals[0]?.participants ?? 0),
   });
 });
 
