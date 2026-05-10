@@ -280,13 +280,19 @@ adminGiveawayRoutes.patch('/admin/giveaway/:id', async (c) => {
   if (fields.length === 0) return c.json({ error: 'no fields to update' }, 400);
 
   params.push(id);
-  const rows = await dbQuery<{ id: number }>(
+  const rows = await dbQuery<{ id: number; announce_message_id: string | null }>(
     `UPDATE giveaways SET ${fields.join(', ')}
       WHERE id = $${params.length} AND status = 'scheduled'
-     RETURNING id`,
+     RETURNING id, announce_message_id`,
     params,
   );
   if (rows.length === 0) return c.json({ error: 'not_found_or_locked' }, 404);
+
+  // Already announced → ask the bot to re-render the embed so the
+  // channel stays in sync with whatever the admin just changed.
+  if (rows[0].announce_message_id) {
+    await emitEvent({ type: 'giveaway_updated', actor_id: null, payload: { giveawayId: id } });
+  }
   return c.json({ updated: true });
 });
 
@@ -506,6 +512,14 @@ adminGiveawayRoutes.put('/admin/giveaway/:id/prizes', async (c) => {
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [id, p.position, p.prize_kind, p.plan_kind ?? null, p.plan_days ?? null, p.token_count ?? null],
     );
+  }
+
+  // Re-render the live embed if the giveaway has already been announced.
+  const announced = await dbQuery<{ announce_message_id: string | null }>(
+    `SELECT announce_message_id FROM giveaways WHERE id = $1`, [id],
+  );
+  if (announced[0]?.announce_message_id) {
+    await emitEvent({ type: 'giveaway_updated', actor_id: null, payload: { giveawayId: id } });
   }
   return c.json({ replaced: prizes.length });
 });

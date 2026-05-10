@@ -67,6 +67,13 @@ function url(path: string): string {
   return `${config.serveur.url}${path}`;
 }
 
+export async function getDetail(giveawayId: number): Promise<GiveawayDetail | null> {
+  const res = await fetch(url(`/admin/giveaway/${giveawayId}`), { headers: adminHeaders() });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`giveaway/:id HTTP ${res.status}`);
+  return (await res.json()) as GiveawayDetail;
+}
+
 /** Returns the soonest-ending scheduled giveaway, or null if none. */
 export async function getCurrent(): Promise<GiveawayDetail | null> {
   const res = await fetch(url('/admin/giveaway/current'), { headers: adminHeaders() });

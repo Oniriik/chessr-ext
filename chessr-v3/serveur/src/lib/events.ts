@@ -91,6 +91,13 @@ export const EVENT_KINDS = [
   // rows). The bot listens to post the public announcement + DM
   // winners.
   'giveaway_drawn',
+  // payload: { giveawayId }
+  // Emitted whenever a giveaway's header (name/ends_at/announce
+  // channel) or prize list changes after the announcement message has
+  // been posted. The bot re-fetches the giveaway and edits the
+  // existing announce_message_id with the fresh embed so the channel
+  // doesn't fall out of sync with the dashboard.
+  'giveaway_updated',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

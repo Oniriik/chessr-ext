@@ -29,7 +29,9 @@ import { log } from '../lib/logger.js';
 import { onEvent } from '../lib/events.js';
 import {
   type PendingAnnounce,
+  type Giveaway,
   discordTs,
+  getDetail,
   getPendingAnnounce,
   markAnnounced,
   prizeLabel,
@@ -45,15 +47,15 @@ const COLOR_ERR = 0xef4444;
 const REGISTER_PREFIX = 'gw:register:';
 const registerCustomId = (id: number) => `${REGISTER_PREFIX}${id}`;
 
-function announcementEmbed(g: PendingAnnounce): EmbedBuilder {
+function announcementEmbed(g: Giveaway, prizes: Prize[]): EmbedBuilder {
   const lines: string[] = [];
   lines.push(`**Ends:** ${discordTs(g.ends_at, 'F')} · ${discordTs(g.ends_at, 'R')}`);
   lines.push('');
   lines.push('### 🏆 Prizes');
-  if (g.prizes.length === 0) {
+  if (prizes.length === 0) {
     lines.push('_No prizes configured._');
   } else {
-    for (const p of g.prizes) {
+    for (const p of prizes) {
       lines.push(`**#${p.position}** — ${prizeLabel(p)}`);
     }
   }
@@ -93,7 +95,7 @@ async function postAnnouncement(client: Client, g: PendingAnnounce): Promise<voi
   }
 
   const sent = await (ch as TextChannel).send({
-    embeds: [announcementEmbed(g)],
+    embeds: [announcementEmbed(g, g.prizes)],
     components: [registerRow(g.id)],
   });
 
@@ -145,6 +147,45 @@ export function registerGiveawayAnnouncer(client: Client): void {
     try { await handleDrawn(client, e.payload); }
     catch (err) { log.error('[giveaway-draw] handler failed:', err); }
   });
+
+  // Update event — serveur emits whenever the admin edits an
+  // already-announced giveaway (header or prize list). Re-fetch fresh
+  // data and edit the live message in place.
+  onEvent('giveaway_updated', async (e) => {
+    try { await handleUpdated(client, e.payload); }
+    catch (err) { log.error('[giveaway-updated] handler failed:', err); }
+  });
+}
+
+async function handleUpdated(client: Client, raw: Record<string, unknown>): Promise<void> {
+  const giveawayId = Number((raw as { giveawayId?: unknown }).giveawayId);
+  if (!Number.isFinite(giveawayId)) return;
+
+  const detail = await getDetail(giveawayId);
+  if (!detail) return;
+  const { giveaway, prizes } = detail;
+
+  if (!giveaway.announce_message_id || !giveaway.announce_channel_id) {
+    // Not announced yet — the next announcer tick will post fresh data.
+    return;
+  }
+  const ch = await client.channels.fetch(giveaway.announce_channel_id).catch(() => null);
+  if (!ch || !ch.isTextBased() || !('messages' in ch)) {
+    log.warn(`[giveaway-updated] channel ${giveaway.announce_channel_id} not reachable`);
+    return;
+  }
+  try {
+    const msg = await (ch as TextChannel).messages.fetch(giveaway.announce_message_id);
+    await msg.edit({
+      embeds: [announcementEmbed(giveaway, prizes)],
+      // Re-attach the Register button only if still scheduled — keeps
+      // the same UI before and after the edit.
+      components: giveaway.status === 'scheduled' ? [registerRow(giveaway.id)] : [],
+    });
+    log.info(`[giveaway-updated] re-rendered embed for giveaway ${giveawayId}`);
+  } catch (err) {
+    log.warn(`[giveaway-updated] couldn't edit message ${giveaway.announce_message_id}:`, err);
+  }
 }
 
 // ─── Draw event handler ──────────────────────────────────────────────────
