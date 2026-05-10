@@ -34,12 +34,14 @@ import {
 } from './commands/inventory.js';
 import { command as giveawayCommand }            from './commands/giveaway.js';
 import { command as giveawayLeaderboardCommand } from './commands/giveawayLeaderboard.js';
+import { ticketCommands, registerTicketHandlers } from './handlers/tickets.js';
 registerCommand(rankCommand);
 registerCommand(leaderboardCommand);
 registerCommand(lookupCommand);
 registerCommand(inventoryCommand);
 registerCommand(giveawayCommand);
 registerCommand(giveawayLeaderboardCommand);
+for (const cmd of ticketCommands) registerCommand(cmd);
 
 // ─── Event handlers ─────────────────────────────────────────────────────
 import { registerPlanSyncHandlers } from './handlers/planSync.js';
@@ -87,6 +89,7 @@ client.once('clientReady', async () => {
   registerBoostReward(client);
   registerInventoryHandlers(client);
   registerGiveawayAnnouncer(client);
+  registerTicketHandlers(client);
 });
 
 registerInviteTracker(client);

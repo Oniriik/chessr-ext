@@ -17,6 +17,7 @@ import { abuseRoutes } from './routes/abuse.js';
 import { adminWheelRoutes } from './routes/adminWheel.js';
 import { adminGiveawayRoutes } from './routes/adminGiveaway.js';
 import { adminInviteRoutes } from './routes/adminInvites.js';
+import { adminTicketRoutes } from './routes/adminTickets.js';
 import {
   handlePaddleWebhook,
   handlePaddleBillingLink,
@@ -69,6 +70,7 @@ app.route('/', abuseRoutes);
 app.route('/', adminWheelRoutes);
 app.route('/', adminGiveawayRoutes);
 app.route('/', adminInviteRoutes);
+app.route('/', adminTicketRoutes);
 
 // Paddle billing — webhook (signed, Paddle → us) + the full set of
 // extension-authenticated and billing-token endpoints. Same routes,

@@ -31,11 +31,17 @@ export const config = {
     /** Channel where the bot posts the public "thanks for boosting"
      *  message and the wheel-spin reveal pings. Typically #general. */
     boostChannelId: optional('DISCORD_BOOST_CHANNEL_ID'),
-    /** Channel users are sent to when they win a lifetime reward and
-     *  need a human to apply it. Mention rendered as <#id>. Unset →
-     *  the message falls back to "open a support ticket" without a
-     *  link. */
+    /** Channel where the ticket panel embed is posted via /ticket-setup
+     *  and where users click "Open a ticket". Also referenced by the
+     *  wheel's lifetime claim flow as "open a support ticket here". */
     ticketChannelId: optional('DISCORD_TICKET_CHANNEL_ID'),
+    /** Category that newly-opened ticket channels are filed under. The
+     *  bot creates them under this parent so admins can configure perms
+     *  once at the category level. */
+    ticketOpenCategoryId: optional('DISCORD_TICKET_OPEN_CATEGORY_ID'),
+    /** Category for closed tickets — the bot moves channels here on
+     *  close, and admins can scan/delete from one place. */
+    ticketClosedCategoryId: optional('DISCORD_TICKET_CLOSED_CATEGORY_ID'),
     /** Default channel where giveaway announcements get posted. The
      *  giveaway row can override this; when neither is set the bot
      *  logs a warning and skips the announcement (giveaway stays
