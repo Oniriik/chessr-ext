@@ -66,6 +66,7 @@ const ID = {
   claimConfirm:   (id: number) => `${PREFIX}claim:confirm:${id}`,
   giftStart:      `${PREFIX}gift:start`,
   giftPickReward: `${PREFIX}gift:pick:reward`,
+  giftNext:       (rid: number) => `${PREFIX}gift:next:${rid}`,
   giftPickUser:   (rid: number) => `${PREFIX}gift:pick:user:${rid}`,
   giftConfirm:    (rid: number, uid: string) => `${PREFIX}gift:confirm:${rid}:${uid}`,
 };
@@ -310,22 +311,40 @@ async function handleClaimSelect(interaction: StringSelectMenuInteraction): Prom
     return;
   }
 
+  // Keep the dropdown visible (with the picked option highlighted) and
+  // surface a [Claim] button below. Selection alone doesn't fire the
+  // claim — the user has to click the button. Picking a different option
+  // re-runs this handler and updates the embed + button customId.
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ID.claimPick)
+    .setPlaceholder('Select a reward to claim…')
+    .addOptions(
+      inv.rewards.slice(0, 25).map((r) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(rewardLabel(r))
+          .setDescription(rewardSubtitle(r).slice(0, 100))
+          .setValue(String(r.id))
+          .setDefault(r.id === rewardId),
+      ),
+    );
+
+  const description = reward.reward_kind === 'lifetime'
+    ? `Selected: **${rewardLabel(reward)}**\n\nLifetime rewards are processed manually — clicking Claim will tell you where to open a ticket.`
+    : `Selected: **${rewardLabel(reward)}**\n\n**${reward.reward_days} days** of Chessr Premium will be added to your account when you click Claim.`;
+
   await interaction.update({
     content: '',
     embeds: [
       new EmbedBuilder()
-        .setTitle(`Confirm claim of ${rewardLabel(reward)}`)
+        .setTitle('🎁 Claim a reward')
         .setColor(COLOR_HOME)
-        .setDescription(
-          reward.reward_kind === 'lifetime'
-            ? 'Lifetime rewards are processed manually. The next screen will tell you where to open a ticket.'
-            : `**${reward.reward_days} days** of Chessr Premium will be added to your account.\nIf you have an active subscription, your renewal date is pushed back.`,
-        ),
+        .setDescription(description),
     ],
     components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setCustomId(ID.claimConfirm(rewardId)).setLabel('Confirm').setEmoji('✅').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId(ID.claimStart).setLabel('Back').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ID.claimConfirm(rewardId)).setLabel('Claim').setEmoji('🎁').setStyle(ButtonStyle.Success),
+        new ButtonBuilder().setCustomId(ID.home).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
       ),
     ],
   });
@@ -483,6 +502,54 @@ async function handleGiftPickReward(interaction: StringSelectMenuInteraction): P
     return;
   }
 
+  // Stay on the same step — keep the dropdown visible (with the picked
+  // option highlighted) and reveal a [Continue] button. Picking a
+  // different option re-runs this handler with a fresh button customId.
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(ID.giftPickReward)
+    .setPlaceholder('Select a reward to gift…')
+    .addOptions(
+      inv.rewards.slice(0, 25).map((r) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(rewardLabel(r))
+          .setDescription(rewardSubtitle(r).slice(0, 100))
+          .setValue(String(r.id))
+          .setDefault(r.id === rewardId),
+      ),
+    );
+
+  await interaction.update({
+    content: '',
+    embeds: [
+      new EmbedBuilder()
+        .setTitle('📤 Gift a reward')
+        .setColor(COLOR_GIFT)
+        .setDescription(`Step 1 of 2 — selected: **${rewardLabel(reward)}**\n\nClick Continue to choose a recipient.`),
+    ],
+    components: [
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+      new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(ID.giftNext(rewardId)).setLabel('Continue').setEmoji('▶').setStyle(ButtonStyle.Primary),
+        new ButtonBuilder().setCustomId(ID.home).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
+      ),
+    ],
+  });
+}
+
+/** Step 1.5 → 2: user clicked [Continue] after picking a reward.
+ *  Now show the recipient picker. */
+async function handleGiftNext(interaction: ButtonInteraction, rewardId: number): Promise<void> {
+  const inv = await getInventory(interaction.user.id);
+  const reward = inv.rewards.find((r) => r.id === rewardId);
+  if (!reward) {
+    await interaction.update({
+      content: '',
+      embeds: [errorEmbed('Reward not found in your inventory anymore.')],
+      components: [backHomeRow()],
+    });
+    return;
+  }
+
   const userSelect = new UserSelectMenuBuilder()
     .setCustomId(ID.giftPickUser(rewardId))
     .setPlaceholder('Select a user…')
@@ -510,26 +577,19 @@ async function handleGiftPickReward(interaction: StringSelectMenuInteraction): P
 async function handleGiftPickUser(interaction: UserSelectMenuInteraction, rewardId: number): Promise<void> {
   const targetId = interaction.values[0];
 
-  if (targetId === interaction.user.id) {
+  // Self / bot guards — return them to the picker with an error
+  // message so they can pick someone else.
+  if (targetId === interaction.user.id || interaction.users?.get(targetId)?.bot) {
+    const reason = targetId === interaction.user.id ? "You can't gift to yourself." : "You can't gift to a bot.";
+    const userSelect = new UserSelectMenuBuilder()
+      .setCustomId(ID.giftPickUser(rewardId))
+      .setPlaceholder('Select a user…')
+      .setMinValues(1).setMaxValues(1);
     await interaction.update({
       content: '',
-      embeds: [errorEmbed("You can't gift to yourself.")],
+      embeds: [errorEmbed(reason)],
       components: [
-        new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(ID.giftStart).setLabel('Back').setStyle(ButtonStyle.Secondary),
-          new ButtonBuilder().setCustomId(ID.home).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
-        ),
-      ],
-    });
-    return;
-  }
-  // discord.js exposes `bot` on the resolved user.
-  const targetUser = interaction.users?.get(targetId);
-  if (targetUser?.bot) {
-    await interaction.update({
-      content: '',
-      embeds: [errorEmbed("You can't gift to a bot.")],
-      components: [
+        new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(userSelect),
         new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder().setCustomId(ID.giftStart).setLabel('Back').setStyle(ButtonStyle.Secondary),
           new ButtonBuilder().setCustomId(ID.home).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
@@ -550,21 +610,30 @@ async function handleGiftPickUser(interaction: UserSelectMenuInteraction, reward
     return;
   }
 
+  // Same pattern as the reward pick: keep the user-select dropdown
+  // visible with the chosen recipient pre-filled, reveal an explicit
+  // [Send gift] button. The customId carries both ids so the click
+  // handler doesn't need to look anything up.
+  const userSelect = new UserSelectMenuBuilder()
+    .setCustomId(ID.giftPickUser(rewardId))
+    .setPlaceholder('Select a user…')
+    .setDefaultUsers([targetId])
+    .setMinValues(1).setMaxValues(1);
+
   await interaction.update({
     content: '',
     embeds: [
       new EmbedBuilder()
-        .setTitle(`Confirm gift`)
+        .setTitle(`📤 Gift ${rewardLabel(reward)}`)
         .setColor(COLOR_GIFT)
-        .setDescription(
-          `You're about to gift **${rewardLabel(reward)}** to <@${targetId}>.\n` +
-          "They'll find it in their /inventory.",
-        ),
+        .setDescription(`Recipient: <@${targetId}>\n\nClick Send gift to confirm.`),
     ],
     components: [
+      new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(userSelect),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(ID.giftConfirm(rewardId, targetId)).setLabel('Send gift').setEmoji('📤').setStyle(ButtonStyle.Success),
         new ButtonBuilder().setCustomId(ID.giftStart).setLabel('Back').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId(ID.home).setLabel('Cancel').setStyle(ButtonStyle.Secondary),
       ),
     ],
   });
@@ -682,6 +751,10 @@ async function routeButton(i: ButtonInteraction): Promise<void> {
   if (id.startsWith(`${PREFIX}claim:confirm:`)) {
     const rewardId = Number(id.slice(`${PREFIX}claim:confirm:`.length));
     return handleClaimConfirm(i, rewardId);
+  }
+  if (id.startsWith(`${PREFIX}gift:next:`)) {
+    const rewardId = Number(id.slice(`${PREFIX}gift:next:`.length));
+    return handleGiftNext(i, rewardId);
   }
   if (id.startsWith(`${PREFIX}gift:confirm:`)) {
     const rest = id.slice(`${PREFIX}gift:confirm:`.length);
