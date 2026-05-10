@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Construction } from 'lucide-react';
 import { AdminShell } from '@/components/AdminShell';
@@ -34,6 +34,16 @@ function ComingSoon({ label }: { label: string }) {
 }
 
 export default function WheelAdminPage() {
+  // useSearchParams CSR-bails out the page if not wrapped in Suspense
+  // — Next.js 15 hard-fails the static export otherwise.
+  return (
+    <Suspense fallback={<AdminShell title="Wheel Spin">{null}</AdminShell>}>
+      <WheelAdminInner />
+    </Suspense>
+  );
+}
+
+function WheelAdminInner() {
   const router = useRouter();
   const params = useSearchParams();
   const initialTab = (params.get('tab') as Tab) || 'pending-lifetime';
