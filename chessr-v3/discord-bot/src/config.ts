@@ -28,6 +28,12 @@ export const config = {
      *  can read it. When unset the command falls back to an ephemeral
      *  reply visible only to the caller. */
     lookupChannelId: optional('DISCORD_LOOKUP_CHANNEL_ID'),
+    /** Channel where the bot posts the public "thanks for boosting"
+     *  message + claim button when a member starts boosting the
+     *  guild. Unset → boost rewards skip the public-message step
+     *  (the user would never see the claim button), and only
+     *  manually-triggered claims work. */
+    boostChannelId: optional('DISCORD_BOOST_CHANNEL_ID'),
     /** Stats voice channels — names are rewritten on a 10-min cadence.
      *  Discord caps channel renames at 2 per 10 min per channel, so we
      *  stagger updates with 1-minute offsets between channels. Any

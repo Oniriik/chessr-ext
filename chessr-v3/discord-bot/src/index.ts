@@ -20,6 +20,7 @@ import {
 } from './lib/commands.js';
 import { loadPlatformEmojis } from './lib/platformEmoji.js';
 import { startStatsChannels } from './handlers/statsChannels.js';
+import { registerBoostReward } from './handlers/boostReward.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -68,6 +69,7 @@ client.once('clientReady', async () => {
   // Stats voice channels — silently no-ops when no DISCORD_STATS_*
   // channel IDs are configured.
   startStatsChannels(client);
+  registerBoostReward(client);
 });
 
 client.on('error', (err) => log.error('[discord] client error:', err));
