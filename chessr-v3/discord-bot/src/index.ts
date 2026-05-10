@@ -26,9 +26,14 @@ import { registerBoostReward } from './handlers/boostReward.js';
 import { command as rankCommand }        from './commands/rank.js';
 import { command as leaderboardCommand } from './commands/leaderboard.js';
 import { command as lookupCommand }      from './commands/lookup.js';
+import {
+  command as inventoryCommand,
+  registerInventoryHandlers,
+} from './commands/inventory.js';
 registerCommand(rankCommand);
 registerCommand(leaderboardCommand);
 registerCommand(lookupCommand);
+registerCommand(inventoryCommand);
 
 // ─── Event handlers ─────────────────────────────────────────────────────
 import { registerPlanSyncHandlers } from './handlers/planSync.js';
@@ -70,6 +75,7 @@ client.once('clientReady', async () => {
   // channel IDs are configured.
   startStatsChannels(client);
   registerBoostReward(client);
+  registerInventoryHandlers(client);
 });
 
 client.on('error', (err) => log.error('[discord] client error:', err));

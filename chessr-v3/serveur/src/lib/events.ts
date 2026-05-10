@@ -65,6 +65,19 @@ export const EVENT_KINDS = [
   // signIn already calls supabase.auth.signOut so no token leaks.
   // user_id on the event row identifies the banned account.
   'login_blocked',
+  // ─── Wheel-of-fortune lifecycle ───────────────────────────────────────
+  // The wheel feature mints tokens, spins them into rewards, and lets
+  // users claim or gift those rewards. Each lifecycle step emits an
+  // event so the gift chain (A→B→C) is reconstructable, even though
+  // wheel_rewards only stores the last-hop sender.
+  // payload: { tokenId, source, externalRef?, discordId }
+  'wheel_token_earned',
+  // payload: { tokenId, rewardId, rewardKind, rewardDays?, discordId }
+  'wheel_spin',
+  // payload: { rewardId, fromDiscordId, toDiscordId }
+  'wheel_gift',
+  // payload: { rewardId, rewardKind, rewardDays?, rewardPath, discordId }
+  'wheel_claim',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
