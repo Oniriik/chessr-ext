@@ -78,6 +78,10 @@ export const EVENT_KINDS = [
   'wheel_gift',
   // payload: { rewardId, rewardKind, rewardDays?, rewardPath, discordId }
   'wheel_claim',
+  // payload: { giveawayId, count, source, externalRef?, reason?, discordId }
+  // A single grant of N tickets emits one event with count=N (matches
+  // the 1-row, 1-DM model on the giveaway_tickets table).
+  'giveaway_ticket_earned',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

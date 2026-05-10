@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  Activity, BarChart3, Globe, Layers, LayoutDashboard, LogOut,
+  Activity, BarChart3, Gift, Globe, Layers, LayoutDashboard, LogOut,
   Menu, MessageSquare, ScrollText, Server, Sparkles, Users,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
@@ -41,8 +41,9 @@ const NAV_SECTIONS: NavSection[] = [
   {
     label: 'Discord',
     items: [
-      { href: '/discord/wheel', label: 'Wheel Spin', icon: Sparkles },
-      { href: '/messages',      label: 'Messages',   icon: MessageSquare },
+      { href: '/discord/wheel',     label: 'Wheel Spin', icon: Sparkles },
+      { href: '/discord/giveaways', label: 'Giveaways',  icon: Gift },
+      { href: '/messages',          label: 'Messages',   icon: MessageSquare },
     ],
   },
   {
