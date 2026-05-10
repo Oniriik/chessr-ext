@@ -2,13 +2,16 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Construction } from 'lucide-react';
 import { AdminShell } from '@/components/AdminShell';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase';
 import type { UserRole } from '@/lib/roles';
 import { PendingLifetime } from '@/components/discord/PendingLifetime';
+import { Overview } from '@/components/discord/Overview';
+import { TokensTab } from '@/components/discord/TokensTab';
+import { SpinsTab } from '@/components/discord/SpinsTab';
+import { GiftsTab } from '@/components/discord/GiftsTab';
+import { ClaimsTab } from '@/components/discord/ClaimsTab';
 
 type Tab = 'overview' | 'tokens' | 'spins' | 'gifts' | 'claims' | 'pending-lifetime';
 
@@ -20,18 +23,6 @@ const TABS: { id: Tab; label: string; badge?: 'alert' }[] = [
   { id: 'claims',            label: 'Claims' },
   { id: 'pending-lifetime',  label: 'Pending Lifetime', badge: 'alert' },
 ];
-
-function ComingSoon({ label }: { label: string }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center gap-3 p-12 text-center">
-        <Construction size={28} className="text-muted-foreground" />
-        <div className="text-sm font-medium">{label} — coming soon</div>
-        <div className="text-xs text-muted-foreground">This view is part of the next iteration.</div>
-      </CardContent>
-    </Card>
-  );
-}
 
 export default function WheelAdminPage() {
   // useSearchParams CSR-bails out the page if not wrapped in Suspense
@@ -134,11 +125,11 @@ function WheelAdminInner() {
 
         {/* ─── Tab content ─────────────────────────────────────────── */}
         <div>
-          {tab === 'overview' && <ComingSoon label="Overview" />}
-          {tab === 'tokens'   && <ComingSoon label="Tokens" />}
-          {tab === 'spins'    && <ComingSoon label="Spins" />}
-          {tab === 'gifts'    && <ComingSoon label="Gifts" />}
-          {tab === 'claims'   && <ComingSoon label="Claims" />}
+          {tab === 'overview'         && <Overview />}
+          {tab === 'tokens'           && <TokensTab />}
+          {tab === 'spins'            && <SpinsTab />}
+          {tab === 'gifts'            && <GiftsTab />}
+          {tab === 'claims'           && <ClaimsTab />}
           {tab === 'pending-lifetime' && <PendingLifetime callerRole={callerRole} />}
         </div>
       </div>

@@ -416,6 +416,282 @@ async function extendPaddle(userId: string, days: number): Promise<void> {
   }
 }
 
+// ─── GET /admin/wheel/stats ─────────────────────────────────────────────
+// Aggregated counters for the Overview tab. Always-fresh — the volume
+// is small enough that a SELECT COUNT query per call is fine.
+
+adminWheelRoutes.get('/admin/wheel/stats', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  const [
+    tokensTotal, tokensUnspun, spinsTotal, claimsTotal, lifetimePending, lifetimeWonAll,
+  ] = await Promise.all([
+    dbQuery<{ n: string }>(`SELECT COUNT(*)::text n FROM wheel_tokens`),
+    dbQuery<{ n: string }>(`SELECT COUNT(*)::text n FROM wheel_tokens WHERE spun_at IS NULL`),
+    dbQuery<{ n: string }>(`SELECT COUNT(*)::text n FROM wheel_rewards`),
+    dbQuery<{ n: string }>(`SELECT COUNT(*)::text n FROM wheel_rewards WHERE claimed_at IS NOT NULL`),
+    dbQuery<{ n: string }>(`SELECT COUNT(*)::text n FROM wheel_rewards WHERE reward_kind='lifetime' AND claimed_at IS NULL`),
+    dbQuery<{ n: string }>(`SELECT COUNT(*)::text n FROM wheel_rewards WHERE reward_kind='lifetime'`),
+  ]);
+
+  // Distribution per outcome — group by (kind, days). Days reward sort
+  // ascending so the dashboard can render a 5d→365d→lifetime ramp.
+  const distribution = await dbQuery<{
+    reward_kind: 'days' | 'lifetime';
+    reward_days: number | null;
+    n: string;
+  }>(
+    `SELECT reward_kind, reward_days, COUNT(*)::text n
+       FROM wheel_rewards
+      GROUP BY reward_kind, reward_days
+      ORDER BY (reward_kind = 'lifetime') ASC, reward_days ASC NULLS LAST`,
+  );
+
+  return c.json({
+    tokensTotal: Number(tokensTotal[0]?.n ?? 0),
+    tokensUnspun: Number(tokensUnspun[0]?.n ?? 0),
+    spinsTotal: Number(spinsTotal[0]?.n ?? 0),
+    claimsTotal: Number(claimsTotal[0]?.n ?? 0),
+    lifetimePending: Number(lifetimePending[0]?.n ?? 0),
+    lifetimeWonAll: Number(lifetimeWonAll[0]?.n ?? 0),
+    distribution: distribution.map((r) => ({
+      reward_kind: r.reward_kind,
+      reward_days: r.reward_days,
+      count: Number(r.n),
+    })),
+  });
+});
+
+// ─── GET /admin/wheel/tokens ────────────────────────────────────────────
+// Paginated token list with optional filters.
+//   ?source=boost|purchase|admin_grant
+//   ?status=unspun|spun
+//   ?discordId=…
+//   &limit=  (default 50, max 200)
+//   &offset= (default 0)
+
+adminWheelRoutes.get('/admin/wheel/tokens', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const u = new URL(c.req.url);
+  const source = u.searchParams.get('source');
+  const status = u.searchParams.get('status');
+  const discordId = u.searchParams.get('discordId');
+  const limit = Math.min(200, Math.max(1, Number(u.searchParams.get('limit') ?? '50')));
+  const offset = Math.max(0, Number(u.searchParams.get('offset') ?? '0'));
+
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (source && ['boost', 'purchase', 'admin_grant'].includes(source)) {
+    params.push(source);
+    where.push(`source = $${params.length}`);
+  }
+  if (status === 'unspun') where.push(`spun_at IS NULL`);
+  else if (status === 'spun') where.push(`spun_at IS NOT NULL`);
+  if (discordId) {
+    params.push(discordId);
+    where.push(`owner_discord_id = $${params.length}`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const rows = await dbQuery<{
+    id: number;
+    owner_discord_id: string;
+    source: string;
+    external_ref: string | null;
+    earned_at: string;
+    spun_at: string | null;
+    reward_id: number | null;
+  }>(
+    `SELECT id, owner_discord_id, source, external_ref,
+            earned_at::text, spun_at::text, reward_id
+       FROM wheel_tokens
+       ${whereSql}
+      ORDER BY earned_at DESC
+      LIMIT ${limit} OFFSET ${offset}`,
+    params,
+  );
+
+  const totalRow = await dbQuery<{ n: string }>(
+    `SELECT COUNT(*)::text n FROM wheel_tokens ${whereSql}`,
+    params,
+  );
+
+  return c.json({ tokens: rows, total: Number(totalRow[0]?.n ?? 0), limit, offset });
+});
+
+// ─── GET /admin/wheel/spins ─────────────────────────────────────────────
+// Same shape, on wheel_rewards.
+//   ?kind=days|lifetime  &days=N  &discordId=…  (spinner)
+
+adminWheelRoutes.get('/admin/wheel/spins', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const u = new URL(c.req.url);
+  const kind = u.searchParams.get('kind');
+  const days = u.searchParams.get('days');
+  const discordId = u.searchParams.get('discordId');
+  const limit = Math.min(200, Math.max(1, Number(u.searchParams.get('limit') ?? '50')));
+  const offset = Math.max(0, Number(u.searchParams.get('offset') ?? '0'));
+
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (kind && ['days', 'lifetime'].includes(kind)) {
+    params.push(kind);
+    where.push(`reward_kind = $${params.length}`);
+  }
+  if (days) {
+    const n = Number(days);
+    if (Number.isFinite(n)) {
+      params.push(n);
+      where.push(`reward_days = $${params.length}`);
+    }
+  }
+  if (discordId) {
+    params.push(discordId);
+    where.push(`spun_by_discord_id = $${params.length}`);
+  }
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const rows = await dbQuery<{
+    id: number;
+    spun_by_discord_id: string;
+    owner_discord_id: string;
+    reward_kind: string;
+    reward_days: number | null;
+    spun_at: string;
+    claimed_at: string | null;
+    reward_path: string | null;
+  }>(
+    `SELECT id, spun_by_discord_id, owner_discord_id,
+            reward_kind, reward_days,
+            spun_at::text, claimed_at::text, reward_path
+       FROM wheel_rewards
+       ${whereSql}
+      ORDER BY spun_at DESC
+      LIMIT ${limit} OFFSET ${offset}`,
+    params,
+  );
+
+  const totalRow = await dbQuery<{ n: string }>(
+    `SELECT COUNT(*)::text n FROM wheel_rewards ${whereSql}`,
+    params,
+  );
+
+  return c.json({ spins: rows, total: Number(totalRow[0]?.n ?? 0), limit, offset });
+});
+
+// ─── GET /admin/wheel/gifts ─────────────────────────────────────────────
+// Reads from the events table — wheel_gift events carry the full hop
+// trail across re-gifts, which the wheel_rewards row alone can't show.
+
+adminWheelRoutes.get('/admin/wheel/gifts', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const u = new URL(c.req.url);
+  const discordId = u.searchParams.get('discordId');
+  const limit = Math.min(200, Math.max(1, Number(u.searchParams.get('limit') ?? '50')));
+  const offset = Math.max(0, Number(u.searchParams.get('offset') ?? '0'));
+
+  const where: string[] = [`type = 'wheel_gift'`];
+  const params: unknown[] = [];
+  if (discordId) {
+    params.push(discordId);
+    where.push(`(payload->>'fromDiscordId' = $${params.length} OR payload->>'toDiscordId' = $${params.length})`);
+  }
+  const whereSql = `WHERE ${where.join(' AND ')}`;
+
+  const rows = await dbQuery<{
+    id: string;
+    created_at: string;
+    payload: Record<string, unknown>;
+  }>(
+    `SELECT id::text, created_at::text, payload
+       FROM events
+       ${whereSql}
+      ORDER BY created_at DESC
+      LIMIT ${limit} OFFSET ${offset}`,
+    params,
+  );
+
+  const totalRow = await dbQuery<{ n: string }>(
+    `SELECT COUNT(*)::text n FROM events ${whereSql}`,
+    params,
+  );
+
+  return c.json({ gifts: rows, total: Number(totalRow[0]?.n ?? 0), limit, offset });
+});
+
+// ─── GET /admin/wheel/claims ────────────────────────────────────────────
+// Reward rows that have actually been applied to a chessr account.
+
+adminWheelRoutes.get('/admin/wheel/claims', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const u = new URL(c.req.url);
+  const path = u.searchParams.get('path');
+  const discordId = u.searchParams.get('discordId');
+  const limit = Math.min(200, Math.max(1, Number(u.searchParams.get('limit') ?? '50')));
+  const offset = Math.max(0, Number(u.searchParams.get('offset') ?? '0'));
+
+  const where: string[] = [`claimed_at IS NOT NULL`];
+  const params: unknown[] = [];
+  if (path && ['paddle', 'dashboard', 'lifetime_set'].includes(path)) {
+    params.push(path);
+    where.push(`reward_path = $${params.length}`);
+  }
+  if (discordId) {
+    params.push(discordId);
+    where.push(`owner_discord_id = $${params.length}`);
+  }
+  const whereSql = `WHERE ${where.join(' AND ')}`;
+
+  const rows = await dbQuery<{
+    id: number;
+    owner_discord_id: string;
+    spun_by_discord_id: string;
+    reward_kind: string;
+    reward_days: number | null;
+    reward_path: string | null;
+    claimed_at: string;
+    claimed_by_user_id: string;
+  }>(
+    `SELECT id, owner_discord_id, spun_by_discord_id,
+            reward_kind, reward_days, reward_path,
+            claimed_at::text, claimed_by_user_id
+       FROM wheel_rewards
+       ${whereSql}
+      ORDER BY claimed_at DESC
+      LIMIT ${limit} OFFSET ${offset}`,
+    params,
+  );
+
+  const totalRow = await dbQuery<{ n: string }>(
+    `SELECT COUNT(*)::text n FROM wheel_rewards ${whereSql}`,
+    params,
+  );
+
+  return c.json({ claims: rows, total: Number(totalRow[0]?.n ?? 0), limit, offset });
+});
+
+// ─── GET /admin/wheel/activity ──────────────────────────────────────────
+// Recent wheel_* events for the Overview tab's activity timeline.
+
+adminWheelRoutes.get('/admin/wheel/activity', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const limit = Math.min(50, Math.max(1, Number(new URL(c.req.url).searchParams.get('limit') ?? '20')));
+
+  const rows = await dbQuery<{
+    id: string;
+    type: string;
+    created_at: string;
+    payload: Record<string, unknown>;
+  }>(
+    `SELECT id::text, type, created_at::text, payload
+       FROM events
+      WHERE type IN ('wheel_token_earned','wheel_spin','wheel_gift','wheel_claim')
+      ORDER BY created_at DESC
+      LIMIT ${limit}`,
+  );
+  return c.json({ events: rows });
+});
+
 // ─── POST /admin/wheel/token/grant ───────────────────────────────────────
 // Bulk-mint admin_grant tokens for a user. Each row gets external_ref
 // = null so the unique-index dedup is bypassed (you can grant the same
