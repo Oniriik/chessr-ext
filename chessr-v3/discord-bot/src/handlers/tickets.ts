@@ -76,6 +76,18 @@ const PREFIX = 'tk:';
 
 function pad4(n: number): string { return String(n).padStart(4, '0'); }
 
+/** Auto-dismiss an ephemeral interaction reply after `ms` so the
+ *  "✅ Ticket created" toast doesn't linger. The interaction token
+ *  has a 15-min Discord-side TTL — we ack errors silently. */
+function scheduleEphemeralDelete(
+  interaction: ButtonInteraction | ChatInputCommandInteraction,
+  ms = 30_000,
+): void {
+  setTimeout(() => {
+    interaction.deleteReply().catch(() => {});
+  }, ms);
+}
+
 // ─── Panel & open flow ───────────────────────────────────────────────────
 
 function panelEmbed(): EmbedBuilder {
@@ -273,6 +285,7 @@ const newTicketCommand: BotCommand = {
     });
 
     await interaction.editReply({ content: `✅ Ticket created for <@${member.id}>: <#${channel.id}>` });
+    scheduleEphemeralDelete(interaction);
     log.info(`[tickets] ${interaction.user.tag} created ticket #${padded} for ${member.tag} via /new-ticket`);
   },
 };
@@ -361,6 +374,7 @@ async function handleOpenClick(interaction: ButtonInteraction): Promise<void> {
   });
 
   await interaction.editReply({ content: `✅ Ticket created: <#${channel.id}>` });
+  scheduleEphemeralDelete(interaction);
   log.info(`[tickets] ${interaction.user.tag} opened #${padded} (channel ${channel.id})`);
 }
 
@@ -453,33 +467,58 @@ async function handleReopenClick(interaction: ButtonInteraction, _ticketId: numb
   if (!channel) return;
 
   const ticket = await getByChannel(channel.id).catch(() => null);
-  if (!ticket || ticket.status !== 'closed') {
-    await interaction.followUp({ content: 'Not a closed ticket.', ephemeral: true }).catch(() => {});
+  if (!ticket) {
+    await interaction.followUp({ content: 'Ticket not found in DB.', ephemeral: true }).catch(() => {});
+    return;
+  }
+  if (ticket.status === 'open') {
+    await interaction.followUp({ content: 'Ticket already open.', ephemeral: true }).catch(() => {});
+    return;
+  }
+  if (ticket.status !== 'closed') {
+    await interaction.followUp({ content: `Cannot reopen a ${ticket.status} ticket.`, ephemeral: true }).catch(() => {});
     return;
   }
 
-  await reopenTicket(ticket.id);
-
-  const openCatId = config.discord.ticketOpenCategoryId;
-  if (openCatId) {
-    await channel.setParent(openCatId, { lockPermissions: false }).catch(() => {});
+  // Flip DB first so the auto-delete cron stops considering this row.
+  try {
+    await reopenTicket(ticket.id);
+  } catch (err) {
+    log.error('[tickets] reopen API failed:', err);
+    await interaction.followUp({ content: 'Reopen failed (server error). Try again.', ephemeral: true }).catch(() => {});
+    return;
   }
+
   const padded = pad4(ticket.id);
+
+  // Post the reopen message FIRST — same rationale as the close fix:
+  // setParent / setName / permissionOverwrites.edit can rate-limit and
+  // starve channel.send for a noticeable delay, leaving a flipped DB
+  // row but no Discord feedback.
+  try {
+    await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR_OPEN)
+          .setDescription(`🔓 Ticket reopened by <@${interaction.user.id}>`)
+          .setTimestamp(),
+      ],
+      components: [openTicketButtons(ticket.id)],
+    });
+  } catch (err) {
+    log.error('[tickets] reopen message send failed:', err);
+  }
+
+  // Slow ops: parent/category, name, opener perms. All best-effort.
+  const openCatId = config.discord.ticketOpenCategoryId;
+  if (openCatId && channel.parentId !== openCatId) {
+    await channel.setParent(openCatId, { lockPermissions: false }).catch((e) => log.warn('[tickets] move-to-open failed:', e));
+  }
   const username = (ticket.opener_username ?? 'user').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20);
-  await channel.setName(`help-${padded}-${username}`).catch(() => {});
+  await channel.setName(`help-${padded}-${username}`).catch((e) => log.warn('[tickets] reopen rename failed:', e));
   await channel.permissionOverwrites.edit(ticket.opener_discord_id, {
     ViewChannel: true, SendMessages: true, ReadMessageHistory: true,
   }).catch(() => {});
-
-  await channel.send({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(COLOR_OPEN)
-        .setDescription(`🔓 Ticket reopened by <@${interaction.user.id}>`)
-        .setTimestamp(),
-    ],
-    components: [openTicketButtons(ticket.id)],
-  });
 
   log.info(`[tickets] ${interaction.user.tag} reopened #${padded}`);
 }
@@ -490,9 +529,7 @@ async function handleDeleteClick(interaction: ButtonInteraction, ticketId: numbe
   if (!await ensureAdmin(interaction)) return;
 
   await interaction.reply({
-    embeds: [new EmbedBuilder().setColor(COLOR_ERR).setDescription(
-      '⚠️ **Delete the ticket channel?**\nThis cannot be undone — the channel and its messages disappear from Discord. The DB row is kept for audit.',
-    )],
+    embeds: [new EmbedBuilder().setColor(COLOR_ERR).setDescription('⚠️ Delete the ticket channel?')],
     components: [
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(ID.deleteConfirm(ticketId)).setLabel('Confirm delete').setStyle(ButtonStyle.Danger),
