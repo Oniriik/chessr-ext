@@ -239,7 +239,7 @@ async function handleOpenClick(interaction: ButtonInteraction): Promise<void> {
         .setColor(COLOR_OPEN)
         .setDescription(
           'Hi! Please describe your issue here and our team will get back to you shortly.\n\n' +
-          'Use the buttons below to **close** the ticket once it\'s resolved, or to view your **info** (admin only).',
+          'Use the button below to **close** the ticket once it\'s resolved.',
         ),
     ],
     components: [openTicketButtons(row.id)],
