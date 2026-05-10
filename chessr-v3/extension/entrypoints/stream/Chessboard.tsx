@@ -123,7 +123,15 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480 }
         );
       })}
 
-      {/* File + rank labels (a-h on bottom, 1-8 on left) */}
+      {/* File + rank labels (a-h on bottom, 1-8 on left). The fill
+          alternates with the underlying square so the text always
+          contrasts — chess.com convention: label rendered in the
+          OPPOSITE square's color.
+          - File row sits on the bottom rank (visual row 7). Bottom-
+            left (col 0) is dark in both orientations, so col 0 needs
+            a light label, col 1 a dark one, etc.
+          - Rank column sits on the leftmost file (visual col 0). Top-
+            left (row 0) is light, so row 0 needs dark, row 1 light. */}
       {Array.from({ length: 8 }).map((_, i) => {
         const file = orientation === 'white' ? i : 7 - i;
         const rank = orientation === 'white' ? 7 - i : i;
@@ -131,10 +139,10 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480 }
         const rankChar = String(rank + 1);
         return (
           <React.Fragment key={`label-${i}`}>
-            <text x={i * sq + 3} y={size - 3} fontSize={10} fontWeight={700} fill={i % 2 === 0 ? '#779556' : '#ebecd0'} fontFamily="ui-monospace, monospace">
+            <text x={i * sq + 3} y={size - 3} fontSize={10} fontWeight={700} fill={i % 2 === 0 ? '#ebecd0' : '#779556'} fontFamily="ui-monospace, monospace">
               {fileChar}
             </text>
-            <text x={3} y={i * sq + 12} fontSize={10} fontWeight={700} fill={i % 2 === 0 ? '#ebecd0' : '#779556'} fontFamily="ui-monospace, monospace">
+            <text x={3} y={i * sq + 12} fontSize={10} fontWeight={700} fill={i % 2 === 0 ? '#779556' : '#ebecd0'} fontFamily="ui-monospace, monospace">
               {rankChar}
             </text>
           </React.Fragment>
