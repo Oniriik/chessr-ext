@@ -9,6 +9,7 @@ import { getSupabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { planBadgeStyle } from '@/lib/plan-colors';
 import type { UserRole } from '@/lib/roles';
+import { DiscordTag, useDiscordUsernames } from './wheel-shared';
 
 interface PendingReward {
   reward_id: number;
@@ -68,6 +69,9 @@ export function PendingLifetime({ callerRole }: { callerRole: UserRole }) {
   useEffect(() => { load(); }, []);
 
   const isSuper = callerRole === 'super_admin';
+  const usernames = useDiscordUsernames(
+    rows.flatMap((r) => [r.owner_discord_id, r.spun_by_discord_id, r.gifted_from_discord_id]),
+  );
 
   async function applyLifetime(rewardId: number) {
     setApplying(rewardId);
@@ -150,7 +154,9 @@ export function PendingLifetime({ callerRole }: { callerRole: UserRole }) {
                   <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-[12px] sm:grid-cols-2">
                     <div>
                       <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Owner Discord</dt>
-                      <dd className="font-medium">&lt;@{r.owner_discord_id}&gt;</dd>
+                      <dd className="font-medium">
+                        <DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} />
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Chessr account</dt>
@@ -161,13 +167,19 @@ export function PendingLifetime({ callerRole }: { callerRole: UserRole }) {
                     {r.gifted_from_discord_id && (
                       <div className="sm:col-span-2">
                         <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Gift trail (last hop)</dt>
-                        <dd>&lt;@{r.gifted_from_discord_id}&gt; → &lt;@{r.owner_discord_id}&gt; · {timeAgo(r.gifted_at)}</dd>
+                        <dd className="flex items-center gap-1.5">
+                          <DiscordTag id={r.gifted_from_discord_id} username={usernames[r.gifted_from_discord_id]} />
+                          → <DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} />
+                          <span className="text-muted-foreground">· {timeAgo(r.gifted_at)}</span>
+                        </dd>
                       </div>
                     )}
                     {r.spun_by_discord_id !== r.owner_discord_id && (
                       <div className="sm:col-span-2">
                         <dt className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Originally spun by</dt>
-                        <dd>&lt;@{r.spun_by_discord_id}&gt;</dd>
+                        <dd>
+                          <DiscordTag id={r.spun_by_discord_id} username={usernames[r.spun_by_discord_id]} />
+                        </dd>
                       </div>
                     )}
                     <div>

@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { authQS, DiscordTag, Pagination, timeAgo } from './wheel-shared';
+import { authQS, DiscordTag, Pagination, timeAgo, useDiscordUsernames } from './wheel-shared';
 
 interface TokenRow {
   id: number;
@@ -59,6 +59,8 @@ export function TokensTab() {
   useEffect(() => { setOffset(0); }, [source, status, search]);
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [offset, source, status]);
   // Search is on submit (Enter) — too many requests if we fire on every keystroke.
+
+  const usernames = useDiscordUsernames(rows.map((r) => r.owner_discord_id));
 
   return (
     <div className="space-y-3">
@@ -131,7 +133,7 @@ export function TokensTab() {
                   <tbody>
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b border-border/30 hover:bg-muted/40">
-                        <td className="px-3 py-2"><DiscordTag id={r.owner_discord_id} /></td>
+                        <td className="px-3 py-2"><DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} /></td>
                         <td className="px-3 py-2">
                           <Badge
                             variant={r.source === 'boost' ? 'default' : r.source === 'admin_grant' ? 'success' : 'warning'}
@@ -158,7 +160,7 @@ export function TokensTab() {
                 {rows.map((r) => (
                   <li key={r.id} className="space-y-1 p-3 text-[12px]">
                     <div className="flex items-center justify-between gap-2">
-                      <DiscordTag id={r.owner_discord_id} />
+                      <DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} />
                       <Badge variant={r.source === 'boost' ? 'default' : r.source === 'admin_grant' ? 'success' : 'warning'}
                         className="px-1.5 py-0.5 text-[10px] capitalize">
                         {r.source.replace('_', ' ')}

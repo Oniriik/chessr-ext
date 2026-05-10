@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { AlertCircle, Crown, Gift, Loader2, Sparkles, Ticket } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { AlertCircle, ArrowRight, Crown, Gift, Loader2, Sparkles, Ticket } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { authQS, timeAgo } from './wheel-shared';
+import { authQS, DiscordTag, timeAgo, useDiscordUsernames } from './wheel-shared';
 
 interface Stats {
   tokensTotal: number;
@@ -22,32 +22,62 @@ interface ActivityEvent {
   payload: Record<string, unknown>;
 }
 
-function activityLine(ev: ActivityEvent): string {
-  const p = ev.payload;
-  const did = (p as { discordId?: string }).discordId ?? '?';
+/** Pull every discord_id referenced by an event so the parent can
+ *  batch-resolve handles for the whole feed in a single round-trip. */
+function eventDiscordIds(ev: ActivityEvent): (string | undefined)[] {
+  const p = ev.payload as Record<string, unknown>;
+  return [
+    p.discordId as string | undefined,
+    p.fromDiscordId as string | undefined,
+    p.toDiscordId as string | undefined,
+  ];
+}
+
+/** Pretty-printed event line as JSX so DiscordTag can render handles
+ *  (resolved via /admin/discord/usernames) instead of raw <@id>. */
+function ActivityLine({
+  ev, usernames,
+}: {
+  ev: ActivityEvent;
+  usernames: Record<string, string | null>;
+}) {
+  const p = ev.payload as Record<string, unknown>;
+  const did = p.discordId as string | undefined;
+  const tag = (id?: string) => <DiscordTag id={id ?? null} username={id ? usernames[id] : null} />;
+
   switch (ev.type) {
-    case 'wheel_token_earned':
-      if ((p as { revoked?: boolean }).revoked) return `Token revoked from <@${did}> (${(p as { source?: string }).source ?? '?'})`;
-      return `Token earned by <@${did}> · source=${(p as { source?: string }).source ?? '?'}`;
+    case 'wheel_token_earned': {
+      const source = (p.source as string | undefined) ?? '?';
+      if (p.revoked) return <Fragment>Token revoked from {tag(did)} ({source})</Fragment>;
+      return <Fragment>Token earned by {tag(did)} · source={source}</Fragment>;
+    }
     case 'wheel_spin': {
-      const k = (p as { rewardKind?: string }).rewardKind;
-      const d = (p as { rewardDays?: number }).rewardDays;
-      if (k === 'lifetime') return `🌟 <@${did}> won LIFETIME`;
-      return `<@${did}> spun ${d} days`;
+      const k = p.rewardKind as string | undefined;
+      const d = p.rewardDays as number | undefined;
+      if (k === 'lifetime') return <Fragment>🌟 {tag(did)} won LIFETIME</Fragment>;
+      return <Fragment>{tag(did)} spun {d} days</Fragment>;
     }
     case 'wheel_gift': {
-      const from = (p as { fromDiscordId?: string }).fromDiscordId;
-      const to = (p as { toDiscordId?: string }).toDiscordId;
-      return `🎁 <@${from}> gifted reward to <@${to}>`;
+      const from = p.fromDiscordId as string | undefined;
+      const to = p.toDiscordId as string | undefined;
+      return (
+        <Fragment>
+          🎁 {tag(from)} <ArrowRight size={11} className="inline align-middle text-muted-foreground" /> {tag(to)}
+        </Fragment>
+      );
     }
     case 'wheel_claim': {
-      const k = (p as { rewardKind?: string }).rewardKind;
-      const d = (p as { rewardDays?: number }).rewardDays;
-      const path = (p as { rewardPath?: string }).rewardPath;
-      return `<@${did}> claimed ${k === 'lifetime' ? 'LIFETIME' : `${d} days`} (${path})`;
+      const k = p.rewardKind as string | undefined;
+      const d = p.rewardDays as number | undefined;
+      const path = p.rewardPath as string | undefined;
+      return (
+        <Fragment>
+          {tag(did)} claimed {k === 'lifetime' ? 'LIFETIME' : `${d} days`} ({path})
+        </Fragment>
+      );
     }
     default:
-      return ev.type;
+      return <Fragment>{ev.type}</Fragment>;
   }
 }
 
@@ -56,6 +86,12 @@ export function Overview() {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Batch-fetch every Discord handle referenced by the activity feed.
+  // Cached at the module level in wheel-shared so re-renders / tab
+  // switches don't re-hit the API.
+  const allIds = activity.flatMap(eventDiscordIds);
+  const usernames = useDiscordUsernames(allIds);
 
   useEffect(() => {
     (async () => {
@@ -148,7 +184,7 @@ export function Overview() {
                 {activity.map((e) => (
                   <li key={e.id} className="flex items-start gap-2">
                     <span className="num w-12 shrink-0 text-muted-foreground tabular-nums">{timeAgo(e.created_at)}</span>
-                    <span className="font-mono break-all">{activityLine(e)}</span>
+                    <span className="break-all"><ActivityLine ev={e} usernames={usernames} /></span>
                   </li>
                 ))}
               </ul>

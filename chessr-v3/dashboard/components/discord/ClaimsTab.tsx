@@ -5,7 +5,7 @@ import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { authQS, DiscordTag, Pagination, PathBadge, RewardChip, timeAgo } from './wheel-shared';
+import { authQS, DiscordTag, Pagination, PathBadge, RewardChip, timeAgo, useDiscordUsernames } from './wheel-shared';
 
 interface ClaimRow {
   id: number;
@@ -51,6 +51,8 @@ export function ClaimsTab() {
 
   useEffect(() => { setOffset(0); }, [path, search]);
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [offset, path]);
+
+  const usernames = useDiscordUsernames(rows.map((r) => r.owner_discord_id));
 
   return (
     <div className="space-y-3">
@@ -98,7 +100,7 @@ export function ClaimsTab() {
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b border-border/30 hover:bg-muted/40">
                         <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">#{r.id}</td>
-                        <td className="px-3 py-2"><DiscordTag id={r.owner_discord_id} /></td>
+                        <td className="px-3 py-2"><DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} /></td>
                         <td className="px-3 py-2"><RewardChip kind={r.reward_kind} days={r.reward_days} /></td>
                         <td className="px-3 py-2"><PathBadge path={r.reward_path} /></td>
                         <td className="num px-3 py-2 text-muted-foreground">{timeAgo(r.claimed_at)}</td>
@@ -111,7 +113,7 @@ export function ClaimsTab() {
                 {rows.map((r) => (
                   <li key={r.id} className="space-y-1 p-3 text-[12px]">
                     <div className="flex items-center justify-between gap-2">
-                      <DiscordTag id={r.owner_discord_id} />
+                      <DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} />
                       <RewardChip kind={r.reward_kind} days={r.reward_days} />
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">

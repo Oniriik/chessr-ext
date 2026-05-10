@@ -4,6 +4,7 @@
  *  bits + tiny helpers in one file so each tab component stays focused
  *  on its own filters + table. */
 
+import { useEffect, useState } from 'react';
 import { Crown, Gift } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,11 +24,72 @@ export function timeAgo(iso: string | null | undefined): string {
   return `${months}mo ago`;
 }
 
-/** Render a Discord ID as a Discord mention tag — clickable so the
- *  recipient resolves it, monospace so multiple IDs line up nicely. */
-export function DiscordTag({ id }: { id: string | null | undefined }) {
+/** Render a Discord ID. When `username` is provided we show the
+ *  human-friendly handle (resolved via /admin/discord/usernames);
+ *  otherwise fall back to the raw `<@id>` mention so the value is at
+ *  least copy-pasteable. */
+export function DiscordTag({
+  id, username,
+}: {
+  id: string | null | undefined;
+  username?: string | null;
+}) {
   if (!id) return <span className="text-muted-foreground">—</span>;
-  return <span className="font-mono text-[11px]">&lt;@{id}&gt;</span>;
+  if (username) {
+    return (
+      <span className="font-medium" title={id}>
+        @{username}
+      </span>
+    );
+  }
+  return <span className="font-mono text-[11px]" title={id}>&lt;@{id}&gt;</span>;
+}
+
+/** Module-level cache so each tab swap doesn't re-fetch handles we
+ *  already know. Keyed by Discord ID; null = known-unlinked. */
+const usernameCache = new Map<string, string | null>();
+const inflight = new Map<string, Promise<void>>();
+
+/** Hook: takes a list of Discord IDs (any falsy entries are ignored),
+ *  fetches missing handles in a single batched request, and returns a
+ *  map { discord_id → username | null }. Components render via
+ *  <DiscordTag id={x} username={map[x]}/>. */
+export function useDiscordUsernames(ids: (string | null | undefined)[]): Record<string, string | null> {
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const unique = [...new Set(ids.filter(Boolean) as string[])];
+    const missing = unique.filter((id) => !usernameCache.has(id) && !inflight.has(id));
+    if (missing.length === 0) return;
+
+    const promise = (async () => {
+      try {
+        const t = await authQS();
+        const url = `/api/admin/discord/usernames?ids=${encodeURIComponent(missing.join(','))}&token=${t}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const json = (await res.json()) as { usernames?: Record<string, string | null> };
+        for (const id of missing) {
+          usernameCache.set(id, json.usernames?.[id] ?? null);
+        }
+        setVersion((v) => v + 1);
+      } finally {
+        for (const id of missing) inflight.delete(id);
+      }
+    })();
+    for (const id of missing) inflight.set(id, promise);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ids.join(',')]);
+
+  // Build the map fresh on each render — `version` triggers a re-run
+  // after a fetch resolves. Only ever pulls from cache, never refetches.
+  const map: Record<string, string | null> = {};
+  for (const id of ids) {
+    if (id) map[id] = usernameCache.get(id) ?? null;
+  }
+  // Reference `version` so React re-renders when cache updates.
+  void version;
+  return map;
 }
 
 export function RewardChip({

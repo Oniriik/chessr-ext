@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { getSupabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/lib/roles';
+import { DiscordTag, useDiscordUsernames } from '@/components/discord/wheel-shared';
 
 interface InventoryToken {
   id: number;
@@ -104,6 +105,8 @@ export function BoostInventory({
 
   const isSuper = callerRole === 'super_admin';
   const counts = `${tokens.length} token${tokens.length === 1 ? '' : 's'} · ${rewards.length} reward${rewards.length === 1 ? '' : 's'}`;
+  // Resolve gifted-from handles for the "gifted by @user" labels.
+  const usernames = useDiscordUsernames(rewards.map((r) => r.gifted_from_discord_id));
 
   async function doGrant() {
     setGranting(true);
@@ -285,10 +288,19 @@ export function BoostInventory({
                     <span className="font-medium">
                       {r.reward_kind === 'lifetime' ? 'Lifetime' : `${r.reward_days} days`}
                     </span>
-                    <span className="text-muted-foreground">
-                      {r.gifted_from_discord_id
-                        ? `gifted by <@${r.gifted_from_discord_id}> · ${timeAgo(r.gifted_at ?? r.spun_at)}`
-                        : `won ${timeAgo(r.spun_at)}`}
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      {r.gifted_from_discord_id ? (
+                        <>
+                          gifted by{' '}
+                          <DiscordTag
+                            id={r.gifted_from_discord_id}
+                            username={usernames[r.gifted_from_discord_id]}
+                          />
+                          {' '}· {timeAgo(r.gifted_at ?? r.spun_at)}
+                        </>
+                      ) : (
+                        <>won {timeAgo(r.spun_at)}</>
+                      )}
                     </span>
                     <span className="ml-auto font-mono text-[10px] text-muted-foreground">#{r.id}</span>
                   </li>

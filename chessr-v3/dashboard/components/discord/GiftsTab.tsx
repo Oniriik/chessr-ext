@@ -5,7 +5,7 @@ import { AlertCircle, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { authQS, DiscordTag, Pagination, timeAgo } from './wheel-shared';
+import { authQS, DiscordTag, Pagination, timeAgo, useDiscordUsernames } from './wheel-shared';
 
 interface GiftEvent {
   id: string;
@@ -49,6 +49,10 @@ export function GiftsTab() {
   useEffect(() => { setOffset(0); }, [search]);
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [offset]);
 
+  const usernames = useDiscordUsernames(
+    rows.flatMap((g) => [g.payload.fromDiscordId, g.payload.toDiscordId]),
+  );
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -79,9 +83,9 @@ export function GiftsTab() {
             <ul className="divide-y divide-border/30">
               {rows.map((g) => (
                 <li key={g.id} className="flex items-center gap-3 px-3 py-2.5 text-[12px] hover:bg-muted/40">
-                  <DiscordTag id={g.payload.fromDiscordId} />
+                  <DiscordTag id={g.payload.fromDiscordId} username={g.payload.fromDiscordId ? usernames[g.payload.fromDiscordId] : null} />
                   <ArrowRight size={12} className="text-muted-foreground" />
-                  <DiscordTag id={g.payload.toDiscordId} />
+                  <DiscordTag id={g.payload.toDiscordId} username={g.payload.toDiscordId ? usernames[g.payload.toDiscordId] : null} />
                   <span className="font-mono text-[10px] text-muted-foreground">
                     reward #{g.payload.rewardId}
                   </span>

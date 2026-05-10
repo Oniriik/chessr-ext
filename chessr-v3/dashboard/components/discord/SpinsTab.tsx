@@ -5,7 +5,7 @@ import { AlertCircle, Loader2, RefreshCw } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { authQS, DiscordTag, PathBadge, Pagination, RewardChip, timeAgo } from './wheel-shared';
+import { authQS, DiscordTag, PathBadge, Pagination, RewardChip, timeAgo, useDiscordUsernames } from './wheel-shared';
 
 interface SpinRow {
   id: number;
@@ -51,6 +51,10 @@ export function SpinsTab() {
 
   useEffect(() => { setOffset(0); }, [kind, search]);
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [offset, kind]);
+
+  // Resolve handles for both spinner and current owner — most rows have
+  // them equal, but gifted rewards diverge.
+  const usernames = useDiscordUsernames(rows.flatMap((r) => [r.spun_by_discord_id, r.owner_discord_id]));
 
   return (
     <div className="space-y-3">
@@ -98,11 +102,11 @@ export function SpinsTab() {
                     {rows.map((r) => (
                       <tr key={r.id} className="border-b border-border/30 hover:bg-muted/40">
                         <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">#{r.id}</td>
-                        <td className="px-3 py-2"><DiscordTag id={r.spun_by_discord_id} /></td>
+                        <td className="px-3 py-2"><DiscordTag id={r.spun_by_discord_id} username={usernames[r.spun_by_discord_id]} /></td>
                         <td className="px-3 py-2">
                           {r.owner_discord_id === r.spun_by_discord_id
                             ? <span className="text-muted-foreground">— same</span>
-                            : <DiscordTag id={r.owner_discord_id} />}
+                            : <DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} />}
                         </td>
                         <td className="px-3 py-2"><RewardChip kind={r.reward_kind} days={r.reward_days} /></td>
                         <td className="num px-3 py-2 text-muted-foreground">{timeAgo(r.spun_at)}</td>
@@ -124,13 +128,13 @@ export function SpinsTab() {
                       <RewardChip kind={r.reward_kind} days={r.reward_days} />
                     </div>
                     <div className="flex items-center justify-between gap-2 text-[10px]">
-                      <span>spinner: <DiscordTag id={r.spun_by_discord_id} /></span>
+                      <span>spinner: <DiscordTag id={r.spun_by_discord_id} username={usernames[r.spun_by_discord_id]} /></span>
                       <span className="text-muted-foreground">{timeAgo(r.spun_at)}</span>
                     </div>
                     <div className="text-[10px]">
                       {r.claimed_at
                         ? <span className="text-emerald-400">claimed · {r.reward_path}</span>
-                        : <span className="text-amber-400">in inventory of <DiscordTag id={r.owner_discord_id} /></span>}
+                        : <span className="text-amber-400">in inventory of <DiscordTag id={r.owner_discord_id} username={usernames[r.owner_discord_id]} /></span>}
                     </div>
                   </li>
                 ))}
