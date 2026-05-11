@@ -296,6 +296,17 @@ services:
       # Reach the serveur container by service name on the chessr network.
       - SERVEUR_URL=http://serveur:8081
       - SERVEUR_ADMIN_TOKEN=${SERVEUR_ADMIN_TOKEN}
+      # ELO bracket roles (public Discord role IDs — same guild as v2).
+      # Used by lib/discordRoles.ts → syncEloRole + the elo_bracket_changed
+      # event handler. Without these, syncEloRole no-ops silently.
+      - DISCORD_ROLE_ELO_0=1476674389540864145
+      - DISCORD_ROLE_ELO_800=1476674464920895601
+      - DISCORD_ROLE_ELO_1000=1476674513440735343
+      - DISCORD_ROLE_ELO_1200=1476674570873471077
+      - DISCORD_ROLE_ELO_1400=1476674628641488976
+      - DISCORD_ROLE_ELO_1600=1476674961299996847
+      - DISCORD_ROLE_ELO_1800=1476674691098869810
+      - DISCORD_ROLE_ELO_2000=1476674811416809566
     depends_on:
       redis:
         condition: service_healthy
