@@ -346,9 +346,7 @@ async function onChessAccountBanned(client: Client, e: IncomingEvent) {
     .setColor(COLOR.danger)
     .setTitle('🚫 Chess account closed / banned')
     .setDescription(
-      `${m}'s **${platform}** account \`@${username}\` returns 404 — ` +
-      `likely closed by the platform or username change. ` +
-      `Future elo-refresh ticks will skip this row.` +
+      `${m}'s **${platform}** account \`@${username}\` likely closed by the platform or username change` +
       (profileUrl ? `\n[Open profile](${profileUrl})` : ''),
     )
     .setTimestamp(new Date());
