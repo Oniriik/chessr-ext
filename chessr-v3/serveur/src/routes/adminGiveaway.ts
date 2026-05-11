@@ -31,6 +31,7 @@ import { Hono, type Context } from 'hono';
 import { dbQuery } from '../lib/db.js';
 import { emitEvent } from '../lib/events.js';
 import { forceDrawGiveaway } from '../jobs/giveawayDraw.js';
+import { supabase } from '../lib/supabase.js';
 
 export const adminGiveawayRoutes = new Hono();
 
@@ -598,6 +599,138 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/tickets/grant', async (c) => {
   });
 
   return c.json({ granted: true, ticketRowId: inserted[0].id, count });
+});
+
+// ─── POST /admin/giveaway/:id/migrate-v2 ─────────────────────────────────
+// One-shot recovery for tickets earned on the v2 invite-based giveaway
+// (giveaway_periods + invite_events in Supabase). Walks the v2
+// invite_events table for the period window, aggregates per
+// inviter_discord_id (only `still_in_guild = true` so kicked invites
+// don't count), and grants those counts on the target v3 giveaway as
+// admin_grant rows with reason='v2_migration'.
+//
+// Idempotency: the endpoint refuses to run twice on the same v3
+// giveaway by checking for any existing reason='v2_migration' rows.
+// Use ?force=1 to override (won't dedup — will double-grant).
+//
+// Body: { startsAt: ISO, endsAt: ISO, dryRun?: boolean }
+adminGiveawayRoutes.post('/admin/giveaway/:id/migrate-v2', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  let body: { startsAt?: string; endsAt?: string; dryRun?: boolean };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const startsAt = (body.startsAt ?? '').trim();
+  const endsAt = (body.endsAt ?? '').trim();
+  const dryRun = !!body.dryRun;
+  if (!startsAt || !endsAt) return c.json({ error: 'startsAt + endsAt required (ISO 8601)' }, 400);
+  if (Number.isNaN(Date.parse(startsAt)) || Number.isNaN(Date.parse(endsAt))) {
+    return c.json({ error: 'startsAt / endsAt must parse as ISO 8601' }, 400);
+  }
+
+  const giveaway = await dbQuery<{ id: number; status: string }>(
+    `SELECT id, status FROM giveaways WHERE id = $1`, [id],
+  );
+  if (giveaway.length === 0) return c.json({ error: 'not_found' }, 404);
+  if (giveaway[0].status !== 'scheduled') {
+    return c.json({ error: 'giveaway_locked', status: giveaway[0].status }, 409);
+  }
+
+  const force = c.req.query('force') === '1';
+  if (!dryRun && !force) {
+    const existing = await dbQuery<{ n: string }>(
+      `SELECT COUNT(*)::text AS n FROM giveaway_tickets
+        WHERE giveaway_id = $1 AND reason = 'v2_migration'`,
+      [id],
+    );
+    if (Number(existing[0]?.n ?? 0) > 0) {
+      return c.json({
+        error: 'already_migrated',
+        message: 'v2 tickets already migrated for this giveaway. Append ?force=1 to bypass (will double-grant).',
+      }, 409);
+    }
+  }
+
+  // Pull every invite_events row in the window. Pagination via
+  // .range() in case the period collected thousands of invites — the
+  // Supabase JS client defaults to 1000 rows max per query.
+  type InviteRow = { inviter_discord_id: string; still_in_guild: boolean | null };
+  const PAGE = 1000;
+  const rows: InviteRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('invite_events')
+      .select('inviter_discord_id, still_in_guild')
+      .gte('created_at', startsAt)
+      .lt('created_at', endsAt)
+      .range(from, from + PAGE - 1);
+    if (error) return c.json({ error: 'supabase_query_failed', detail: error.message }, 500);
+    if (!data || data.length === 0) break;
+    rows.push(...(data as InviteRow[]));
+    if (data.length < PAGE) break;
+  }
+
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.inviter_discord_id) continue;
+    if (r.still_in_guild === false) continue; // kicked → doesn't count
+    counts.set(r.inviter_discord_id, (counts.get(r.inviter_discord_id) ?? 0) + 1);
+  }
+  const users = [...counts.entries()]
+    .map(([discordId, count]) => ({ discordId, count }))
+    .sort((a, b) => b.count - a.count);
+  const totalTickets = users.reduce((s, u) => s + u.count, 0);
+
+  if (dryRun) {
+    return c.json({
+      dryRun: true,
+      window: { startsAt, endsAt },
+      invitesScanned: rows.length,
+      users,
+      summary: { distinctUsers: users.length, totalTickets },
+    });
+  }
+
+  // Apply. One INSERT + one event per user. Same shape as the
+  // realtime admin_grant path so the bot's #users embed + DM trigger
+  // automatically via the existing event forwarder.
+  let granted = 0;
+  let failed = 0;
+  for (const u of users) {
+    try {
+      const ins = await dbQuery<{ id: number }>(
+        `INSERT INTO giveaway_tickets
+           (giveaway_id, owner_discord_id, source, count, granted_by_user_id, reason)
+         VALUES ($1, $2, 'admin_grant', $3, NULL, 'v2_migration')
+         RETURNING id`,
+        [id, u.discordId, u.count],
+      );
+      await emitEvent({
+        type: 'giveaway_ticket_earned',
+        actor_id: null,
+        payload: {
+          giveawayId: id,
+          count: u.count,
+          source: 'admin_grant',
+          reason: 'v2_migration',
+          discordId: u.discordId,
+          ticketRowId: ins[0].id,
+        },
+      });
+      granted++;
+    } catch (err) {
+      console.warn(`[migrate-v2] grant failed for ${u.discordId}:`, err);
+      failed++;
+    }
+  }
+
+  return c.json({
+    migrated: true,
+    window: { startsAt, endsAt },
+    invitesScanned: rows.length,
+    summary: { distinctUsers: users.length, totalTickets, granted, failed },
+  });
 });
 
 // ─── GET /admin/giveaway/:id/leaderboard ─────────────────────────────────
