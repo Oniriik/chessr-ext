@@ -1,0 +1,56 @@
+# HTTPS config for app.chessr.io — reverse-proxy to the Next.js
+# standalone container on :3000. Disabled by default; rename to .conf
+# after certbot has issued the cert under
+# /etc/letsencrypt/live/app.chessr.io/.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name app.chessr.io;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name app.chessr.io;
+
+    ssl_certificate     /etc/letsencrypt/live/app.chessr.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.chessr.io/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # Tighten upload limits for the API routes (review payloads are
+    # small — under 100 kB). Larger limits invite abuse.
+    client_max_body_size 2m;
+    # Reviews + profile analyses are long-running SSE-style streams via
+    # the app's API routes; keep the timeouts generous.
+    proxy_read_timeout    3600s;
+    proxy_send_timeout    3600s;
+    proxy_connect_timeout 30s;
+    proxy_buffering off;
+
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    set $app_upstream "app:3000";
+
+    location / {
+        proxy_pass http://$app_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}

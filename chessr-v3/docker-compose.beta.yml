@@ -184,6 +184,41 @@ services:
         limits:
           memory: 1G
 
+  # ─── App (app.chessr.io) — Next.js standalone for game-review + ──────
+  # profile-analysis UI. Speaks WebSocket to the v3 serveur via
+  # api.chessr.io for the heavy work. Same auth handshake the extension
+  # uses, with the shared APP_AUTH_TOKEN gate.
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_CHESSR_WS_URL: ${NEXT_PUBLIC_APP_WS_URL:-wss://api.chessr.io}
+        NEXT_PUBLIC_APP_AUTH_TOKEN: ${APP_AUTH_TOKEN}
+    container_name: chessr-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # Server-side secrets — separate from the NEXT_PUBLIC_* baked into
+      # the client bundle.
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_KEY}
+      # Read by /api/review when it needs to fall back to a server-side
+      # WS handshake; mirrors the client's NEXT_PUBLIC_APP_AUTH_TOKEN.
+      - APP_AUTH_TOKEN=${APP_AUTH_TOKEN}
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - NEXT_PUBLIC_CHESSR_WS_URL=${NEXT_PUBLIC_APP_WS_URL:-wss://api.chessr.io}
+      - NEXT_PUBLIC_APP_AUTH_TOKEN=${APP_AUTH_TOKEN}
+    networks:
+      - chessr
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
   # ─── Bull Board (custom build) — exposé sous /queues/board sur le ────
   # dashboard. Auth via Supabase session (middleware Next.js qui redirige
   # vers /login si pas connecté). Le custom build vs l'image off-the-shelf
