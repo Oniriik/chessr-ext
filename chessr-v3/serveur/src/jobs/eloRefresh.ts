@@ -68,7 +68,10 @@ async function fetchChesscomRatings(username: string): Promise<PlatformRatings |
     `https://api.chess.com/pub/player/${username}/stats`,
     { headers: { 'User-Agent': 'Chessr.io Rating Updater' } },
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.warn(`[elo-refresh] chesscom fetch ${res.status} for "${username}"`);
+    return null;
+  }
   const data = (await res.json()) as {
     chess_bullet?: { last?: { rating?: number } };
     chess_blitz?: { last?: { rating?: number } };
@@ -86,7 +89,10 @@ async function fetchLichessRatings(username: string): Promise<PlatformRatings | 
     `https://lichess.org/api/user/${username}`,
     { headers: { Accept: 'application/json' } },
   );
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.warn(`[elo-refresh] lichess fetch ${res.status} for "${username}"`);
+    return null;
+  }
   const data = (await res.json()) as {
     perfs?: {
       bullet?: { rating?: number };
