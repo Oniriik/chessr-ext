@@ -140,6 +140,14 @@ export const EVENT_KINDS = [
   // schedule. The mod channel surfaces these so support can reach out
   // proactively before the sub silently dies.
   'payment_failed',
+  // payload: { discordId, newElo, oldBracket, newBracket }
+  // Emitted by the elo-refresh cron when a user's highest rating
+  // (cross-platform) crosses an ELO bracket boundary. The bot's role
+  // sync handler picks it up and applies syncEloRole(discordId, newElo)
+  // in real time, so users see their new role within seconds instead
+  // of waiting up to 30 min for the next guild-sync sweep. The 30-min
+  // sweep stays as belt-and-suspenders.
+  'elo_bracket_changed',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
