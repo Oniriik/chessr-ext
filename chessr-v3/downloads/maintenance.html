@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maintenance — Chessr.io</title>
+    <meta name="description" content="Chessr is briefly down for scheduled maintenance. Back soon.">
+    <meta http-equiv="refresh" content="120">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --background: #0a0a0f;
+            --foreground: #e4e4e7;
+            --card: #12131a;
+            --primary: #3b82f6;
+            --secondary: #22d3ee;
+            --amber: #f59e0b;
+            --muted: #1e1f2a;
+            --muted-foreground: #a1a1aa;
+            --border: #2a2b3d;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--background);
+            color: var(--foreground);
+            min-height: 100dvh;
+            overflow-x: hidden;
+            line-height: 1.5;
+        }
+
+        body::before {
+            content: "";
+            position: fixed; inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+            opacity: 0.015;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .bg-effects { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+
+        .bg-grid {
+            position: absolute; inset: 0;
+            background-image:
+                linear-gradient(rgba(245, 158, 11, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(245, 158, 11, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+            mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black 70%, transparent 100%);
+            -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 0%, black 70%, transparent 100%);
+            opacity: 0.6;
+        }
+
+        .orb {
+            position: absolute; border-radius: 50%;
+            filter: blur(100px);
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+        .orb-1 { top: -100px; left: 20%; width: 600px; height: 600px; background: rgba(245, 158, 11, 0.12); }
+        .orb-2 { top: 10%; right: 15%; width: 500px; height: 500px; background: rgba(59, 130, 246, 0.1); animation-delay: 1s; }
+        .orb-3 { bottom: -200px; left: 50%; transform: translateX(-50%); width: 800px; height: 400px; background: linear-gradient(to top, rgba(245, 158, 11, 0.08), transparent); }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.05); }
+        }
+
+        .container {
+            position: relative; z-index: 10;
+            min-height: 100dvh;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: clamp(16px, 3vh, 36px) clamp(16px, 4vw, 24px);
+            gap: clamp(12px, 2.5vh, 24px);
+        }
+
+        .content {
+            max-width: 640px; width: 100%;
+            text-align: center;
+            animation: fade-up 0.6s ease-out;
+            display: flex; flex-direction: column;
+            gap: clamp(12px, 2.5vh, 24px);
+        }
+
+        @keyframes fade-up {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-container {
+            display: flex; align-items: center; justify-content: center;
+            gap: clamp(12px, 2vw, 20px); text-decoration: none;
+        }
+        .logo {
+            width: clamp(44px, 8vh, 72px);
+            height: clamp(44px, 8vh, 72px);
+        }
+        .logo-text {
+            font-size: clamp(1.75rem, 6vw, 3.25rem);
+            font-weight: 700; letter-spacing: -0.02em;
+        }
+        .logo-text .brand { color: white; }
+        .logo-text .domain {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 9999px;
+            font-size: clamp(0.75rem, 1.2vw, 0.82rem); font-weight: 600;
+            letter-spacing: 0.04em; text-transform: uppercase;
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            color: var(--amber);
+            align-self: center;
+        }
+        .status-pill .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--amber);
+            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6);
+            animation: ping 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes ping {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+            50%      { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+        }
+
+        .section-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: clamp(14px, 2vw, 20px);
+            padding: clamp(20px, 3.5vh, 32px);
+            text-align: left;
+            display: flex; flex-direction: column;
+            gap: clamp(12px, 2vh, 18px);
+        }
+
+        .card-title {
+            font-size: clamp(1.1rem, 2vw, 1.4rem);
+            font-weight: 700; color: var(--foreground);
+            text-align: center;
+        }
+        .card-body {
+            color: var(--muted-foreground);
+            font-size: clamp(0.88rem, 1.5vw, 0.95rem);
+            line-height: 1.65;
+            text-align: center;
+            max-width: 520px; margin: 0 auto;
+        }
+
+        .window {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            padding-top: clamp(8px, 1.5vh, 14px);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .window-item {
+            text-align: center;
+            padding: clamp(8px, 1.5vh, 12px) 8px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.025);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .window-label {
+            font-size: clamp(0.65rem, 1vw, 0.7rem);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted-foreground);
+            margin-bottom: 4px;
+        }
+        .window-value {
+            font-size: clamp(0.95rem, 1.8vw, 1.1rem);
+            font-weight: 700;
+            color: var(--foreground);
+            font-variant-numeric: tabular-nums;
+        }
+        .window-sub {
+            font-size: clamp(0.7rem, 1.1vw, 0.78rem);
+            color: var(--muted-foreground);
+            margin-top: 2px;
+        }
+
+        .actions {
+            display: flex; align-items: center; justify-content: center;
+            gap: 12px; flex-wrap: wrap;
+            margin-top: clamp(4px, 1vh, 8px);
+        }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            gap: 10px;
+            padding: clamp(10px, 1.6vh, 12px) clamp(18px, 3vw, 24px);
+            border-radius: 12px;
+            font-size: clamp(0.82rem, 1.4vw, 0.9rem); font-weight: 600;
+            text-decoration: none; cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--muted);
+            color: var(--foreground);
+            border: 1px solid var(--border);
+        }
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+        .btn svg { width: 16px; height: 16px; }
+
+        .footer {
+            display: flex; flex-direction: column; align-items: center;
+            gap: clamp(8px, 1.5vh, 12px);
+        }
+        .copyright { color: var(--muted-foreground); font-size: clamp(0.7rem, 1vw, 0.8rem); opacity: 0.5; }
+
+        ::selection { background: rgba(245, 158, 11, 0.3); color: white; }
+
+        @media (max-width: 640px) {
+            .container { padding: 16px 14px; gap: 14px; }
+            .content { gap: 14px; }
+            .section-card { padding: 18px 16px; }
+            .window { grid-template-columns: 1fr; }
+            .actions { flex-direction: column; align-items: stretch; }
+            .btn { justify-content: center; width: 100%; }
+        }
+        @media (max-height: 560px) {
+            .orb { display: none; }
+            .container { padding: 12px 14px; gap: 10px; }
+            .content { gap: 10px; }
+            .logo { width: 36px; height: 36px; }
+            .logo-text { font-size: 1.5rem; }
+            .section-card { padding: 14px 16px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-effects">
+        <div class="bg-grid"></div>
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <div class="content">
+            <a href="https://chessr.io" class="logo-container">
+                <img src="./assets/logo.png" alt="Chessr" class="logo">
+                <span class="logo-text"><span class="brand">chessr</span><span class="domain">.io</span></span>
+            </a>
+
+            <div class="status-pill">
+                <span class="dot"></span>
+                <span>Scheduled maintenance</span>
+            </div>
+
+            <div class="section-card">
+                <h1 class="card-title">We're upgrading the platform</h1>
+                <p class="card-body">
+                    Chessr is briefly offline while we migrate to a faster infrastructure.
+                    Extension downloads, login, and live analysis will be back as soon as the maintenance window ends.
+                </p>
+
+                <div class="window">
+                    <div class="window-item">
+                        <div class="window-label">Start</div>
+                        <div class="window-value" id="start-time">10:00 AM</div>
+                        <div class="window-sub" id="start-date">11 May 2026</div>
+                    </div>
+                    <div class="window-item">
+                        <div class="window-label">Expected end</div>
+                        <div class="window-value" id="end-time">3:00 PM</div>
+                        <div class="window-sub" id="end-date">11 May 2026</div>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <a href="https://discord.gg/72j4dUadTu" target="_blank" rel="noopener noreferrer" class="btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                        Updates on Discord
+                    </a>
+                    <a href="https://chessr.io" class="btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                        Main Website
+                    </a>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p class="copyright">&copy; <script>document.write(new Date().getFullYear())</script> Chessr. Page auto-refreshes every 2 minutes.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Maintenance window — UTC so all viewers see the same numbers
+        // regardless of their timezone. Edit these two ISO strings to
+        // re-stamp the page without touching the markup.
+        var WINDOW_START_UTC = '2026-05-11T08:00:00Z';  // 10:00 CEST
+        var WINDOW_END_UTC   = '2026-05-11T13:00:00Z';  // 15:00 CEST
+
+        function fmtTime(d) {
+            // Local-time short, viewer locale.
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        function fmtDate(d) {
+            return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+
+        var start = new Date(WINDOW_START_UTC);
+        var end   = new Date(WINDOW_END_UTC);
+        if (!isNaN(start.getTime())) {
+            document.getElementById('start-time').textContent = fmtTime(start);
+            document.getElementById('start-date').textContent = fmtDate(start);
+        }
+        if (!isNaN(end.getTime())) {
+            document.getElementById('end-time').textContent = fmtTime(end);
+            document.getElementById('end-date').textContent = fmtDate(end);
+        }
+    </script>
+</body>
+</html>

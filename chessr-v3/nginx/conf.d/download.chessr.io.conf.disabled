@@ -1,0 +1,60 @@
+# HTTPS config for download.chessr.io. Disabled by default — rename to
+# .conf after certbot has issued the cert under
+# /etc/letsencrypt/live/download.chessr.io/.
+#
+# Serves the static download page (index.html / version.json / assets)
+# and the zip files. HTML/JSON render in-browser, .zip downloads as
+# attachment.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name download.chessr.io;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name download.chessr.io;
+
+    ssl_certificate     /etc/letsencrypt/live/download.chessr.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/download.chessr.io/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    root /var/www/downloads;
+    index index.html;
+
+    # SPA-style fallback so deep links (none today, but harmless) don't 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "public, max-age=60";
+    }
+
+    # Stable alias — always serves the most recent beta zip. Matches the
+    # legacy v2 /download/latest URL so the extension's auto-update path
+    # keeps working without code changes.
+    location = /latest {
+        alias /var/www/downloads/chessr-beta-latest.zip;
+        add_header Cache-Control "public, max-age=60";
+        add_header Content-Disposition 'attachment; filename="chessr-beta-latest.zip"';
+    }
+
+    # Any .zip is force-downloaded as an attachment.
+    location ~* \.zip$ {
+        root /var/www/downloads;
+        add_header Cache-Control "public, max-age=300";
+        add_header Content-Disposition "attachment";
+    }
+}
