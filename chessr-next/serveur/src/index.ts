@@ -74,9 +74,13 @@ const MAX_STOCKFISH_INSTANCES = parseInt(
   process.env.MAX_STOCKFISH_INSTANCES || "1",
 );
 
-// Version info for extension update checks
+// Version info for extension update checks.
+// Bumped to 3.1.0 to force every remaining v2 install onto the v3
+// extension. v2 clients comparing their installed version < 3.1.0
+// will trip UpdateRequired and land on https://download.chessr.io
+// where they pick up the v3.1.0 build that talks to api.chessr.io.
 const VERSION_INFO = {
-  minVersion: "2.6.1",
+  minVersion: "3.1.0",
   downloadUrl: "https://download.chessr.io",
 };
 
