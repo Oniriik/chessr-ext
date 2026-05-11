@@ -37,21 +37,26 @@ function hasValidAdminToken(c: Context): boolean {
 }
 
 interface BucketChoice {
-  /** Postgres date_trunc unit ('hour' | 'day' | 'week'). */
-  truncUnit: 'hour' | 'day' | 'week';
+  /** Postgres date_trunc unit ('minute' | 'hour' | 'day' | 'week') — only
+   *  used when secondsBucket is unset. */
+  truncUnit: 'minute' | 'hour' | 'day' | 'week';
   /** Step size in ms — used client-side to fill gaps if needed. */
   stepMs: number;
   /** Human label for the response payload. */
-  label: '1h' | '4h' | '1d' | '7d';
-  /** When truncUnit is 'hour' but we want 4h buckets, we floor-divide. */
-  hourMod?: number;
+  label: '5m' | '15m' | '1h' | '4h' | '1d' | '7d';
+  /** When set, we bucket by floor(epoch / secondsBucket) instead of
+   *  date_trunc. Needed for non-native intervals (5m, 15m, 4h). */
+  secondsBucket?: number;
 }
 
 function pickBucket(rangeMs: number): BucketChoice {
-  const HOUR = 60 * 60 * 1000;
+  const MIN = 60 * 1000;
+  const HOUR = 60 * MIN;
   const DAY = 24 * HOUR;
+  if (rangeMs <= 2 * HOUR)  return { truncUnit: 'minute', stepMs: 5 * MIN, label: '5m', secondsBucket: 5 * 60 };
+  if (rangeMs <= 8 * HOUR)  return { truncUnit: 'minute', stepMs: 15 * MIN, label: '15m', secondsBucket: 15 * 60 };
   if (rangeMs <= 48 * HOUR) return { truncUnit: 'hour', stepMs: HOUR, label: '1h' };
-  if (rangeMs <= 14 * DAY)  return { truncUnit: 'hour', stepMs: 4 * HOUR, label: '4h', hourMod: 4 };
+  if (rangeMs <= 14 * DAY)  return { truncUnit: 'hour', stepMs: 4 * HOUR, label: '4h', secondsBucket: 4 * 3600 };
   if (rangeMs <= 180 * DAY) return { truncUnit: 'day',  stepMs: DAY, label: '1d' };
   return { truncUnit: 'week', stepMs: 7 * DAY, label: '7d' };
 }
@@ -68,13 +73,14 @@ function parseRange(c: Context): { from: Date; to: Date } | null {
   return { from, to };
 }
 
-// Compose the bucket SQL expression. For 4h buckets we floor the hour
-// via integer math since date_trunc has no '4 hours' unit.
+// Compose the bucket SQL expression. For non-native intervals (5m / 15m
+// / 4h) we floor the epoch via integer math since date_trunc has no
+// matching unit.
 function bucketExpr(b: BucketChoice): string {
-  if (b.hourMod && b.hourMod > 1) {
+  if (b.secondsBucket) {
     return `to_timestamp(
-              floor(extract(epoch from created_at) / ${b.hourMod * 3600})
-              * ${b.hourMod * 3600}
+              floor(extract(epoch from created_at) / ${b.secondsBucket})
+              * ${b.secondsBucket}
             ) AT TIME ZONE 'UTC'`;
   }
   return `date_trunc('${b.truncUnit}', created_at)`;

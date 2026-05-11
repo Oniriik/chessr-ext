@@ -22,9 +22,11 @@ import { authQS } from '@/components/discord/giveaway-shared';
 
 // ─── Range presets ──────────────────────────────────────────────────────
 
-type Preset = '24h' | '48h' | '7d' | '15d' | '1m' | 'all' | 'custom';
+type Preset = '1h' | '6h' | '24h' | '48h' | '7d' | '15d' | '1m' | 'all' | 'custom';
 
 const PRESETS: { id: Preset; label: string; hours?: number }[] = [
+  { id: '1h',  label: '1h',      hours: 1 },
+  { id: '6h',  label: '6h',      hours: 6 },
   { id: '24h', label: '24h',     hours: 24 },
   { id: '48h', label: '48h',     hours: 48 },
   { id: '7d',  label: '7 days',  hours: 24 * 7 },
@@ -63,10 +65,12 @@ const EVENT_COLORS: Record<string, string> = {
   profile_analysis: '#ef4444',
 };
 
+type BucketLabel = '5m' | '15m' | '1h' | '4h' | '1d' | '7d';
+
 interface SeriesPayload {
   from: string;
   to: string;
-  bucket: '1h' | '4h' | '1d' | '7d';
+  bucket: BucketLabel;
   stepMs: number;
   engines: string[];
   series: {
@@ -267,7 +271,7 @@ export default function AnalyticsPage() {
                 <ResponsiveContainer width="100%" height={320}>
                   <LineChart data={data.series.suggestionsByEngine}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                    <XAxis dataKey="t" tickFormatter={(t) => format(new Date(t), data.bucket === '1d' || data.bucket === '7d' ? 'MMM d' : 'MMM d HH:mm')} stroke="#71717a" fontSize={11} />
+                    <XAxis dataKey="t" tickFormatter={(t) => format(new Date(t), tickFmt(data.bucket))} stroke="#71717a" fontSize={11} />
                     <YAxis allowDecimals={false} stroke="#71717a" fontSize={11} />
                     <Tooltip content={<ChartTooltip bucket={data.bucket} />} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -278,7 +282,11 @@ export default function AnalyticsPage() {
                         dataKey={eng}
                         stroke={ENGINE_COLORS[eng] ?? '#71717a'}
                         strokeWidth={2}
-                        dot={false}
+                        // Dots make sparse / single-point series visible
+                        // (recharts won't draw a line for one data point
+                        // alone, so without dots maia3 etc. can vanish).
+                        dot={{ r: 2, strokeWidth: 0, fill: ENGINE_COLORS[eng] ?? '#71717a' }}
+                        activeDot={{ r: 4 }}
                       />
                     ))}
                   </LineChart>
@@ -415,7 +423,7 @@ function MiniLineChart({
 }: {
   title: string;
   series: Array<{ t: string; count: number }>;
-  bucket: '1h' | '4h' | '1d' | '7d';
+  bucket: BucketLabel;
   color: string;
 }) {
   return (
@@ -427,12 +435,16 @@ function MiniLineChart({
             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
             <XAxis
               dataKey="t"
-              tickFormatter={(t) => format(new Date(t), bucket === '1d' || bucket === '7d' ? 'MMM d' : 'MMM d HH:mm')}
+              tickFormatter={(t) => format(new Date(t), tickFmt(bucket))}
               stroke="#71717a" fontSize={11}
             />
             <YAxis allowDecimals={false} stroke="#71717a" fontSize={11} />
             <Tooltip content={<ChartTooltip bucket={bucket} />} />
-            <Line type="monotone" dataKey="count" stroke={color} strokeWidth={2} dot={false} />
+            <Line
+              type="monotone" dataKey="count" stroke={color} strokeWidth={2}
+              dot={{ r: 2, strokeWidth: 0, fill: color }}
+              activeDot={{ r: 4 }}
+            />
           </LineChart>
         </ResponsiveContainer>
       </CardContent>
@@ -440,17 +452,27 @@ function MiniLineChart({
   );
 }
 
+// X-axis tick formatter — sub-hour buckets show HH:mm only (the date
+// is redundant with hover state); coarser buckets include the date.
+function tickFmt(bucket: BucketLabel): string {
+  if (bucket === '5m' || bucket === '15m') return 'HH:mm';
+  if (bucket === '1d' || bucket === '7d')  return 'MMM d';
+  return 'MMM d HH:mm';
+}
+
 interface ChartTooltipProps {
   active?: boolean;
   label?: string | number;
   payload?: Array<{ name: string; value: number; color: string; dataKey: string }>;
-  bucket: '1h' | '4h' | '1d' | '7d';
+  bucket: BucketLabel;
 }
 
 function ChartTooltip({ active, payload, label, bucket }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const ts = label ? new Date(label as string) : null;
-  const fmt = bucket === '1d' || bucket === '7d' ? 'MMM d, yyyy' : 'MMM d, HH:mm';
+  const fmt = (bucket === '1d' || bucket === '7d')
+    ? 'MMM d, yyyy'
+    : (bucket === '5m' || bucket === '15m' ? 'MMM d, HH:mm:ss' : 'MMM d, HH:mm');
   return (
     <div className="rounded-md border border-border bg-popover/95 p-2 text-[12px] shadow-md backdrop-blur">
       {ts && <div className="mb-1 text-[11px] font-medium text-muted-foreground">{format(ts, fmt)}</div>}
