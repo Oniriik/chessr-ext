@@ -5,6 +5,7 @@ import type { PlatformProfile } from '../lib/platformApi';
 import ChesscomIcon from './icons/ChesscomIcon';
 import LichessIcon from './icons/LichessIcon';
 import WorldchessIcon from './icons/WorldchessIcon';
+import { useTranslation } from '../lib/i18n';
 import './link-account-screen.css';
 
 const platformIcons: Record<string, typeof ChesscomIcon> = {
@@ -20,6 +21,7 @@ const platformLabels: Record<string, string> = {
 };
 
 export default function LinkAccountScreen({ profile }: { profile: PlatformProfile }) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuthStore();
@@ -37,8 +39,8 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
     setLoading(false);
     if (!result.success) {
       setError(result.error === 'ALREADY_LINKED'
-        ? 'This account is already linked to another user'
-        : result.error || 'Failed to link');
+        ? t('linkAccount.error.alreadyLinked')
+        : result.error || t('linkAccount.error.generic'));
     }
   };
 
@@ -47,8 +49,8 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
   return (
     <div className="link-screen">
       <div className="link-screen-header">
-        <span className="link-screen-eyebrow">Link account</span>
-        <h3 className="link-screen-title">Link your {platformLabel} profile</h3>
+        <span className="link-screen-eyebrow">{t('linkAccount.eyebrow')}</span>
+        <h3 className="link-screen-title">{t('linkAccount.title', { platform: platformLabel })}</h3>
       </div>
 
       <div className="link-screen-card">
@@ -83,7 +85,7 @@ export default function LinkAccountScreen({ profile }: { profile: PlatformProfil
       {error && <p className="link-screen-error">{error}</p>}
 
       <button className="link-screen-btn" onClick={handleLink} disabled={loading}>
-        {loading ? 'Linking…' : `Link this ${platformLabel} account`}
+        {loading ? t('linkAccount.linking') : t('linkAccount.button', { platform: platformLabel })}
       </button>
     </div>
   );

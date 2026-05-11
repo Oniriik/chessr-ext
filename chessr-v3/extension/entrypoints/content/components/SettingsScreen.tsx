@@ -17,34 +17,40 @@ import Toggle from './Toggle';
 import Slider from './Slider';
 import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
 import { useGameStore } from '../stores/gameStore';
-import { useTranslation, SUPPORTED_LOCALES, LOCALE_LABELS, type LocalePreference } from '../lib/i18n';
+import { useTranslation, SUPPORTED_LOCALES, LOCALE_LABELS, t as tStatic, type LocalePreference } from '../lib/i18n';
 import './settings-screen.css';
 
 const serverRegion = SERVER_LABEL[BUILD_ENV];
 
 type Tab = 'account' | 'general' | 'engine' | 'suggestions';
 
-const tabs: { id: Tab; label: string }[] = [
-  { id: 'account', label: 'Account' },
-  { id: 'general', label: 'General' },
-  { id: 'engine', label: 'Engine' },
-  { id: 'suggestions', label: 'Suggestions' },
-];
+function useTabs(): { id: Tab; label: string }[] {
+  const { t } = useTranslation();
+  return [
+    { id: 'account',     label: t('settings.tab.account') },
+    { id: 'general',     label: t('settings.tab.general') },
+    { id: 'engine',      label: t('settings.tab.engine') },
+    { id: 'suggestions', label: t('settings.tab.suggestions') },
+  ];
+}
 
-const planDisplay: Record<Plan, { label: string; bg: string; color: string; cta: string | null }> = {
-  lifetime:  { label: 'Lifetime',   bg: '#8263F1', color: '#3F2F7A', cta: null },
-  beta:      { label: 'Beta',       bg: '#6366f1', color: '#252972', cta: null },
-  premium:   { label: 'Premium',    bg: '#60a5fa', color: '#264A70', cta: 'Manage subscription' },
-  freetrial: { label: 'Free trial', bg: '#9c4040', color: '#481A1A', cta: 'Upgrade to Premium' },
-  free:      { label: 'Free',       bg: '#EAB308', color: '#574407', cta: 'Upgrade to Premium' },
-};
+function usePlanDisplay(): Record<Plan, { label: string; bg: string; color: string; cta: string | null }> {
+  const { t } = useTranslation();
+  return {
+    lifetime:  { label: t('settings.account.plan.lifetime'),  bg: '#8263F1', color: '#3F2F7A', cta: null },
+    beta:      { label: t('settings.account.plan.beta'),      bg: '#6366f1', color: '#252972', cta: null },
+    premium:   { label: t('settings.account.plan.premium'),   bg: '#60a5fa', color: '#264A70', cta: t('settings.account.manageSubscription') },
+    freetrial: { label: t('settings.account.plan.freetrial'), bg: '#9c4040', color: '#481A1A', cta: t('settings.account.upgrade') },
+    free:      { label: t('settings.account.plan.free'),      bg: '#EAB308', color: '#574407', cta: t('settings.account.upgrade') },
+  };
+}
 
 function getExpiryText(expiry: Date): string {
   const days = Math.ceil((expiry.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-  if (days < 0) return 'Expired';
-  if (days === 0) return 'Expires today';
-  if (days === 1) return 'Expires tomorrow';
-  return `Expires in ${days} days`;
+  if (days < 0) return tStatic('settings.account.expired');
+  if (days === 0) return tStatic('settings.account.expiresToday');
+  if (days === 1) return tStatic('settings.account.expiresTomorrow');
+  return tStatic('settings.account.expiresInDays', { days });
 }
 
 const platformIcons: Record<string, typeof ChesscomIcon> = {
@@ -76,7 +82,7 @@ function GeneralTab() {
   const { t } = useTranslation();
   const { disableAnimations, setDisableAnimations, disableInfoBanner, setDisableInfoBanner, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, fontSize, setFontSize, locale, setLocale, resetAll } = useSettingsStore();
   const handleReset = () => {
-    if (confirm('Reset all settings to defaults? This will clear custom layouts, hotkeys, engine preferences, etc.')) {
+    if (confirm(t('settings.general.resetConfirm'))) {
       resetAll();
     }
   };
@@ -143,12 +149,12 @@ function GeneralTab() {
       </div>
       <div className="settings-item settings-item--column">
         <div className="settings-item-row">
-          <span className="settings-label">Fake title badge</span>
+          <span className="settings-label">{t('settings.general.fakeTitle')}</span>
           <Toggle checked={showTitle} onChange={setShowTitle} />
         </div>
         {showTitle && (
           <div className="settings-item-subrow">
-            <span className="settings-desc">Select a title</span>
+            <span className="settings-desc">{t('settings.general.selectTitle')}</span>
             <select
               className="settings-select"
               value={titleType}
@@ -162,64 +168,65 @@ function GeneralTab() {
         )}
       </div>
       <div className="settings-item">
-        <span className="settings-label">Auto-open on review pages</span>
+        <span className="settings-label">{t('settings.general.autoOpenReview')}</span>
         <Toggle checked={autoOpenOnReview} onChange={setAutoOpenOnReview} />
       </div>
       <div className="settings-item">
-        <span className="settings-label">Auto-open at game end</span>
+        <span className="settings-label">{t('settings.general.autoOpenGameEnd')}</span>
         <Toggle checked={autoOpenOnGameEnd} onChange={setAutoOpenOnGameEnd} />
       </div>
       <div className="settings-item">
-        <span className="settings-label">Font size</span>
+        <span className="settings-label">{t('settings.general.fontSize')}</span>
         <select
           className="settings-select"
           value={fontSize}
           onChange={(e) => setFontSize(e.target.value as import('../stores/settingsStore').FontSize)}
         >
-          <option value="small">Small</option>
-          <option value="normal">Normal</option>
-          <option value="big">Big</option>
+          <option value="small">{t('settings.general.fontSize.small')}</option>
+          <option value="normal">{t('settings.general.fontSize.normal')}</option>
+          <option value="big">{t('settings.general.fontSize.big')}</option>
         </select>
       </div>
       <div className="settings-item">
-        <span className="settings-label">Disable animations</span>
+        <span className="settings-label">{t('settings.general.disableAnimations')}</span>
         <Toggle checked={disableAnimations} onChange={setDisableAnimations} />
       </div>
-      <div className="settings-item" title="Hides proactive nudges from chessr (tips, claim free trial, join Discord). Admin announcements still come through.">
-        <span className="settings-label">Disable info banner</span>
+      <div className="settings-item" title={t('settings.general.disableInfoBanner.hint')}>
+        <span className="settings-label">{t('settings.general.disableInfoBanner')}</span>
         <Toggle checked={disableInfoBanner} onChange={setDisableInfoBanner} />
       </div>
       <button
         className="settings-stream-btn"
         onClick={() => browser.runtime.sendMessage({ type: 'open_stream' })}
-        title="Opens a dedicated Chessr page (chessboard + live suggestions) in a new tab — capture it with OBS to overlay your stream."
+        title={t('settings.general.openStream.hint')}
       >
-        🎬 Open Stream Mode
+        {t('settings.general.openStream')}
       </button>
       <button className="settings-reset-btn" onClick={handleReset}>
-        Reset to default settings
+        {t('settings.general.reset')}
       </button>
       <button
         className="settings-debug-btn"
         onClick={handleCopyDebug}
-        title="Copies a diagnostic dump (extension version, WS state, recent errors + WS messages, background script logs) to clipboard. Paste it in a support ticket or Discord."
+        title={t('settings.general.copyDebug.hint')}
       >
-        {debugLabel === 'idle'    && '📋 Copy debug logs'}
-        {debugLabel === 'copying' && 'Collecting…'}
-        {debugLabel === 'copied'  && '✓ Copied to clipboard'}
-        {debugLabel === 'error'   && '⚠ Copy failed'}
+        {debugLabel === 'idle'    && t('settings.general.copyDebug')}
+        {debugLabel === 'copying' && t('settings.general.copyDebug.collecting')}
+        {debugLabel === 'copied'  && t('settings.general.copyDebug.copied')}
+        {debugLabel === 'error'   && t('settings.general.copyDebug.error')}
       </button>
     </div>
   );
 }
 
 function SuggestionsTab() {
+  const { t } = useTranslation();
   const { numArrows, arrowColors, highlightSquares, setNumArrows, setArrowColor, setHighlightSquares } = useSettingsStore();
 
   return (
     <div className="settings-section">
       <div className="settings-item">
-        <span className="settings-label">Number of arrows</span>
+        <span className="settings-label">{t('settings.suggestions.numArrows')}</span>
         <div className="settings-num-arrows">
           {[1, 2, 3].map((n) => (
             <button
@@ -234,7 +241,7 @@ function SuggestionsTab() {
       </div>
 
       <div className="settings-item">
-        <span className="settings-label">Highlight squares</span>
+        <span className="settings-label">{t('settings.suggestions.highlightSquares')}</span>
         <Toggle checked={highlightSquares} onChange={setHighlightSquares} />
       </div>
 
@@ -242,7 +249,7 @@ function SuggestionsTab() {
         <div key={i} className="settings-item">
           <div className="settings-color-label">
             <span className="settings-color-dot" style={{ background: arrowColors[i] }} />
-            <span className="settings-label">Arrow {i + 1}</span>
+            <span className="settings-label">{t('settings.suggestions.arrow', { n: i + 1 })}</span>
           </div>
           <input
             type="color"
@@ -259,6 +266,9 @@ function SuggestionsTab() {
 export type { Tab as SettingsTab };
 
 export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab: Tab; setActiveTab: (t: Tab) => void }) {
+  const { t } = useTranslation();
+  const tabs = useTabs();
+  const planDisplay = usePlanDisplay();
   const [accountsOpen, setAccountsOpen] = useState(false);
   const { user, plan, planExpiry } = useAuthStore();
   const discord = useDiscordStore();
@@ -305,22 +315,22 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
         <div className="settings-section">
           <div className="settings-item settings-item--column">
             <div className="settings-item-row">
-              <span className="settings-label">Account</span>
+              <span className="settings-label">{t('settings.account.title')}</span>
               {user?.email_confirmed_at ? (
-                <span className="settings-verified">✓ Verified</span>
+                <span className="settings-verified">{t('settings.account.verified')}</span>
               ) : (
-                <span className="settings-unverified">Unverified</span>
+                <span className="settings-unverified">{t('settings.account.unverified')}</span>
               )}
             </div>
             <div className="settings-account-email">{user?.email || '—'}</div>
             {user?.created_at && (
               <div className="settings-account-joined">
-                Joined {new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                {t('settings.account.joined', { date: new Date(user.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) })}
               </div>
             )}
           </div>
           <div className="settings-item">
-            <span className="settings-label">Server</span>
+            <span className="settings-label">{t('settings.account.server')}</span>
             <span className="settings-value">
               <span className="settings-value--dim">{serverRegion}</span>
               {' '}
@@ -331,7 +341,7 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
           </div>
           <div className="settings-plan-card">
             <div className="settings-plan-row">
-              <span className="settings-label">Plan</span>
+              <span className="settings-label">{t('settings.account.plan')}</span>
               <span className="settings-plan-badge" style={{ background: config.bg, color: config.color }}>
                 {config.label}
               </span>
@@ -347,7 +357,7 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
             <div className="settings-discord-row">
               <div className="settings-discord-left">
                 <span className="settings-discord-icon"><DiscordIcon /></span>
-                <span className="settings-label">Discord</span>
+                <span className="settings-label">{t('settings.account.discord')}</span>
               </div>
               {discord.loading ? (
                 <span className="settings-discord-status">...</span>
@@ -355,18 +365,18 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
                 <div className="settings-discord-user">
                   {discord.avatar && <img className="settings-discord-avatar" src={discord.avatar} alt="" />}
                   <span className="settings-discord-username">{discord.username}</span>
-                  <button className="settings-discord-unlink-icon" onClick={() => user && discord.unlink(user.id)} title="Unlink">
+                  <button className="settings-discord-unlink-icon" onClick={() => user && discord.unlink(user.id)} title={t('settings.account.discord.unlink')}>
                     <span className="settings-discord-link-state"><LinkIcon /></span>
                     <span className="settings-discord-unlink-state"><UnlinkIcon /></span>
                   </button>
                 </div>
               ) : (
-                <span className="settings-discord-status">Not linked</span>
+                <span className="settings-discord-status">{t('settings.account.discord.notLinked')}</span>
               )}
             </div>
             {!discord.linked && !discord.loading && (
               <button className="settings-discord-link-btn" onClick={() => user && discord.initLink(user.id)}>
-                Link Discord account
+                {t('settings.account.discord.linkBtn')}
               </button>
             )}
           </div>
@@ -379,7 +389,7 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
                   <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
                   <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
-                <span>Chess accounts</span>
+                <span>{t('settings.account.chessAccounts')}</span>
               </div>
               <div className="settings-accounts-toggle-right">
                 <span className="settings-accounts-count">{accountsLoading ? '...' : accounts.length}</span>

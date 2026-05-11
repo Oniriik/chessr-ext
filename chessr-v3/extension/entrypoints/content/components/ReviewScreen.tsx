@@ -4,6 +4,7 @@ import { useReviewStore } from '../stores/reviewStore';
 import { useGameStore } from '../stores/gameStore';
 import GameSummaryCard from './GameSummaryCard';
 import { useGameMeta } from '../hooks/useGameMeta';
+import { useTranslation } from '../lib/i18n';
 import './review-screen.css';
 
 interface Props { gameId: string }
@@ -104,6 +105,7 @@ function PlayerAvatar({ username, size = 40, won }: { username?: string | null; 
 }
 
 export function ReviewSummary({ analysis, playerColor, headers }: { analysis: any; playerColor: string; headers?: any }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const opp = playerColor === 'white' ? 'black' : 'white';
@@ -143,7 +145,7 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
     if (rows.length) gsap.from(rows, { opacity: 0, y: 6, duration: 0.35, stagger: 0.04, delay: 0.15, ease: 'power2.out' });
   }, []);
 
-  const phases = [['Opening', 'gp0'], ['Middlegame', 'gp1'], ['Endgame', 'gp2']] as const;
+  const phases = [[t('review.phase.opening'), 'gp0'], [t('review.phase.middlegame'), 'gp1'], [t('review.phase.endgame'), 'gp2']] as const;
   const visiblePhases = phases.filter(([, k]) => pC[k] != null || oC[k] != null);
 
   return (
@@ -152,9 +154,9 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
       <div className="rv-section">
         {/* Names */}
         <div className="rv-grid">
-          <span className="rv-name">{pName || 'You'}</span>
-          <span className="rv-center-label">Players</span>
-          <span className="rv-name rv-right">{oName || 'Opponent'}</span>
+          <span className="rv-name">{pName || t('review.you')}</span>
+          <span className="rv-center-label">{t('review.players')}</span>
+          <span className="rv-name rv-right">{oName || t('review.opponent')}</span>
         </div>
 
         {/* Avatars */}
@@ -168,7 +170,7 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
         {(pElo || oElo) && (
           <div className="rv-grid">
             <div className="rv-badge">{pElo || '—'}</div>
-            <span className="rv-center-label">Game Rating</span>
+            <span className="rv-center-label">{t('review.gameRating')}</span>
             <div className="rv-badge rv-right">{oElo || '—'}</div>
           </div>
         )}
@@ -176,7 +178,7 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
         {/* Accuracy */}
         <div className="rv-grid">
           <div className="rv-acc-box" style={pWon ? { background: 'rgba(34,197,94,0.15)', color: '#4ade80' } : {}}>{fmt(pC.all)}</div>
-          <span className="rv-center-label">Accuracy</span>
+          <span className="rv-center-label">{t('review.accuracy')}</span>
           <div className="rv-acc-box" style={oWon ? { background: 'rgba(34,197,94,0.15)', color: '#4ade80' } : {}}>{fmt(oC.all)}</div>
         </div>
 
@@ -221,8 +223,8 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
       {/* ─── Move Quality Bar ─── */}
       <div className="rv-bar-section">
         <div className="rv-bar-head">
-          <span className="rv-bar-title">Move Quality</span>
-          <span className="rv-bar-count">{pTotal} moves</span>
+          <span className="rv-bar-title">{t('review.moveQuality')}</span>
+          <span className="rv-bar-count">{t('review.movesCount', { n: pTotal })}</span>
         </div>
         <div className="rv-bar">
           {ALL_CLS.map((key) => {
@@ -237,6 +239,7 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
 }
 
 export default function ReviewScreen({ gameId }: Props) {
+  const { t } = useTranslation();
   const { loading, checking, progress, analysis, headers, error, checkCache, requestReview } = useReviewStore();
   const meta = useGameMeta(gameId);
   const ref = useRef<HTMLDivElement>(null);
@@ -257,12 +260,12 @@ export default function ReviewScreen({ gameId }: Props) {
           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 9.9-1" /><line x1="12" y1="15" x2="12" y2="18" />
         </svg>
         <div>
-          <span className="rv-banner-title">Chess.com Game Review</span>
-          <span className="rv-banner-sub">Unlocked — no Diamond needed</span>
+          <span className="rv-banner-title">{t('review.banner.title')}</span>
+          <span className="rv-banner-sub">{t('review.banner.sub')}</span>
         </div>
       </div>
 
-      {checking && <div className="review-loading"><span className="review-progress-text">Loading...</span></div>}
+      {checking && <div className="review-loading"><span className="review-progress-text">{t('game.review.loadingShort')}</span></div>}
 
       {/* Card stays visible until analysis results replace it */}
       {!analysis && !checking && (
@@ -278,35 +281,35 @@ export default function ReviewScreen({ gameId }: Props) {
       {idle && (
         <button className="review-cta" onClick={() => requestReview(gameId)}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-          Analyze this game
+          {t('game.review.analyze')}
         </button>
       )}
 
       {loading && (
         <div className="review-loading">
           <div className="review-progress-track"><div className="review-progress-fill" style={{ width: `${progress}%` }} /></div>
-          <span className="review-progress-text">Analyzing... {progress}%</span>
+          <span className="review-progress-text">{t('game.review.analyzing', { progress })}</span>
         </div>
       )}
 
       {error === 'daily_limit' && (
         <button className="review-cta review-cta--upgrade" onClick={() => window.open('https://chessr.io/#pricing', '_blank')}>
-          Upgrade to Premium
-          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>Daily limit reached</span>
+          {t('game.review.upgrade')}
+          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
         </button>
       )}
 
       {error && error !== 'daily_limit' && (
         <>
-          <div className="review-error">{`Error: ${error}`}</div>
-          <button className="review-cta" onClick={() => window.open(`https://app.chessr.io/review/${gameId}`, '_blank')}>Review on Chessr</button>
+          <div className="review-error">{t('game.review.errorPrefix', { msg: error })}</div>
+          <button className="review-cta" onClick={() => window.open(`https://app.chessr.io/review/${gameId}`, '_blank')}>{t('game.review.reviewOnChessr')}</button>
         </>
       )}
 
       {analysis && (
         <>
           <ReviewSummary analysis={analysis} playerColor={detectPlayerColor(headers?.White, headers?.Black)} headers={headers} />
-          <button className="review-cta review-cta--ghost" onClick={() => window.open(`https://app.chessr.io/review/${gameId}`, '_blank')}>See full game review</button>
+          <button className="review-cta review-cta--ghost" onClick={() => window.open(`https://app.chessr.io/review/${gameId}`, '_blank')}>{t('game.review.seeFullGame')}</button>
         </>
       )}
     </div>

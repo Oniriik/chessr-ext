@@ -1,24 +1,24 @@
 import { useAuthStore } from '../stores/authStore';
+import { useTranslation } from '../lib/i18n';
 
 export default function BetaGate() {
+  const { t } = useTranslation();
   const { user, plan, signOut } = useAuthStore();
   return (
     <div className="beta-gate">
       <div className="beta-gate-icon">🔒</div>
-      <h2 className="beta-gate-title">Chessr is in beta</h2>
-      <p className="beta-gate-body">
-        Only premium members can use Chessr during the beta period.
-      </p>
+      <h2 className="beta-gate-title">{t('betaGate.title')}</h2>
+      <p className="beta-gate-body">{t('betaGate.body')}</p>
       <div className="beta-gate-user">
-        <span className="beta-gate-user-label">Signed in as</span>
+        <span className="beta-gate-user-label">{t('betaGate.signedIn')}</span>
         <span className="beta-gate-user-email">{user?.email || '—'}</span>
         <span className="beta-gate-user-plan">{plan || 'free'}</span>
       </div>
       <a className="beta-gate-cta" href="https://chessr.io/#pricing" target="_blank" rel="noopener noreferrer">
-        Upgrade to Premium
+        {t('betaGate.cta')}
       </a>
       <button className="beta-gate-signout" onClick={signOut}>
-        Sign out
+        {t('betaGate.signOut')}
       </button>
     </div>
   );

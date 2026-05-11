@@ -16,6 +16,7 @@ import { animationGate } from '../stores/animationStore';
 import Slider, { lerpColor } from './Slider';
 import { fCard, fRow, fLabel, fSelect, fAutoBtn } from './widgetPrimitives';
 import { getGameStatus, getGameOutcome } from './GameScreen';
+import { useTranslation, t as tStatic } from '../lib/i18n';
 
 /** Widget catalog entry. `engineIds` is the set of engines that this
  *  widget applies to — leaving it undefined means "engine-agnostic"
@@ -105,10 +106,10 @@ function FloatingElo() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Target ELO</span>
+        <span style={fLabel}>{tStatic('engine.targetElo')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{autoActive ? effectiveElo : engine.targetEloManual}</span>
-          <button onClick={() => engine.setTargetEloAuto(!autoActive)} style={fAutoBtn(autoActive)}>Auto</button>
+          <button onClick={() => engine.setTargetEloAuto(!autoActive)} style={fAutoBtn(autoActive)}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -150,9 +151,9 @@ function SearchSubmodule() {
           onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
           style={fSelect}
         >
-          <option value="nodes">Nodes</option>
-          <option value="depth">Depth</option>
-          <option value="movetime">Move Time</option>
+          <option value="nodes">{tStatic('engine.search.nodes')}</option>
+          <option value="depth">{tStatic('engine.search.depth')}</option>
+          <option value="movetime">{tStatic('engine.search.movetime')}</option>
         </select>
       </div>
       <div style={fRow}>
@@ -192,16 +193,16 @@ function FloatingSearch() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Max search depth</span>
+        <span style={fLabel}>{tStatic('engine.search.title')}</span>
         <select
           value={engine.searchMode}
           disabled={!premium}
           onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
           style={fSelect}
         >
-          <option value="nodes">Nodes</option>
-          <option value="depth">Depth</option>
-          <option value="movetime">Move Time</option>
+          <option value="nodes">{tStatic('engine.search.nodes')}</option>
+          <option value="depth">{tStatic('engine.search.depth')}</option>
+          <option value="movetime">{tStatic('engine.search.movetime')}</option>
         </select>
       </div>
       <div style={{ ...fRow, marginTop: 4 }}>
@@ -241,7 +242,7 @@ function ForceSubmodule() {
   return (
     <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
       <div style={fRow}>
-        <span style={{ ...fLabel, fontSize: 7 }}>Force search depth</span>
+        <span style={{ ...fLabel, fontSize: 7 }}>{tStatic('engine.force.title')}</span>
         <Toggle
           checked={!engine.limitStrength && premium}
           onChange={(v) => { if (premium) engine.setLimitStrength(!v); }}
@@ -259,7 +260,7 @@ function FloatingForce() {
   const premium = isPremium(plan);
   return (
     <div style={{ ...fCard, ...fRow }}>
-      <span style={fLabel}>Force search depth</span>
+      <span style={fLabel}>{tStatic('engine.force.title')}</span>
       <Toggle
         checked={!engine.limitStrength && premium}
         onChange={(v) => { if (premium) engine.setLimitStrength(!v); }}
@@ -275,7 +276,7 @@ function FloatingPersonality() {
   const personalities = engine.getPersonalities(plan);
   return (
     <div style={{ ...fCard, ...fRow }}>
-      <span style={fLabel}>Personality</span>
+      <span style={fLabel}>{tStatic('engine.personality')}</span>
       <select value={engine.personality} onChange={(e) => engine.setPersonality(e.target.value as Personality)} style={fSelect}>
         {personalities.map((p) => (<option key={p} value={p}>{PERSONALITY_INFO[p].label}</option>))}
       </select>
@@ -292,10 +293,10 @@ function FloatingDynamism() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Dynamism</span>
+        <span style={fLabel}>{tStatic('engine.dynamism')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 9, fontWeight: 600, color: engine.dynamismAuto ? '#71717a' : '#c084fc' }}>{info.label} ({engine.dynamismAuto ? 100 : engine.dynamism})</span>
-          <button onClick={() => premium && engine.setDynamismAuto(!engine.dynamismAuto)} style={{ ...fAutoBtn(engine.dynamismAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>Auto</button>
+          <button onClick={() => premium && engine.setDynamismAuto(!engine.dynamismAuto)} style={{ ...fAutoBtn(engine.dynamismAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -319,10 +320,10 @@ function FloatingKingSafety() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>King Safety</span>
+        <span style={fLabel}>{tStatic('engine.kingSafety')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 9, fontWeight: 600, color: engine.kingSafetyAuto ? '#71717a' : '#c084fc' }}>{info.label} ({engine.kingSafetyAuto ? 100 : engine.kingSafety})</span>
-          <button onClick={() => premium && engine.setKingSafetyAuto(!engine.kingSafetyAuto)} style={{ ...fAutoBtn(engine.kingSafetyAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>Auto</button>
+          <button onClick={() => premium && engine.setKingSafetyAuto(!engine.kingSafetyAuto)} style={{ ...fAutoBtn(engine.kingSafetyAuto), cursor: premium ? 'pointer' : 'not-allowed', opacity: premium ? 1 : 0.4 }}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -344,7 +345,7 @@ function FloatingVariety() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Variety</span>
+        <span style={fLabel}>{tStatic('engine.variety')}</span>
         <span style={{ fontSize: 10, fontWeight: 600, color: '#e4e4e7' }}>{engine.variety}</span>
       </div>
       <Slider
@@ -359,6 +360,7 @@ function FloatingVariety() {
 }
 
 function FloatingGameInfo() {
+  const { t } = useTranslation();
   const { playerColor, turn, gameOver, gameEnd, result } = useGameStore();
   const autoMode = useAutoMoveStore((s) => s.mode);
   const autoPaused = useAutoMoveStore((s) => s.autoPaused);
@@ -378,14 +380,14 @@ function FloatingGameInfo() {
     statusBg = outcome === 'win' ? 'rgba(34,197,94,0.15)' : outcome === 'draw' ? 'rgba(251,191,36,0.15)' : 'rgba(248,113,113,0.15)';
   } else if (isAuto) {
     statusText = autoPaused
-      ? 'Paused'
+      ? t('game.auto.paused')
       : isMyTurn
-        ? (autoCountdownMs != null ? `Playing in ${formatCountdown(autoCountdownMs)}` : 'Playing…')
-        : "Opponent's turn";
+        ? (autoCountdownMs != null ? t('game.auto.playingIn', { time: formatCountdown(autoCountdownMs) }) : t('game.auto.playing'))
+        : t('game.turn.opponent');
     statusColor = '#c084fc';
     statusBg = 'rgba(168,85,247,0.15)';
   } else {
-    statusText = isMyTurn ? 'Your turn' : "Opponent's turn";
+    statusText = isMyTurn ? t('game.turn.your') : t('game.turn.opponent');
     statusColor = isMyTurn ? '#3b82f6' : '#71717a';
     statusBg = isMyTurn ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.04)';
   }
@@ -394,7 +396,7 @@ function FloatingGameInfo() {
     <div style={{ ...fCard, ...fRow }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ width: 14, height: 14, borderRadius: 4, background: playerColor === 'white' ? '#fff' : '#27272a', border: '1px solid rgba(255,255,255,0.1)' }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: '#e4e4e7' }}>{playerColor === 'white' ? 'White' : 'Black'}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#e4e4e7' }}>{playerColor === 'white' ? t('game.card.white') : t('game.card.black')}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 999, background: statusBg }}>
@@ -405,7 +407,7 @@ function FloatingGameInfo() {
           <button
             type="button"
             onClick={() => setAutoPaused(!autoPaused)}
-            title={autoPaused ? 'Resume auto-play' : 'Pause auto-play'}
+            title={autoPaused ? t('game.auto.resume') : t('game.auto.pause')}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 20, height: 20, padding: 0,
@@ -506,10 +508,10 @@ function FloatingMaiaTargetElo() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Target ELO</span>
+        <span style={fLabel}>{tStatic('engine.targetElo')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-          <button onClick={() => engine.setMaiaTargetEloAuto(!auto)} style={fAutoBtn(auto)}>Auto</button>
+          <button onClick={() => engine.setMaiaTargetEloAuto(!auto)} style={fAutoBtn(auto)}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -525,7 +527,7 @@ function FloatingMaiaTargetElo() {
       />
       {auto && (
         <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
-          Opponent {engine.getMaiaEffectiveOppoElo()} + {engine.autoEloBoost} boost
+          {tStatic('engine.opponentBoost', { elo: engine.getMaiaEffectiveOppoElo(), boost: engine.autoEloBoost })}
         </span>
       )}
     </div>
@@ -540,10 +542,10 @@ function FloatingMaiaOppoElo() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Opponent ELO</span>
+        <span style={fLabel}>{tStatic('engine.maia.opponentElo')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-          <button onClick={() => engine.setMaiaOppoEloAuto(!auto)} style={fAutoBtn(auto)}>Auto</button>
+          <button onClick={() => engine.setMaiaOppoEloAuto(!auto)} style={fAutoBtn(auto)}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -559,7 +561,7 @@ function FloatingMaiaOppoElo() {
       />
       {auto && (
         <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
-          {detected ? `Detected (${engine.opponentElo})` : 'No opponent detected'}
+          {detected ? tStatic('engine.maia.detectedShort', { elo: engine.opponentElo }) : tStatic('engine.maia.noOpponent')}
         </span>
       )}
     </div>
@@ -573,7 +575,7 @@ function FloatingMaiaVariant() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Variant</span>
+        <span style={fLabel}>{tStatic('engine.maia.variant')}</span>
         <select
           value={variant}
           onChange={(e) => setVariant(e.target.value as MaiaVariant)}
@@ -597,10 +599,10 @@ function FloatingMaia3TargetElo() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Target ELO</span>
+        <span style={fLabel}>{tStatic('engine.targetElo')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-          <button onClick={() => engine.setMaiaTargetEloAuto(!auto)} style={fAutoBtn(auto)}>Auto</button>
+          <button onClick={() => engine.setMaiaTargetEloAuto(!auto)} style={fAutoBtn(auto)}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -616,7 +618,7 @@ function FloatingMaia3TargetElo() {
       />
       {auto && (
         <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
-          Opponent {engine.getMaiaEffectiveOppoElo()} + {engine.autoEloBoost} boost
+          {tStatic('engine.opponentBoost', { elo: engine.getMaiaEffectiveOppoElo(), boost: engine.autoEloBoost })}
         </span>
       )}
     </div>
@@ -631,10 +633,10 @@ function FloatingMaia3OppoElo() {
   return (
     <div style={fCard}>
       <div style={fRow}>
-        <span style={fLabel}>Opponent ELO</span>
+        <span style={fLabel}>{tStatic('engine.maia.opponentElo')}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-          <button onClick={() => engine.setMaiaOppoEloAuto(!auto)} style={fAutoBtn(auto)}>Auto</button>
+          <button onClick={() => engine.setMaiaOppoEloAuto(!auto)} style={fAutoBtn(auto)}>{tStatic('common.auto')}</button>
         </div>
       </div>
       <Slider
@@ -650,7 +652,7 @@ function FloatingMaia3OppoElo() {
       />
       {auto && (
         <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
-          {detected ? `Detected (${engine.opponentElo})` : 'No opponent detected'}
+          {detected ? tStatic('engine.maia.detectedShort', { elo: engine.opponentElo }) : tStatic('engine.maia.noOpponent')}
         </span>
       )}
     </div>

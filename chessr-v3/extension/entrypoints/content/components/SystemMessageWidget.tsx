@@ -3,6 +3,7 @@ import { useWidgetStore, type SystemMessage } from '../stores/widgetStore';
 import { useDiscordStore } from '../stores/discordStore';
 import { useAuthStore } from '../stores/authStore';
 import { markDismissed } from '../lib/howtos';
+import { useTranslation } from '../lib/i18n';
 
 /**
  * Bottom-left floating widget showing one system message at a time.
@@ -15,11 +16,20 @@ import { markDismissed } from '../lib/howtos';
 const DISCORD_INVITE_URL = 'https://discord.gg/72j4dUadTu';
 
 export function SystemMessageWidget() {
+  const { t } = useTranslation();
   const current = useWidgetStore((s) => s.current);
   const next = useWidgetStore((s) => s.next);
   const remove = useWidgetStore((s) => s.remove);
   const initLink = useDiscordStore((s) => s.initLink);
   const user = useAuthStore((s) => s.user);
+
+  const ACCENT: Record<SystemMessage['category'], { label: string; bar: string; text: string; cta: string }> = {
+    info:    { label: t('sys.label.info'),    bar: '#60a5fa', text: '#93c5fd', cta: '#3b82f6' },
+    discord: { label: t('sys.label.discord'), bar: '#5865F2', text: '#a3acff', cta: '#5865F2' },
+    trial:   { label: t('sys.label.trial'),   bar: '#f59e0b', text: '#fcd34d', cta: '#f59e0b' },
+    admin:   { label: t('sys.label.admin'),   bar: '#a855f7', text: '#d8b4fe', cta: '#a855f7' },
+    howto:   { label: t('sys.label.howto'),   bar: '#10b981', text: '#6ee7b7', cta: '#10b981' },
+  };
 
   // Drive the slide-in/out: render the latest message even after it's
   // been removed for one frame so the slide-out animation can play.
@@ -109,7 +119,7 @@ export function SystemMessageWidget() {
           <button
             className="chessr-sysmsg-close"
             onClick={() => dismiss(mounted.id, mounted.category)}
-            aria-label="Dismiss"
+            aria-label={t('sys.dismiss')}
             type="button"
           >
             <CloseIcon />
@@ -140,10 +150,3 @@ function CloseIcon() {
   );
 }
 
-const ACCENT: Record<SystemMessage['category'], { label: string; bar: string; text: string; cta: string }> = {
-  info:    { label: 'INFO',     bar: '#60a5fa', text: '#93c5fd', cta: '#3b82f6' },
-  discord: { label: 'DISCORD',  bar: '#5865F2', text: '#a3acff', cta: '#5865F2' },
-  trial:   { label: 'FREE TRIAL', bar: '#f59e0b', text: '#fcd34d', cta: '#f59e0b' },
-  admin:   { label: 'ANNOUNCEMENT', bar: '#a855f7', text: '#d8b4fe', cta: '#a855f7' },
-  howto:   { label: 'TIP',      bar: '#10b981', text: '#6ee7b7', cta: '#10b981' },
-};

@@ -24,16 +24,20 @@ import GameSummaryCard from './GameSummaryCard';
 import { useGameMeta } from '../hooks/useGameMeta';
 import { useReviewStore } from '../stores/reviewStore';
 import { ReviewSummary } from './ReviewScreen';
+import { useTranslation, t as tStatic } from '../lib/i18n';
 import './review-screen.css';
 import './game-screen.css';
 
 type GameTab = 'game' | 'engine' | 'automove';
 
-const GAME_TABS: { id: GameTab; label: string }[] = [
-  { id: 'game', label: 'Game' },
-  { id: 'engine', label: 'Engine' },
-  { id: 'automove', label: 'Auto Move' },
-];
+function useGameTabs(): { id: GameTab; label: string }[] {
+  const { t } = useTranslation();
+  return [
+    { id: 'game',     label: t('game.tab.game') },
+    { id: 'engine',   label: t('game.tab.engine') },
+    { id: 'automove', label: t('game.tab.automove') },
+  ];
+}
 
 export type { GameTab };
 
@@ -82,22 +86,23 @@ export function getGameStatus(
   if (gameEnd) {
     if (gameEnd.checkmate) {
       const loserColor = turn;
-      return loserColor === playerColor ? 'Checkmate — You lost' : 'Checkmate — You won!';
+      return loserColor === playerColor ? tStatic('game.status.checkmateLost') : tStatic('game.status.checkmateWon');
     }
-    if (gameEnd.stalemate) return 'Stalemate';
-    if (gameEnd.threefold) return 'Draw — Threefold';
-    if (gameEnd.insufficient) return 'Draw — Insufficient';
-    if (gameEnd.fiftyMoveRule) return 'Draw — 50 moves';
-    if (gameEnd.draw) return 'Draw';
+    if (gameEnd.stalemate) return tStatic('game.status.stalemate');
+    if (gameEnd.threefold) return tStatic('game.status.drawThreefold');
+    if (gameEnd.insufficient) return tStatic('game.status.drawInsufficient');
+    if (gameEnd.fiftyMoveRule) return tStatic('game.status.drawFifty');
+    if (gameEnd.draw) return tStatic('game.status.draw');
   }
   // Server-side endings (resign, timeout, abandon) — use PGN result
-  if (result === '1/2-1/2') return 'Draw';
-  if (result === '1-0') return playerColor === 'white' ? 'You won!' : 'You lost';
-  if (result === '0-1') return playerColor === 'black' ? 'You won!' : 'You lost';
-  return 'Game over';
+  if (result === '1/2-1/2') return tStatic('game.status.draw');
+  if (result === '1-0') return playerColor === 'white' ? tStatic('game.status.youWon') : tStatic('game.status.youLost');
+  if (result === '0-1') return playerColor === 'black' ? tStatic('game.status.youWon') : tStatic('game.status.youLost');
+  return tStatic('game.status.gameOver');
 }
 
 function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: string | null }) {
+  const { t } = useTranslation();
   const meta = useGameMeta(gameId);
   const { loading, progress, analysis, headers, error, checkCache, requestReview } = useReviewStore();
 
@@ -120,26 +125,26 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
       {idle && (
         <button className="game-review-btn" onClick={() => requestReview(gameId)}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-          Analyze this game
+          {t('game.review.analyze')}
         </button>
       )}
 
       {loading && (
         <div className="review-loading">
           <div className="review-progress-track"><div className="review-progress-fill" style={{ width: `${progress}%` }} /></div>
-          <span className="review-progress-text">Analyzing... {progress}%</span>
+          <span className="review-progress-text">{t('game.review.analyzing', { progress })}</span>
         </div>
       )}
 
       {error === 'daily_limit' && (
         <button className="game-review-btn game-review-btn--upgrade" onClick={() => window.open('https://chessr.io/#pricing', '_blank')}>
-          Upgrade to Premium
-          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>Daily limit reached</span>
+          {t('game.review.upgrade')}
+          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
         </button>
       )}
 
       {error && error !== 'daily_limit' && (
-        <div className="review-error">{`Error: ${error}`}</div>
+        <div className="review-error">{t('game.review.errorPrefix', { msg: error })}</div>
       )}
 
       {analysis && (
@@ -155,7 +160,7 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
               <polyline points="15 3 21 3 21 9" />
               <line x1="10" y1="14" x2="21" y2="3" />
             </svg>
-            See full review
+            {t('game.review.seeFull')}
           </button>
         </>
       )}
@@ -164,6 +169,8 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
 }
 
 export default function GameScreen({ activeTab, setActiveTab }: { activeTab: GameTab; setActiveTab: (t: GameTab) => void }) {
+  const { t } = useTranslation();
+  const GAME_TABS = useGameTabs();
   const { isPlaying, playerColor, turn, fen, gameOver, gameEnd, result } = useGameStore();
   const { suggestions, loading } = useSuggestionStore();
   const activeEngineId = useEngineStore((s) => s.engineId);
@@ -262,11 +269,11 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
             <div className={`game-piece ${!isPlaying ? 'game-piece--idle' : playerColor === 'white' ? 'game-piece--white' : 'game-piece--black'} ${isMyTurn ? 'game-piece--active' : ''}`} />
             <div className="game-card-info">
               {!isPlaying ? (
-                <span className="game-card-waiting">Waiting for game</span>
+                <span className="game-card-waiting">{t('game.card.waiting')}</span>
               ) : (
                 <>
-                  <span className="game-card-label">You play</span>
-                  <span className="game-card-color">{playerColor === 'white' ? 'White' : 'Black'}</span>
+                  <span className="game-card-label">{t('game.card.youPlay')}</span>
+                  <span className="game-card-color">{playerColor === 'white' ? t('game.card.white') : t('game.card.black')}</span>
                 </>
               )}
             </div>
@@ -274,7 +281,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
               type="button"
               className="game-rescan-btn"
               onClick={() => window.dispatchEvent(new Event('chessr:rescan'))}
-              title={isPlaying ? 'Rescan state (re-detect turn, color, refresh suggestions)' : 'Try detecting a game'}
+              title={isPlaying ? t('game.card.rescan') : t('game.card.tryDetect')}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="23 4 23 10 17 10" />
@@ -289,16 +296,16 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                 <span className="game-turn-dot" />
                 <span>
                   {autoPaused
-                    ? 'Paused'
+                    ? t('game.auto.paused')
                     : isMyTurn
-                      ? (autoCountdownMs != null ? `Playing in ${formatCountdown(autoCountdownMs)}` : 'Playing…')
-                      : "Opponent's turn"}
+                      ? (autoCountdownMs != null ? t('game.auto.playingIn', { time: formatCountdown(autoCountdownMs) }) : t('game.auto.playing'))
+                      : t('game.turn.opponent')}
                 </span>
               </div>
             ) : (
               <div className={`game-turn-pill ${gameOver ? `game-turn-pill--over game-turn-pill--${getGameOutcome(gameEnd, result, playerColor, turn)}` : isMyTurn ? 'game-turn-pill--you' : ''}`}>
                 <span className="game-turn-dot" />
-                <span>{gameOver ? getGameStatus(gameEnd, result, playerColor, turn) : isMyTurn ? 'Your turn' : "Opponent's turn"}</span>
+                <span>{gameOver ? getGameStatus(gameEnd, result, playerColor, turn) : isMyTurn ? t('game.turn.your') : t('game.turn.opponent')}</span>
               </div>
             )}
             {isPlaying && autoMoveMode === 'auto' && !gameOver && (
@@ -306,7 +313,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                 type="button"
                 className={`game-auto-btn ${autoPaused ? 'game-auto-btn--paused' : ''}`}
                 onClick={() => setAutoPaused(!autoPaused)}
-                title={autoPaused ? 'Resume auto-play' : 'Pause auto-play'}
+                title={autoPaused ? t('game.auto.resume') : t('game.auto.pause')}
               >
                 {autoPaused ? (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
@@ -342,25 +349,25 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                       <div className="game-suggestions">
                         <div className="game-suggestions-header">
                           <div className="game-suggestions-label-group">
-                            <span className="game-suggestions-label">Suggestions</span>
-                            <span className="game-suggestions-engine" title="Active engine — change in Settings → Engine">{ENGINE_INFO[activeEngineId]?.label ?? activeEngineId}</span>
+                            <span className="game-suggestions-label">{t('game.suggestions.title')}</span>
+                            <span className="game-suggestions-engine" title={t('game.suggestions.engineHint')}>{ENGINE_INFO[activeEngineId]?.label ?? activeEngineId}</span>
                             {isPlaying && suggestions.length > 0 && suggestions[0]?.depth != null && suggestions[0].depth > 0 && (
-                              <span className="game-suggestions-depth" title="Search depth reached">depth {suggestions[0].depth}</span>
+                              <span className="game-suggestions-depth" title={t('game.suggestions.depthReached')}>{t('game.suggestions.depth', { n: suggestions[0].depth })}</span>
                             )}
                           </div>
                           {isPlaying && (
                             <div className="game-suggestions-legend">
-                              <span>Pos</span>
-                              <span>Win</span>
+                              <span>{t('game.suggestions.legendPos')}</span>
+                              <span>{t('game.suggestions.legendWin')}</span>
                             </div>
                           )}
                         </div>
                         {!isPlaying ? (
                           <div className="game-waiting">
                             <div className="game-waiting-pulse" />
-                            <p className="game-waiting-text">Waiting for game…</p>
+                            <p className="game-waiting-text">{t('game.waiting.title')}</p>
                             <p className="game-waiting-hint">
-                              Start a game and Chessr will activate automatically.
+                              {t('game.waiting.hint')}
                             </p>
                           </div>
                         ) : suggestions.length > 0 ? (
@@ -403,6 +410,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
 }
 
 function EloSection() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
@@ -420,12 +428,12 @@ function EloSection() {
   return (
     <div className="engine-section">
       <div className="engine-section-header">
-        <span className="engine-section-label">Target ELO</span>
-        <button className={`engine-auto-btn ${engine.targetEloAuto ? 'engine-auto-btn--active' : ''}`} onClick={() => engine.setTargetEloAuto(!engine.targetEloAuto)}>Auto</button>
+        <span className="engine-section-label">{t('engine.targetElo')}</span>
+        <button className={`engine-auto-btn ${engine.targetEloAuto ? 'engine-auto-btn--active' : ''}`} onClick={() => engine.setTargetEloAuto(!engine.targetEloAuto)}>{t('common.auto')}</button>
       </div>
       <div className="engine-elo-display"><span className="engine-elo-value">{effectiveElo}</span></div>
       {engine.targetEloAuto && (
-        <span className="engine-desc">{engine.opponentElo > 0 ? `Opponent ${engine.opponentElo} + ${engine.autoEloBoost} boost` : `No opponent detected, using ${engine.userElo} + ${engine.autoEloBoost} boost`}</span>
+        <span className="engine-desc">{engine.opponentElo > 0 ? t('engine.opponentBoost', { elo: engine.opponentElo, boost: engine.autoEloBoost }) : t('engine.noOpponent', { elo: engine.userElo, boost: engine.autoEloBoost })}</span>
       )}
       {!engine.targetEloAuto && (
         <Slider
@@ -443,18 +451,18 @@ function EloSection() {
         />
       )}
       {!premium && (
-        <span className="engine-desc" style={{ color: '#fbbf24' }}>Upgrade to premium to unlock ELO up to 3500 and full engine tuning</span>
+        <span className="engine-desc" style={{ color: '#fbbf24' }}>{t('engine.upgradeUnlock')}</span>
       )}
 
       <div className="engine-subsection">
         <div className="engine-section-header">
           <div className="engine-section-label-group">
-            <span className="engine-section-label" style={{ fontSize: 9 }}>Max search depth</span>
+            <span className="engine-section-label" style={{ fontSize: 9 }}>{t('engine.search.title')}</span>
             {editMode && (
               <button
                 type="button"
                 className={`engine-sub-pin ${searchPinned ? 'engine-sub-pin--active' : ''}`}
-                title={searchPinned ? 'Unpin from page' : 'Pin to page'}
+                title={searchPinned ? t('engine.unpinPage') : t('engine.pinPage')}
                 onClick={() => togglePin('search')}
               >
                 📌
@@ -467,9 +475,9 @@ function EloSection() {
             onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
             className="engine-select"
           >
-            <option value="nodes">Nodes</option>
-            <option value="depth">Depth</option>
-            <option value="movetime">Move Time</option>
+            <option value="nodes">{t('engine.search.nodes')}</option>
+            <option value="depth">{t('engine.search.depth')}</option>
+            <option value="movetime">{t('engine.search.movetime')}</option>
           </select>
         </div>
         <div className="engine-section-header">
@@ -503,12 +511,12 @@ function EloSection() {
       <div className="engine-force-row">
         <div className="engine-force-text">
           <div className="engine-section-label-group">
-            <span className="engine-force-label">Force search depth</span>
+            <span className="engine-force-label">{t('engine.force.title')}</span>
             {editMode && (
               <button
                 type="button"
                 className={`engine-sub-pin ${forcePinned ? 'engine-sub-pin--active' : ''}`}
-                title={forcePinned ? 'Unpin from page' : 'Pin to page'}
+                title={forcePinned ? t('engine.unpinPage') : t('engine.pinPage')}
                 onClick={() => togglePin('force')}
               >
                 📌
@@ -516,9 +524,7 @@ function EloSection() {
             )}
           </div>
           <span className="engine-force-desc">
-            {premium
-              ? 'Bypass engine self-limiting; unlocks up to 3500 ELO.'
-              : 'Premium — bypass engine self-limiting and tune search budget.'}
+            {premium ? t('engine.force.descPremium') : t('engine.force.descFree')}
           </span>
         </div>
         <Toggle
@@ -532,6 +538,7 @@ function EloSection() {
 }
 
 function PersonalitySection() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const personalities = engine.getPersonalities(plan);
@@ -542,8 +549,8 @@ function PersonalitySection() {
     <div className="engine-section">
       <div className="engine-section-header">
         <div className="engine-section-label-group">
-          <span className="engine-section-label">Personality</span>
-          <span className="engine-info-icon" aria-label="All personalities">
+          <span className="engine-section-label">{t('engine.personality')}</span>
+          <span className="engine-info-icon" aria-label={t('engine.personality.allTitle')}>
             i
             <div className="engine-info-tooltip" role="tooltip">
               {allPersonalities.map((p) => (
@@ -561,13 +568,14 @@ function PersonalitySection() {
       </div>
       <span className="engine-desc">{PERSONALITY_INFO[engine.personality].desc}</span>
       {!premium && (
-        <span className="engine-desc" style={{ color: '#fbbf24' }}>Upgrade to premium to unlock more personalities</span>
+        <span className="engine-desc" style={{ color: '#fbbf24' }}>{t('engine.personality.upgrade')}</span>
       )}
     </div>
   );
 }
 
 function DynamismSection() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   // Dynamism uses the REAL premium check (bypasses the beta override)
@@ -579,8 +587,8 @@ function DynamismSection() {
   return (
     <div className="engine-section">
       <div className="engine-section-header">
-        <span className="engine-section-label">Dynamism</span>
-        <button className={`engine-auto-btn ${engine.dynamismAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setDynamismAuto(!engine.dynamismAuto)}>Auto</button>
+        <span className="engine-section-label">{t('engine.dynamism')}</span>
+        <button className={`engine-auto-btn ${engine.dynamismAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setDynamismAuto(!engine.dynamismAuto)}>{t('common.auto')}</button>
       </div>
       <Slider
         min={0} max={200} step={5}
@@ -592,13 +600,14 @@ function DynamismSection() {
       />
       <div className="engine-desc-row">
         <span className="engine-desc-label">{info.label} ({engine.dynamismAuto ? 100 : engine.dynamism})</span>
-        <span className="engine-desc">{!premium ? 'Unlock with premium' : engine.dynamismAuto ? 'Engine uses its default dynamism' : info.desc}</span>
+        <span className="engine-desc">{!premium ? t('engine.unlockPremium') : engine.dynamismAuto ? t('engine.dynamism.default') : info.desc}</span>
       </div>
     </div>
   );
 }
 
 function KingSafetySection() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   // Real premium check — see DynamismSection above.
@@ -609,8 +618,8 @@ function KingSafetySection() {
   return (
     <div className="engine-section">
       <div className="engine-section-header">
-        <span className="engine-section-label">King Safety</span>
-        <button className={`engine-auto-btn ${engine.kingSafetyAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setKingSafetyAuto(!engine.kingSafetyAuto)}>Auto</button>
+        <span className="engine-section-label">{t('engine.kingSafety')}</span>
+        <button className={`engine-auto-btn ${engine.kingSafetyAuto ? 'engine-auto-btn--active' : ''} ${!premium ? 'engine-auto-btn--locked' : ''}`} onClick={() => premium && engine.setKingSafetyAuto(!engine.kingSafetyAuto)}>{t('common.auto')}</button>
       </div>
       <Slider
         min={0} max={200} step={5}
@@ -622,13 +631,14 @@ function KingSafetySection() {
       />
       <div className="engine-desc-row">
         <span className="engine-desc-label">{info.label} ({engine.kingSafetyAuto ? 100 : engine.kingSafety})</span>
-        <span className="engine-desc">{!premium ? 'Unlock with premium' : engine.kingSafetyAuto ? 'Engine uses its default king safety' : info.desc}</span>
+        <span className="engine-desc">{!premium ? t('engine.unlockPremium') : engine.kingSafetyAuto ? t('engine.kingSafety.default') : info.desc}</span>
       </div>
     </div>
   );
 }
 
 function VarietySection() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
@@ -636,11 +646,11 @@ function VarietySection() {
   return (
     <div className="engine-section">
       <div className="engine-section-header">
-        <span className="engine-section-label">Variety</span>
+        <span className="engine-section-label">{t('engine.variety')}</span>
         <span className="engine-hint">{engine.variety}</span>
       </div>
       <Slider min={0} max={10} step={1} value={engine.variety} onChange={engine.setVariety} disabled={!premium} trackColor="linear-gradient(90deg, #3b82f6, #f59e0b)" thumbColor="#3b82f6" thumbColorEnd="#f59e0b" />
-      <span className="engine-desc">{engine.variety === 0 ? 'Engine always plays the strongest move' : premium ? 'Higher values make moves less predictable' : 'Unlock with premium'}</span>
+      <span className="engine-desc">{engine.variety === 0 ? t('engine.variety.strongest') : premium ? t('engine.variety.higher') : t('engine.unlockPremium')}</span>
     </div>
   );
 }
@@ -703,6 +713,7 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
 }
 
 function Maia2Panel() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
   const variants = Object.keys(MAIA_VARIANT_INFO) as MaiaVariant[];
 
@@ -717,7 +728,7 @@ function Maia2Panel() {
       <EditableComponent id="maia-variant">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Variant</span>
+            <span className="engine-section-label">{t('engine.maia.variant')}</span>
             <select
               className="engine-select"
               value={engine.maiaVariant}
@@ -735,16 +746,16 @@ function Maia2Panel() {
       <EditableComponent id="maia-target-elo">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Target ELO</span>
+            <span className="engine-section-label">{t('engine.targetElo')}</span>
             <button
               className={`engine-auto-btn ${engine.maiaTargetEloAuto ? 'engine-auto-btn--active' : ''}`}
               onClick={() => engine.setMaiaTargetEloAuto(!engine.maiaTargetEloAuto)}
-            >Auto</button>
+            >{t('common.auto')}</button>
           </div>
           <div className="engine-elo-display"><span className="engine-elo-value">{effectiveTarget}</span></div>
           {engine.maiaTargetEloAuto ? (
             <span className="engine-desc">
-              Opponent {effectiveOppo} + {engine.autoEloBoost} boost
+              {t('engine.opponentBoost', { elo: effectiveOppo, boost: engine.autoEloBoost })}
             </span>
           ) : (
             <Slider
@@ -762,16 +773,16 @@ function Maia2Panel() {
       <EditableComponent id="maia-oppo-elo">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Opponent ELO</span>
+            <span className="engine-section-label">{t('engine.maia.opponentElo')}</span>
             <button
               className={`engine-auto-btn ${engine.maiaOppoEloAuto ? 'engine-auto-btn--active' : ''}`}
               onClick={() => engine.setMaiaOppoEloAuto(!engine.maiaOppoEloAuto)}
-            >Auto</button>
+            >{t('common.auto')}</button>
           </div>
           <div className="engine-elo-display"><span className="engine-elo-value">{effectiveOppo}</span></div>
           {engine.maiaOppoEloAuto ? (
             <span className="engine-desc">
-              {oppoDetected ? `Detected from game (${engine.opponentElo})` : `No opponent detected, defaulting to ${engine.maiaOppoEloManual}`}
+              {oppoDetected ? t('engine.maia.detected', { elo: engine.opponentElo }) : t('engine.maia.fallback', { elo: engine.maiaOppoEloManual })}
             </span>
           ) : (
             <Slider
@@ -790,11 +801,9 @@ function Maia2Panel() {
         <div className="engine-warning-head">
           <span className="engine-warning-icon" aria-hidden>!</span>
           <div className="engine-warning-body">
-            <span className="engine-warning-title">Heads up — opening play is unreliable</span>
+            <span className="engine-warning-title">{t('engine.maia.warningTitle')}</span>
             <span className="engine-warning-text">
-              Maia 2 was trained with the first 5 moves of each side discarded
-              (10 plies, to skip memorised theory), so its early-opening
-              suggestions can be unusual — knight wanderings in particular.
+              {t('engine.maia.warningBody')}
             </span>
           </div>
         </div>
@@ -803,10 +812,10 @@ function Maia2Panel() {
           <span className="engine-warning-fix-arrow" aria-hidden>↳</span>
           <div className="engine-warning-fix-text">
             <span className="engine-warning-fix-title">
-              Fix <span className="engine-warning-fix-pill">opening book</span>
+              {t('engine.maia.fixBook')} <span className="engine-warning-fix-pill">{t('engine.maia.fixBookPill')}</span>
             </span>
             <span className="engine-warning-fix-desc">
-              Used for the first 5 moves / 10 plies.
+              {t('engine.maia.fixBookDesc')}
             </span>
           </div>
           <Toggle
@@ -817,13 +826,14 @@ function Maia2Panel() {
       </div>
 
       <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
-        Strength comes from the ELO setting — Maia plays in one forward pass, no depth tuning.
+        {t('engine.maia.strengthNote')}
       </span>
     </div>
   );
 }
 
 function Maia3Panel() {
+  const { t } = useTranslation();
   const engine = useEngineStore();
 
   const effectiveOppo = engine.getMaiaEffectiveOppoElo();
@@ -834,22 +844,22 @@ function Maia3Panel() {
     <div className="engine-panel">
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span className="engine-name-chip">{ENGINE_INFO.maia3.label}</span>
-        <span className="settings-engine-beta-badge">BETA</span>
+        <span className="settings-engine-beta-badge">{t('engine.betaBadge')}</span>
       </div>
 
       <EditableComponent id="maia3-target-elo">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Target ELO</span>
+            <span className="engine-section-label">{t('engine.targetElo')}</span>
             <button
               className={`engine-auto-btn ${engine.maiaTargetEloAuto ? 'engine-auto-btn--active' : ''}`}
               onClick={() => engine.setMaiaTargetEloAuto(!engine.maiaTargetEloAuto)}
-            >Auto</button>
+            >{t('common.auto')}</button>
           </div>
           <div className="engine-elo-display"><span className="engine-elo-value">{effectiveTarget}</span></div>
           {engine.maiaTargetEloAuto ? (
             <span className="engine-desc">
-              Opponent {effectiveOppo} + {engine.autoEloBoost} boost
+              {t('engine.opponentBoost', { elo: effectiveOppo, boost: engine.autoEloBoost })}
             </span>
           ) : (
             <Slider
@@ -867,16 +877,16 @@ function Maia3Panel() {
       <EditableComponent id="maia3-oppo-elo">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Opponent ELO</span>
+            <span className="engine-section-label">{t('engine.maia.opponentElo')}</span>
             <button
               className={`engine-auto-btn ${engine.maiaOppoEloAuto ? 'engine-auto-btn--active' : ''}`}
               onClick={() => engine.setMaiaOppoEloAuto(!engine.maiaOppoEloAuto)}
-            >Auto</button>
+            >{t('common.auto')}</button>
           </div>
           <div className="engine-elo-display"><span className="engine-elo-value">{effectiveOppo}</span></div>
           {engine.maiaOppoEloAuto ? (
             <span className="engine-desc">
-              {oppoDetected ? `Detected from game (${engine.opponentElo})` : `No opponent detected, defaulting to ${engine.maiaOppoEloManual}`}
+              {oppoDetected ? t('engine.maia.detected', { elo: engine.opponentElo }) : t('engine.maia.fallback', { elo: engine.maiaOppoEloManual })}
             </span>
           ) : (
             <Slider
@@ -892,7 +902,7 @@ function Maia3Panel() {
       </EditableComponent>
 
       <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
-        Strength comes from the ELO setting — Maia plays in one forward pass, no depth tuning.
+        {t('engine.maia.strengthNote')}
       </span>
     </div>
   );

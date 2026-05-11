@@ -14,26 +14,30 @@ import { useGameStore } from '../stores/gameStore';
 import type { MoveClassification } from '../lib/moveAnalysis';
 import { useSettingsStore } from '../stores/settingsStore';
 import { animationGate } from '../stores/animationStore';
+import { useTranslation, t as tStatic } from '../lib/i18n';
 import './performance-card.css';
 
-const CLASSIFICATION_CONFIG: {
+function useClassificationConfig(): {
   key: MoveClassification;
   label: string;
   full: string;
   color: string;
-}[] = [
-  { key: 'best',       label: 'Best',  full: 'Best',       color: '#81B64C' },
-  { key: 'brilliant',  label: 'Brill', full: 'Brilliant',  color: '#26C2A3' },
-  { key: 'great',      label: 'Great', full: 'Great',      color: '#749BBF' },
-  { key: 'excellent',  label: 'Exce',  full: 'Excellent',  color: '#6ee7b7' },
-  { key: 'good',       label: 'Good',  full: 'Good',       color: '#95B776' },
-  { key: 'book',       label: 'Book',  full: 'Book',       color: '#D5A47D' },
-  { key: 'forced',     label: 'Frcd',  full: 'Forced',     color: '#96AF8B' },
-  { key: 'inaccuracy', label: 'Inacc', full: 'Inaccuracy', color: '#F7C631' },
-  { key: 'mistake',    label: 'Mist',  full: 'Mistake',    color: '#FFA459' },
-  { key: 'miss',       label: 'Miss',  full: 'Miss',       color: '#FF7769' },
-  { key: 'blunder',    label: 'Blund', full: 'Blunder',    color: '#FA412D' },
-];
+}[] {
+  const { t } = useTranslation();
+  return [
+    { key: 'best',       label: 'Best',  full: t('perf.cls.best'),       color: '#81B64C' },
+    { key: 'brilliant',  label: 'Brill', full: t('perf.cls.brilliant'),  color: '#26C2A3' },
+    { key: 'great',      label: 'Great', full: t('perf.cls.great'),      color: '#749BBF' },
+    { key: 'excellent',  label: 'Exce',  full: t('perf.cls.excellent'),  color: '#6ee7b7' },
+    { key: 'good',       label: 'Good',  full: t('perf.cls.good'),       color: '#95B776' },
+    { key: 'book',       label: 'Book',  full: t('perf.cls.book'),       color: '#D5A47D' },
+    { key: 'forced',     label: 'Frcd',  full: t('perf.cls.forced'),     color: '#96AF8B' },
+    { key: 'inaccuracy', label: 'Inacc', full: t('perf.cls.inaccuracy'), color: '#F7C631' },
+    { key: 'mistake',    label: 'Mist',  full: t('perf.cls.mistake'),    color: '#FFA459' },
+    { key: 'miss',       label: 'Miss',  full: t('perf.cls.miss'),       color: '#FF7769' },
+    { key: 'blunder',    label: 'Blund', full: t('perf.cls.blunder'),    color: '#FA412D' },
+  ];
+}
 
 function getAccuracyColor(accuracy: number): string {
   if (accuracy >= 90) return '#22c55e';
@@ -57,9 +61,9 @@ function getAccuracyRing(accuracy: number): string {
 }
 
 function trendLabel(trend: AccuracyTrend): string {
-  if (trend === 'up') return 'improving';
-  if (trend === 'down') return 'declining';
-  return 'stable';
+  if (trend === 'up') return tStatic('perf.trend.up');
+  if (trend === 'down') return tStatic('perf.trend.down');
+  return tStatic('perf.trend.stable');
 }
 
 function trendColor(trend: AccuracyTrend): string {
@@ -75,6 +79,8 @@ function trendRotation(trend: AccuracyTrend): number {
 }
 
 export default function PerformanceCard() {
+  const { t } = useTranslation();
+  const CLASSIFICATION_CONFIG = useClassificationConfig();
   const accuracy = useAccuracy();
   const trend = useAccuracyTrend();
   const isAnalyzing = useIsAnalyzing();
@@ -197,9 +203,9 @@ export default function PerformanceCard() {
   return (
     <div className="perf-card">
       <div className="perf-header">
-        <span className="perf-header-label">Performance</span>
+        <span className="perf-header-label">{t('perf.title')}</span>
         <span className={`perf-header-moves ${idle ? 'perf-header-moves--idle' : ''}`}>
-          {idle ? 'Ready' : `${moveCount} moves`}
+          {idle ? t('perf.ready') : t('perf.movesCount', { n: moveCount })}
         </span>
       </div>
 
@@ -241,8 +247,8 @@ export default function PerformanceCard() {
             )}
           </div>
           {torchModeActive && !idle && (
-            <div className="perf-accuracy-elo" title="Effective Elo (torch)">
-              <span className="perf-accuracy-elo-label">Elo</span>
+            <div className="perf-accuracy-elo" title={t('perf.elo.title')}>
+              <span className="perf-accuracy-elo-label">{t('perf.elo.label')}</span>
               <span className="perf-accuracy-elo-value">{playerElo}</span>
             </div>
           )}

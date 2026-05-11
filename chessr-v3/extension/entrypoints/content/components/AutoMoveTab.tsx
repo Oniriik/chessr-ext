@@ -7,6 +7,7 @@ import { usePlatformStore, platformSupportsPremove } from '../stores/platformSto
 import Slider from './Slider';
 import RangeSlider from './RangeSlider';
 import Toggle from './Toggle';
+import { useTranslation, t as tStatic } from '../lib/i18n';
 import './auto-move-tab.css';
 
 import { isPremium } from '../lib/premium';
@@ -16,15 +17,18 @@ function platformLabel(p: ReturnType<typeof usePlatformStore.getState>['platform
     case 'lichess':    return 'Lichess';
     case 'worldchess': return 'World Chess';
     case 'chesscom':   return 'Chess.com';
-    default:           return 'this platform';
+    default:           return tStatic('auto.platform.thisPlatform');
   }
 }
 
-const MODE_META: Record<AutoMoveMode, { name: string; desc: string; cls: string; bg: string; border: string }> = {
-  off:    { name: 'Off',    desc: 'Manual play',          cls: 'off',  bg: 'rgba(255, 255, 255, 0.03)', border: 'rgba(228, 228, 231, 0.6)' },
-  hotkey: { name: 'Hotkey', desc: 'You press a key',      cls: 'hot',  bg: 'rgba(59, 130, 246, 0.15)',  border: 'rgba(96, 165, 250, 0.6)' },
-  auto:   { name: 'Auto',   desc: 'Engine plays for you', cls: 'auto', bg: 'rgba(168, 85, 247, 0.15)',  border: 'rgba(192, 132, 252, 0.6)' },
-};
+function useModeMeta(): Record<AutoMoveMode, { name: string; desc: string; cls: string; bg: string; border: string }> {
+  const { t } = useTranslation();
+  return {
+    off:    { name: t('auto.mode.off'),    desc: t('auto.mode.off.desc'),    cls: 'off',  bg: 'rgba(255, 255, 255, 0.03)', border: 'rgba(228, 228, 231, 0.6)' },
+    hotkey: { name: t('auto.mode.hotkey'), desc: t('auto.mode.hotkey.desc'), cls: 'hot',  bg: 'rgba(59, 130, 246, 0.15)',  border: 'rgba(96, 165, 250, 0.6)' },
+    auto:   { name: t('auto.mode.auto'),   desc: t('auto.mode.auto.desc'),   cls: 'auto', bg: 'rgba(168, 85, 247, 0.15)',  border: 'rgba(192, 132, 252, 0.6)' },
+  };
+}
 
 const SLOT_COLORS = ['#22c55e', '#3b82f6', '#f59e0b'];
 
@@ -81,6 +85,8 @@ export function displayKeyCompact(key: string): string {
 }
 
 export default function AutoMoveTab() {
+  const { t } = useTranslation();
+  const MODE_META = useModeMeta();
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
@@ -96,7 +102,9 @@ export default function AutoMoveTab() {
     const activeBtn = bar.querySelector<HTMLButtonElement>(`[data-mode="${s.mode}"]`);
     if (!activeBtn) return;
     const { offsetLeft, offsetTop, offsetWidth, offsetHeight } = activeBtn;
-    const { bg, border } = MODE_META[s.mode];
+    const meta = MODE_META[s.mode];
+    const bg = meta.bg;
+    const border = meta.border;
     const disable = useSettingsStore.getState().disableAnimations;
 
     if (firstModeRender.current || disable) {
@@ -140,7 +148,7 @@ export default function AutoMoveTab() {
                 type="button"
                 data-mode={m}
                 disabled={locked}
-                title={locked ? 'Premium — upgrade to unlock' : undefined}
+                title={locked ? t('auto.mode.locked') : undefined}
                 className={`am-mode-btn ${meta.cls} ${active ? 'active' : ''} ${locked ? 'am-mode-btn--locked' : ''}`}
                 onClick={() => { if (!locked) s.setMode(m); }}
               >
@@ -170,7 +178,7 @@ export default function AutoMoveTab() {
         )}
 
         {s.mode === 'off' && (
-          <div className="am-off-hint">Select a mode to configure assist.</div>
+          <div className="am-off-hint">{t('auto.offHint')}</div>
         )}
       </div>
     </div>
@@ -180,6 +188,7 @@ export default function AutoMoveTab() {
 // ─── Hotkeys ───
 
 function HotkeysCard() {
+  const { t } = useTranslation();
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
@@ -190,11 +199,11 @@ function HotkeysCard() {
   return (
     <div className="am-card am-card--tight">
       <div className="am-card-top">
-        <span className="am-card-title">Hotkey</span>
+        <span className="am-card-title">{t('auto.hotkey.title')}</span>
       </div>
-      <span className="am-card-hint">Click a key to configure</span>
+      <span className="am-card-hint">{t('auto.hotkey.clickKey')}</span>
       <div className="am-card-head">
-        <span className="am-card-sublabel">Move</span>
+        <span className="am-card-sublabel">{t('auto.hotkey.move')}</span>
         <div className="am-hotkey-slots">
           {[1, 2, 3].map((slot) => (
             <div key={slot} className="am-hotkey-slot">
@@ -208,7 +217,7 @@ function HotkeysCard() {
         </div>
       </div>
       <div className={`am-card-head ${premoveLocked ? 'am-card-head--disabled' : ''}`}>
-        <span className="am-card-sublabel">Premove</span>
+        <span className="am-card-sublabel">{t('auto.hotkey.premove')}</span>
         <KeyInput
           value={s.premoveKey}
           onChange={s.setPremoveKey}
@@ -218,16 +227,16 @@ function HotkeysCard() {
       </div>
       {premoveLocked && (
         <div className="am-platform-warn">
-          Premoves are not supported on {platformLabel(platform)} — only Chess.com is enabled for now.
+          {t('auto.hotkey.notSupported', { platform: platformLabel(platform) })}
         </div>
       )}
       <div className="am-card-example">
-        <span className="am-card-example-title">Example · Move 1</span>
+        <span className="am-card-example-title">{t('auto.hotkey.exampleTitle')}</span>
         <div className="am-card-example-row">
           <div className="am-card-example-combo">
             <span className="am-kbd">{s.hotkey1}</span>
           </div>
-          <span className="am-card-example-text">play the move</span>
+          <span className="am-card-example-text">{t('auto.hotkey.playMove')}</span>
         </div>
         {!premoveLocked && (
           <div className="am-card-example-row">
@@ -237,7 +246,7 @@ function HotkeysCard() {
               <span className="am-kbd">{s.hotkey1}</span>
             </div>
             <span className="am-card-example-text">
-              play + queue premove <em>(if available)</em>
+              {t('auto.hotkey.playPremove')} <em>{t('auto.hotkey.ifAvailable')}</em>
             </span>
           </div>
         )}
@@ -245,10 +254,9 @@ function HotkeysCard() {
 
       <div className="am-row">
         <div className="am-row-label-col">
-          <span className="am-row-label-text">Use on-screen buttons</span>
+          <span className="am-row-label-text">{t('auto.onScreenButtons')}</span>
           <span className="am-row-desc">
-            Show floating buttons on the page. Click to play the move
-            {premoveOk ? ', long-press to play + queue a premove.' : '.'}
+            {premoveOk ? t('auto.onScreenButtons.desc') : t('auto.onScreenButtons.descNoPremove')}
           </span>
         </div>
         <Toggle
@@ -259,7 +267,7 @@ function HotkeysCard() {
       </div>
 
       {!premium && (
-        <div className="am-upgrade-note">Upgrade to premium to unlock full hotkey tuning</div>
+        <div className="am-upgrade-note">{t('auto.upgrade.hotkey')}</div>
       )}
     </div>
   );
@@ -268,6 +276,7 @@ function HotkeysCard() {
 // ─── Premove delay ───
 
 function PremoveCard() {
+  const { t } = useTranslation();
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
@@ -277,16 +286,16 @@ function PremoveCard() {
   return (
     <div className={`am-card ${!premoveOk ? 'am-card--locked' : ''}`}>
       <div className="am-card-head">
-        <span className="am-card-title">Premove</span>
+        <span className="am-card-title">{t('auto.premoveCard.title')}</span>
         <span className="am-slider-val">{fmtMsRange(s.premoveDelay)}</span>
       </div>
-      <span className="am-card-sub">Time before queuing the premove</span>
+      <span className="am-card-sub">{t('auto.premoveCard.timeBefore')}</span>
       <div className="am-slider-row">
         <RangeSlider value={s.premoveDelay} onChange={s.setPremoveDelay} min={0} max={60000} step={50} color="#3b82f6" disabled={disabled} />
       </div>
       {!premoveOk && (
         <div className="am-platform-warn">
-          Not supported on {platformLabel(platform)} — premove is only available on Chess.com.
+          {t('auto.premoveCard.notSupported', { platform: platformLabel(platform) })}
         </div>
       )}
     </div>
@@ -300,6 +309,7 @@ function isBotUrl(path: string): boolean {
 }
 
 function AutoPlayCard() {
+  const { t } = useTranslation();
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
@@ -314,11 +324,11 @@ function AutoPlayCard() {
   return (
     <div className="am-card">
       <div className="am-card-head">
-        <span className="am-card-title">Auto Play</span>
+        <span className="am-card-title">{t('auto.autoPlay.title')}</span>
       </div>
       <div className="am-slider-row">
         <div className="am-slider-head">
-          <span className="am-slider-label">Play delay</span>
+          <span className="am-slider-label">{t('auto.autoPlay.delay')}</span>
           <span className="am-slider-val">{fmtMsRange(s.autoPlayDelay)}</span>
         </div>
         {/* Play delay stays customizable on free — it's the one auto-mode
@@ -328,7 +338,7 @@ function AutoPlayCard() {
         <RangeSlider value={s.autoPlayDelay} onChange={s.setAutoPlayDelay} min={0} max={60000} step={50} color="#a855f7" />
       </div>
       <div className="am-card-head">
-        <span className="am-card-sublabel">Play / Pause</span>
+        <span className="am-card-sublabel">{t('auto.autoPlay.playPauseKey')}</span>
         <KeyInput
           value={s.autoPlayPauseKey}
           onChange={s.setAutoPlayPauseKey}
@@ -336,10 +346,10 @@ function AutoPlayCard() {
       </div>
       <div className="am-row">
         <div className="am-row-label-col">
-          <span className="am-row-desc">Auto-rematch when the game ends</span>
+          <span className="am-row-desc">{t('auto.autoPlay.rematch')}</span>
           {isBotGame && (
             <span className="am-row-desc" style={{ color: '#fbbf24', fontSize: 9 }}>
-              This is not available on bot games
+              {t('auto.autoPlay.botNotAvailable')}
             </span>
           )}
         </div>
@@ -350,7 +360,7 @@ function AutoPlayCard() {
         />
       </div>
       {!premium && (
-        <div className="am-upgrade-note">Upgrade to premium to unlock full auto-play tuning</div>
+        <div className="am-upgrade-note">{t('auto.upgrade.auto')}</div>
       )}
     </div>
   );
@@ -359,6 +369,7 @@ function AutoPlayCard() {
 // ─── Move selection ───
 
 function MoveSelectionCard() {
+  const { t } = useTranslation();
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
@@ -370,9 +381,9 @@ function MoveSelectionCard() {
   return (
     <div className="am-card">
       <div className="am-card-head">
-        <span className="am-card-title">Move selection</span>
+        <span className="am-card-title">{t('auto.moveSelection.title')}</span>
       </div>
-      <div className="am-card-sub">How often the engine picks move #1 vs alternatives</div>
+      <div className="am-card-sub">{t('auto.moveSelection.desc')}</div>
 
       {/* Presets on top */}
       <div className="am-presets">
@@ -384,7 +395,7 @@ function MoveSelectionCard() {
             className={`am-preset ${s.movePreset === p ? 'active' : ''} ${!premium ? 'am-preset--disabled' : ''}`}
             onClick={() => presetClick(p)}
           >
-            {p === 'mostly-best' ? 'Mostly best' : p === 'balanced' ? 'Balanced' : p === 'equal' ? 'Equal' : 'Manual'}
+            {p === 'mostly-best' ? t('auto.preset.mostlyBest') : p === 'balanced' ? t('auto.preset.balanced') : p === 'equal' ? t('auto.preset.equal') : t('auto.preset.manual')}
           </button>
         ))}
       </div>
@@ -401,7 +412,7 @@ function MoveSelectionCard() {
         <div key={i} className="am-weight-row">
           <div className="am-row-label">
             <span className="am-dot" style={{ background: SLOT_COLORS[i] }} />
-            <span>Move {i + 1}</span>
+            <span>{t('auto.moveSelection.moveN', { n: i + 1 })}</span>
           </div>
           <div className="am-weight-slider">
             <Slider
@@ -419,8 +430,8 @@ function MoveSelectionCard() {
 
       <div className="am-row">
         <div className="am-row-label-col">
-          <span className="am-row-label-text">Prioritize checks & mates</span>
-          <span className="am-row-desc">Always play a forcing move when available; sample between moves if multiple.</span>
+          <span className="am-row-label-text">{t('auto.moveSelection.prioritize')}</span>
+          <span className="am-row-desc">{t('auto.moveSelection.prioritizeDesc')}</span>
         </div>
         <Toggle
           checked={premium ? s.prioritizeForcing : true}
@@ -435,6 +446,7 @@ function MoveSelectionCard() {
 // ─── Humanize (shared) ───
 
 function HumanizeCard() {
+  const { t } = useTranslation();
   const s = useAutoMoveStore();
   const plan = useAuthStore((st) => st.plan);
   const premium = isPremium(plan);
@@ -449,10 +461,10 @@ function HumanizeCard() {
   return (
     <div className="am-card" style={accentStyle}>
       <div className="am-card-head">
-        <span className="am-card-title">Humanize</span>
+        <span className="am-card-title">{t('auto.humanize.title')}</span>
         <span className="am-slider-val">≈ {fmtMs(Math.round(total))}</span>
       </div>
-      <div className="am-card-sub">Randomized delays around each move</div>
+      <div className="am-card-sub">{t('auto.humanize.desc')}</div>
       <div className="am-presets">
         {(['fast', 'balanced', 'slow', 'manual'] as const).map((p) => (
           <button
@@ -462,13 +474,13 @@ function HumanizeCard() {
             className={`am-preset ${cfg.preset === p ? 'active' : ''} ${locked ? 'am-preset--disabled' : ''}`}
             onClick={() => { if (!locked) s.setHumanizePreset(target, p); }}
           >
-            {p === 'fast' ? 'Fast' : p === 'balanced' ? 'Balanced' : p === 'slow' ? 'Slow' : 'Manual'}
+            {p === 'fast' ? t('auto.humanize.fast') : p === 'balanced' ? t('auto.preset.balanced') : p === 'slow' ? t('auto.humanize.slow') : t('auto.preset.manual')}
           </button>
         ))}
       </div>
-      <DelayRange label="Pick"   value={cfg.pickDelay}   onChange={(v) => s.setPickDelay(target, v)}   min={0} max={500} color="#22c55e" disabled={locked} />
-      <DelayRange label="Select" value={cfg.selectDelay} onChange={(v) => s.setSelectDelay(target, v)} min={0} max={300} color="#3b82f6" disabled={locked} />
-      <DelayRange label="Move"   value={cfg.moveDelay}   onChange={(v) => s.setMoveDelay(target, v)}   min={0} max={500} color="#a855f7" disabled={locked} />
+      <DelayRange label={t('auto.humanize.pick')}   value={cfg.pickDelay}   onChange={(v) => s.setPickDelay(target, v)}   min={0} max={500} color="#22c55e" disabled={locked} />
+      <DelayRange label={t('auto.humanize.select')} value={cfg.selectDelay} onChange={(v) => s.setSelectDelay(target, v)} min={0} max={300} color="#3b82f6" disabled={locked} />
+      <DelayRange label={t('auto.humanize.move')}   value={cfg.moveDelay}   onChange={(v) => s.setMoveDelay(target, v)}   min={0} max={500} color="#a855f7" disabled={locked} />
     </div>
   );
 }
@@ -534,7 +546,7 @@ function KeyInput({ value, onChange, modifierOnly, disabled }: { value: string; 
       onClick={() => { if (!disabled) setCapturing(true); }}
       onBlur={() => setCapturing(false)}
     >
-      {capturing ? 'Press…' : display}
+      {capturing ? tStatic('auto.key.press') : display}
     </button>
   );
 }
