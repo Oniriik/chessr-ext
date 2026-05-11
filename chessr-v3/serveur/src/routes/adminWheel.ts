@@ -90,6 +90,153 @@ adminWheelRoutes.post('/admin/wheel/token/record', async (c) => {
   return c.json({ recorded: rows.length > 0, tokenId: rows[0]?.id ?? null });
 });
 
+// ─── Token drops (admin-triggered "first to claim wins" event) ───────────
+//
+// Lifecycle:
+//   1. Admin clicks "Drop token" in the dashboard → POST /admin/wheel/drop
+//      The serveur inserts a wheel_drops row (status='open'), publishes
+//      `wheel_drop_requested`, and returns the dropId + variant.
+//   2. The bot subscribes to the event, posts the embed + button in the
+//      configured channel, and calls /admin/wheel/drop/:id/posted with
+//      the resulting message_id so the row is fully linked.
+//   3. When a user clicks the button, the bot calls
+//      /admin/wheel/drop/:id/claim. The atomic UPDATE …
+//      WHERE status='open' RETURNING decides the winner — exactly one
+//      caller can flip the row from 'open' to 'caught'.
+//   4. The winner gets a wheel_tokens row minted with
+//      source='admin_grant' and external_ref='drop:<id>' (unique index
+//      on (owner, source, external_ref) double-guards against retries).
+//      wheel_token_earned is emitted as usual.
+
+// ─── POST /admin/wheel/drop ──────────────────────────────────────────────
+
+adminWheelRoutes.post('/admin/wheel/drop', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  let body: { channelId?: string; variant?: number };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const channelId = (body.channelId ?? '').trim();
+  if (!channelId) return c.json({ error: 'channelId required' }, 400);
+
+  // 0..4. Caller can pin a specific variant for QA; otherwise random.
+  const variant = Number.isFinite(body.variant) && body.variant! >= 0 && body.variant! <= 4
+    ? Math.floor(body.variant!)
+    : Math.floor(Math.random() * 5);
+
+  const rows = await dbQuery<{ id: number }>(
+    `INSERT INTO wheel_drops (channel_id, variant)
+     VALUES ($1, $2)
+     RETURNING id`,
+    [channelId, variant],
+  );
+  const dropId = rows[0].id;
+
+  await emitEvent({
+    type: 'wheel_drop_requested',
+    payload: { dropId, channelId, variant },
+  });
+
+  return c.json({ dropId, variant, channelId });
+});
+
+// ─── POST /admin/wheel/drop/:id/posted ───────────────────────────────────
+
+adminWheelRoutes.post('/admin/wheel/drop/:id/posted', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  let body: { messageId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const messageId = (body.messageId ?? '').trim();
+  if (!messageId) return c.json({ error: 'messageId required' }, 400);
+
+  // First-write-wins — once a message_id is set we ignore subsequent
+  // updates (bot retried while we already had a successful post).
+  const updated = await dbQuery<{ id: number }>(
+    `UPDATE wheel_drops
+        SET message_id = $1, posted_at = now()
+      WHERE id = $2 AND message_id IS NULL
+      RETURNING id`,
+    [messageId, id],
+  );
+  return c.json({ updated: updated.length > 0 });
+});
+
+// ─── POST /admin/wheel/drop/:id/claim ────────────────────────────────────
+// The race-safety pivot: only ONE caller can satisfy
+// `WHERE status='open'` in the UPDATE below — PostgreSQL serialises the
+// row-level write. The losing caller's UPDATE matches zero rows and
+// `won` falls to false.
+
+adminWheelRoutes.post('/admin/wheel/drop/:id/claim', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  let body: { discordId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const discordId = (body.discordId ?? '').trim();
+  if (!discordId) return c.json({ error: 'discordId required' }, 400);
+
+  // Atomic flip. Returns the dropped_at so we can compute the duration
+  // in the same round-trip without a separate SELECT.
+  const won = await dbQuery<{ dropped_at: string }>(
+    `UPDATE wheel_drops
+        SET status = 'caught',
+            claimed_by_discord_id = $1,
+            claimed_at = now()
+      WHERE id = $2 AND status = 'open'
+      RETURNING dropped_at`,
+    [discordId, id],
+  );
+
+  if (won.length === 0) {
+    // Someone beat us. Surface who + when so the bot can show a
+    // helpful "@x caught it 0.3s before you" ephemeral message.
+    const existing = await dbQuery<{
+      claimed_by_discord_id: string | null;
+      claimed_at: string | null;
+      dropped_at: string;
+    }>(
+      `SELECT claimed_by_discord_id, claimed_at, dropped_at
+         FROM wheel_drops WHERE id = $1`,
+      [id],
+    );
+    return c.json({
+      caught: false,
+      claimedBy: existing[0]?.claimed_by_discord_id ?? null,
+      claimedAt: existing[0]?.claimed_at ?? null,
+      droppedAt: existing[0]?.dropped_at ?? null,
+    });
+  }
+
+  // Won. Mint a wheel_token with a unique external_ref so retries are
+  // no-ops (the (owner, source, external_ref) unique index does the
+  // dedup). Link back from wheel_drops.token_id for the audit trail.
+  const externalRef = `drop:${id}`;
+  const tokens = await dbQuery<{ id: number }>(
+    `INSERT INTO wheel_tokens (owner_discord_id, source, external_ref)
+     VALUES ($1, 'admin_grant', $2)
+     ON CONFLICT (owner_discord_id, source, external_ref)
+       WHERE external_ref IS NOT NULL
+     DO NOTHING
+     RETURNING id`,
+    [discordId, externalRef],
+  );
+  const tokenId = tokens[0]?.id ?? null;
+  if (tokenId !== null) {
+    await dbQuery(`UPDATE wheel_drops SET token_id = $1 WHERE id = $2`, [tokenId, id]);
+    await emitEvent({
+      type: 'wheel_token_earned',
+      payload: { tokenId, source: 'admin_grant', externalRef, discordId },
+    });
+  }
+
+  const durationMs = Date.now() - new Date(won[0].dropped_at).getTime();
+  return c.json({ caught: true, tokenId, durationMs });
+});
+
 // ─── GET /admin/wheel/inventory?discordId=… ──────────────────────────────
 
 adminWheelRoutes.get('/admin/wheel/inventory', async (c) => {

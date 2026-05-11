@@ -156,6 +156,13 @@ export const EVENT_KINDS = [
   // skip it. The bot posts a notification in #users so we can follow
   // up with the user.
   'chess_account_banned',
+  // payload: { dropId, channelId, variant }
+  // Admin-triggered wheel-token drop. The bot posts an @everyone embed
+  // with a "Catch the token" button in `channelId`. First click wins
+  // (race-safety enforced server-side via UPDATE … WHERE status='open'
+  // RETURNING). `variant` picks one of 5 cosmetic message templates
+  // baked into the bot.
+  'wheel_drop_requested',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

@@ -1,9 +1,10 @@
 'use client';
 
 import { Fragment, useEffect, useState } from 'react';
-import { AlertCircle, ArrowRight, Crown, Gift, Loader2, Sparkles, Ticket } from 'lucide-react';
+import { AlertCircle, ArrowRight, Crown, Gift, Loader2, Sparkles, Ticket, Zap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { authQS, DiscordTag, timeAgo, useDiscordUsernames } from './wheel-shared';
+import { TokenDropButton } from './TokenDropButton';
 
 interface Stats {
   tokensTotal: number;
@@ -131,6 +132,9 @@ export function Overview() {
 
   return (
     <div className="space-y-4">
+      {/* ─── Admin action: drop a token in the wheel channel ────────── */}
+      <TokenDropButton />
+
       {/* ─── KPI cards ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KPI icon={Ticket}    label="Tokens minted"   value={stats.tokensTotal}    sub={`${stats.tokensUnspun} unspun`} />
