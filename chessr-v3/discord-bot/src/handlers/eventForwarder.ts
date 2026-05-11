@@ -413,15 +413,56 @@ async function onGiveawayTicketEarned(client: Client, e: IncomingEvent) {
 async function onSignupBlocked(client: Client, e: IncomingEvent) {
   const email = String(e.payload.email ?? '?');
   const reason = String(e.payload.reason ?? 'unknown');
+  const matchedBy = e.payload.matchedBy as string | undefined;
   const country = e.payload.country as string | undefined;
   const ip = e.payload.ip as string | undefined;
+  const matchedAccounts = (e.payload.matchedAccounts as Array<{
+    email: string | null;
+    plan: string;
+    banned: boolean;
+  }> | undefined) ?? [];
+
   const embed = new EmbedBuilder()
     .setColor(COLOR.danger)
     .setTitle('🚫 Signup blocked')
     .setDescription(`**${email}** — reason: **${reason}**`)
     .setTimestamp(new Date());
+
+  // Match type: 'fingerprint' = high confidence (same device/browser),
+  // 'ip' = low confidence (could be carrier-grade NAT / shared IP),
+  // 'both' = strongest signal. Channel is admin-only so showing the
+  // matched emails is fine.
+  if (matchedBy) {
+    const matchLabel =
+      matchedBy === 'both' ? '🎯 fingerprint + IP' :
+      matchedBy === 'fingerprint' ? '🎯 fingerprint' :
+      matchedBy === 'ip' ? '📡 IP' :
+      matchedBy;
+    embed.addFields({ name: 'Matched by', value: matchLabel, inline: true });
+  }
+
   if (country) embed.addFields({ name: 'Country', value: country, inline: true });
   if (ip)      embed.addFields({ name: 'IP',      value: `\`${ip}\``, inline: true });
+
+  if (matchedAccounts.length > 0) {
+    // Compact list: one line per matched account, emails first (most
+    // useful for triage), plan + banned flag as little chips.
+    const list = matchedAccounts.slice(0, 5).map((m) => {
+      const e = m.email ? `\`${m.email}\`` : '_(no email)_';
+      const tags = [m.plan && m.plan !== 'free' ? m.plan : null, m.banned ? 'banned' : null]
+        .filter(Boolean).join(' · ');
+      return tags ? `${e} — ${tags}` : e;
+    }).join('\n');
+    const overflow = matchedAccounts.length > 5
+      ? `\n…and ${matchedAccounts.length - 5} more`
+      : '';
+    embed.addFields({
+      name: `Matched ${matchedAccounts.length === 1 ? 'account' : `accounts (${matchedAccounts.length})`}`,
+      value: list + overflow,
+      inline: false,
+    });
+  }
+
   await sendEmbed(client, config.discord.mod.security, embed);
 }
 

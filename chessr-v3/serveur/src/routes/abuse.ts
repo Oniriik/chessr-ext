@@ -141,31 +141,53 @@ abuseRoutes.post('/check-signup', async (c) => {
   // No need for the auth.admin.listUsers email→id lookup the chessr-
   // next code did: a signup-flow email shouldn't exist yet, and
   // supabase.auth.signUp will reject duplicates later if it does.
+  // Only block on matches younger than this window. Older matches are
+  // typically false positives — carrier-grade NAT pools recycle IPs
+  // (very common in India, Indonesia, Brazil, mobile networks), and a
+  // fingerprint from an inactive account is almost always a coincidence
+  // by the time it ages out. 10 days is the same window the v2 abuse
+  // logic used; tune via MATCH_WINDOW_DAYS env if needed.
+  const MATCH_WINDOW_DAYS = Number(process.env.MATCH_WINDOW_DAYS) || 10;
+  const windowStart = new Date(Date.now() - MATCH_WINDOW_DAYS * 86400_000).toISOString();
+
   let matchedUserIds: string[] = [];
   let reason = '';
+  let fpMatch = false;
+  let ipMatch = false;
   if (fingerprint) {
     const { data: rows, error } = await supabase
       .from('user_fingerprints')
       .select('user_id')
-      .eq('fingerprint', fingerprint);
+      .eq('fingerprint', fingerprint)
+      .gte('created_at', windowStart);
     if (error) console.warn('[abuse.check-signup] user_fingerprints select:', error);
     if (rows && rows.length > 0) {
       matchedUserIds = rows.map((r) => r.user_id as string);
       reason = 'fingerprint';
+      fpMatch = true;
     }
   }
   if (clientIp) {
     const { data: rows, error } = await supabase
       .from('signup_ips')
       .select('user_id')
-      .eq('ip_address', clientIp);
+      .eq('ip_address', clientIp)
+      .gte('created_at', windowStart);
     if (error) console.warn('[abuse.check-signup] signup_ips select:', error);
     if (rows && rows.length > 0) {
       matchedUserIds = [...matchedUserIds, ...rows.map((r) => r.user_id as string)];
       if (!reason) reason = 'ip';
+      ipMatch = true;
     }
   }
-  console.log(`[abuse.check-signup] fp=${fingerprint?.slice(0,8) ?? 'none'} ip=${clientIp ?? 'none'} matched=${matchedUserIds.length}`);
+  // What actually triggered the match — moderators need to know if it
+  // was the deterministic fingerprint hit (= same device/browser) or
+  // an IP collision (very common with carrier-grade NAT / shared
+  // households / VPNs). 'both' = highest confidence; 'ip'-only = the
+  // false-positive candidate.
+  const matchedBy: 'fingerprint' | 'ip' | 'both' | null =
+    fpMatch && ipMatch ? 'both' : fpMatch ? 'fingerprint' : ipMatch ? 'ip' : null;
+  console.log(`[abuse.check-signup] fp=${fingerprint?.slice(0,8) ?? 'none'} ip=${clientIp ?? 'none'} matched=${matchedUserIds.length} by=${matchedBy ?? '-'}`);
 
   // Step 2 — if any match, resolve their accounts and block. A banned
   // hit gets the dedicated appeal screen; any other match gets a
@@ -190,6 +212,15 @@ abuseRoutes.post('/check-signup', async (c) => {
           countryCode,
           fingerprint,
           reason: 'banned',
+          matchedBy,
+          // Strip out unused fields so the embed doesn't carry the
+          // whole MatchedAccount shape — emails + plan + banned flag
+          // is all the mod-channel needs.
+          matchedAccounts: matched.map((m) => ({
+            email:    m.email ?? null,
+            plan:     m.plan,
+            banned:   m.banned,
+          })),
           linkedAccountIds: [...new Set(matchedUserIds)],
         },
       });
@@ -210,6 +241,12 @@ abuseRoutes.post('/check-signup', async (c) => {
         countryCode,
         fingerprint,
         reason: 'duplicate',
+        matchedBy,
+        matchedAccounts: matched.map((m) => ({
+          email:    m.email ?? null,
+          plan:     m.plan,
+          banned:   m.banned,
+        })),
         linkedAccountIds: [...new Set(matchedUserIds)],
       },
     });
