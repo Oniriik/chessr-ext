@@ -148,6 +148,14 @@ export const EVENT_KINDS = [
   // of waiting up to 30 min for the next guild-sync sweep. The 30-min
   // sweep stays as belt-and-suspenders.
   'elo_bracket_changed',
+  // payload: { platform, platform_username, discordId? }
+  // Emitted exactly once per linked_account when the elo-refresh cron
+  // sees a 404 from the platform's stats endpoint — chess.com returns
+  // 404 for closed accounts (TOS bans, voluntary deletes, username
+  // changes). The row is flagged `banned = true` so subsequent ticks
+  // skip it. The bot posts a notification in #users so we can follow
+  // up with the user.
+  'chess_account_banned',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

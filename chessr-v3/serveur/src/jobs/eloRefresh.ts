@@ -18,6 +18,18 @@
  * guild-sync sweep. We pre-fetch all linked_accounts + discord_ids for
  * users in the batch so the cross-platform max is accurate.
  *
+ * Banned detection: chess.com returns 404 for closed accounts (TOS
+ * bans, voluntary deletes, username changes). The row is flagged
+ * `banned = true` so subsequent ticks skip it, and we emit
+ * `chess_account_banned` exactly once per row so the bot can ping
+ * #users. Without this flag the cron used to monopolise every batch
+ * re-fetching the same dead rows because `ratings_updated_at` only
+ * bumped on success.
+ *
+ * Every fetch outcome (success / 404 / other error / network throw)
+ * bumps `ratings_updated_at` so the row rotates to the back of the
+ * queue and the cron always makes forward progress.
+ *
  * Ported from chessr-next/cron/update-ratings.ts; same boundaries
  * (BATCH_SIZE=25, RATE_LIMIT_MS=500, STALE_MINUTES=15) so we don't
  * trip the public APIs.
@@ -41,6 +53,11 @@ interface PlatformRatings {
   rapid: number | null;
 }
 
+interface FetchResult {
+  status: number;            // 0 on network error, otherwise the HTTP status
+  ratings: PlatformRatings | null;
+}
+
 interface AccountRow {
   id: string;
   user_id: string;
@@ -58,53 +75,64 @@ function bracketFloor(elo: number): number {
   return floor;
 }
 
-function highestOf(ratings: PlatformRatings | null): number {
-  if (!ratings) return 0;
-  return Math.max(ratings.bullet ?? 0, ratings.blitz ?? 0, ratings.rapid ?? 0);
-}
-
-async function fetchChesscomRatings(username: string): Promise<PlatformRatings | null> {
-  const res = await fetch(
-    `https://api.chess.com/pub/player/${username}/stats`,
-    { headers: { 'User-Agent': 'Chessr.io Rating Updater' } },
-  );
-  if (!res.ok) {
-    console.warn(`[elo-refresh] chesscom fetch ${res.status} for "${username}"`);
-    return null;
-  }
-  const data = (await res.json()) as {
-    chess_bullet?: { last?: { rating?: number } };
-    chess_blitz?: { last?: { rating?: number } };
-    chess_rapid?: { last?: { rating?: number } };
-  };
-  return {
-    bullet: data.chess_bullet?.last?.rating ?? null,
-    blitz:  data.chess_blitz?.last?.rating  ?? null,
-    rapid:  data.chess_rapid?.last?.rating  ?? null,
-  };
-}
-
-async function fetchLichessRatings(username: string): Promise<PlatformRatings | null> {
-  const res = await fetch(
-    `https://lichess.org/api/user/${username}`,
-    { headers: { Accept: 'application/json' } },
-  );
-  if (!res.ok) {
-    console.warn(`[elo-refresh] lichess fetch ${res.status} for "${username}"`);
-    return null;
-  }
-  const data = (await res.json()) as {
-    perfs?: {
-      bullet?: { rating?: number };
-      blitz?: { rating?: number };
-      rapid?: { rating?: number };
+async function fetchChesscomRatings(username: string): Promise<FetchResult> {
+  try {
+    const res = await fetch(
+      `https://api.chess.com/pub/player/${username}/stats`,
+      { headers: { 'User-Agent': 'Chessr.io Rating Updater' } },
+    );
+    if (!res.ok) {
+      console.warn(`[elo-refresh] chesscom fetch ${res.status} for "${username}"`);
+      return { status: res.status, ratings: null };
+    }
+    const data = (await res.json()) as {
+      chess_bullet?: { last?: { rating?: number } };
+      chess_blitz?: { last?: { rating?: number } };
+      chess_rapid?: { last?: { rating?: number } };
     };
-  };
-  return {
-    bullet: data.perfs?.bullet?.rating ?? null,
-    blitz:  data.perfs?.blitz?.rating  ?? null,
-    rapid:  data.perfs?.rapid?.rating  ?? null,
-  };
+    return {
+      status: 200,
+      ratings: {
+        bullet: data.chess_bullet?.last?.rating ?? null,
+        blitz:  data.chess_blitz?.last?.rating  ?? null,
+        rapid:  data.chess_rapid?.last?.rating  ?? null,
+      },
+    };
+  } catch (err) {
+    console.warn(`[elo-refresh] chesscom network error for "${username}":`, err instanceof Error ? err.message : err);
+    return { status: 0, ratings: null };
+  }
+}
+
+async function fetchLichessRatings(username: string): Promise<FetchResult> {
+  try {
+    const res = await fetch(
+      `https://lichess.org/api/user/${username}`,
+      { headers: { Accept: 'application/json' } },
+    );
+    if (!res.ok) {
+      console.warn(`[elo-refresh] lichess fetch ${res.status} for "${username}"`);
+      return { status: res.status, ratings: null };
+    }
+    const data = (await res.json()) as {
+      perfs?: {
+        bullet?: { rating?: number };
+        blitz?: { rating?: number };
+        rapid?: { rating?: number };
+      };
+    };
+    return {
+      status: 200,
+      ratings: {
+        bullet: data.perfs?.bullet?.rating ?? null,
+        blitz:  data.perfs?.blitz?.rating  ?? null,
+        rapid:  data.perfs?.rapid?.rating  ?? null,
+      },
+    };
+  } catch (err) {
+    console.warn(`[elo-refresh] lichess network error for "${username}":`, err instanceof Error ? err.message : err);
+    return { status: 0, ratings: null };
+  }
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -116,6 +144,7 @@ export async function runEloRefresh(): Promise<void> {
     .from('linked_accounts')
     .select('id, user_id, platform, platform_username, rating_bullet, rating_blitz, rating_rapid, ratings_updated_at')
     .is('unlinked_at', null)
+    .eq('banned', false)
     .or(`ratings_updated_at.is.null,ratings_updated_at.lt.${staleThreshold}`)
     .order('ratings_updated_at', { ascending: true, nullsFirst: true })
     .limit(BATCH_SIZE);
@@ -137,7 +166,8 @@ export async function runEloRefresh(): Promise<void> {
     .from('linked_accounts')
     .select('id, user_id, rating_bullet, rating_blitz, rating_rapid')
     .in('user_id', userIds)
-    .is('unlinked_at', null);
+    .is('unlinked_at', null)
+    .eq('banned', false);
 
   // user_id → list of {id, ratings}. Mutated in-place as we apply updates
   // so newHigh reflects the post-update cross-platform max.
@@ -173,15 +203,16 @@ export async function runEloRefresh(): Promise<void> {
 
   let updated = 0;
   let failed = 0;
+  let banned = 0;
   let bracketChanges = 0;
 
   for (const account of rows) {
     try {
-      let ratings: PlatformRatings | null = null;
+      let result: FetchResult;
       if (account.platform === 'chesscom') {
-        ratings = await fetchChesscomRatings(account.platform_username);
+        result = await fetchChesscomRatings(account.platform_username);
       } else if (account.platform === 'lichess') {
-        ratings = await fetchLichessRatings(account.platform_username);
+        result = await fetchLichessRatings(account.platform_username);
       } else {
         // worldchess et al. — skip, but bump the timestamp so we don't
         // hot-loop on them every tick.
@@ -192,65 +223,115 @@ export async function runEloRefresh(): Promise<void> {
         continue;
       }
 
-      if (ratings) {
-        const oldHigh = userHigh(account.user_id);
-
-        const { error: upErr } = await supabase
+      // 404 → permanently banned (closed account / username change). Flag
+      // the row, emit the event once, drop it out of the rotation.
+      if (result.status === 404) {
+        await supabase
           .from('linked_accounts')
           .update({
-            rating_bullet: ratings.bullet,
-            rating_blitz:  ratings.blitz,
-            rating_rapid:  ratings.rapid,
+            banned: true,
+            banned_detected_at: new Date().toISOString(),
             ratings_updated_at: new Date().toISOString(),
           })
           .eq('id', account.id);
-        if (upErr) {
-          console.warn(`[elo-refresh] update failed for ${account.platform_username}:`, upErr.message);
-          failed++;
-          continue;
-        }
+        banned++;
+        await emitEvent({
+          type: 'chess_account_banned',
+          user_id: account.user_id,
+          payload: {
+            platform: account.platform,
+            platform_username: account.platform_username,
+            discordId: discordByUser.get(account.user_id) ?? null,
+          },
+        });
+        // Drop from in-memory map so the cross-platform max recompute
+        // ignores the dead row from here on.
+        const list = ratingsByUser.get(account.user_id);
+        if (list) ratingsByUser.set(account.user_id, list.filter((e) => e.id !== account.id));
+        await sleep(RATE_LIMIT_MS);
+        continue;
+      }
 
-        updated++;
-
-        // Mutate the in-memory map so the cross-platform max stays
-        // correct as we proceed through the batch.
-        const list = ratingsByUser.get(account.user_id) ?? [];
-        const entry = list.find((e) => e.id === account.id);
-        if (entry) {
-          entry.bullet = ratings.bullet;
-          entry.blitz  = ratings.blitz;
-          entry.rapid  = ratings.rapid;
-        }
-
-        const newHigh = userHigh(account.user_id);
-        const oldBracket = bracketFloor(oldHigh);
-        const newBracket = bracketFloor(newHigh);
-        const discordId = discordByUser.get(account.user_id);
-
-        if (discordId && oldBracket !== newBracket) {
-          bracketChanges++;
-          await emitEvent({
-            type: 'elo_bracket_changed',
-            user_id: account.user_id,
-            payload: {
-              discordId,
-              newElo: newHigh,
-              oldBracket: oldBracket < 0 ? null : oldBracket,
-              newBracket: newBracket < 0 ? null : newBracket,
-            },
-          });
-        }
-      } else {
+      // Any other non-200 (429 rate-limit, 5xx, network error). We can't
+      // distinguish a transient API blip from a permanent issue, so we
+      // bump the timestamp to rotate the row out of the next batch and
+      // try again on the next stale cycle. The warn log lives in the
+      // fetcher; we'll inspect aggregated counts over time and decide
+      // case-by-case whether new error types deserve special handling.
+      if (!result.ratings) {
+        await supabase
+          .from('linked_accounts')
+          .update({ ratings_updated_at: new Date().toISOString() })
+          .eq('id', account.id);
         failed++;
+        await sleep(RATE_LIMIT_MS);
+        continue;
+      }
+
+      // 200 — write ratings and check for bracket changes.
+      const oldHigh = userHigh(account.user_id);
+
+      const { error: upErr } = await supabase
+        .from('linked_accounts')
+        .update({
+          rating_bullet: result.ratings.bullet,
+          rating_blitz:  result.ratings.blitz,
+          rating_rapid:  result.ratings.rapid,
+          ratings_updated_at: new Date().toISOString(),
+        })
+        .eq('id', account.id);
+      if (upErr) {
+        console.warn(`[elo-refresh] update failed for ${account.platform_username}:`, upErr.message);
+        failed++;
+        await sleep(RATE_LIMIT_MS);
+        continue;
+      }
+
+      updated++;
+
+      // Mutate the in-memory map so the cross-platform max stays
+      // correct as we proceed through the batch.
+      const list = ratingsByUser.get(account.user_id) ?? [];
+      const entry = list.find((e) => e.id === account.id);
+      if (entry) {
+        entry.bullet = result.ratings.bullet;
+        entry.blitz  = result.ratings.blitz;
+        entry.rapid  = result.ratings.rapid;
+      }
+
+      const newHigh = userHigh(account.user_id);
+      const oldBracket = bracketFloor(oldHigh);
+      const newBracket = bracketFloor(newHigh);
+      const discordId = discordByUser.get(account.user_id);
+
+      if (discordId && oldBracket !== newBracket) {
+        bracketChanges++;
+        await emitEvent({
+          type: 'elo_bracket_changed',
+          user_id: account.user_id,
+          payload: {
+            discordId,
+            newElo: newHigh,
+            oldBracket: oldBracket < 0 ? null : oldBracket,
+            newBracket: newBracket < 0 ? null : newBracket,
+          },
+        });
       }
       await sleep(RATE_LIMIT_MS);
     } catch (err) {
       console.warn(`[elo-refresh] error for ${account.platform_username}:`, err);
+      // Bump the timestamp on unexpected exceptions too, so the row
+      // doesn't permanently park at the head of the queue.
+      await supabase
+        .from('linked_accounts')
+        .update({ ratings_updated_at: new Date().toISOString() })
+        .eq('id', account.id)
+        .then(() => undefined, () => undefined);
       failed++;
     }
   }
 
-  if (updated > 0 || failed > 0) {
-    console.info(`[elo-refresh] batch: ${updated} updated / ${failed} failed / ${bracketChanges} bracket changes (of ${rows.length})`);
+  if (updated > 0 || failed > 0 || banned > 0) {
+    console.info(`[elo-refresh] batch: ${updated} updated / ${failed} failed / ${banned} banned / ${bracketChanges} bracket changes (of ${rows.length})`);
   }
 }

@@ -330,6 +330,31 @@ async function onChessAccountUnlinked(client: Client, e: IncomingEvent) {
   await sendEmbed(client, config.discord.mod.users, embed);
 }
 
+async function onChessAccountBanned(client: Client, e: IncomingEvent) {
+  const ctx = await fetchUserContext(e.user_id);
+  const m = mention(ctx, e.user_id);
+  const platform = String(e.payload.platform ?? '');
+  const username = String(e.payload.platform_username ?? '');
+  // chess.com profile URL — 404 here too, but useful for moderators to
+  // confirm and decide whether to nudge the user to relink.
+  const profileUrl = platform === 'chesscom'
+    ? `https://www.chess.com/member/${username}`
+    : platform === 'lichess'
+      ? `https://lichess.org/@/${username}`
+      : null;
+  const embed = new EmbedBuilder()
+    .setColor(COLOR.danger)
+    .setTitle('🚫 Chess account closed / banned')
+    .setDescription(
+      `${m}'s **${platform}** account \`@${username}\` returns 404 — ` +
+      `likely closed by the platform or username change. ` +
+      `Future elo-refresh ticks will skip this row.` +
+      (profileUrl ? `\n[Open profile](${profileUrl})` : ''),
+    )
+    .setTimestamp(new Date());
+  await sendEmbed(client, config.discord.mod.users, embed);
+}
+
 async function onDiscordLinked(client: Client, e: IncomingEvent) {
   const ctx = await fetchUserContext(e.user_id);
   const discordId = String(e.payload.discordId ?? ctx?.discordId ?? '');
@@ -474,6 +499,7 @@ export function registerEventForwarder(client: Client): void {
   onEvent('signup_success',          (e) => onSignupSuccess(client, e));
   onEvent('chess_account_linked',    (e) => onChessAccountLinked(client, e));
   onEvent('chess_account_unlinked',  (e) => onChessAccountUnlinked(client, e));
+  onEvent('chess_account_banned',    (e) => onChessAccountBanned(client, e));
   onEvent('discord_linked',          (e) => onDiscordLinked(client, e));
   onEvent('discord_unlinked',        (e) => onDiscordUnlinked(client, e));
   onEvent('giveaway_ticket_earned',  (e) => onGiveawayTicketEarned(client, e));
