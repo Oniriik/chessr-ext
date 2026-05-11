@@ -3,8 +3,9 @@ import './update-required.css';
 
 // Fallback if /health is unreachable (rare — versionStore only sets
 // updateRequired=true when /health succeeded, so downloadUrl should
-// be populated). Kept just so the button never points nowhere.
-const FALLBACK_DOWNLOAD_URL = 'https://download.chessr.io/latest';
+// be populated). Points at the download page (not a direct .zip) so
+// users always see install instructions + version notes.
+const FALLBACK_DOWNLOAD_URL = 'https://download.chessr.io/';
 const DISCORD_URL = 'https://discord.gg/72j4dUadTu';
 
 export default function UpdateRequired() {

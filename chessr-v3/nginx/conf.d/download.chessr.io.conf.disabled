@@ -42,14 +42,10 @@ server {
         add_header Cache-Control "public, max-age=60";
     }
 
-    # Stable alias — always serves the most recent beta zip. Matches the
-    # legacy v2 /download/latest URL so the extension's auto-update path
-    # keeps working without code changes.
-    location = /latest {
-        alias /var/www/downloads/chessr-beta-latest.zip;
-        add_header Cache-Control "public, max-age=60";
-        add_header Content-Disposition 'attachment; filename="chessr-beta-latest.zip"';
-    }
+    # /latest used to direct-download the latest zip (legacy v2 auto-update
+    # path). Removed for v3 — users must hit the download page so we can
+    # show install instructions, version notes, etc. before the file lands
+    # in their browser.
 
     # Any .zip is force-downloaded as an attachment.
     location ~* \.zip$ {

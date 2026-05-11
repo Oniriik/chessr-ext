@@ -4,10 +4,12 @@ import type { Hono } from 'hono';
 // download URL without rebuilding the serveur image. Edit .env on the
 // VPS + `docker compose up -d serveur` to apply.
 //   MIN_EXTENSION_VERSION       e.g. "3.0.17"
-//   EXTENSION_DOWNLOAD_URL      e.g. "https://download.chessr.io/chessr-3.0.17.zip"
-//                               or a redirect like "https://chessr.io/download"
-const MIN_EXTENSION_VERSION = process.env.MIN_EXTENSION_VERSION ?? '3.0.17';
-const EXTENSION_DOWNLOAD_URL = process.env.EXTENSION_DOWNLOAD_URL ?? 'https://download.chessr.io/latest';
+//   EXTENSION_DOWNLOAD_URL      Points at the download PAGE, never a
+//                               direct .zip — the page renders install
+//                               instructions and the latest version
+//                               badge before serving the file.
+const MIN_EXTENSION_VERSION = process.env.MIN_EXTENSION_VERSION ?? '3.1.0';
+const EXTENSION_DOWNLOAD_URL = process.env.EXTENSION_DOWNLOAD_URL ?? 'https://download.chessr.io/';
 
 export function registerHealthRoutes(app: Hono) {
   app.get('/health', (c) =>
