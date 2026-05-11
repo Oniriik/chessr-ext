@@ -12,6 +12,14 @@ export async function runPostbuild() {
   const outputRoot = join(import.meta.dirname, '..', '.output');
   if (!existsSync(outputRoot)) return;
 
+  // Escape hatch — CHESSR_SKIP_OBFUSCATION=1 leaves the build readable
+  // for grepping baked-in env values (e.g. confirming which backend URL
+  // landed in the bundle). Never set this for shipped builds.
+  if (process.env.CHESSR_SKIP_OBFUSCATION === '1') {
+    console.log('[postbuild] CHESSR_SKIP_OBFUSCATION=1 — leaving bundles unobfuscated');
+    return;
+  }
+
   // Only process the directory that was just (re-)built. Without this the
   // hook also re-obfuscates stale outputs from previous `wxt build` runs,
   // which can crash the obfuscator on huge accumulated bundles.
