@@ -80,7 +80,7 @@ const MAX_STOCKFISH_INSTANCES = parseInt(
 // will trip UpdateRequired and land on https://download.chessr.io
 // where they pick up the v3.1.0 build that talks to api.chessr.io.
 const VERSION_INFO = {
-  minVersion: "3.1.0",
+  minVersion: "3.2.0",
   downloadUrl: "https://download.chessr.io",
 };
 

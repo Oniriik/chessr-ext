@@ -8,7 +8,7 @@ import type { Hono } from 'hono';
 //                               direct .zip — the page renders install
 //                               instructions and the latest version
 //                               badge before serving the file.
-const MIN_EXTENSION_VERSION = process.env.MIN_EXTENSION_VERSION ?? '3.1.0';
+const MIN_EXTENSION_VERSION = process.env.MIN_EXTENSION_VERSION ?? '3.2.0';
 const EXTENSION_DOWNLOAD_URL = process.env.EXTENSION_DOWNLOAD_URL ?? 'https://download.chessr.io/';
 
 export function registerHealthRoutes(app: Hono) {
