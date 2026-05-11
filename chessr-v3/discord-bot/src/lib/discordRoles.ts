@@ -93,3 +93,64 @@ export async function syncPlanRole(discordUserId: string, plan: string | null): 
     log.info(`[roles] ${discordUserId} → free (all plan roles removed)`);
   }
 }
+
+// ─── ELO bracket roles ──────────────────────────────────────────────────
+
+/** Ordered ELO buckets (matches the v2 bot exactly). The boundary key
+ *  is the FLOOR of the bracket — `'0'` covers 1-799, `'800'` covers
+ *  800-999, etc. Highest rating is matched against `maxElo`; anything
+ *  above 2000 lands on `2000` (Grandmaster). */
+const ELO_BRACKETS: Array<{ key: string; maxElo: number; name: string }> = [
+  { key: '0',    maxElo: 799,      name: 'Beginner' },
+  { key: '800',  maxElo: 999,      name: 'Novice' },
+  { key: '1000', maxElo: 1199,     name: 'Intermediate' },
+  { key: '1200', maxElo: 1399,     name: 'Club Player' },
+  { key: '1400', maxElo: 1599,     name: 'Advanced' },
+  { key: '1600', maxElo: 1799,     name: 'Expert' },
+  { key: '1800', maxElo: 1999,     name: 'Master' },
+  { key: '2000', maxElo: Infinity, name: 'Grandmaster' },
+];
+
+function eloManagedRoleIds(): string[] {
+  return Object.values(config.eloRoles).filter((v): v is string => !!v);
+}
+
+function eloRoleFor(highestElo: number | null): string | null {
+  if (!highestElo || highestElo <= 0) return null;
+  const bracket = ELO_BRACKETS.find((b) => highestElo <= b.maxElo);
+  if (!bracket) return null;
+  return config.eloRoles[bracket.key] ?? null;
+}
+
+/** Apply the ELO → role mapping. Passing null / 0 strips every managed
+ *  ELO role (used for unlinked / unrated users). Mutually exclusive
+ *  with itself — adding the new bracket removes the others. */
+export async function syncEloRole(discordUserId: string, highestElo: number | null): Promise<void> {
+  if (!config.discord.guildId || !discordUserId) return;
+  const guildId = config.discord.guildId;
+  const targetRoleId = eloRoleFor(highestElo);
+  const allEloIds = eloManagedRoleIds();
+
+  for (const roleId of allEloIds) {
+    if (roleId === targetRoleId) continue;
+    const status = await discordFetch(
+      'DELETE',
+      `/guilds/${guildId}/members/${discordUserId}/roles/${roleId}`,
+    );
+    if (status !== 204 && status !== 404) {
+      log.warn(`[roles/elo] failed to remove ${roleId} from ${discordUserId}: HTTP ${status}`);
+    }
+  }
+
+  if (targetRoleId) {
+    const status = await discordFetch(
+      'PUT',
+      `/guilds/${guildId}/members/${discordUserId}/roles/${targetRoleId}`,
+    );
+    if (status !== 204 && status !== 404) {
+      log.warn(`[roles/elo] failed to add ${targetRoleId} to ${discordUserId}: HTTP ${status}`);
+    }
+  }
+}
+
+export { ELO_BRACKETS, eloRoleFor };

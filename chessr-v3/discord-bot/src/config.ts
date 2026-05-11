@@ -91,5 +91,20 @@ export const config = {
     beta:      optional('DISCORD_ROLE_ID_BETA'),
     lifetime:  optional('DISCORD_ROLE_ID_LIFETIME'),
   } as Record<string, string | undefined>,
+  // ELO bracket → role-id map. Brackets are mutually exclusive and
+  // assigned from the highest rating across the user's linked chess
+  // accounts (bullet / blitz / rapid). The bracket boundary keys
+  // (0 / 800 / 1000 / ... / 2000) match the v2 bot's ELO_BRACKETS
+  // table — see lib/discordRoles.ts for the matching logic.
+  eloRoles: {
+    '0':    optional('DISCORD_ROLE_ELO_0'),
+    '800':  optional('DISCORD_ROLE_ELO_800'),
+    '1000': optional('DISCORD_ROLE_ELO_1000'),
+    '1200': optional('DISCORD_ROLE_ELO_1200'),
+    '1400': optional('DISCORD_ROLE_ELO_1400'),
+    '1600': optional('DISCORD_ROLE_ELO_1600'),
+    '1800': optional('DISCORD_ROLE_ELO_1800'),
+    '2000': optional('DISCORD_ROLE_ELO_2000'),
+  } as Record<string, string | undefined>,
   logLevel: (optional('LOG_LEVEL') ?? 'info') as 'debug' | 'info' | 'warn' | 'error',
 } as const;

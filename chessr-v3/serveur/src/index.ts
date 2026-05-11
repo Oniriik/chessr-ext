@@ -47,6 +47,7 @@ import { startQueueStats, stopQueueStats } from './queue/stats.js';
 import { registerCron, startCrons, stopCrons } from './lib/cron.js';
 import { runGiveawayDraw } from './jobs/giveawayDraw.js';
 import { runTicketAutoDelete } from './jobs/ticketAutoDelete.js';
+import { runEloRefresh } from './jobs/eloRefresh.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -143,6 +144,12 @@ registerCron({
   intervalMs: 5 * 60_000,
   runImmediately: true,
   run: runTicketAutoDelete,
+});
+registerCron({
+  name: 'elo-refresh',
+  intervalMs: 60_000,        // 1 min — matches the v2 cron cadence
+  runImmediately: true,
+  run: runEloRefresh,
 });
 startCrons();
 
