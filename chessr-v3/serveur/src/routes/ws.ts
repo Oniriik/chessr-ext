@@ -3,6 +3,13 @@ import type { WSContext } from 'hono/ws';
 import type { createNodeWebSocket } from '@hono/node-ws';
 import { handleChesscomReview, type ReviewMessage } from '../handlers/chesscomReview.js';
 import {
+  handleProfileAnalysis,
+  handleProfileAnalysisSubscribe,
+  handleProfileAnalysisDisconnect,
+  type ProfileAnalysisStartMessage,
+  type ProfileAnalysisSubscribeMessage,
+} from '../handlers/profileAnalysisHandler.js';
+import {
   handleSuggestionRequest,
   handleUserDisconnectSuggestion,
   type SuggestionMessage,
@@ -32,6 +39,7 @@ import {
   getUserState,
   dropUser as dropUserState,
 } from '../lib/userState.js';
+import { supabase } from '../lib/supabase.js';
 
 type WSApp = {
   app: Hono;
@@ -173,6 +181,37 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
                 });
                 break;
 
+              // Handshake for the chessr-app (game review + profile analysis on
+              // app.chessr.io). The app connects with ?userId=<supabase.user.id>
+              // in the URL like the extension does, then sends an `auth` message
+              // carrying the Supabase access_token and a shared APP_AUTH_TOKEN.
+              // We verify the token resolves to the same userId and that the
+              // shared secret matches; on success we ack with `auth_success` so
+              // the app's state machine unlocks. Failures close the socket so a
+              // stale / spoofed token can't sit on the connection.
+              case 'auth':
+                handleAuth(msg as AuthMessage, userId, send, _ws);
+                break;
+
+              // app.chessr.io profile-analysis flow. The app POSTs a row to
+              // Supabase first (status='pending'), then opens this WS and
+              // streams progress via broadcast(). _start kicks off the
+              // chess.com archive scan + per-game analysis; _subscribe
+              // re-attaches to a running or finished one (on tab reload).
+              case 'profile_analysis_start':
+                handleProfileAnalysis(msg as ProfileAnalysisStartMessage, _ws, userId)
+                  .catch((err) => {
+                    console.error(`[WS] ${userId}: profile_analysis_start error`, err);
+                  });
+                break;
+
+              case 'profile_analysis_subscribe':
+                handleProfileAnalysisSubscribe(msg as ProfileAnalysisSubscribeMessage, _ws, userId)
+                  .catch((err) => {
+                    console.error(`[WS] ${userId}: profile_analysis_subscribe error`, err);
+                  });
+                break;
+
               default:
                 console.log(`[WS] ${userId}: unhandled message type "${msg.type}"`);
             }
@@ -181,7 +220,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
           }
         },
 
-        onClose() {
+        onClose(_event, ws) {
           if (!valid) return;
           clients.delete(userId);
           connectedAt.delete(userId);
@@ -190,6 +229,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
           handleUserDisconnectAnalysis(userId);
           handleUserDisconnectMaia(userId);
           handleUserDisconnectMaia3(userId);
+          handleProfileAnalysisDisconnect(ws);
           logDisconnected(userId, clients.size);
         },
       };
@@ -199,4 +239,66 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
 
 export function getClients() {
   return clients;
+}
+
+// ─── Auth handshake (app + future external integrations) ────────────────
+
+interface AuthMessage {
+  type: 'auth';
+  /** Supabase access_token (JWT). The `sub` claim must match the userId
+   *  in the WS URL query. */
+  token: string;
+  /** Source of the connection: 'app' triggers the appToken check;
+   *  anything else is treated as a generic verified session. */
+  source?: 'app' | string;
+  /** Shared secret matching the serveur's APP_AUTH_TOKEN env. Required
+   *  when source='app'. Keeps random bots from impersonating the app
+   *  even if they manage to forge a Supabase token. */
+  appToken?: string;
+}
+
+async function handleAuth(
+  msg: AuthMessage,
+  expectedUserId: string,
+  send: (data: unknown) => void,
+  ws: WSContext,
+): Promise<void> {
+  if (msg.source === 'app') {
+    const expected = process.env.APP_AUTH_TOKEN;
+    if (!expected) {
+      console.warn('[WS auth] source=app but APP_AUTH_TOKEN env is unset; rejecting');
+      send({ type: 'auth_error', error: 'server_misconfigured' });
+      try { ws.close(4002, 'server misconfigured'); } catch { /* ignore */ }
+      return;
+    }
+    if (msg.appToken !== expected) {
+      send({ type: 'auth_error', error: 'invalid_app_token' });
+      try { ws.close(4003, 'invalid app token'); } catch { /* ignore */ }
+      return;
+    }
+  }
+
+  if (!msg.token) {
+    send({ type: 'auth_error', error: 'missing_token' });
+    try { ws.close(4003, 'missing token'); } catch { /* ignore */ }
+    return;
+  }
+
+  // Supabase verifies the JWT signature + expiration. We trust the
+  // returned user.id to be the real owner of the access_token.
+  const { data, error } = await supabase.auth.getUser(msg.token);
+  if (error || !data?.user) {
+    send({ type: 'auth_error', error: 'invalid_token' });
+    try { ws.close(4003, 'invalid token'); } catch { /* ignore */ }
+    return;
+  }
+  if (data.user.id !== expectedUserId) {
+    // The connection opened with one userId in the URL but the token
+    // resolves to a different user — almost certainly a spoofing
+    // attempt. Refuse rather than silently re-bind.
+    send({ type: 'auth_error', error: 'user_id_mismatch' });
+    try { ws.close(4003, 'user id mismatch'); } catch { /* ignore */ }
+    return;
+  }
+  send({ type: 'auth_success', userId: data.user.id });
 }
