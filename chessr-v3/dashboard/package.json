@@ -30,6 +30,7 @@
     "react-day-picker": "^10.0.0",
     "react-dom": "^19.0.0",
     "react-globe.gl": "^2.37.1",
+    "recharts": "^3.8.1",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
