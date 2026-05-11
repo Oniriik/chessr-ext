@@ -208,6 +208,18 @@ export async function runEloRefresh(): Promise<void> {
 
   for (const account of rows) {
     try {
+      // Defensive: a row without a username is corrupt — we can't fetch
+      // it and it would 404 reflexively (false-positive ban). Bump the
+      // timestamp so it rotates and skip.
+      if (!account.platform_username || !account.platform_username.trim()) {
+        console.warn(`[elo-refresh] row ${account.id} has empty platform_username, skipping`);
+        await supabase
+          .from('linked_accounts')
+          .update({ ratings_updated_at: new Date().toISOString() })
+          .eq('id', account.id);
+        failed++;
+        continue;
+      }
       let result: FetchResult;
       if (account.platform === 'chesscom') {
         result = await fetchChesscomRatings(account.platform_username);

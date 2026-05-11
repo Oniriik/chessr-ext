@@ -333,20 +333,26 @@ async function onChessAccountUnlinked(client: Client, e: IncomingEvent) {
 async function onChessAccountBanned(client: Client, e: IncomingEvent) {
   const ctx = await fetchUserContext(e.user_id);
   const m = mention(ctx, e.user_id);
-  const platform = String(e.payload.platform ?? '');
-  const username = String(e.payload.platform_username ?? '');
-  // chess.com profile URL — 404 here too, but useful for moderators to
-  // confirm and decide whether to nudge the user to relink.
-  const profileUrl = platform === 'chesscom'
+  const platform = String(e.payload.platform ?? '').trim();
+  const username = String(e.payload.platform_username ?? '').trim();
+  const platformLabel = platform || 'chess';
+  // Profile URL only when we have both pieces — without a username the
+  // link is broken; without a known platform we don't know which host
+  // to point to.
+  const profileUrl = username && platform === 'chesscom'
     ? `https://www.chess.com/member/${username}`
-    : platform === 'lichess'
+    : username && platform === 'lichess'
       ? `https://lichess.org/@/${username}`
       : null;
+  // When username is missing we fall back to a less specific phrasing
+  // so the embed still reads naturally and moderators can still find
+  // the account via the chessr user.
+  const accountRef = username ? ` \`@${username}\`` : '';
   const embed = new EmbedBuilder()
     .setColor(COLOR.danger)
     .setTitle('🚫 Chess account closed / banned')
     .setDescription(
-      `${m}'s **${platform}** account \`@${username}\` likely closed by the platform or username change` +
+      `${m}'s **${platformLabel}** account${accountRef} likely closed by the platform or username change` +
       (profileUrl ? `\n[Open profile](${profileUrl})` : ''),
     )
     .setTimestamp(new Date());
