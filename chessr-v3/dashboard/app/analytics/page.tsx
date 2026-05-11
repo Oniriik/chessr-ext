@@ -189,15 +189,44 @@ export default function AnalyticsPage() {
 
         {showPicker && (
           <Card>
-            <CardContent className="p-3">
+            <CardContent className="space-y-3 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[12px]">
+                  <span className="font-semibold">Range:</span>
+                  <span className="ml-2 num tabular-nums text-muted-foreground">
+                    {customRange?.from
+                      ? format(customRange.from, 'MMM d, yyyy')
+                      : <em className="opacity-50">pick start</em>}
+                    {' → '}
+                    {customRange?.to
+                      ? format(customRange.to, 'MMM d, yyyy')
+                      : <em className="opacity-50">pick end</em>}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm" variant="ghost"
+                    onClick={() => { setCustomRange(undefined); }}
+                    disabled={!customRange?.from}
+                    className="h-7 text-[11px]"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowPicker(false)}
+                    disabled={!customRange?.from || !customRange?.to}
+                    className="h-7 text-[11px]"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
               <DayPicker
                 mode="range"
                 numberOfMonths={2}
                 selected={customRange}
-                onSelect={(r) => {
-                  setCustomRange(r);
-                  if (r?.from && r.to) setShowPicker(false);
-                }}
+                onSelect={(r) => setCustomRange(r)}
                 disabled={{ after: new Date() }}
               />
             </CardContent>

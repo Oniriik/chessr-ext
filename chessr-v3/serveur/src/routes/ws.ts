@@ -40,6 +40,7 @@ import {
   dropUser as dropUserState,
 } from '../lib/userState.js';
 import { supabase } from '../lib/supabase.js';
+import { insertUserActivity, type ActivityEventType, type EngineId, type EventSource } from '../lib/analyticsRepo.js';
 
 type WSApp = {
   app: Hono;
@@ -112,9 +113,12 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
 
             switch (msg.type) {
               // Client-side suggestion telemetry (WASM computes, server logs).
+              // Also persist to user_activity so the analytics page sees WASM
+              // suggestions — without this only server-side fallbacks land.
               case 'suggestion_log_start':
                 recordSuggestion(userId, msg.extra);
                 logStart(userId, msg.requestId, 'suggestion', msg.extra);
+                logActivityFromExtra(userId, 'suggestion', msg.extra);
                 break;
 
               case 'suggestion_log_end':
@@ -152,6 +156,7 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
               case 'analysis_log_start':
                 recordAnalysis(userId, msg.extra);
                 logStart(userId, msg.requestId, 'analysis', msg.extra);
+                logActivityFromExtra(userId, 'analysis', msg.extra);
                 break;
 
               case 'analysis_log_end':
@@ -239,6 +244,36 @@ export function registerWsRoute({ app, upgradeWebSocket }: WSApp) {
 
 export function getClients() {
   return clients;
+}
+
+// ─── user_activity insert from telemetry strings ────────────────────────
+// The extension sends `extra` as a key=value string for log events
+// (e.g. "source=wasm engine=maia3 elo=1500 mpv=3 limit=true …"). We
+// parse engine + source from it and feed insertUserActivity so WASM
+// suggestions land in analytics like server-side ones.
+
+const VALID_ENGINES = new Set<EngineId>(['komodo', 'maia2', 'maia3', 'stockfish']);
+const VALID_SOURCES = new Set<EventSource>(['server', 'wasm']);
+
+function parseExtra(extra: unknown): { engine?: EngineId; source?: EventSource } {
+  if (typeof extra !== 'string') return {};
+  const out: { engine?: EngineId; source?: EventSource } = {};
+  for (const part of extra.split(/\s+/)) {
+    const eq = part.indexOf('=');
+    if (eq < 0) continue;
+    const k = part.slice(0, eq);
+    const v = part.slice(eq + 1);
+    if (k === 'engine' && VALID_ENGINES.has(v as EngineId)) out.engine = v as EngineId;
+    else if (k === 'source' && VALID_SOURCES.has(v as EventSource)) out.source = v as EventSource;
+  }
+  return out;
+}
+
+function logActivityFromExtra(userId: string, eventType: ActivityEventType, extra: unknown): void {
+  const { engine, source } = parseExtra(extra);
+  if (!engine) return; // skip if we can't classify — avoids polluting with unknowns
+  insertUserActivity({ userId, eventType, engine, source })
+    .catch((err) => console.warn(`[ws] activity log failed (${eventType} / ${engine}):`, err));
 }
 
 // ─── Auth handshake (app + future external integrations) ────────────────
