@@ -26,6 +26,13 @@ const VALID_TYPES = [
   'signup_success',
   'signup_blocked',
   'login_blocked',
+  // Lifecycle events mirrored from the serveur — emitted when an
+  // admin overrides a plan via the user PATCH route so the bot's
+  // forwarder picks them up the same way it does Paddle webhooks.
+  'new_customer',
+  'customer_renewed',
+  'customer_canceled',
+  'payment_failed',
 ] as const;
 export type EventType = (typeof VALID_TYPES)[number];
 

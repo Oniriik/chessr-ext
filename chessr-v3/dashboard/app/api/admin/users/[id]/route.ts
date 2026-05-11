@@ -95,18 +95,59 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
   // collapsed into a single 'plan_changed' since they're set together
   // from the UI; role stands alone.
   if (plan !== undefined || plan_expiry !== undefined) {
+    const oldPlan = prev?.plan ?? 'free';
+    const newPlan = plan ?? prev?.plan ?? 'free';
+    const oldExpiry = prev?.plan_expiry ?? null;
+    const newExpiry = plan_expiry ?? prev?.plan_expiry ?? null;
+
     await emitEvent({
       type: 'plan_changed',
       user_id: id,
       actor_id: ctx.user.id,
       payload: {
-        oldPlan: prev?.plan ?? 'free',
-        newPlan: plan ?? prev?.plan ?? 'free',
-        oldExpiry: prev?.plan_expiry ?? null,
-        newExpiry: plan_expiry ?? prev?.plan_expiry ?? null,
+        oldPlan, newPlan, oldExpiry, newExpiry,
         discordId: prev?.discord_id ?? null,
+        reason: 'admin_override',
       },
     });
+
+    // Mirror the Paddle handler's lifecycle taxonomy so admin-side plan
+    // overrides also light up the mod channel. The bot's forwarder
+    // listens to these (not plan_changed) so without them, manual
+    // promotions/cancellations would be silent.
+    const FREE_TIERS = new Set(['free', 'freetrial']);
+    const PAID_TIERS = new Set(['premium', 'lifetime']);
+    if (oldPlan !== newPlan) {
+      if (FREE_TIERS.has(oldPlan) && PAID_TIERS.has(newPlan)) {
+        await emitEvent({
+          type: 'new_customer',
+          user_id: id,
+          actor_id: ctx.user.id,
+          payload: { plan: newPlan, newExpiry, reason: 'admin_override' },
+        });
+      } else if (PAID_TIERS.has(oldPlan) && newPlan === 'free') {
+        await emitEvent({
+          type: 'customer_canceled',
+          user_id: id,
+          actor_id: ctx.user.id,
+          payload: {
+            plan: oldPlan, expiresAt: null,
+            scheduled: false, reason: 'admin_override',
+          },
+        });
+      }
+    } else if (
+      newPlan === 'premium' && oldExpiry && newExpiry &&
+      new Date(newExpiry).getTime() > new Date(oldExpiry).getTime()
+    ) {
+      // Same plan, expiry pushed forward = renewal (manual extension).
+      await emitEvent({
+        type: 'customer_renewed',
+        user_id: id,
+        actor_id: ctx.user.id,
+        payload: { plan: newPlan, oldExpiry, newExpiry, reason: 'admin_override' },
+      });
+    }
   }
   if (role !== undefined && role !== prev?.role) {
     await emitEvent({
