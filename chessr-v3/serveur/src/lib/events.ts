@@ -105,6 +105,41 @@ export const EVENT_KINDS = [
   // to flip the row to 'deleted'. Idempotent — if the bot was offline
   // when the event fired, the next cron tick re-emits.
   'ticket_auto_delete',
+  // payload: { plan, newExpiry?, subscriptionId?, interval?, productId?,
+  //            email?, discordId? }
+  // Emitted exactly once per user when they transition from a free
+  // tier (free / freetrial / null) into a paid tier (premium /
+  // lifetime). plan_changed still fires for the role sync; this one is
+  // for the mod channel celebration + onboarding analytics. The bot
+  // looks it up to ping #mod-billing and trigger a welcome flow.
+  'new_customer',
+  // payload: { plan, oldExpiry?, newExpiry, subscriptionId?, interval?,
+  //            productId?, email?, discordId? }
+  // Emitted when an EXISTING premium customer's expiry gets pushed
+  // forward (oldPlan === newPlan AND newExpiry > oldExpiry). Catches
+  // recurring renewals automatically — they come through as
+  // subscription.updated webhooks. Not emitted for lifetime upgrades
+  // (lifetime has no expiry to push).
+  'customer_renewed',
+  // payload: { plan, expiresAt?, subscriptionId?, productId?,
+  //            scheduled: boolean (true = user clicked cancel,
+  //                                 sub continues until expiresAt;
+  //                                 false = Paddle confirmed canceled
+  //                                 with no future bill) }
+  // Emitted on subscription.updated when the sub transitions into
+  // canceled state — either user-scheduled (scheduled_change.action
+  // = 'cancel') or backend-confirmed. Distinct from plan_changed,
+  // which only fires once the cancel is *effective* and the user
+  // drops to free.
+  'customer_canceled',
+  // payload: { plan, expiresAt?, subscriptionId?, productId?,
+  //            attemptCount?, nextAttemptAt? }
+  // Emitted when Paddle reports the sub as 'past_due' — typically a
+  // failed renewal (card declined / expired). The user keeps access
+  // until expiresAt; Paddle retries the charge on its own dunning
+  // schedule. The mod channel surfaces these so support can reach out
+  // proactively before the sub silently dies.
+  'payment_failed',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

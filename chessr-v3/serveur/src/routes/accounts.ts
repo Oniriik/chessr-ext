@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { supabase } from '../lib/supabase.js';
+import { emitEvent } from '../lib/events.js';
 
 const app = new Hono();
 
@@ -54,6 +55,20 @@ app.post('/accounts/link', async (c) => {
 
   if (error) return c.json({ error: 'Failed to link' }, 500);
 
+  // Activity feed + mod-channel signal — the bot listens to this so a
+  // new linked account can ping #mod-onboarding or trigger an Elo role.
+  await emitEvent({
+    type: 'chess_account_linked',
+    user_id: userId,
+    payload: {
+      platform,
+      platform_username: username.toLowerCase(),
+      rating_bullet: ratingBullet ?? null,
+      rating_blitz:  ratingBlitz  ?? null,
+      rating_rapid:  ratingRapid  ?? null,
+    },
+  });
+
   return c.json({ success: true, account: data });
 });
 
@@ -62,10 +77,11 @@ app.post('/accounts/unlink', async (c) => {
 
   if (!userId || !accountId) return c.json({ error: 'Missing userId or accountId' }, 400);
 
-  // Verify the account belongs to the user
+  // Verify the account belongs to the user — and capture the platform
+  // info so we can include it in the unlink event payload.
   const { data: account } = await supabase
     .from('linked_accounts')
-    .select('user_id')
+    .select('user_id, platform, platform_username')
     .eq('id', accountId)
     .single();
 
@@ -79,6 +95,15 @@ app.post('/accounts/unlink', async (c) => {
     .eq('id', accountId);
 
   if (error) return c.json({ error: 'Failed to unlink' }, 500);
+
+  await emitEvent({
+    type: 'chess_account_unlinked',
+    user_id: userId,
+    payload: {
+      platform: account.platform,
+      platform_username: account.platform_username,
+    },
+  });
 
   return c.json({ success: true });
 });

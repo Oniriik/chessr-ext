@@ -169,6 +169,15 @@ async function updateUserPlan(
   const oldPlan = prevSettings?.plan ?? null;
   const oldExpiry = prevSettings?.plan_expiry ?? null;
 
+  // Previous subscription status — used to detect cancel / past_due
+  // transitions vs duplicate webhooks on already-canceled subs.
+  const { data: prevSubRow } = await supabase
+    .from('subscriptions')
+    .select('status')
+    .eq('user_id', userId)
+    .maybeSingle();
+  const oldStatus: string | null = prevSubRow?.status ?? null;
+
   // Update subscription record (upsert by user_id — one subscription per user).
   await supabase.from('subscriptions').upsert(
     {
@@ -240,6 +249,85 @@ async function updateUserPlan(
         oldExpiry,
         newExpiry,
         reason: `paddle_${status}`,
+      },
+    });
+
+    // ─── Customer lifecycle: new vs renewal ─────────────────────────────
+    // Emitted IN ADDITION to plan_changed for cleaner mod-channel
+    // routing. Both events fire on the same webhook so the bot picks
+    // whichever it has a handler for.
+    const FREE_TIERS = new Set(['free', 'freetrial', null, undefined]);
+    const PAID_TIERS = new Set(['premium', 'lifetime']);
+    const isNewCustomer = FREE_TIERS.has(oldPlan as string | null) && PAID_TIERS.has(newPlan);
+    const isRenewal =
+      oldPlan === newPlan &&
+      PAID_TIERS.has(newPlan) &&
+      newPlan !== 'lifetime' &&  // lifetime has no expiry to push
+      oldExpiry && newExpiry &&
+      new Date(newExpiry).getTime() > new Date(oldExpiry).getTime();
+
+    if (isNewCustomer) {
+      await emitEvent({
+        type: 'new_customer',
+        user_id: userId,
+        payload: {
+          plan: newPlan,
+          newExpiry,
+          subscriptionId,
+          interval: mapping.interval || null,
+          productId,
+        },
+      });
+    } else if (isRenewal) {
+      await emitEvent({
+        type: 'customer_renewed',
+        user_id: userId,
+        payload: {
+          plan: newPlan,
+          oldExpiry,
+          newExpiry,
+          subscriptionId,
+          interval: mapping.interval || null,
+          productId,
+        },
+      });
+    }
+  }
+
+  // ─── Cancel / payment_failed signals ─────────────────────────────────
+  // Independent of the plan_changed gate above: a renewal failure can
+  // leave the plan unchanged (user still has access until expiry) but
+  // mods need to know NOW so they can reach out. Same for a scheduled
+  // cancel.
+  //
+  // We only emit on a *transition* (not on duplicate webhooks where the
+  // sub was already canceled/past_due), comparing the row's previous
+  // status to the incoming one.
+  if (status === 'past_due' && oldStatus !== 'past_due') {
+    await emitEvent({
+      type: 'payment_failed',
+      user_id: userId,
+      payload: {
+        plan: mapping.plan,
+        expiresAt: nextBilledAt || canceledAt || null,
+        subscriptionId,
+        productId,
+      },
+    });
+  }
+  if (status === 'canceled' && oldStatus !== 'canceled') {
+    await emitEvent({
+      type: 'customer_canceled',
+      user_id: userId,
+      payload: {
+        plan: mapping.plan,
+        expiresAt: nextBilledAt || canceledAt || null,
+        subscriptionId,
+        productId,
+        // True when the user clicked cancel and the sub is still
+        // running until effective_at; false when Paddle confirmed the
+        // cancel is immediate (no future bill).
+        scheduled: !!nextBilledAt && new Date(nextBilledAt).getTime() > Date.now(),
       },
     });
   }
@@ -335,6 +423,23 @@ async function handleTransactionCompleted(event: any): Promise<void> {
             oldExpiry,
             newExpiry: null,
             reason: 'paddle_lifetime_purchase',
+          },
+        });
+
+        // First-time lifetime buyers AND existing premiums upgrading to
+        // lifetime are both "new customers" for billing purposes — the
+        // alternative is no event at all on a premium → lifetime upgrade,
+        // which the mod channel cares about.
+        await emitEvent({
+          type: 'new_customer',
+          user_id: userId,
+          payload: {
+            plan: 'lifetime',
+            newExpiry: null,
+            subscriptionId: transaction.id,
+            interval: null,
+            productId,
+            previousPlan: oldPlan,
           },
         });
       }
