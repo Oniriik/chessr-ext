@@ -4,6 +4,12 @@ import { useLayoutStore } from './layoutStore';
 import { useEngineStore } from './engineStore';
 import { useAutoMoveStore } from './autoMoveStore';
 import { useAuthStore } from './authStore';
+import {
+  setLocalePreference,
+  SUPPORTED_LOCALES,
+  type LocalePreference,
+  type LocaleCode,
+} from '../lib/i18n';
 
 export type ChessTitle = 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM' | 'WFM' | 'WCM' | 'WNM';
 export type FontSize = 'small' | 'normal' | 'big';
@@ -24,6 +30,12 @@ interface Settings {
   autoOpenOnGameEnd: boolean;
   autoOpenOnReview: boolean;
   fontSize: FontSize;
+  /** UI language preference. 'auto' = follow navigator.language (default
+   *  for new installs); otherwise an explicit locale code from
+   *  SUPPORTED_LOCALES. Cloud-synced via the same user_settings
+   *  payload as the rest, so switching to FR on desktop reflects on
+   *  the phone-side Chrome instantly. */
+  locale: LocalePreference;
 }
 
 const DEFAULTS: Settings = {
@@ -38,6 +50,7 @@ const DEFAULTS: Settings = {
   autoOpenOnGameEnd: false,
   autoOpenOnReview: true,
   fontSize: 'normal',
+  locale: 'auto',
 };
 
 export interface SettingsState extends Settings {
@@ -52,6 +65,7 @@ export interface SettingsState extends Settings {
   setAutoOpenOnGameEnd: (v: boolean) => void;
   setAutoOpenOnReview: (v: boolean) => void;
   setFontSize: (v: FontSize) => void;
+  setLocale: (v: LocalePreference) => void;
   resetAll: () => void;
   loadFromCloud: (userId: string) => Promise<void>;
 }
@@ -120,6 +134,7 @@ function getSettingsPayload(state: SettingsState) {
     autoOpenOnGameEnd: state.autoOpenOnGameEnd,
     autoOpenOnReview: state.autoOpenOnReview,
     fontSize: state.fontSize,
+    locale: state.locale,
     layout: useLayoutStore.getState().getConfig(),
     engine: getEnginePayload(),
     autoMove: getAutoMovePayload(),
@@ -192,12 +207,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ fontSize: v });
     syncToCloud(get());
   },
+  setLocale: (v) => {
+    set({ locale: v });
+    setLocalePreference(v);
+    syncToCloud(get());
+  },
 
   resetAll: () => {
     set({ ...DEFAULTS });
     useEngineStore.getState().resetToDefaults();
     useAutoMoveStore.getState().resetToDefaults();
     useLayoutStore.getState().resetToDefaults();
+    setLocalePreference(DEFAULTS.locale);
     syncToCloud(get());
     window.postMessage({ type: 'chessr:setAnon', value: DEFAULTS.anonNames }, '*');
     window.postMessage({ type: 'chessr:setTitle', enabled: DEFAULTS.showTitle, type_: DEFAULTS.titleType }, '*');
@@ -216,6 +237,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const cloud = data.extension_settings as Partial<Settings>;
         const nextShowTitle = (cloud as any).showTitle ?? DEFAULTS.showTitle;
         const nextTitleType = ((cloud as any).titleType as ChessTitle) ?? DEFAULTS.titleType;
+        // Validate cloud locale against the supported set — anything
+        // else (a removed code, a typo, a future addition that this
+        // build doesn't know about) falls back to 'auto'.
+        const rawLocale = (cloud as any).locale as LocalePreference | undefined;
+        const nextLocale: LocalePreference =
+          rawLocale === 'auto' || (SUPPORTED_LOCALES as string[]).includes(rawLocale as string)
+            ? rawLocale!
+            : DEFAULTS.locale;
         set({
           numArrows: cloud.numArrows ?? DEFAULTS.numArrows,
           arrowColors: cloud.arrowColors ?? DEFAULTS.arrowColors,
@@ -228,12 +257,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           autoOpenOnGameEnd: (cloud as any).autoOpenOnGameEnd ?? DEFAULTS.autoOpenOnGameEnd,
           autoOpenOnReview: (cloud as any).autoOpenOnReview ?? DEFAULTS.autoOpenOnReview,
           fontSize: ((cloud as any).fontSize as FontSize) ?? DEFAULTS.fontSize,
+          locale: nextLocale,
         });
+        // Push to the i18n module so the UI repaints in the cloud-saved
+        // language even before the user touches the picker.
+        setLocalePreference(nextLocale);
         // Sync anon state to pageContext after cloud load
         window.postMessage({ type: 'chessr:setAnon', value: (cloud as any).anonNames ?? false }, '*');
         window.postMessage({ type: 'chessr:setTitle', enabled: nextShowTitle, type_: nextTitleType }, '*');
-        if (cloud.layout) {
-          useLayoutStore.getState().loadFromCloud(cloud.layout);
+        if ((cloud as any).layout) {
+          useLayoutStore.getState().loadFromCloud((cloud as any).layout);
         }
         if ((cloud as any).engine) {
           const eng = (cloud as any).engine;

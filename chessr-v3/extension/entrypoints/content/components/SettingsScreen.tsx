@@ -17,6 +17,7 @@ import Toggle from './Toggle';
 import Slider from './Slider';
 import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
 import { useGameStore } from '../stores/gameStore';
+import { useTranslation, SUPPORTED_LOCALES, LOCALE_LABELS, type LocalePreference } from '../lib/i18n';
 import './settings-screen.css';
 
 const serverRegion = SERVER_LABEL[BUILD_ENV];
@@ -72,7 +73,8 @@ const TITLE_OPTIONS: { value: import('../stores/settingsStore').ChessTitle; labe
 ];
 
 function GeneralTab() {
-  const { disableAnimations, setDisableAnimations, disableInfoBanner, setDisableInfoBanner, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, fontSize, setFontSize, resetAll } = useSettingsStore();
+  const { t } = useTranslation();
+  const { disableAnimations, setDisableAnimations, disableInfoBanner, setDisableInfoBanner, anonNames, setAnonNames, showTitle, setShowTitle, titleType, setTitleType, autoOpenOnGameEnd, setAutoOpenOnGameEnd, autoOpenOnReview, setAutoOpenOnReview, fontSize, setFontSize, locale, setLocale, resetAll } = useSettingsStore();
   const handleReset = () => {
     if (confirm('Reset all settings to defaults? This will clear custom layouts, hotkeys, engine preferences, etc.')) {
       resetAll();
@@ -123,7 +125,20 @@ function GeneralTab() {
   return (
     <div className="settings-section">
       <div className="settings-item">
-        <span className="settings-label">Anonymous names</span>
+        <span className="settings-label">{t('settings.general.language')}</span>
+        <select
+          className="settings-select"
+          value={locale}
+          onChange={(e) => setLocale(e.target.value as LocalePreference)}
+        >
+          <option value="auto">{t('settings.general.language.auto')}</option>
+          {SUPPORTED_LOCALES.map((code) => (
+            <option key={code} value={code}>{LOCALE_LABELS[code]}</option>
+          ))}
+        </select>
+      </div>
+      <div className="settings-item">
+        <span className="settings-label">{t('settings.general.anonNames')}</span>
         <Toggle checked={anonNames} onChange={setAnonNames} />
       </div>
       <div className="settings-item settings-item--column">
