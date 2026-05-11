@@ -225,20 +225,11 @@ async function updateUserPlan(
     }
   }
 
-  // Audit log.
-  const { data: userData } = await supabase.auth.admin.getUserById(userId);
-  await supabase.from('plan_activity_logs').insert({
-    user_id: userId,
-    user_email: userData?.user?.email || '',
-    action_type: `paddle_${status}`,
-    new_plan: status === 'canceled' ? 'free' : mapping.plan,
-    old_plan: null,
-    reason: `Paddle ${status} (${subscriptionId})`,
-  });
-
-  // Drive the bot's role sync + activity feed via the events bus. Skip
-  // the emit if nothing observably changed (rare — webhook replay with
-  // unchanged plan + expiry).
+  // Drive the bot's role sync + activity feed via the events bus. The
+  // emitted event also serves as the audit trail (formerly written to
+  // Supabase's plan_activity_logs — now superseded by the local-pg
+  // events table). Skip the emit if nothing observably changed (rare —
+  // webhook replay with unchanged plan + expiry).
   if (oldPlan !== newPlan || oldExpiry !== newExpiry) {
     await emitEvent({
       type: 'plan_changed',
@@ -330,18 +321,10 @@ async function handleTransactionCompleted(event: any): Promise<void> {
 
       logPaddle(null, 'webhook', `${userId} → lifetime (transaction ${transaction.id})`, 'processed');
 
-      const { data: userData } = await supabase.auth.admin.getUserById(userId);
-      await supabase.from('plan_activity_logs').insert({
-        user_id: userId,
-        user_email: userData?.user?.email || '',
-        action_type: 'paddle_lifetime_purchase',
-        new_plan: 'lifetime',
-        reason: `Paddle transaction ${transaction.id}`,
-      });
-
       // Bot needs to swap the Lifetime role; activity feed needs the
-      // entry. Skip if it's a duplicate webhook delivery on an already-
-      // lifetime account.
+      // entry; the emitted event is the audit trail (Supabase's
+      // plan_activity_logs is retired in v3). Skip if it's a duplicate
+      // webhook delivery on an already-lifetime account.
       if (oldPlan !== 'lifetime') {
         await emitEvent({
           type: 'plan_changed',
