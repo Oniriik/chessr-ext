@@ -8,6 +8,7 @@
     "dev:firefox": "wxt --browser firefox",
     "build": "wxt zip",
     "build:beta": "wxt zip --mode beta",
+    "build:prod": "PROD_BUILD=1 wxt zip --mode beta",
     "deploy:beta": "wxt zip --mode beta && bash scripts/upload-beta.sh",
     "build:firefox": "wxt build --browser firefox",
     "test": "tsx --test entrypoints/content/lib/__tests__/*.test.ts",

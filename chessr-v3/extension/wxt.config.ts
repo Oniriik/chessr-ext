@@ -1,13 +1,21 @@
 import { defineConfig } from "wxt";
 import { runPostbuild } from "./scripts/postbuild.js";
 
-const isBeta = process.argv.includes("beta");
+// PROD_BUILD=1 reuses the beta env (same Supabase, same backend URL)
+// but strips the [BETA] prefix everywhere so we can publish to the
+// Chrome Web Store from the same backend the beta has been validated
+// against. Set via `npm run build:prod`.
+const isProd = process.env.PROD_BUILD === "1";
+const isBeta = process.argv.includes("beta") && !isProd;
 const displayName = isBeta ? "[BETA] Chessr.io" : "Chessr.io";
+// Zip filename uses the lowercase "chessr" prefix on prod builds so the
+// uploaded artifact matches the public download URL scheme.
+const zipName = isProd ? "chessr" : displayName;
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
   zip: {
-    name: displayName,
+    name: zipName,
     artifactTemplate: "{{name}} v{{version}}.zip",
   },
   hooks: {
