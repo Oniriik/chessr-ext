@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  AreaChart, Area,
   BarChart, Bar,
   Line, LineChart,
   CartesianGrid,
@@ -23,7 +22,7 @@ import { authQS } from '@/components/discord/giveaway-shared';
 
 // ─── Range presets ──────────────────────────────────────────────────────
 
-type Preset = '24h' | '48h' | '7d' | '15d' | '1m' | 'custom';
+type Preset = '24h' | '48h' | '7d' | '15d' | '1m' | 'all' | 'custom';
 
 const PRESETS: { id: Preset; label: string; hours?: number }[] = [
   { id: '24h', label: '24h',     hours: 24 },
@@ -31,8 +30,14 @@ const PRESETS: { id: Preset; label: string; hours?: number }[] = [
   { id: '7d',  label: '7 days',  hours: 24 * 7 },
   { id: '15d', label: '15 days', hours: 24 * 15 },
   { id: '1m',  label: '1 month', hours: 24 * 30 },
+  { id: 'all', label: 'All time' },
   { id: 'custom', label: 'Custom' },
 ];
+
+// Floor for the 'all time' preset — covers everything since v3 went
+// live and is comfortably before any production data. Auto bucket
+// sizing will pick 7d buckets for this range.
+const ALL_TIME_FROM = new Date('2025-01-01T00:00:00Z');
 
 // Engine color palette — matches the wheel-of-fortune chips on /discord
 // for visual consistency.
@@ -90,9 +95,10 @@ export default function AnalyticsPage() {
       to.setHours(23, 59, 59, 999);
       return { from: customRange.from, to };
     }
+    const to = new Date();
+    if (preset === 'all') return { from: ALL_TIME_FROM, to };
     const def = PRESETS.find((p) => p.id === preset);
     const hours = def?.hours ?? 24;
-    const to = new Date();
     const from = new Date(to.getTime() - hours * 3600 * 1000);
     return { from, to };
   }, [preset, customRange]);
@@ -230,24 +236,23 @@ export default function AnalyticsPage() {
               <CardContent className="p-4 sm:p-5">
                 <ChartHeader title="Suggestions by engine" hint="Click a legend item to toggle" />
                 <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={data.series.suggestionsByEngine}>
+                  <LineChart data={data.series.suggestionsByEngine}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
                     <XAxis dataKey="t" tickFormatter={(t) => format(new Date(t), data.bucket === '1d' || data.bucket === '7d' ? 'MMM d' : 'MMM d HH:mm')} stroke="#71717a" fontSize={11} />
                     <YAxis allowDecimals={false} stroke="#71717a" fontSize={11} />
                     <Tooltip content={<ChartTooltip bucket={data.bucket} />} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     {data.engines.map((eng) => (
-                      <Area
+                      <Line
                         key={eng}
                         type="monotone"
                         dataKey={eng}
-                        stackId="1"
                         stroke={ENGINE_COLORS[eng] ?? '#71717a'}
-                        fill={ENGINE_COLORS[eng] ?? '#71717a'}
-                        fillOpacity={0.35}
+                        strokeWidth={2}
+                        dot={false}
                       />
                     ))}
-                  </AreaChart>
+                  </LineChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
