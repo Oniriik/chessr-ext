@@ -47,6 +47,14 @@ export const config = {
      *  logs a warning and skips the announcement (giveaway stays
      *  pending until configured). */
     giveawayChannelId: optional('DISCORD_GIVEAWAY_CHANNEL_ID'),
+    /** Mod channels — see handlers/eventForwarder.ts for the routing
+     *  table. Each is optional; unset = silently skip that channel
+     *  group instead of erroring. */
+    mod: {
+      subscriptions: optional('DISCORD_MOD_SUBSCRIPTIONS_CHANNEL_ID'),
+      users:         optional('DISCORD_MOD_USERS_CHANNEL_ID'),
+      security:      optional('DISCORD_MOD_SECURITY_CHANNEL_ID'),
+    },
     /** Stats voice channels — names are rewritten on a 10-min cadence.
      *  Discord caps channel renames at 2 per 10 min per channel, so we
      *  stagger updates with 1-minute offsets between channels. Any

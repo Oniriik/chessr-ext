@@ -86,6 +86,28 @@ function bucketExpr(b: BucketChoice): string {
   return `date_trunc('${b.truncUnit}', created_at)`;
 }
 
+// ─── GET /admin/analytics/totals — all-time counters ───────────────────
+// Cheap aggregate query used by the Discord stats voice channels and
+// the dashboard's overview tiles. No filter on time — just COUNT(*)
+// over user_activity by event_type. Caller can divide / format
+// however it wants.
+
+adminAnalyticsRoutes.get('/admin/analytics/totals', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+
+  const rows = await dbQuery<{ event_type: string; count: string }>(
+    `SELECT event_type, COUNT(*)::text AS count
+       FROM user_activity
+      GROUP BY 1`,
+  );
+  const totals: Record<string, number> = {
+    suggestion: 0, analysis: 0, explanation: 0,
+    game_review: 0, profile_analysis: 0,
+  };
+  for (const r of rows) totals[r.event_type] = Number(r.count);
+  return c.json({ totals });
+});
+
 adminAnalyticsRoutes.get('/admin/analytics/series', async (c) => {
   if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
 

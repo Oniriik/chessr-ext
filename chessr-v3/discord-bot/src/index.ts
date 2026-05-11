@@ -23,6 +23,7 @@ import { startStatsChannels } from './handlers/statsChannels.js';
 import { registerBoostReward } from './handlers/boostReward.js';
 import { registerGiveawayAnnouncer } from './handlers/giveawayAnnouncer.js';
 import { registerInviteTracker } from './handlers/inviteTracker.js';
+import { registerEventForwarder } from './handlers/eventForwarder.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -90,6 +91,7 @@ client.once('clientReady', async () => {
   registerInventoryHandlers(client);
   registerGiveawayAnnouncer(client);
   registerTicketHandlers(client);
+  registerEventForwarder(client);
 });
 
 registerInviteTracker(client);

@@ -27,11 +27,6 @@ import { supabase } from '../lib/supabase.js';
 const TICK_INTERVAL_MS = 10 * 60 * 1000;   // 10 min — full refresh
 const RENAME_OFFSET_MS = 60 * 1000;        // 1 min between renames in a tick
 
-// Placeholder until the local-postgres migration ships the real
-// counter. The screenshot shows ~873.8K — we surface the same ballpark
-// so the channel doesn't read as empty in beta.
-const PLACEHOLDER_MOVES_ANALYZED = 873_800;
-
 /** Pretty-print large integers with K / M suffixes (matches the v2 UI). */
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -78,6 +73,25 @@ async function playingNow(): Promise<number | null> {
     return Array.isArray(data.users) ? data.users.length : 0;
   } catch (err) {
     log.warn('[stats] playingNow fetch failed:', err);
+    return null;
+  }
+}
+
+/** All-time suggestions count from local-pg via the serveur's totals
+ *  endpoint. The label says "Moves Analyzed" for continuity with the
+ *  v2 channel name but the underlying metric is suggestion events. */
+async function totalSuggestions(): Promise<number | null> {
+  const { url, adminToken } = config.serveur;
+  if (!adminToken) return null;
+  try {
+    const res = await fetch(`${url}/admin/analytics/totals`, {
+      headers: { 'x-admin-token': adminToken },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { totals?: Record<string, number> };
+    return data.totals?.suggestion ?? 0;
+  } catch (err) {
+    log.warn('[stats] totalSuggestions fetch failed:', err);
     return null;
   }
 }
@@ -131,15 +145,16 @@ async function tick(client: Client): Promise<void> {
   const ids = config.discord.statsChannels;
   if (!ids.users && !ids.playing && !ids.moves && !ids.premium) return;
 
-  const [users, playing, premium] = await Promise.all([
+  const [users, playing, moves, premium] = await Promise.all([
     totalUsers(),
     playingNow(),
+    totalSuggestions(),
     premiumUsers(),
   ]);
 
   log.info(
     `[stats] tick — users=${users ?? '?'} playing=${playing ?? '?'} ` +
-    `moves=${PLACEHOLDER_MOVES_ANALYZED} premium=${premium ?? '?'}`,
+    `moves=${moves ?? '?'} premium=${premium ?? '?'}`,
   );
 
   // Stagger: 0min, 1min, 2min, 3min. Each channel touched once per
@@ -148,7 +163,7 @@ async function tick(client: Client): Promise<void> {
   await sleep(RENAME_OFFSET_MS);
   await updateChannel(client, ids.playing, '👁️', 'Playing Now',     playing);
   await sleep(RENAME_OFFSET_MS);
-  await updateChannel(client, ids.moves,   '🧠', 'Moves Analyzed',  PLACEHOLDER_MOVES_ANALYZED);
+  await updateChannel(client, ids.moves,   '🧠', 'Moves Analyzed',  moves);
   await sleep(RENAME_OFFSET_MS);
   await updateChannel(client, ids.premium, '⭐', 'Premium',         premium);
 }
