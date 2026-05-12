@@ -100,10 +100,14 @@ export class RodentSuggestionEngine implements IEngine {
   get supportedOptions(): ReadonlySet<string> { return this._supportedOptions; }
 
   async init(): Promise<void> {
+    const t0 = performance.now();
+    const ms = () => (performance.now() - t0).toFixed(0);
+
     const jsUrl = browser.runtime.getURL('/engine/rodent/rodent.js');
     const wasmUrl = browser.runtime.getURL('/engine/rodent/rodent.wasm');
     const dataUrl = browser.runtime.getURL('/engine/rodent/rodent.data');
 
+    console.log('[Chessr][rodent] init: fetching rodent.js…');
     const response = await browser.runtime.sendMessage({
       type: 'fetchExtensionFile',
       path: new URL(jsUrl).pathname,
@@ -111,6 +115,7 @@ export class RodentSuggestionEngine implements IEngine {
     if (response.error || !response.text) {
       throw new Error(`Failed to fetch rodent.js: ${response.error}`);
     }
+    console.log(`[Chessr][rodent] init: rodent.js fetched (${response.text.length} bytes) at ${ms()}ms`);
 
     const fullSource = WORKER_GLUE + response.text;
     const blob = new Blob([fullSource], { type: 'application/javascript' });
@@ -118,30 +123,28 @@ export class RodentSuggestionEngine implements IEngine {
     const hash =
       encodeURIComponent(wasmUrl) + '|' + encodeURIComponent(dataUrl);
     this.worker = new Worker(this.blobUrl + '#' + hash);
+    console.log(`[Chessr][rodent] init: Worker spawned at ${ms()}ms — waiting uciok…`);
 
     // Phase 1: drive UCI handshake, collect advertised options.
-    await this.withTimeout(
-      new Promise<void>((resolve, reject) => {
-        const onMessage = (e: MessageEvent) => {
-          const line = typeof e.data === 'string' ? e.data : '';
-          if (line.startsWith('option name ')) {
-            const m = line.match(/^option name (.+?) type /);
-            if (m) this._supportedOptions.add(m[1]);
-          } else if (line.includes('uciok')) {
-            this.worker!.removeEventListener('message', onMessage);
-            resolve();
-          }
-        };
-        this.worker!.addEventListener('message', onMessage);
-        this.worker!.addEventListener('error', (err) => {
-          reject(new Error('Rodent worker error: ' + ((err as ErrorEvent).message ?? 'unknown')));
-        }, { once: true });
-        // Tiny delay to let preRun + FS.init wire up before pushing UCI.
-        setTimeout(() => this.sendRaw('uci'), 50);
-      }),
-      INIT_TIMEOUT_MS,
-      'uci init timeout',
-    );
+    await new Promise<void>((resolve, reject) => {
+      const onMessage = (e: MessageEvent) => {
+        const line = typeof e.data === 'string' ? e.data : '';
+        if (line.startsWith('option name ')) {
+          const m = line.match(/^option name (.+?) type /);
+          if (m) this._supportedOptions.add(m[1]);
+        } else if (line.includes('uciok')) {
+          this.worker!.removeEventListener('message', onMessage);
+          console.log(`[Chessr][rodent] init: uciok received at ${ms()}ms`);
+          resolve();
+        }
+      };
+      this.worker!.addEventListener('message', onMessage);
+      this.worker!.addEventListener('error', (err) => {
+        reject(new Error('Rodent worker error: ' + ((err as ErrorEvent).message ?? 'unknown')));
+      }, { once: true });
+      // Tiny delay to let preRun + FS.init wire up before pushing UCI.
+      setTimeout(() => this.sendRaw('uci'), 50);
+    });
 
     if (this._supportedOptions.has('Hash')) {
       this.sendRaw(`setoption name Hash value ${HASH_MB}`);
@@ -152,11 +155,8 @@ export class RodentSuggestionEngine implements IEngine {
     // their authentic opening repertoires (Karpov → players/ph-karpov2.bin,
     // etc.).
 
-    await this.withTimeout(
-      this.waitForToken('readyok', () => this.sendRaw('isready')),
-      INIT_TIMEOUT_MS,
-      'isready timeout',
-    );
+    await this.waitForToken('readyok', () => this.sendRaw('isready'));
+    console.log(`[Chessr][rodent] init: readyok received at ${ms()}ms`);
 
     if (!this._supportedOptions.has('MultiPV')) {
       throw new Error('Rodent WASM does not advertise MultiPV — cannot run suggestions');
@@ -164,6 +164,7 @@ export class RodentSuggestionEngine implements IEngine {
 
     this._ready = true;
     await this.newGame();
+    console.log(`[Chessr][rodent] init: ready (total ${ms()}ms)`);
   }
 
   getCapabilities(): EngineCapabilities {

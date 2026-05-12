@@ -254,13 +254,19 @@ export class EngineManager extends EventEmitter {
         this.sendCommand(`position fen ${fen}`);
       }
 
-      // Start search with depth, movetime, or nodes limit
+      // Start search with the appropriate budget.
+      // If no constraint is provided we send bare `go` — used by Rodent IV
+      // with UCI_LimitStrength=true, where the engine has its own internal
+      // skill-based time/node caps and ends the search itself when it has
+      // explored "enough" for the target Elo.
       if (depth) {
         this.sendCommand(`go depth ${depth}`);
       } else if (movetime) {
         this.sendCommand(`go movetime ${movetime}`);
-      } else {
+      } else if (nodes) {
         this.sendCommand(`go nodes ${nodes}`);
+      } else {
+        this.sendCommand('go');
       }
     });
   }

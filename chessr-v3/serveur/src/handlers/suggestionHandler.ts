@@ -128,13 +128,14 @@ export async function handleSuggestionRequest(
       searchOptions.nodes = Math.max(100_000, Math.min(5_000_000, searchNodes || SEARCH_NODES));
     }
   } else if (engineType === 'rodent') {
-    // Rodent intentionally caps internal NPS when UCI_LimitStrength is on
-    // (~1.7k-2k nps to simulate slow human play). Sending a node budget
-    // would mean a 1M-node request takes ~10 minutes — exceeds the 30s
-    // engine.search timeout and the user sees no suggestions.
-    // Movetime lets Rodent's own time manager decide when to stop given the
-    // current skill level, which is what the engine is tuned for.
-    searchOptions.movetime = 3000;
+    // Rodent IV + UCI_LimitStrength caps internal NPS to a few thousand to
+    // simulate the target Elo. Sending an external nodes/movetime budget
+    // would either cut the search short or wait too long. Leave searchOptions
+    // empty — EngineManager will send bare `go`, and Rodent's internal
+    // skill-based time manager decides when to stop (typically 5-15s at
+    // Elo 1500-2200, well within the 30s engine timeout).
+    // NB: when LimitStrength is OFF (Force Depth), we fall into the first
+    // branch above and honor the user's depth/nodes/movetime settings.
   } else {
     searchOptions.nodes = SEARCH_NODES;
   }

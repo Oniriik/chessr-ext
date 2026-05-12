@@ -353,12 +353,14 @@ async function createEngine(id: EngineId): Promise<IEngine> {
       throw new Error(`chessrFailWasm set for ${id} → simulated init failure`);
     }
     // Per-engine init budget. Default 3s is fine for small engines (Komodo /
-    // Stockfish). Rodent IV ships ~70 MB of preloaded books + a Asyncify-
-    // wrapped UCI loop, which on slow disks/devices can easily blow past 3s
-    // (observed: first-cold init ~8-12s). Bump to 15s for it specifically.
+    // Stockfish). Rodent IV ships ~68 MB of preloaded books + an Asyncify-
+    // wrapped UCI loop, which on first cold load on a busy chess.com tab
+    // can take 15-25s just to fetch + parse + populate MEMFS. After the
+    // first load the extension's static resources are cached by Chrome so
+    // re-init is fast (<3s). 30s gives enough headroom for first-cold.
     // Maia 3 also has a 45 MB ONNX download — keep its existing internal
     // timeout untouched.
-    const initBudget = id === 'rodent' ? 15_000 : WASM_INIT_TIMEOUT_MS;
+    const initBudget = id === 'rodent' ? 30_000 : WASM_INIT_TIMEOUT_MS;
     await Promise.race([
       wasmEng.init(),
       new Promise<never>((_, rej) =>
