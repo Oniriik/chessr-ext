@@ -29,7 +29,7 @@
  * admin nuked a role manually).
  */
 
-import type { Client, GuildMember } from 'discord.js';
+import type { Client, Collection, Guild, GuildMember } from 'discord.js';
 import { config } from '../config.js';
 import { log } from '../lib/logger.js';
 import { supabase } from '../lib/supabase.js';
@@ -88,6 +88,29 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/** Issue a REQUEST_GUILD_MEMBERS and retry once if the gateway throttles
+ *  us (opcode-8 bucket, ~1 req / 5s per shard). The error message
+ *  carries the precise retry-after; parse it so back-to-back restarts
+ *  during a deploy don't all skip their first sweep. */
+async function fetchAllMembers(guild: Guild): Promise<Collection<string, GuildMember> | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await guild.members.fetch();
+    } catch (err) {
+      const msg = (err as Error)?.message ?? String(err);
+      const m = /Retry after ([\d.]+) seconds/.exec(msg);
+      if (!m) {
+        log.warn('[guild-sync] members.fetch threw (non-rate-limit):', msg);
+        return null;
+      }
+      const waitSec = Math.min(Math.max(parseFloat(m[1]), 1), 30);
+      log.info(`[guild-sync] gateway throttled, sleeping ${waitSec.toFixed(1)}s before retry`);
+      await sleep((waitSec + 0.5) * 1000);
+    }
+  }
+  return null;
+}
+
 async function syncOne(member: GuildMember, linked: LinkedUser | undefined): Promise<void> {
   // Snapshot the member's current role ids and let syncPlan/EloRole diff
   // against it. For the steady-state majority (already in the correct
@@ -117,15 +140,14 @@ async function tick(client: Client): Promise<void> {
     return;
   }
 
-  // Pull the full member list once. For a few-thousand-member guild
-  // this is one /guilds/{id}/members?limit=1000 paginated fetch —
-  // fast enough to do every 30 min.
-  const members = await guild.members.fetch().catch((err) => {
-    log.warn('[guild-sync] members.fetch threw:', err?.message ?? err);
-    return null;
-  });
+  // Pull the full member list. For a few-thousand-member guild this is
+  // one REQUEST_GUILD_MEMBERS (gateway opcode 8) — separate bucket from
+  // the HTTP rate limit, capped at ~1 req / 5s per shard, which we can
+  // hit if we restart the bot multiple times in quick succession. Retry
+  // once on that specific failure honoring the "Retry after Ns" hint.
+  const members = await fetchAllMembers(guild);
   if (!members) {
-    log.warn('[guild-sync] members.fetch failed');
+    log.warn('[guild-sync] members.fetch failed after retry, skipping sweep');
     return;
   }
 
