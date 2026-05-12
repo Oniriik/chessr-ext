@@ -46,9 +46,20 @@ cd "$SRC"
 # Same flags as Rodent's upstream Makefile minus the install bits.
 # Source .cpp files live directly under $SRC (not in a src/ subdir — we
 # vendored the contents of Rodent's sources/src/ folder).
+#
+# Linux build is statically linked against libstdc++/libgcc so the binary
+# runs inside any container regardless of the base image's glibc version
+# (node:22-slim ships with an older libstdc++ than Ubuntu 24.04's host).
+# macOS builds dynamically link as usual.
+LINK_FLAGS=""
+if [[ "$PLATFORM" == "Linux" ]]; then
+  LINK_FLAGS="-static-libgcc -static-libstdc++"
+fi
+
 g++ -O3 -std=c++14 \
   -w -Wfatal-errors -DNDEBUG \
   -finline-functions \
+  $LINK_FLAGS \
   *.cpp \
   -o "$OUT_BIN" \
   -lm
