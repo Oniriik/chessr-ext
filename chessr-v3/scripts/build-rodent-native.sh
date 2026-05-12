@@ -44,10 +44,12 @@ mkdir -p "$OUT_DIR"
 cd "$SRC"
 
 # Same flags as Rodent's upstream Makefile minus the install bits.
+# Source .cpp files live directly under $SRC (not in a src/ subdir — we
+# vendored the contents of Rodent's sources/src/ folder).
 g++ -O3 -std=c++14 \
   -w -Wfatal-errors -DNDEBUG \
   -finline-functions \
-  src/*.cpp \
+  *.cpp \
   -o "$OUT_BIN" \
   -lm
 
