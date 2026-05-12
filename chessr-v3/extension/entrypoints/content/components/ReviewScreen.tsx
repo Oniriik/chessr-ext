@@ -240,7 +240,9 @@ export function ReviewSummary({ analysis, playerColor, headers }: { analysis: an
 
 export default function ReviewScreen({ gameId }: Props) {
   const { t } = useTranslation();
-  const { loading, checking, progress, analysis, headers, error, checkCache, requestReview } = useReviewStore();
+  const { loading, checking, progress, analysis, headers, error, quota, checkCache, requestReview } = useReviewStore();
+  const showQuotaBadge = quota && !quota.isPremium && quota.dailyLimit != null && quota.dailyUsage != null;
+  const remaining = showQuotaBadge ? Math.max(0, (quota!.dailyLimit ?? 0) - (quota!.dailyUsage ?? 0)) : 0;
   const meta = useGameMeta(gameId);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -279,10 +281,17 @@ export default function ReviewScreen({ gameId }: Props) {
       )}
 
       {idle && (
-        <button className="review-cta" onClick={() => requestReview(gameId)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-          {t('game.review.analyze')}
-        </button>
+        <>
+          <button className="review-cta" onClick={() => requestReview(gameId)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+            {t('game.review.analyze')}
+          </button>
+          {showQuotaBadge && (
+            <span style={{ fontSize: 10, opacity: 0.65, textAlign: 'center', display: 'block', marginTop: -4 }}>
+              {t('game.review.quotaStatus', { used: quota!.dailyUsage, limit: quota!.dailyLimit, remaining })}
+            </span>
+          )}
+        </>
       )}
 
       {loading && (

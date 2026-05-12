@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "wxt",
+    "dev:prod": "VITE_WS_URL=wss://api.chessr.io VITE_ENV=prod wxt",
+    "dev:beta": "VITE_WS_URL=wss://beta.chessr.io VITE_ENV=beta wxt --mode beta",
     "dev:firefox": "wxt --browser firefox",
     "build": "wxt zip",
     "build:beta": "wxt zip --mode beta",

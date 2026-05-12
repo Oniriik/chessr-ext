@@ -208,6 +208,24 @@ export async function handleChesscomReview(
     return;
   }
 
+  // Compute current daily-review quota for the user. Returned alongside
+  // cache_miss / cache_hit / success responses so the UI can show
+  // "X/5 reviews used today" PROACTIVELY without waiting for the limit
+  // error to fire. Premium plans get isPremium=true and null counters.
+  async function quotaSnapshot(): Promise<{ dailyUsage: number | null; dailyLimit: number | null; isPremium: boolean }> {
+    if (!userId) return { dailyUsage: null, dailyLimit: null, isPremium: false };
+    const { data: userSettings } = await supabase
+      .from('user_settings')
+      .select('plan')
+      .eq('user_id', userId)
+      .single();
+    const plan = userSettings?.plan || 'free';
+    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
+    if (isPremium) return { dailyUsage: null, dailyLimit: null, isPremium: true };
+    const dailyUsage = await countUserActivityToday(userId, 'game_review');
+    return { dailyUsage, dailyLimit: DAILY_LIMIT, isPremium: false };
+  }
+
   try {
     // Step 1: Check cache
     const cached = await getCachedReview(gameId, 'chesscom', coachId);
@@ -222,13 +240,14 @@ export async function handleChesscomReview(
           White: cached.white_username || null,
           Black: cached.black_username || null,
         },
+        ...(await quotaSnapshot()),
       });
       return;
     }
 
     // Cache-only mode: just return miss, don't run analysis
     if (cacheOnly) {
-      send({ type: 'chesscom_review_cache_miss', requestId });
+      send({ type: 'chesscom_review_cache_miss', requestId, ...(await quotaSnapshot()) });
       return;
     }
 
@@ -304,7 +323,7 @@ export async function handleChesscomReview(
       } catch { /* ignore */ }
     }
 
-    // Step 8: Send result
+    // Step 8: Send result (with refreshed quota — we just consumed one)
     send({
       type: 'chesscom_review_result',
       requestId,
@@ -314,6 +333,7 @@ export async function handleChesscomReview(
         Black: gameData.headers.Black || null,
         Result: gameData.headers.Result || null,
       },
+      ...(await quotaSnapshot()),
     });
     if (userId) logEnd(userId, requestId, 'review', `gameId=${gameId} ${gameData.headers.White}/${gameData.headers.Black}`);
   } catch (error) {

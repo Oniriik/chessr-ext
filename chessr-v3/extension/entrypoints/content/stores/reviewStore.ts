@@ -7,6 +7,15 @@ interface ReviewHeaders {
   Result?: string | null;
 }
 
+/** Daily-review quota snapshot returned by the server alongside every
+ *  review response. Null for users with no auth context; `isPremium=true`
+ *  when the plan is unlimited (in which case usage/limit are null). */
+export interface ReviewQuota {
+  dailyUsage: number | null;
+  dailyLimit: number | null;
+  isPremium: boolean;
+}
+
 interface ReviewState {
   gameId: string | null;
   loading: boolean;
@@ -15,6 +24,7 @@ interface ReviewState {
   analysis: any | null;
   headers: ReviewHeaders | null;
   error: string | null;
+  quota: ReviewQuota | null;
 
   checkCache: (gameId: string) => void;
   requestReview: (gameId: string) => void;
@@ -29,6 +39,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   analysis: null,
   headers: null,
   error: null,
+  quota: null,
 
   checkCache: (gameId: string) => {
     if (get().gameId === gameId) return;
@@ -56,6 +67,18 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
   reset: () => set({ gameId: null, loading: false, checking: false, progress: 0, analysis: null, headers: null, error: null }),
 }));
 
+/** Pull the quota out of a server response (if present) and store it. */
+function captureQuota(data: any) {
+  if (typeof data.dailyUsage === 'undefined' && typeof data.dailyLimit === 'undefined' && typeof data.isPremium === 'undefined') return;
+  useReviewStore.setState({
+    quota: {
+      dailyUsage: data.dailyUsage ?? null,
+      dailyLimit: data.dailyLimit ?? null,
+      isPremium: !!data.isPremium,
+    },
+  });
+}
+
 // WS listener
 onWsMessage((data) => {
   const state = useReviewStore.getState();
@@ -69,12 +92,16 @@ onWsMessage((data) => {
       break;
     case 'chesscom_review_result':
       useReviewStore.setState({ loading: false, checking: false, progress: 100, analysis: data.analysis, headers: data.headers || null });
+      captureQuota(data);
       break;
     case 'chesscom_review_cache_miss':
       useReviewStore.setState({ checking: false });
+      captureQuota(data);
       break;
     case 'chesscom_review_error':
       useReviewStore.setState({ loading: false, checking: false, error: data.error || 'Review failed' });
+      // daily_limit errors include current usage; capture so the UI can render the badge.
+      captureQuota(data);
       break;
   }
 });

@@ -102,6 +102,7 @@
   "game.review.analyzing": "Анализ... {{progress}}%",
   "game.review.upgrade": "Перейти на Premium",
   "game.review.dailyLimit": "Достигнут дневной лимит",
+  "game.review.quotaStatus": "{{used}}/{{limit}} обзоров сегодня — осталось {{remaining}}",
   "game.review.errorPrefix": "Ошибка: {{msg}}",
   "game.review.seeFull": "Полный обзор",
   "game.review.reviewOnChessr": "Обзор на Chessr",

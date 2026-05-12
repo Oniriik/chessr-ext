@@ -102,6 +102,7 @@
   "game.review.analyzing": "Analiz... {{progress}}%",
   "game.review.upgrade": "Premium'a yükselt",
   "game.review.dailyLimit": "Günlük sınıra ulaşıldı",
+  "game.review.quotaStatus": "Bugün {{used}}/{{limit}} review kullanıldı — {{remaining}} kaldı",
   "game.review.errorPrefix": "Hata: {{msg}}",
   "game.review.seeFull": "Tam analizi gör",
   "game.review.reviewOnChessr": "Chessr'da incele",

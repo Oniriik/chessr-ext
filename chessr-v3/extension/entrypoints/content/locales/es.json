@@ -102,6 +102,7 @@
   "game.review.analyzing": "Analizando... {{progress}}%",
   "game.review.upgrade": "Mejorar a Premium",
   "game.review.dailyLimit": "Límite diario alcanzado",
+  "game.review.quotaStatus": "{{used}}/{{limit}} reviews usadas hoy — quedan {{remaining}}",
   "game.review.errorPrefix": "Error: {{msg}}",
   "game.review.seeFull": "Ver análisis completo",
   "game.review.reviewOnChessr": "Revisar en Chessr",

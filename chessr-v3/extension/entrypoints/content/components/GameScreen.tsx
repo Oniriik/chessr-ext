@@ -104,11 +104,15 @@ export function getGameStatus(
 function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: string | null }) {
   const { t } = useTranslation();
   const meta = useGameMeta(gameId);
-  const { loading, progress, analysis, headers, error, checkCache, requestReview } = useReviewStore();
+  const { loading, progress, analysis, headers, error, quota, checkCache, requestReview } = useReviewStore();
 
   useEffect(() => { checkCache(gameId); }, [gameId]);
 
   const idle = !loading && !analysis && !error;
+  // Show the "X/5 reviews used today" badge only when the server confirmed
+  // the user is on a limited (non-premium) plan and we have a counter.
+  const showQuotaBadge = quota && !quota.isPremium && quota.dailyLimit != null && quota.dailyUsage != null;
+  const remaining = showQuotaBadge ? Math.max(0, (quota!.dailyLimit ?? 0) - (quota!.dailyUsage ?? 0)) : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -123,10 +127,17 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
       )}
 
       {idle && (
-        <button className="game-review-btn" onClick={() => requestReview(gameId)}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
-          {t('game.review.analyze')}
-        </button>
+        <>
+          <button className="game-review-btn" onClick={() => requestReview(gameId)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+            {t('game.review.analyze')}
+          </button>
+          {showQuotaBadge && (
+            <span style={{ fontSize: 10, opacity: 0.65, textAlign: 'center', display: 'block', marginTop: -4 }}>
+              {t('game.review.quotaStatus', { used: quota!.dailyUsage, limit: quota!.dailyLimit, remaining })}
+            </span>
+          )}
+        </>
       )}
 
       {loading && (
