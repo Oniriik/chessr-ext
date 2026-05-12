@@ -120,7 +120,10 @@ async function tick(client: Client): Promise<void> {
   // Pull the full member list once. For a few-thousand-member guild
   // this is one /guilds/{id}/members?limit=1000 paginated fetch —
   // fast enough to do every 30 min.
-  const members = await guild.members.fetch().catch(() => null);
+  const members = await guild.members.fetch().catch((err) => {
+    log.warn('[guild-sync] members.fetch threw:', err?.message ?? err);
+    return null;
+  });
   if (!members) {
     log.warn('[guild-sync] members.fetch failed');
     return;
