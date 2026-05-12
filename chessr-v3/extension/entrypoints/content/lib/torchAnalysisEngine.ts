@@ -100,6 +100,11 @@ export interface TorchAnalysisDeps {
   mode: TorchEngineMode;
 }
 
+/** Process-lifetime counter of torch worker crashes — increments on every
+ *  `error` event across all TorchAnalysisEngine instances. Lets us correlate
+ *  "labels disappearing" reports with crash bursts in the log timeline. */
+let torchCrashCounter = 0;
+
 export class TorchAnalysisEngine implements AnalysisBackend {
   private worker: WorkerLike | null = null;
   private blobUrl: string | null = null;
@@ -134,7 +139,12 @@ export class TorchAnalysisEngine implements AnalysisBackend {
 
     this.worker.addEventListener('error', (e) => {
       const msg = (e as ErrorEvent).message ?? 'torch worker crashed';
-      console.warn('[Chessr][torch] worker error:', msg);
+      torchCrashCounter += 1;
+      console.warn('[Chessr][torch] worker error', {
+        mode: this.deps.mode,
+        msg,
+        crashCounter: torchCrashCounter,
+      });
       // Clean up immediately — no point holding the dead Worker + BlobURL.
       // Subsequent enqueue() calls will see disposed=true and reject; the
       // catch handlers in content.tsx re-init via buildLiveAnalysis.

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-export type EngineType = 'komodo' | 'stockfish';
+export type EngineType = 'komodo' | 'stockfish' | 'rodent';
 
 export interface SearchOptions {
   nodes?: number;
@@ -54,13 +54,13 @@ export class EngineManager extends EventEmitter {
     const arch = process.arch;
 
     if (platform === 'darwin' && arch === 'arm64') {
-      return this.engineType === 'stockfish'
-        ? path.join(__dirname, '../../engines/macos/stockfish-m1')
-        : path.join(__dirname, '../../engines/macos/dragon-m1');
+      if (this.engineType === 'stockfish') return path.join(__dirname, '../../engines/macos/stockfish-m1');
+      if (this.engineType === 'rodent')    return path.join(__dirname, '../../engines/macos/rodent-m1');
+      return path.join(__dirname, '../../engines/macos/dragon-m1');
     } else if (platform === 'linux') {
-      return this.engineType === 'stockfish'
-        ? path.join(__dirname, '../../engines/linux/stockfish-avx2')
-        : path.join(__dirname, '../../engines/linux/dragon-avx2');
+      if (this.engineType === 'stockfish') return path.join(__dirname, '../../engines/linux/stockfish-avx2');
+      if (this.engineType === 'rodent')    return path.join(__dirname, '../../engines/linux/rodent');
+      return path.join(__dirname, '../../engines/linux/dragon-avx2');
     }
     throw new Error(`Unsupported platform: ${platform} ${arch}`);
   }
@@ -74,8 +74,17 @@ export class EngineManager extends EventEmitter {
 
       console.log(`[Engine ${this.id}] Starting ${this.engineType}: ${enginePath}`);
 
+      // Rodent expects `personalities/` and `books/` directories relative
+      // to its CWD (or set via RODENT4PERSONALITIES/RODENT4BOOKS env vars).
+      // Spawning from the engine binary's own directory makes both
+      // available without extra env wiring.
+      const spawnCwd = this.engineType === 'rodent'
+        ? path.dirname(enginePath)
+        : undefined;
+
       this.process = spawn(enginePath, [], {
         stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: spawnCwd,
       });
 
       this.process.stdout?.on('data', (data: Buffer) => {

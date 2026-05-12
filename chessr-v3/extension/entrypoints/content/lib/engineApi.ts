@@ -34,6 +34,12 @@ export interface SuggestionSearchParams {
   /** When true, prefer Polyglot opening-book moves over Maia's policy
    *  (default — covers Maia's unreliable opening phase). */
   useBook?: boolean;
+
+  // ─── Rodent IV fields ──────────────────────────────────────────────────
+  /** Target ELO for Rodent's UCI_Elo. Only active when limitStrength=true. */
+  eloTarget?: number;
+  /** 0..100 slider → mapped to Rodent's EvalBlur internally. */
+  imprecision?: number;
 }
 
 export interface IEngine {

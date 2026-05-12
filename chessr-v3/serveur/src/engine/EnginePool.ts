@@ -1,36 +1,39 @@
 /**
- * EnginePool - Manages multiple Komodo Dragon engine instances
- * Provides load balancing and request queuing
+ * EnginePool - Manages multiple UCI engine instances of a chosen type
+ * (Komodo Dragon by default, or any other native engine like Rodent IV).
+ * Provides load balancing and request queuing.
  */
 
-import { EngineManager } from './EngineManager.js';
+import { EngineManager, type EngineType } from './EngineManager.js';
 
 type ResolveCallback = (engine: EngineManager | null) => void;
 
 export class EnginePool {
   private maxInstances: number;
+  private engineType: EngineType;
   private engines: EngineManager[] = [];
   private waitingQueue: ResolveCallback[] = [];
 
-  constructor(maxInstances: number = 2) {
+  constructor(maxInstances: number = 2, engineType: EngineType = 'komodo') {
     this.maxInstances = maxInstances;
+    this.engineType = engineType;
   }
 
   /**
    * Initialize the pool with engine instances
    */
   async init(): Promise<void> {
-    console.log(`[EnginePool] Initializing ${this.maxInstances} Komodo Dragon instances...`);
+    console.log(`[EnginePool] Initializing ${this.maxInstances} ${this.engineType} instances...`);
 
     const startPromises: Promise<void>[] = [];
     for (let i = 0; i < this.maxInstances; i++) {
-      const engine = new EngineManager(i);
+      const engine = new EngineManager(i, this.engineType);
       this.engines.push(engine);
       startPromises.push(engine.start());
     }
 
     await Promise.all(startPromises);
-    console.log(`[EnginePool] Initialized ${this.maxInstances} Komodo Dragon instances`);
+    console.log(`[EnginePool] Initialized ${this.maxInstances} ${this.engineType} instances`);
   }
 
   /**

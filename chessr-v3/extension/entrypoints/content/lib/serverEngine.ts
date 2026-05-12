@@ -38,6 +38,12 @@ function capsFor(id: EngineId): EngineCapabilities {
     // personality / variety / dynamism / king safety knobs.
     return { hasPersonality: false, hasUciElo: true, hasDynamism: false, hasKingSafety: false, hasVariety: false };
   }
+  if (id === 'rodent') {
+    // Rodent exposes UCI_Elo + UCI_LimitStrength + PersonalityFile, but no
+    // Komodo-style dynamism/kingSafety/variety knobs (they're encoded in
+    // the personality files instead).
+    return { hasPersonality: true, hasUciElo: true, hasDynamism: false, hasKingSafety: false, hasVariety: false };
+  }
   // Komodo server-side always supports personality + ELO + variety
   return { hasPersonality: true, hasUciElo: true, hasDynamism: true, hasKingSafety: true, hasVariety: true };
 }
@@ -173,6 +179,29 @@ export class ServerEngine implements IEngine {
           eloOppo: params.eloOppo ?? 1500,
           multiPv: params.multiPv,
         });
+      } else if (this.id === 'rodent') {
+        // Rodent native binary on the VPS — uses `eloTarget`, `imprecision`
+        // (0..100 mapped server-side to EvalBlur), and a `personality`
+        // string (filename stem like 'karpov' / 'default').
+        const payload: any = {
+          type: 'suggestion_request',
+          requestId,
+          engine: 'rodent',
+          fen: params.fen,
+          moves: params.moves ?? [],
+          multiPv: params.multiPv,
+          eloTarget: params.eloTarget ?? params.targetElo,
+          limitStrength: params.limitStrength,
+          imprecision: params.imprecision,
+          personality: params.personality,
+        };
+        if (params.search) {
+          payload.searchMode = params.search.mode;
+          payload.searchNodes = params.search.nodes;
+          payload.searchDepth = params.search.depth;
+          payload.searchMovetime = params.search.movetime;
+        }
+        sendWs(payload);
       } else {
         const payload: any = {
           type: 'suggestion_request',

@@ -8,6 +8,7 @@
 
 import { getEngineConfig, SEARCH_NODES } from '../engine/KomodoConfig.js';
 import { getSuggestionConfig as getStockfishSuggestionConfig } from '../engine/StockfishConfig.js';
+import { getRodentConfig } from '../engine/RodentConfig.js';
 import {
   enqueueSuggestion,
   removePendingSuggestionsForUser,
@@ -26,9 +27,13 @@ export interface SuggestionMessage {
   fen: string;
   /** Engine binary to run server-side. Defaults to 'komodo' for backward
    *  compat with older extension builds. */
-  engine?: 'komodo' | 'stockfish';
+  engine?: 'komodo' | 'stockfish' | 'rodent';
   moves?: string[];
   targetElo?: number;
+  /** Rodent-only — alias for targetElo (extension sends this name). */
+  eloTarget?: number;
+  /** Rodent-only — 0..100 → EvalBlur. */
+  imprecision?: number;
   personality?: string;
   multiPv?: number;
   contempt?: number;
@@ -57,11 +62,14 @@ export async function handleSuggestionRequest(
   send: SendFn,
 ): Promise<void> {
   const {
-    requestId, fen, engine, moves, targetElo, personality, multiPv,
-    contempt, variety, puzzleMode, limitStrength, armageddon,
-    searchMode, searchNodes, searchDepth, searchMovetime,
+    requestId, fen, engine, moves, targetElo, eloTarget, imprecision,
+    personality, multiPv, contempt, variety, puzzleMode, limitStrength,
+    armageddon, searchMode, searchNodes, searchDepth, searchMovetime,
   } = message;
-  const engineType: 'komodo' | 'stockfish' = engine === 'stockfish' ? 'stockfish' : 'komodo';
+  const engineType: 'komodo' | 'stockfish' | 'rodent' =
+    engine === 'stockfish' ? 'stockfish'
+    : engine === 'rodent' ? 'rodent'
+    : 'komodo';
 
   if (!requestId || !fen) {
     send({ type: 'suggestion_error', requestId, error: 'Missing requestId or fen' });
@@ -72,14 +80,16 @@ export async function handleSuggestionRequest(
     return;
   }
 
-  const effectiveElo = targetElo || 1500;
+  // Rodent uses `eloTarget` field; Komodo/Stockfish use `targetElo`. Tolerate
+  // either since older clients only send one.
+  const effectiveElo = (engineType === 'rodent' ? (eloTarget ?? targetElo) : targetElo) || 1500;
   const effectiveMultiPv = multiPv || 1;
   const effectiveLimit = limitStrength;
 
   const pvCount = Math.min(3, Math.max(1, effectiveMultiPv));
-  // Build engine-specific UCI config. Stockfish has a much smaller knob set
-  // (no Personality / Variety / Armageddon / Contempt) so we use a dedicated
-  // builder rather than feeding Komodo's options to it.
+  // Build engine-specific UCI config. Each engine has a different knob set
+  // (Komodo has Personality/Variety/Armageddon; Stockfish is minimal; Rodent
+  // has PersonalityFile/EvalBlur) so we route to a dedicated builder.
   const config = engineType === 'stockfish'
     ? getStockfishSuggestionConfig({
         targetElo: effectiveElo,
@@ -87,16 +97,24 @@ export async function handleSuggestionRequest(
         limitStrength: effectiveLimit,
         puzzleMode: !!puzzleMode,
       })
-    : getEngineConfig({
-        targetElo: effectiveElo,
-        personality: personality || 'Default',
-        multiPv: pvCount,
-        contempt,
-        variety,
-        limitStrength: effectiveLimit,
-        armageddon,
-        puzzleMode,
-      });
+    : engineType === 'rodent'
+      ? getRodentConfig({
+          targetElo: effectiveElo,
+          personality: personality || 'default',
+          multiPv: pvCount,
+          imprecision,
+          limitStrength: effectiveLimit,
+        })
+      : getEngineConfig({
+          targetElo: effectiveElo,
+          personality: personality || 'Default',
+          multiPv: pvCount,
+          contempt,
+          variety,
+          limitStrength: effectiveLimit,
+          armageddon,
+          puzzleMode,
+        });
 
   const searchOptions: SuggestionJobData['searchOptions'] = { moves };
   if (effectiveLimit === false && searchMode) {

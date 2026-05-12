@@ -17,7 +17,7 @@ import { EnginePool } from '../engine/EnginePool.js';
 import { getStockfishPool } from './analysisQueue.js';
 import { labelSuggestions, type LabeledSuggestion } from '../engine/MoveLabeler.js';
 
-export type SuggestionEngineType = 'komodo' | 'stockfish';
+export type SuggestionEngineType = 'komodo' | 'stockfish' | 'rodent';
 
 export interface SuggestionJobData {
   requestId: string;
@@ -73,12 +73,29 @@ export const suggestionQueue = new Queue<SuggestionJobData, SuggestionJobResult>
 let queueEvents: QueueEvents | null = null;
 let worker: Worker<SuggestionJobData, SuggestionJobResult> | null = null;
 let pool: EnginePool | null = null;
+/** Separate pool for Rodent IV — same EnginePool class but spawns the
+ *  Rodent binary (with cwd set to its dir for personalities/books). Sized
+ *  smaller than Komodo by default since Rodent is lighter and most
+ *  suggestion traffic still goes to Komodo. */
+let rodentPool: EnginePool | null = null;
 
 export async function initSuggestionWorker(maxInstances: number): Promise<void> {
   if (worker) return;
 
-  pool = new EnginePool(maxInstances);
+  pool = new EnginePool(maxInstances, 'komodo');
   await pool.init();
+
+  // Rodent pool — half the Komodo capacity is plenty (low traffic engine,
+  // and Rodent's native binary is lightweight). Failures here are
+  // non-fatal: the suggestionQueue throws on acquire(), client falls back.
+  const rodentMax = Math.max(1, Math.floor(maxInstances / 2));
+  rodentPool = new EnginePool(rodentMax, 'rodent');
+  try {
+    await rodentPool.init();
+  } catch (err) {
+    console.warn('[SuggestionQueue] Rodent pool init failed (server fallback will be unavailable):', err);
+    rodentPool = null;
+  }
 
   queueEvents = new QueueEvents(QUEUE_NAME, { connection: redis });
   await queueEvents.waitUntilReady();
@@ -115,6 +132,33 @@ async function processSuggestionJob(
 
   // Dispatch to the right engine pool. Stockfish suggestions share the
   // pool initialised by `initAnalysisWorker` — no separate pool needed.
+  // Rodent has its own dedicated pool (initialised alongside Komodo).
+  if (engineType === 'rodent') {
+    if (!rodentPool) throw new Error('Rodent pool not initialised (binary missing on server?)');
+    const engine = await rodentPool.acquire();
+    if (!engine) throw new Error('Rodent pool unavailable');
+    try {
+      try {
+        await engine.configure(config);
+        const raw = await engine.search(fen, pvCount, searchOptions);
+        const suggestions = labelSuggestions(raw);
+        const positionEval = suggestions.length > 0 ? suggestions[0].evaluation / 100 : 0;
+        const mateIn = suggestions.length > 0 ? suggestions[0].mateScore : null;
+        const winRate = suggestions.length > 0 ? suggestions[0].winRate : 50;
+        const maxDepth = suggestions.length > 0 ? Math.max(...suggestions.map((s) => s.depth)) : 0;
+        return { fen, personality, suggestions, positionEval, mateIn, winRate, puzzleMode, maxDepth };
+      } catch (err) {
+        if (isEngineWedgeError(err)) {
+          try { await engine.respawn(); }
+          catch (e) { console.error('[SuggestionQueue] rodent respawn failed:', e); }
+        }
+        throw err;
+      }
+    } finally {
+      rodentPool.release(engine);
+    }
+  }
+
   if (engineType === 'stockfish') {
     const sfPool = getStockfishPool();
     if (!sfPool) throw new Error('Stockfish pool not initialised (analysis worker not running?)');

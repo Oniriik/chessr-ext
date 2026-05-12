@@ -47,6 +47,13 @@ export const COMPONENT_REGISTRY: Record<string, { label: string; engineIds?: Eng
   // Maia 3-specific widgets — wider ELO range (600-2600, step 50), no variant.
   'maia3-target-elo': { label: 'Maia 3 Target ELO',   engineIds: ['maia3'] },
   'maia3-oppo-elo':   { label: 'Maia 3 Opponent ELO', engineIds: ['maia3'] },
+
+  // Rodent IV-specific widgets — Elo target + LimitStrength toggle, Imprecision
+  // (mapped to EvalBlur), Personality (39 grouped). All live exclusively in
+  // the engine-panel side bar; no floating-widget counterpart yet.
+  'rodent-elo':         { label: 'Rodent Niveau',      engineIds: ['rodent'] },
+  'rodent-imprecision': { label: 'Rodent Imprecision', engineIds: ['rodent'] },
+  'rodent-personality': { label: 'Rodent Personality', engineIds: ['rodent'] },
 };
 
 // `isPremium` imported from ../lib/premium (see top of file).

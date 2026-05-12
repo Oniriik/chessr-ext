@@ -42,4 +42,23 @@ if (!existsSync(ceeWasm)) throw new Error(`Missing ${ceeWasm}`);
 cpSync(ceeJs, resolve(root, 'public/engine/explanation-engine.js'));
 cpSync(ceeWasm, resolve(root, 'public/engine/explanation-engine.wasm'));
 
+// Rodent IV — classical UCI engine, built from vendored sources at
+// chessr-v3/rodent-sources/ via scripts/build-rodent-wasm.sh. Personalities
+// (.txt files) are baked into rodent.data via Emscripten's --preload-file,
+// so we only ship js + wasm + data.
+const rodentDir = resolve(root, 'public/engine/rodent');
+mkdirSync(rodentDir, { recursive: true });
+const rodentJs   = resolve(repoRoot, 'rodent.js');
+const rodentWasm = resolve(repoRoot, 'rodent.wasm');
+const rodentData = resolve(repoRoot, 'rodent.data');
+if (!existsSync(rodentJs) || !existsSync(rodentWasm) || !existsSync(rodentData)) {
+  throw new Error(
+    `Missing Rodent artifacts at repo root. Run: scripts/build-rodent-wasm.sh\n` +
+    `  Expected: rodent.js, rodent.wasm, rodent.data`,
+  );
+}
+cpSync(rodentJs,   resolve(rodentDir, 'rodent.js'));
+cpSync(rodentWasm, resolve(rodentDir, 'rodent.wasm'));
+cpSync(rodentData, resolve(rodentDir, 'rodent.data'));
+
 console.log('Engine WASM files copied to public/engine/');

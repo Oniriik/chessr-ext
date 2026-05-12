@@ -29,6 +29,7 @@ function analysisSource(): 'wasm' | 'server' {
 import { SuggestionEngine } from './content/lib/suggestionEngine';
 import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
 import { Maia3SuggestionEngine } from './content/lib/maia3SuggestionEngine';
+import { RodentSuggestionEngine } from './content/lib/rodentSuggestionEngine';
 import { StockfishSuggestionEngine } from './content/lib/stockfishSuggestionEngine';
 import { ServerEngine } from './content/lib/serverEngine';
 import type { IEngine, SuggestionSearchParams as EngineSearchParams } from './content/lib/engineApi';
@@ -178,6 +179,19 @@ let lastSearchKey: string | null = null;
 let newGameResetTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingNewGameFen: string | null = null;
 
+// Torch rebuild cooldown — torch (CEE) accumulates state between games
+// (ucinewgame is banned, see torchAnalysisEngine.ts:155-158) so we rebuild
+// the workers on every real chessr:newGame. The rebuild MUST live OUTSIDE
+// the newGameResetTimer below because that timer gets clearTimeout()'d by
+// the chessr:mode handler at line ~1070 whenever a `playing` event arrives
+// on the same FEN within 200ms — which happens for EVERY real new bot game
+// (chess.com always confirms playing mode right after newGame). With the
+// rebuild inside that timer, it never fires for the cases that need it.
+// Module-level cooldown absorbs bursts (chess.com fires 3-4 newGames in
+// ~0.5s on real game transitions — verified in debug dumps).
+const TORCH_REBUILD_MIN_INTERVAL_MS = 5000;
+let lastTorchRebuildAt = 0;
+
 /** Run a fetch_analysis on the seeded history so the Performance Card has
  *  stats to show before the user makes the next move. Idempotent (skips
  *  if moveAnalyses is already populated). Robust to the occasional wasm
@@ -287,6 +301,7 @@ function newWasmEngine(id: EngineId): IEngine {
   switch (id) {
     case 'maia2':     return new MaiaSuggestionEngine();
     case 'maia3':     return new Maia3SuggestionEngine();
+    case 'rodent':    return new RodentSuggestionEngine();
     case 'stockfish': return new StockfishSuggestionEngine();
     default:          return new SuggestionEngine(); // 'komodo'
   }
@@ -294,7 +309,7 @@ function newWasmEngine(id: EngineId): IEngine {
 
 /** Parse the chessrForceServer localStorage flag into a Set of engine
  *  identifiers that should skip WASM. Accepts:
- *    '1' or 'all' → ['komodo', 'maia2', 'stockfish']
+ *    '1' or 'all' → ['komodo', 'maia2', 'rodent', 'stockfish']
  *    'komodo'     → ['komodo']
  *    'komodo,maia2,stockfish' (any subset)
  *  Anything else / unset → empty Set (no override). */
@@ -302,7 +317,7 @@ function forceServerSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrForceServer;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish', 'torch']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'rodent', 'stockfish', 'torch']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -312,7 +327,7 @@ function forceFailSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrFailWasm;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'stockfish', 'torch']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'rodent', 'stockfish', 'torch']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -436,6 +451,22 @@ function runSuggestionSearch(fen: string) {
       eloOppo: engine.getMaiaEffectiveOppoElo(),
       variant: engine.maiaVariant,
       useBook: suggestionEngine.id === 'maia2' ? engine.maiaUseBook : false,
+    };
+  } else if (suggestionEngine.id === 'rodent') {
+    const effectiveElo = engine.getEffectiveElo();
+    const limitStrength = premium ? engine.limitStrength : true;
+    const search = premium
+      ? { mode: engine.searchMode, nodes: engine.searchNodes, depth: engine.searchDepth, movetime: engine.searchMovetime }
+      : FREE_DEFAULTS;
+    params = {
+      fen,
+      moves: [] as string[],
+      multiPv: numArrows,
+      eloTarget: effectiveElo,
+      limitStrength,
+      imprecision: engine.imprecision,
+      personality: engine.rodentPersonality,
+      search,
     };
   } else {
     const effectiveElo = engine.getEffectiveElo();
@@ -1165,6 +1196,44 @@ export default defineContentScript({
           useAnalysisStore.getState().reset();
           useExplanationStore.getState().clear();
           useEvalStore.getState().reset();
+
+          // Real-new-game branch — UNCANCELLABLE (outside the
+          // newGameResetTimer setTimeout, which gets clearTimeout()'d by
+          // chessr:mode on same-FEN). 5s cooldown absorbs the 3-4 newGame
+          // bursts chess.com fires on a real game transition.
+          //
+          // We do two things here that the cancellable setTimeout below
+          // cannot do reliably for real bot games:
+          //   1. Full torch worker rebuild (torch has no working ucinewgame)
+          //   2. Reset gameStore (clears moveHistoryUci) — without this,
+          //      the previous game's history persists and torch's
+          //      fetch_analysis falls back to UCI mode because
+          //      historyMatchesFen returns false (verified in console logs
+          //      after the first attempt of this fix).
+          {
+            const now = Date.now();
+            const elapsed = now - lastTorchRebuildAt;
+            if (elapsed >= TORCH_REBUILD_MIN_INTERVAL_MS) {
+              lastTorchRebuildAt = now;
+              console.log('[Chessr][torch] newGame → rebuild + game reset', {
+                elapsedSinceLast: elapsed,
+                richReady: !!torchAnalysisEngine?.ready,
+                uciReady: !!torchUciEngine?.ready,
+                prevHistoryLen: useGameStore.getState().moveHistoryUci.length,
+              });
+              // Reset the game store NOW (eager, not deferred) so the next
+              // chessr:move event pushes onto an empty history.
+              useGameStore.getState().reset();
+              buildLiveAnalysis().catch((err) =>
+                console.error('[Chessr] torch rebuild on newGame failed:', err),
+              );
+            } else {
+              console.log('[Chessr][torch] newGame → skip rebuild (cooldown)', {
+                elapsedSinceLast: elapsed,
+                cooldownMs: TORCH_REBUILD_MIN_INTERVAL_MS,
+              });
+            }
+          }
 
           if (newGameResetTimer) clearTimeout(newGameResetTimer);
           newGameResetTimer = setTimeout(() => {

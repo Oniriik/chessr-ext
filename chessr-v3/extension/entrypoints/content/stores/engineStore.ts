@@ -7,8 +7,41 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
-export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'stockfish';
+export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'rodent' | 'stockfish';
 export type MaiaVariant = 'blitz' | 'rapid';
+
+/** Rodent IV personalities. Value = filename stem (without .txt extension)
+ *  passed to Rodent as `setoption name PersonalityFile value <stem>.txt`.
+ *  Grouped here for UI rendering with section headers. */
+export const RODENT_PERSONALITY_GROUPS: { label: string; options: string[] }[] = [
+  {
+    label: 'Grands Maîtres',
+    options: [
+      'alekhine', 'anand', 'anderssen', 'botvinnik', 'fischer', 'karpov',
+      'kasparov', 'kortchnoi', 'larsen', 'lasker', 'marshall', 'morphy',
+      'nimzowitsch', 'petrosian', 'reti', 'rubinstein', 'spassky',
+      'steinitz', 'tal', 'tarrasch', 'topalov',
+    ],
+  },
+  {
+    label: 'Styles',
+    options: [
+      'default', 'defender', 'dynamic', 'partisan', 'pawnsacker', 'simple',
+      'spitfire', 'strangler', 'swapper',
+    ],
+  },
+  {
+    label: 'Autres',
+    options: [
+      'amanda', 'ampere', 'bosboom', 'cloe', 'deborah', 'grumpy', 'pedrita',
+      'preston',
+    ],
+  },
+];
+
+/** All Rodent personalities flattened — handy for validation / iteration. */
+export const RODENT_PERSONALITIES: string[] =
+  RODENT_PERSONALITY_GROUPS.flatMap((g) => g.options);
 
 export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRange: string; beta?: boolean }> = {
   komodo: {
@@ -25,6 +58,12 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Maia 3',
     desc:  'New Maia model with continuous ELO and wider range.',
     eloRange: '600 – 2600',
+    beta:  true,
+  },
+  rodent: {
+    label: 'Rodent IV',
+    desc:  '39 named personalities (GM-style + style archetypes) with a tunable imprecision dial.',
+    eloRange: '800 – 2800',
     beta:  true,
   },
   stockfish: {
@@ -132,6 +171,12 @@ interface EngineState {
   searchDepth: number;
   searchMovetime: number;
 
+  /** Rodent IV — chosen personality file stem (e.g. 'karpov', 'default'). */
+  rodentPersonality: string;
+  /** Rodent IV — 0..100 slider controlling EvalBlur noise. Mapped to
+   *  EvalBlur via `round(imprecision^2 * 20)` (quadratic) at send time. */
+  imprecision: number;
+
   capabilities: EngineCapabilities;
   setCapabilities: (c: EngineCapabilities) => void;
 
@@ -168,6 +213,8 @@ interface EngineState {
   setSearchNodes: (v: number) => void;
   setSearchDepth: (v: number) => void;
   setSearchMovetime: (v: number) => void;
+  setRodentPersonality: (v: string) => void;
+  setImprecision: (v: number) => void;
   resetToDefaults: () => void;
 
   getEffectiveElo: () => number;
@@ -198,6 +245,8 @@ const ENGINE_DEFAULTS = {
   searchNodes: 1_000_000,
   searchDepth: 20,
   searchMovetime: 2000,
+  rodentPersonality: 'default',
+  imprecision: 0,
 };
 
 import { isPremium } from '../lib/premium';
@@ -251,6 +300,10 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
   setSearchNodes: (v) => set({ searchNodes: Math.max(100_000, Math.min(5_000_000, v)) }),
   setSearchDepth: (v) => set({ searchDepth: Math.max(1, Math.min(30, v)) }),
   setSearchMovetime: (v) => set({ searchMovetime: Math.max(500, Math.min(5000, v)) }),
+  setRodentPersonality: (v) => set({
+    rodentPersonality: RODENT_PERSONALITIES.includes(v) ? v : 'default',
+  }),
+  setImprecision: (v) => set({ imprecision: Math.max(0, Math.min(100, Math.round(v))) }),
   resetToDefaults: () => set({ ...ENGINE_DEFAULTS }),
 
   getEffectiveElo: () => {

@@ -97,6 +97,8 @@ function getEnginePayload() {
     searchNodes: e.searchNodes,
     searchDepth: e.searchDepth,
     searchMovetime: e.searchMovetime,
+    rodentPersonality: e.rodentPersonality,
+    imprecision: e.imprecision,
   };
 }
 
@@ -276,7 +278,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           // became classification-only). Unknown IDs fall through and the
           // store keeps its default ('komodo'). Also downgrade Maia 2 /
           // Maia 3 to Komodo on free users (premium-only engines).
-          const knownIds = ['komodo', 'maia2', 'maia3', 'stockfish'];
+          const knownIds = ['komodo', 'maia2', 'maia3', 'rodent', 'stockfish'];
           if (knownIds.includes(eng.engineId)) {
             const plan = useAuthStore.getState().plan;
             const premiumPlan = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
@@ -306,6 +308,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (eng.searchNodes !== undefined) es.setSearchNodes(eng.searchNodes);
           if (eng.searchDepth !== undefined) es.setSearchDepth(eng.searchDepth);
           if (eng.searchMovetime !== undefined) es.setSearchMovetime(eng.searchMovetime);
+          if (eng.rodentPersonality !== undefined) es.setRodentPersonality(eng.rodentPersonality);
+          if (eng.imprecision !== undefined) es.setImprecision(eng.imprecision);
         }
         if ((cloud as any).autoMove) {
           // Hydrate autoMove store directly — bypass setters to avoid triggering re-sync

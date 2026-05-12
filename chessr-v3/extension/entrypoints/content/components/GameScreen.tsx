@@ -4,7 +4,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
-import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, MAIA_VARIANT_INFO, type MaiaVariant, ENGINE_INFO } from '../stores/engineStore';
+import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, MAIA_VARIANT_INFO, type MaiaVariant, ENGINE_INFO, RODENT_PERSONALITY_GROUPS } from '../stores/engineStore';
 import { useLayoutStore } from '../stores/layoutStore';
 import { animationGate } from '../stores/animationStore';
 import { COMPONENT_REGISTRY } from './ComponentRegistry';
@@ -678,6 +678,7 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
 
   if (engineId === 'maia2') return <Maia2Panel />;
   if (engineId === 'maia3') return <Maia3Panel />;
+  if (engineId === 'rodent') return <RodentPanel />;
 
   // Filter the user's section order to only those this engine supports —
   // otherwise edit mode shows empty drop slots for sections that render
@@ -904,6 +905,143 @@ function Maia3Panel() {
       <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
         {t('engine.maia.strengthNote')}
       </span>
+    </div>
+  );
+}
+
+function RodentPanel() {
+  const { t } = useTranslation();
+  const engine = useEngineStore();
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const effectiveElo = engine.getEffectiveElo();
+
+  return (
+    <div className="engine-panel">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span className="engine-name-chip">{ENGINE_INFO.rodent.label}</span>
+        <span className="settings-engine-beta-badge">{t('engine.betaBadge')}</span>
+      </div>
+
+      {/* Niveau (target Elo) — toggle UCI_LimitStrength + slider UCI_Elo */}
+      <EditableComponent id="rodent-elo">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Niveau (Elo cible)</span>
+            <button
+              className={`engine-auto-btn ${engine.limitStrength ? 'engine-auto-btn--active' : ''}`}
+              onClick={() => engine.setLimitStrength(!engine.limitStrength)}
+            >{engine.limitStrength ? 'ON' : 'OFF'}</button>
+          </div>
+          {engine.limitStrength ? (
+            <>
+              <div className="engine-elo-display"><span className="engine-elo-value">{effectiveElo}</span></div>
+              <Slider
+                min={800} max={2800} step={50}
+                value={engine.targetEloManual}
+                onChange={engine.setTargetEloManual}
+                trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+                thumbColor="#22c55e"
+                thumbColorEnd="#3b82f6"
+              />
+            </>
+          ) : (
+            <span className="engine-desc">Max strength — niveau Elo désactivé.</span>
+          )}
+        </div>
+      </EditableComponent>
+
+      {/* Imprecision — slider 0..100 → EvalBlur */}
+      <EditableComponent id="rodent-imprecision">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Imprecision</span>
+            <span className="engine-elo-value">{engine.imprecision}</span>
+          </div>
+          <Slider
+            min={0} max={100} step={1}
+            value={engine.imprecision}
+            onChange={engine.setImprecision}
+            trackColor="linear-gradient(90deg, #6b7280, #ef4444)"
+            thumbColor="#6b7280"
+            thumbColorEnd="#ef4444"
+          />
+          <span className="engine-desc">
+            Ajoute du bruit aléatoire à l'évaluation → erreurs occasionnelles.
+          </span>
+        </div>
+      </EditableComponent>
+
+      {/* Personality — grouped dropdown */}
+      <EditableComponent id="rodent-personality">
+        <div className="engine-section">
+          <div className="engine-section-header">
+            <span className="engine-section-label">Personality</span>
+            <select
+              className="engine-select"
+              value={engine.rodentPersonality}
+              onChange={(e) => engine.setRodentPersonality(e.target.value)}
+              style={{ minWidth: 140 }}
+            >
+              {RODENT_PERSONALITY_GROUPS.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.options.map((p) => (
+                    <option key={p} value={p}>
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <span className="engine-desc">
+            39 personalities — chaque GM joue son répertoire d'ouverture authentique.
+          </span>
+        </div>
+      </EditableComponent>
+
+      {/* Advanced — collapsible search settings */}
+      <div className="engine-section" style={{ marginTop: 4 }}>
+        <button
+          className="engine-auto-btn"
+          style={{ width: '100%', textAlign: 'left' }}
+          onClick={() => setAdvancedOpen((v) => !v)}
+        >
+          {advancedOpen ? '▼' : '▶'} Search (avancé)
+        </button>
+        {advancedOpen && (
+          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="engine-section-header" style={{ gap: 8 }}>
+              <span className="engine-section-label">Mode</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {(['nodes', 'depth', 'movetime'] as const).map((m) => (
+                  <button
+                    key={m}
+                    className={`engine-auto-btn ${engine.searchMode === m ? 'engine-auto-btn--active' : ''}`}
+                    onClick={() => engine.setSearchMode(m)}
+                  >{m}</button>
+                ))}
+              </div>
+            </div>
+            {engine.searchMode === 'nodes' && (
+              <Slider min={100_000} max={5_000_000} step={100_000}
+                value={engine.searchNodes} onChange={engine.setSearchNodes} />
+            )}
+            {engine.searchMode === 'depth' && (
+              <Slider min={1} max={30} step={1}
+                value={engine.searchDepth} onChange={engine.setSearchDepth} />
+            )}
+            {engine.searchMode === 'movetime' && (
+              <Slider min={500} max={5000} step={100}
+                value={engine.searchMovetime} onChange={engine.setSearchMovetime} />
+            )}
+            <span className="engine-desc">
+              {engine.searchMode === 'nodes' && `${engine.searchNodes.toLocaleString()} nœuds`}
+              {engine.searchMode === 'depth' && `Profondeur fixée à ${engine.searchDepth}`}
+              {engine.searchMode === 'movetime' && `${engine.searchMovetime} ms par coup`}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
