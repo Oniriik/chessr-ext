@@ -89,14 +89,20 @@ async function sleep(ms: number): Promise<void> {
 }
 
 async function syncOne(member: GuildMember, linked: LinkedUser | undefined): Promise<void> {
+  // Snapshot the member's current role ids and let syncPlan/EloRole diff
+  // against it. For the steady-state majority (already in the correct
+  // tier + ELO bracket) this yields zero Discord API calls per member,
+  // which is what keeps the every-30-min sweep under the rate-limit
+  // bucket on a few-thousand-member guild.
+  const currentRoleIds: ReadonlySet<string> = new Set(member.roles.cache.keys());
   if (!linked) {
     // Unlinked / never linked → strip every managed role.
-    await syncPlanRole(member.id, null);
-    await syncEloRole(member.id, null);
+    await syncPlanRole(member.id, null, currentRoleIds);
+    await syncEloRole(member.id, null, currentRoleIds);
     return;
   }
-  await syncPlanRole(member.id, linked.plan);
-  await syncEloRole(member.id, linked.highestElo > 0 ? linked.highestElo : null);
+  await syncPlanRole(member.id, linked.plan, currentRoleIds);
+  await syncEloRole(member.id, linked.highestElo > 0 ? linked.highestElo : null, currentRoleIds);
 }
 
 async function tick(client: Client): Promise<void> {

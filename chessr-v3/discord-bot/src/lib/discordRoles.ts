@@ -43,16 +43,37 @@ function roleIdFor(plan: string | null | undefined): string | null {
 }
 
 async function discordFetch(method: 'PUT' | 'DELETE', path: string): Promise<number> {
-  const res = await fetch(`${DISCORD_API}${path}`, {
-    method,
-    headers: { Authorization: `Bot ${config.discord.token}` },
-  });
-  return res.status;
+  // Honor Discord's Retry-After on 429. One retry is enough — if the
+  // bucket is still empty after the prescribed wait, the caller will see
+  // 429 and log it. Cap the wait at 10s so a misbehaving header can't
+  // block the sweep indefinitely.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const res = await fetch(`${DISCORD_API}${path}`, {
+      method,
+      headers: { Authorization: `Bot ${config.discord.token}` },
+    });
+    if (res.status !== 429) return res.status;
+    const retryAfter = Number(res.headers.get('retry-after') ?? '1');
+    const waitMs = Math.min(Math.max(retryAfter, 0.5), 10) * 1000;
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  return 429;
 }
 
 /** Apply the plan → role mapping for one Discord member. Adds the new
- *  role (if any) and removes every other plan role. Idempotent. */
-export async function syncPlanRole(discordUserId: string, plan: string | null): Promise<void> {
+ *  role (if any) and removes every other plan role. Idempotent.
+ *
+ *  `currentRoleIds` (optional) is the set of role ids the member already
+ *  has — when provided, we only call the API for roles that need to
+ *  change. The periodic sweep passes `member.roles.cache.keys()` here so
+ *  the no-op majority of members generate zero Discord calls. Real-time
+ *  event handlers omit it; the calls are then unconditional (safe but a
+ *  bit chatty — fine because events are sparse). */
+export async function syncPlanRole(
+  discordUserId: string,
+  plan: string | null,
+  currentRoleIds?: ReadonlySet<string>,
+): Promise<void> {
   if (!config.discord.guildId) {
     log.debug('[roles] no guild configured, skipping sync');
     return;
@@ -70,6 +91,7 @@ export async function syncPlanRole(discordUserId: string, plan: string | null): 
   // briefly carry two plan roles at once if the user upgrades.
   for (const roleId of allManagedRoleIds) {
     if (roleId === targetRoleId) continue;
+    if (currentRoleIds && !currentRoleIds.has(roleId)) continue;
     const status = await discordFetch(
       'DELETE',
       `/guilds/${guildId}/members/${discordUserId}/roles/${roleId}`,
@@ -80,6 +102,7 @@ export async function syncPlanRole(discordUserId: string, plan: string | null): 
   }
 
   if (targetRoleId) {
+    if (currentRoleIds?.has(targetRoleId)) return;
     const status = await discordFetch(
       'PUT',
       `/guilds/${guildId}/members/${discordUserId}/roles/${targetRoleId}`,
@@ -89,7 +112,7 @@ export async function syncPlanRole(discordUserId: string, plan: string | null): 
     } else if (status === 204) {
       log.info(`[roles] ${discordUserId} → ${plan} (${targetRoleId})`);
     }
-  } else if (allManagedRoleIds.length > 0) {
+  } else if (allManagedRoleIds.length > 0 && (!currentRoleIds || allManagedRoleIds.some((id) => currentRoleIds.has(id)))) {
     log.info(`[roles] ${discordUserId} → free (all plan roles removed)`);
   }
 }
@@ -124,8 +147,16 @@ function eloRoleFor(highestElo: number | null): string | null {
 
 /** Apply the ELO → role mapping. Passing null / 0 strips every managed
  *  ELO role (used for unlinked / unrated users). Mutually exclusive
- *  with itself — adding the new bracket removes the others. */
-export async function syncEloRole(discordUserId: string, highestElo: number | null): Promise<void> {
+ *  with itself — adding the new bracket removes the others.
+ *
+ *  `currentRoleIds` works the same way as in `syncPlanRole`: when
+ *  provided (sweep path), API calls are skipped for roles already in the
+ *  desired state. */
+export async function syncEloRole(
+  discordUserId: string,
+  highestElo: number | null,
+  currentRoleIds?: ReadonlySet<string>,
+): Promise<void> {
   if (!config.discord.guildId || !discordUserId) return;
   const guildId = config.discord.guildId;
   const targetRoleId = eloRoleFor(highestElo);
@@ -133,6 +164,7 @@ export async function syncEloRole(discordUserId: string, highestElo: number | nu
 
   for (const roleId of allEloIds) {
     if (roleId === targetRoleId) continue;
+    if (currentRoleIds && !currentRoleIds.has(roleId)) continue;
     const status = await discordFetch(
       'DELETE',
       `/guilds/${guildId}/members/${discordUserId}/roles/${roleId}`,
@@ -143,6 +175,7 @@ export async function syncEloRole(discordUserId: string, highestElo: number | nu
   }
 
   if (targetRoleId) {
+    if (currentRoleIds?.has(targetRoleId)) return;
     const status = await discordFetch(
       'PUT',
       `/guilds/${guildId}/members/${discordUserId}/roles/${targetRoleId}`,
