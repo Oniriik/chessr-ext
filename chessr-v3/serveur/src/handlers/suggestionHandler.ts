@@ -127,6 +127,14 @@ export async function handleSuggestionRequest(
     } else {
       searchOptions.nodes = Math.max(100_000, Math.min(5_000_000, searchNodes || SEARCH_NODES));
     }
+  } else if (engineType === 'rodent') {
+    // Rodent intentionally caps internal NPS when UCI_LimitStrength is on
+    // (~1.7k-2k nps to simulate slow human play). Sending a node budget
+    // would mean a 1M-node request takes ~10 minutes — exceeds the 30s
+    // engine.search timeout and the user sees no suggestions.
+    // Movetime lets Rodent's own time manager decide when to stop given the
+    // current skill level, which is what the engine is tuned for.
+    searchOptions.movetime = 3000;
   } else {
     searchOptions.nodes = SEARCH_NODES;
   }

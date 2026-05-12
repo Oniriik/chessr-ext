@@ -420,11 +420,18 @@ function EloSection() {
   const forcePinned = useLayoutStore((s) => s.pinned.includes('force'));
   const togglePin = useLayoutStore((s) => s.togglePin);
   if (!engine.capabilities.hasUciElo) return null;
-  // Stockfish's UCI_Elo only goes down to 1320; Komodo accepts down to 400.
-  // Match the slider min to the engine so users can't pick an ELO the
-  // engine will silently clamp away (avoids "I asked for 800 but it plays
-  // like 1320" surprises).
-  const sliderMin = engine.engineId === 'stockfish' ? 1320 : 400;
+  // Per-engine ELO slider bounds. Match the engine's native UCI_Elo range so
+  // users can't pick an ELO the engine will silently clamp (avoids "I asked
+  // for 800 but it plays like 1320" surprises).
+  //   Stockfish    : 1320–3500 (its UCI_Elo floor is 1320)
+  //   Rodent IV    :  800–2800 (UCI_Elo range from Rodent's option output)
+  //   Komodo / def :  400–3500 (Komodo accepts down to 400)
+  const sliderMin = engine.engineId === 'stockfish' ? 1320
+                  : engine.engineId === 'rodent'    ? 800
+                  : 400;
+  const sliderMax = engine.engineId === 'rodent'
+    ? 2800
+    : (premium ? (engine.limitStrength ? 2500 : 3500) : 2000);
   return (
     <div className="engine-section">
       <div className="engine-section-header">
@@ -438,9 +445,9 @@ function EloSection() {
       {!engine.targetEloAuto && (
         <Slider
           min={sliderMin}
-          max={premium ? (engine.limitStrength ? 2500 : 3500) : 2000}
+          max={sliderMax}
           step={50}
-          value={Math.max(sliderMin, engine.targetEloManual)}
+          value={Math.max(sliderMin, Math.min(sliderMax, engine.targetEloManual))}
           onChange={(v) => {
             engine.setTargetEloManual(v);
             if (v < 2500 && !engine.limitStrength) engine.setLimitStrength(true);
@@ -454,59 +461,66 @@ function EloSection() {
         <span className="engine-desc" style={{ color: '#fbbf24' }}>{t('engine.upgradeUnlock')}</span>
       )}
 
-      <div className="engine-subsection">
-        <div className="engine-section-header">
-          <div className="engine-section-label-group">
-            <span className="engine-section-label" style={{ fontSize: 9 }}>{t('engine.search.title')}</span>
-            {editMode && (
-              <button
-                type="button"
-                className={`engine-sub-pin ${searchPinned ? 'engine-sub-pin--active' : ''}`}
-                title={searchPinned ? t('engine.unpinPage') : t('engine.pinPage')}
-                onClick={() => togglePin('search')}
-              >
-                📌
-              </button>
+      {/* Search submodule only renders when Force Depth is ON
+       *  (limitStrength=false): otherwise the UCI_LimitStrength path drives
+       *  the search budget internally and exposing depth/nodes/movetime is
+       *  meaningless. The user toggles Force Depth via the row below and
+       *  the controls reveal themselves. */}
+      {!engine.limitStrength && (
+        <div className="engine-subsection">
+          <div className="engine-section-header">
+            <div className="engine-section-label-group">
+              <span className="engine-section-label" style={{ fontSize: 9 }}>{t('engine.search.title')}</span>
+              {editMode && (
+                <button
+                  type="button"
+                  className={`engine-sub-pin ${searchPinned ? 'engine-sub-pin--active' : ''}`}
+                  title={searchPinned ? t('engine.unpinPage') : t('engine.pinPage')}
+                  onClick={() => togglePin('search')}
+                >
+                  📌
+                </button>
+              )}
+            </div>
+            <select
+              value={engine.searchMode}
+              disabled={!premium}
+              onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
+              className="engine-select"
+            >
+              <option value="nodes">{t('engine.search.nodes')}</option>
+              <option value="depth">{t('engine.search.depth')}</option>
+              <option value="movetime">{t('engine.search.movetime')}</option>
+            </select>
+          </div>
+          <div className="engine-section-header">
+            {engine.searchMode === 'nodes' && (
+              <>
+                <Slider min={100000} max={5000000} step={100000} value={engine.searchNodes} onChange={engine.setSearchNodes} disabled={!premium}
+                  trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 30%, #a855f7 60%, #ef4444 100%)"
+                  thumbColorFn={(pct) => pct < 30 ? '#3b82f6' : pct < 60 ? lerpColor('#3b82f6', '#a855f7', (pct - 30) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 60) / 40)} />
+                <span className="engine-hint">{(engine.searchNodes / 1000000) >= 1 ? `${(engine.searchNodes / 1000000).toFixed(1)}M` : `${(engine.searchNodes / 1000).toFixed(0)}k`}</span>
+              </>
+            )}
+            {engine.searchMode === 'depth' && (
+              <>
+                <Slider min={1} max={30} step={1} value={engine.searchDepth} onChange={engine.setSearchDepth} disabled={!premium}
+                  trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
+                  thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)} />
+                <span className="engine-hint">{engine.searchDepth}</span>
+              </>
+            )}
+            {engine.searchMode === 'movetime' && (
+              <>
+                <Slider min={500} max={5000} step={100} value={engine.searchMovetime} onChange={engine.setSearchMovetime} disabled={!premium}
+                  trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 25%, #a855f7 55%, #ef4444 100%)"
+                  thumbColorFn={(pct) => pct < 25 ? '#3b82f6' : pct < 55 ? lerpColor('#3b82f6', '#a855f7', (pct - 25) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 55) / 45)} />
+                <span className="engine-hint">{(engine.searchMovetime / 1000).toFixed(1)}s</span>
+              </>
             )}
           </div>
-          <select
-            value={engine.searchMode}
-            disabled={!premium}
-            onChange={(e) => engine.setSearchMode(e.target.value as 'nodes' | 'depth' | 'movetime')}
-            className="engine-select"
-          >
-            <option value="nodes">{t('engine.search.nodes')}</option>
-            <option value="depth">{t('engine.search.depth')}</option>
-            <option value="movetime">{t('engine.search.movetime')}</option>
-          </select>
         </div>
-        <div className="engine-section-header">
-          {engine.searchMode === 'nodes' && (
-            <>
-              <Slider min={100000} max={5000000} step={100000} value={engine.searchNodes} onChange={engine.setSearchNodes} disabled={!premium}
-                trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 30%, #a855f7 60%, #ef4444 100%)"
-                thumbColorFn={(pct) => pct < 30 ? '#3b82f6' : pct < 60 ? lerpColor('#3b82f6', '#a855f7', (pct - 30) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 60) / 40)} />
-              <span className="engine-hint">{(engine.searchNodes / 1000000) >= 1 ? `${(engine.searchNodes / 1000000).toFixed(1)}M` : `${(engine.searchNodes / 1000).toFixed(0)}k`}</span>
-            </>
-          )}
-          {engine.searchMode === 'depth' && (
-            <>
-              <Slider min={1} max={30} step={1} value={engine.searchDepth} onChange={engine.setSearchDepth} disabled={!premium}
-                trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
-                thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)} />
-              <span className="engine-hint">{engine.searchDepth}</span>
-            </>
-          )}
-          {engine.searchMode === 'movetime' && (
-            <>
-              <Slider min={500} max={5000} step={100} value={engine.searchMovetime} onChange={engine.setSearchMovetime} disabled={!premium}
-                trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 25%, #a855f7 55%, #ef4444 100%)"
-                thumbColorFn={(pct) => pct < 25 ? '#3b82f6' : pct < 55 ? lerpColor('#3b82f6', '#a855f7', (pct - 25) / 30) : lerpColor('#a855f7', '#ef4444', (pct - 55) / 45)} />
-              <span className="engine-hint">{(engine.searchMovetime / 1000).toFixed(1)}s</span>
-            </>
-          )}
-        </div>
-      </div>
+      )}
 
       <div className="engine-force-row">
         <div className="engine-force-text">
@@ -912,49 +926,26 @@ function Maia3Panel() {
 function RodentPanel() {
   const { t } = useTranslation();
   const engine = useEngineStore();
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const effectiveElo = engine.getEffectiveElo();
 
   return (
     <div className="engine-panel">
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span className="engine-name-chip">{ENGINE_INFO.rodent.label}</span>
-        <span className="settings-engine-beta-badge">{t('engine.betaBadge')}</span>
       </div>
 
-      {/* Niveau (target Elo) — toggle UCI_LimitStrength + slider UCI_Elo */}
+      {/* Target ELO — full Komodo/Stockfish-style section with Auto + boost
+       *  display + inline search subsection (depth/nodes/movetime) + Force
+       *  Depth toggle that flips limitStrength off. EloSection adapts its
+       *  slider bounds to the engineId (800-2800 for Rodent). */}
       <EditableComponent id="rodent-elo">
-        <div className="engine-section">
-          <div className="engine-section-header">
-            <span className="engine-section-label">Niveau (Elo cible)</span>
-            <button
-              className={`engine-auto-btn ${engine.limitStrength ? 'engine-auto-btn--active' : ''}`}
-              onClick={() => engine.setLimitStrength(!engine.limitStrength)}
-            >{engine.limitStrength ? 'ON' : 'OFF'}</button>
-          </div>
-          {engine.limitStrength ? (
-            <>
-              <div className="engine-elo-display"><span className="engine-elo-value">{effectiveElo}</span></div>
-              <Slider
-                min={800} max={2800} step={50}
-                value={engine.targetEloManual}
-                onChange={engine.setTargetEloManual}
-                trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
-                thumbColor="#22c55e"
-                thumbColorEnd="#3b82f6"
-              />
-            </>
-          ) : (
-            <span className="engine-desc">Max strength — niveau Elo désactivé.</span>
-          )}
-        </div>
+        <EloSection />
       </EditableComponent>
 
       {/* Imprecision — slider 0..100 → EvalBlur */}
       <EditableComponent id="rodent-imprecision">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Imprecision</span>
+            <span className="engine-section-label">{t('engine.rodent.imprecision')}</span>
             <span className="engine-elo-value">{engine.imprecision}</span>
           </div>
           <Slider
@@ -965,9 +956,7 @@ function RodentPanel() {
             thumbColor="#6b7280"
             thumbColorEnd="#ef4444"
           />
-          <span className="engine-desc">
-            Ajoute du bruit aléatoire à l'évaluation → erreurs occasionnelles.
-          </span>
+          <span className="engine-desc">{t('engine.rodent.imprecisionDesc')}</span>
         </div>
       </EditableComponent>
 
@@ -975,7 +964,7 @@ function RodentPanel() {
       <EditableComponent id="rodent-personality">
         <div className="engine-section">
           <div className="engine-section-header">
-            <span className="engine-section-label">Personality</span>
+            <span className="engine-section-label">{t('engine.rodent.personality')}</span>
             <select
               className="engine-select"
               value={engine.rodentPersonality}
@@ -983,7 +972,7 @@ function RodentPanel() {
               style={{ minWidth: 140 }}
             >
               {RODENT_PERSONALITY_GROUPS.map((group) => (
-                <optgroup key={group.label} label={group.label}>
+                <optgroup key={group.labelKey} label={t(group.labelKey)}>
                   {group.options.map((p) => (
                     <option key={p} value={p}>
                       {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -993,55 +982,9 @@ function RodentPanel() {
               ))}
             </select>
           </div>
-          <span className="engine-desc">
-            39 personalities — chaque GM joue son répertoire d'ouverture authentique.
-          </span>
+          <span className="engine-desc">{t('engine.rodent.personalityDesc')}</span>
         </div>
       </EditableComponent>
-
-      {/* Advanced — collapsible search settings */}
-      <div className="engine-section" style={{ marginTop: 4 }}>
-        <button
-          className="engine-auto-btn"
-          style={{ width: '100%', textAlign: 'left' }}
-          onClick={() => setAdvancedOpen((v) => !v)}
-        >
-          {advancedOpen ? '▼' : '▶'} Search (avancé)
-        </button>
-        {advancedOpen && (
-          <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div className="engine-section-header" style={{ gap: 8 }}>
-              <span className="engine-section-label">Mode</span>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {(['nodes', 'depth', 'movetime'] as const).map((m) => (
-                  <button
-                    key={m}
-                    className={`engine-auto-btn ${engine.searchMode === m ? 'engine-auto-btn--active' : ''}`}
-                    onClick={() => engine.setSearchMode(m)}
-                  >{m}</button>
-                ))}
-              </div>
-            </div>
-            {engine.searchMode === 'nodes' && (
-              <Slider min={100_000} max={5_000_000} step={100_000}
-                value={engine.searchNodes} onChange={engine.setSearchNodes} />
-            )}
-            {engine.searchMode === 'depth' && (
-              <Slider min={1} max={30} step={1}
-                value={engine.searchDepth} onChange={engine.setSearchDepth} />
-            )}
-            {engine.searchMode === 'movetime' && (
-              <Slider min={500} max={5000} step={100}
-                value={engine.searchMovetime} onChange={engine.setSearchMovetime} />
-            )}
-            <span className="engine-desc">
-              {engine.searchMode === 'nodes' && `${engine.searchNodes.toLocaleString()} nœuds`}
-              {engine.searchMode === 'depth' && `Profondeur fixée à ${engine.searchDepth}`}
-              {engine.searchMode === 'movetime' && `${engine.searchMovetime} ms par coup`}
-            </span>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

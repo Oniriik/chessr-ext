@@ -352,10 +352,17 @@ async function createEngine(id: EngineId): Promise<IEngine> {
     if (forceFailSet().has(id)) {
       throw new Error(`chessrFailWasm set for ${id} → simulated init failure`);
     }
+    // Per-engine init budget. Default 3s is fine for small engines (Komodo /
+    // Stockfish). Rodent IV ships ~70 MB of preloaded books + a Asyncify-
+    // wrapped UCI loop, which on slow disks/devices can easily blow past 3s
+    // (observed: first-cold init ~8-12s). Bump to 15s for it specifically.
+    // Maia 3 also has a 45 MB ONNX download — keep its existing internal
+    // timeout untouched.
+    const initBudget = id === 'rodent' ? 15_000 : WASM_INIT_TIMEOUT_MS;
     await Promise.race([
       wasmEng.init(),
       new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error('wasm init timeout')), WASM_INIT_TIMEOUT_MS)),
+        setTimeout(() => rej(new Error('wasm init timeout')), initBudget)),
     ]);
     console.log(`[Chessr] engine ready (WASM): ${id}`);
     recordEngineSwap({ slot: 'suggestion', engineId: id, mode: 'wasm', success: true });
@@ -530,7 +537,10 @@ function runSuggestionSearch(fen: string) {
     // the log on stockfish so the line doesn't lie ("perso=Default" looked
     // like the user picked Default but the field isn't applicable).
     const persoBit = engineLabel === 'stockfish' ? '' : ` perso=${params.personality}`;
-    return `source=${source} engine=${engineLabel} elo=${params.targetElo} mpv=${params.multiPv} limit=${params.limitStrength}${persoBit} search=${searchDesc}`;
+    // Rodent uses `eloTarget` as the field name (Komodo/Stockfish use
+    // `targetElo`); fall back so the log line is always meaningful.
+    const eloValue = (params as any).eloTarget ?? params.targetElo;
+    return `source=${source} engine=${engineLabel} elo=${eloValue} mpv=${params.multiPv} limit=${params.limitStrength}${persoBit} search=${searchDesc}`;
   })();
   sendWs({
     type: 'suggestion_log_start',

@@ -12,10 +12,11 @@ export type MaiaVariant = 'blitz' | 'rapid';
 
 /** Rodent IV personalities. Value = filename stem (without .txt extension)
  *  passed to Rodent as `setoption name PersonalityFile value <stem>.txt`.
- *  Grouped here for UI rendering with section headers. */
-export const RODENT_PERSONALITY_GROUPS: { label: string; options: string[] }[] = [
+ *  Grouped here for UI rendering with section headers — the labelKey is an
+ *  i18n key resolved at render time (locales/*.json). */
+export const RODENT_PERSONALITY_GROUPS: { labelKey: string; options: string[] }[] = [
   {
-    label: 'Grands Maîtres',
+    labelKey: 'engine.rodent.groupMasters',
     options: [
       'alekhine', 'anand', 'anderssen', 'botvinnik', 'fischer', 'karpov',
       'kasparov', 'kortchnoi', 'larsen', 'lasker', 'marshall', 'morphy',
@@ -24,14 +25,14 @@ export const RODENT_PERSONALITY_GROUPS: { label: string; options: string[] }[] =
     ],
   },
   {
-    label: 'Styles',
+    labelKey: 'engine.rodent.groupStyles',
     options: [
       'default', 'defender', 'dynamic', 'partisan', 'pawnsacker', 'simple',
       'spitfire', 'strangler', 'swapper',
     ],
   },
   {
-    label: 'Autres',
+    labelKey: 'engine.rodent.groupOthers',
     options: [
       'amanda', 'ampere', 'bosboom', 'cloe', 'deborah', 'grumpy', 'pedrita',
       'preston',
@@ -64,7 +65,6 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Rodent IV',
     desc:  '39 named personalities (GM-style + style archetypes) with a tunable imprecision dial.',
     eloRange: '800 – 2800',
-    beta:  true,
   },
   stockfish: {
     label: 'Stockfish',
