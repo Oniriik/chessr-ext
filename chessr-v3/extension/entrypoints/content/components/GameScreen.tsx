@@ -432,14 +432,15 @@ function EloSection() {
   const sliderMax = engine.engineId === 'rodent'
     ? 2800
     : (premium ? (engine.limitStrength ? 2500 : 3500) : 2000);
+  // Rodent's UCI_Elo is entirely ignored when LimitStrength=false (the engine
+  // self-manages search via internal skill caps), so we hide the Elo block in
+  // Force-Depth mode to avoid showing a useless slider. Komodo/Stockfish keep
+  // their Elo visible in all modes — even with LimitStrength=false the slider
+  // value persists and the user is just one toggle away from re-using it.
+  const hideEloOnForceDepth = engine.engineId === 'rodent' && !engine.limitStrength;
   return (
     <div className="engine-section">
-      {/* Target ELO header + display + slider are only meaningful when
-       *  UCI_LimitStrength is on. When Force Depth is enabled
-       *  (limitStrength=false), the engine ignores the Elo cap entirely so
-       *  showing those controls would be misleading — hide them and let
-       *  the Force Depth row + Search submodule below own the section. */}
-      {engine.limitStrength && (
+      {!hideEloOnForceDepth && (
         <>
           <div className="engine-section-header">
             <span className="engine-section-label">{t('engine.targetElo')}</span>
@@ -459,9 +460,9 @@ function EloSection() {
                 engine.setTargetEloManual(v);
                 if (v < 2500 && !engine.limitStrength) engine.setLimitStrength(true);
               }}
-              trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+              trackColor={!engine.limitStrength ? 'linear-gradient(90deg, #22c55e, #3b82f6, #ef4444)' : 'linear-gradient(90deg, #22c55e, #3b82f6)'}
               thumbColor="#22c55e"
-              thumbColorEnd="#3b82f6"
+              thumbColorEnd={!engine.limitStrength ? '#ef4444' : '#3b82f6'}
             />
           )}
           {!premium && (
