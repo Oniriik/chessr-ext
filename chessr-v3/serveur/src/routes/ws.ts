@@ -252,7 +252,7 @@ export function getClients() {
 // parse engine + source from it and feed insertUserActivity so WASM
 // suggestions land in analytics like server-side ones.
 
-const VALID_ENGINES = new Set<EngineId>(['komodo', 'maia2', 'maia3', 'stockfish']);
+const VALID_ENGINES = new Set<EngineId>(['komodo', 'maia2', 'maia3', 'rodent', 'stockfish']);
 const VALID_SOURCES = new Set<EventSource>(['server', 'wasm']);
 
 function parseExtra(extra: unknown): { engine?: EngineId; source?: EventSource } {

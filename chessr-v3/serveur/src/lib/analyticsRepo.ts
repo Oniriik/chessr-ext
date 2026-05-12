@@ -34,7 +34,7 @@ export type ActivityEventType =
   // of pre-migration rows; never emitted by new code.
   ;
 
-export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'stockfish';
+export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'rodent' | 'stockfish';
 export type EventSource = 'server' | 'wasm';
 
 export interface UserActivityInsert {
