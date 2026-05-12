@@ -7,7 +7,7 @@ import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { useAuthStore } from '../stores/authStore';
-import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, type EngineId, type MaiaVariant, MAIA_VARIANT_INFO } from '../stores/engineStore';
+import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, type EngineId, type MaiaVariant, MAIA_VARIANT_INFO, RODENT_PERSONALITY_GROUPS } from '../stores/engineStore';
 import { isPremium } from '../lib/premium';
 import { useAccuracy, useAccuracyTrend, useMoveAnalyses, computeClassificationCounts } from '../stores/analysisStore';
 import { useAutoMoveStore, formatCountdown } from '../stores/autoMoveStore';
@@ -144,12 +144,15 @@ function FloatingElo() {
   );
 }
 
-function SearchSubmodule() {
+function SearchSubmodule({ noTopDivider = false }: { noTopDivider?: boolean } = {}) {
   const engine = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
+  const containerStyle: React.CSSProperties = noTopDivider
+    ? { display: 'flex', flexDirection: 'column', gap: 4 }
+    : { marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 4 };
   return (
-    <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+    <div style={containerStyle}>
       <div style={fRow}>
         <span style={{ ...fLabel, fontSize: 7 }}>Max search depth</span>
         <select
@@ -667,6 +670,113 @@ function FloatingMaia3OppoElo() {
 }
 
 
+// Rodent IV floating widgets — pinnable per-knob counterparts of the
+// engine panel sections. Mirror the Maia pattern: lightweight controls
+// styled with the floating-card primitives (fCard / fRow / fLabel) so they
+// blend with the other pinned widgets.
+
+function FloatingRodentElo() {
+  const engine = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
+  const value = engine.getEffectiveElo();
+  const auto = engine.targetEloAuto;
+  return (
+    <div style={fCard}>
+      {/* Force Depth OFF — show Target ELO + slider + boost message */}
+      {engine.limitStrength && (
+        <>
+          <div style={fRow}>
+            <span style={fLabel}>{tStatic('engine.targetElo')}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+              <button onClick={() => engine.setTargetEloAuto(!auto)} style={fAutoBtn(auto)}>{tStatic('common.auto')}</button>
+            </div>
+          </div>
+          <Slider
+            min={800} max={2800} step={50}
+            value={auto ? value : engine.targetEloManual}
+            onChange={(v) => {
+              if (auto) engine.setTargetEloAuto(false);
+              engine.setTargetEloManual(v);
+            }}
+            trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+            thumbColor="#22c55e"
+            thumbColorEnd="#3b82f6"
+          />
+          {auto && (
+            <span style={{ fontSize: 7, color: 'rgba(255,255,255,0.2)', marginTop: 2 }}>
+              {engine.opponentElo > 0
+                ? `Opponent ${engine.opponentElo} + ${engine.autoEloBoost} boost`
+                : `${engine.userElo} + ${engine.autoEloBoost} boost`}
+            </span>
+          )}
+        </>
+      )}
+
+      {/* Force Depth ON — replace Elo controls with the Search submodule
+       *  so the user can drive depth/nodes/movetime from the same card.
+       *  Skip the top divider since there's no Elo content above it. */}
+      {!engine.limitStrength && <SearchSubmodule noTopDivider />}
+
+      {/* Force Depth toggle — always visible so the user can flip back. */}
+      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', ...fRow }}>
+        <span style={{ ...fLabel, fontSize: 7 }}>{tStatic('engine.force.title')}</span>
+        <Toggle
+          checked={!engine.limitStrength && premium}
+          onChange={(v) => { if (premium) engine.setLimitStrength(!v); }}
+          disabled={!premium}
+        />
+      </div>
+    </div>
+  );
+}
+
+function FloatingRodentImprecision() {
+  const engine = useEngineStore();
+  return (
+    <div style={fCard}>
+      <div style={fRow}>
+        <span style={fLabel}>{tStatic('engine.rodent.imprecision')}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#e4e4e7', fontVariantNumeric: 'tabular-nums' }}>{engine.imprecision}</span>
+      </div>
+      <Slider
+        min={0} max={100} step={1}
+        value={engine.imprecision}
+        onChange={engine.setImprecision}
+        trackColor="linear-gradient(90deg, #6b7280, #ef4444)"
+        thumbColor="#6b7280"
+        thumbColorEnd="#ef4444"
+      />
+    </div>
+  );
+}
+
+function FloatingRodentPersonality() {
+  const engine = useEngineStore();
+  return (
+    <div style={{ ...fCard, ...fRow }}>
+      <span style={fLabel}>{tStatic('engine.rodent.personality')}</span>
+      <select
+        value={engine.rodentPersonality}
+        onChange={(e) => engine.setRodentPersonality(e.target.value)}
+        style={fSelect}
+      >
+        {RODENT_PERSONALITY_GROUPS.map((group) => (
+          <optgroup key={group.labelKey} label={tStatic(group.labelKey)}>
+            {group.options.map((p) => (
+              <option key={p} value={p}>
+                {p.charAt(0).toUpperCase() + p.slice(1)}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+
 export function renderPinnedComponent(id: string, engineId?: EngineId): React.ReactNode | null {
   // Engine-scoped widgets only render when the active engine is in the
   // widget's `engineIds` set. Empty/undefined = engine-agnostic.
@@ -689,6 +799,9 @@ export function renderPinnedComponent(id: string, engineId?: EngineId): React.Re
     case 'variety': return <FloatingVariety />;
     case 'maia-target-elo': return <FloatingMaiaTargetElo />;
     case 'maia-oppo-elo': return <FloatingMaiaOppoElo />;
+    case 'rodent-elo':         return <FloatingRodentElo />;
+    case 'rodent-imprecision': return <FloatingRodentImprecision />;
+    case 'rodent-personality': return <FloatingRodentPersonality />;
     case 'maia-variant': return <FloatingMaiaVariant />;
     case 'maia3-target-elo': return <FloatingMaia3TargetElo />;
     case 'maia3-oppo-elo': return <FloatingMaia3OppoElo />;

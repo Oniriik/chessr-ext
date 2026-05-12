@@ -434,40 +434,54 @@ function EloSection() {
     : (premium ? (engine.limitStrength ? 2500 : 3500) : 2000);
   return (
     <div className="engine-section">
-      <div className="engine-section-header">
-        <span className="engine-section-label">{t('engine.targetElo')}</span>
-        <button className={`engine-auto-btn ${engine.targetEloAuto ? 'engine-auto-btn--active' : ''}`} onClick={() => engine.setTargetEloAuto(!engine.targetEloAuto)}>{t('common.auto')}</button>
-      </div>
-      <div className="engine-elo-display"><span className="engine-elo-value">{effectiveElo}</span></div>
-      {engine.targetEloAuto && (
-        <span className="engine-desc">{engine.opponentElo > 0 ? t('engine.opponentBoost', { elo: engine.opponentElo, boost: engine.autoEloBoost }) : t('engine.noOpponent', { elo: engine.userElo, boost: engine.autoEloBoost })}</span>
-      )}
-      {!engine.targetEloAuto && (
-        <Slider
-          min={sliderMin}
-          max={sliderMax}
-          step={50}
-          value={Math.max(sliderMin, Math.min(sliderMax, engine.targetEloManual))}
-          onChange={(v) => {
-            engine.setTargetEloManual(v);
-            if (v < 2500 && !engine.limitStrength) engine.setLimitStrength(true);
-          }}
-          trackColor={!engine.limitStrength ? 'linear-gradient(90deg, #22c55e, #3b82f6, #ef4444)' : 'linear-gradient(90deg, #22c55e, #3b82f6)'}
-          thumbColor="#22c55e"
-          thumbColorEnd={!engine.limitStrength ? '#ef4444' : '#3b82f6'}
-        />
-      )}
-      {!premium && (
-        <span className="engine-desc" style={{ color: '#fbbf24' }}>{t('engine.upgradeUnlock')}</span>
+      {/* Target ELO header + display + slider are only meaningful when
+       *  UCI_LimitStrength is on. When Force Depth is enabled
+       *  (limitStrength=false), the engine ignores the Elo cap entirely so
+       *  showing those controls would be misleading — hide them and let
+       *  the Force Depth row + Search submodule below own the section. */}
+      {engine.limitStrength && (
+        <>
+          <div className="engine-section-header">
+            <span className="engine-section-label">{t('engine.targetElo')}</span>
+            <button className={`engine-auto-btn ${engine.targetEloAuto ? 'engine-auto-btn--active' : ''}`} onClick={() => engine.setTargetEloAuto(!engine.targetEloAuto)}>{t('common.auto')}</button>
+          </div>
+          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveElo}</span></div>
+          {engine.targetEloAuto && (
+            <span className="engine-desc">{engine.opponentElo > 0 ? t('engine.opponentBoost', { elo: engine.opponentElo, boost: engine.autoEloBoost }) : t('engine.noOpponent', { elo: engine.userElo, boost: engine.autoEloBoost })}</span>
+          )}
+          {!engine.targetEloAuto && (
+            <Slider
+              min={sliderMin}
+              max={sliderMax}
+              step={50}
+              value={Math.max(sliderMin, Math.min(sliderMax, engine.targetEloManual))}
+              onChange={(v) => {
+                engine.setTargetEloManual(v);
+                if (v < 2500 && !engine.limitStrength) engine.setLimitStrength(true);
+              }}
+              trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
+              thumbColor="#22c55e"
+              thumbColorEnd="#3b82f6"
+            />
+          )}
+          {!premium && (
+            <span className="engine-desc" style={{ color: '#fbbf24' }}>{t('engine.upgradeUnlock')}</span>
+          )}
+        </>
       )}
 
       {/* Search submodule only renders when Force Depth is ON
        *  (limitStrength=false): otherwise the UCI_LimitStrength path drives
        *  the search budget internally and exposing depth/nodes/movetime is
-       *  meaningless. The user toggles Force Depth via the row below and
-       *  the controls reveal themselves. */}
+       *  meaningless. When the Elo controls are also hidden (limitStrength
+       *  is false), strip the .engine-subsection's top divider / margin /
+       *  padding — they exist to separate the search submodule from Elo
+       *  controls above it, but here there's nothing above. */}
       {!engine.limitStrength && (
-        <div className="engine-subsection">
+        <div
+          className="engine-subsection"
+          style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}
+        >
           <div className="engine-section-header">
             <div className="engine-section-label-group">
               <span className="engine-section-label" style={{ fontSize: 9 }}>{t('engine.search.title')}</span>
