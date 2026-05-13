@@ -1,65 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+
+/** Thin proxy to the chessr-v3 serveur. The Supabase user_activity table
+ *  was truncated when we dropped back to the free tier; live data lives
+ *  on the local Postgres on chessr-beta. The serveur exposes the same
+ *  payload shape via /api/review-limit so the frontend doesn't have to
+ *  change. Fail-open: any fetch error returns "no limit" so the UI keeps
+ *  rendering. */
+const API_URL = process.env.NEXT_PUBLIC_CHESSR_API_URL || 'https://api.chessr.io'
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization')
-  const token = authHeader?.replace('Bearer ', '')
-  if (!token) {
-    return NextResponse.json({ isLimited: false, dailyUsage: 0, dailyLimit: null })
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
-  if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json({ isLimited: false, dailyUsage: 0, dailyLimit: null })
-  }
-
   try {
-    const supabase = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
+    const res = await fetch(`${API_URL}/api/review-limit`, {
+      headers: authHeader ? { Authorization: authHeader } : {},
+      cache: 'no-store',
     })
-
-    // Verify JWT and get user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-    if (authError || !user) {
-      return NextResponse.json({ isLimited: false, dailyUsage: 0, dailyLimit: null })
-    }
-
-    // Get user plan
-    const { data: settings } = await supabase
-      .from('user_settings')
-      .select('plan')
-      .eq('user_id', user.id)
-      .single()
-
-    const plan = settings?.plan || 'free'
-    // 'unlocker' is the Review Unlocker plan — reviews-only, but for the
-    // review quota it counts as unlimited (same gate as chesscomReview.ts
-    // server-side). Other premium features (profile-analysis, etc.) stay
-    // gated to the 4 main premium tiers.
-    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial' || plan === 'unlocker'
-
-    if (isPremium) {
-      return NextResponse.json({ isLimited: false, dailyUsage: 0, dailyLimit: null })
-    }
-
-    // Count today's reviews
-    const DAILY_LIMIT = 5
-    const todayUTC = new Date()
-    todayUTC.setUTCHours(0, 0, 0, 0)
-
-    const { count } = await supabase
-      .from('user_activity')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('event_type', 'game_review')
-      .gte('created_at', todayUTC.toISOString())
-
-    return NextResponse.json({
-      isLimited: true,
-      dailyUsage: count || 0,
-      dailyLimit: DAILY_LIMIT,
-    })
+    const data = await res.json()
+    return NextResponse.json(data)
   } catch {
     return NextResponse.json({ isLimited: false, dailyUsage: 0, dailyLimit: null })
   }

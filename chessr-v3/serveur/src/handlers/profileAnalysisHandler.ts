@@ -27,7 +27,7 @@ import type { WSContext } from 'hono/ws';
 import { Chess } from 'chess.js';
 import { WebSocket } from 'ws';
 import { supabase } from '../lib/supabase.js';
-import { insertUserActivity, countUserActivityToday } from '../lib/analyticsRepo.js';
+import { insertUserActivity, countUserActivityToday, countUserActivitySince } from '../lib/analyticsRepo.js';
 
 const REMEMBERME_COOKIE = `CHESSCOM_REMEMBERME=${process.env.CHESSCOM_REMEMBERME || ''}`;
 const MAX_GAMES = 10;
@@ -265,19 +265,13 @@ export async function handleProfileAnalysis(
   const isPremium = ['premium', 'lifetime', 'beta', 'freetrial'].includes(plan);
 
   if (!isPremium) {
-    // countUserActivityToday only covers "today" — the v2 used a 7-day
-    // window. Approximate by querying user_activity directly for the
-    // weekly window. Keeps the logic simple while we settle on a
-    // unified limits API.
+    // Weekly window — countUserActivitySince routes through analyticsRepo
+    // so we hit the local Postgres when USE_LOCAL_DB=true. The previous
+    // .from('user_activity') direct read broke after the Supabase table
+    // was truncated in the free-tier migration.
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
-    const { count } = await supabase
-      .from('user_activity')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('event_type', 'profile_analysis')
-      .gte('created_at', weekAgo.toISOString());
-    const weeklyUsage = count || 0;
+    const weeklyUsage = await countUserActivitySince(userId, 'profile_analysis', weekAgo.toISOString());
     if (weeklyUsage >= WEEKLY_LIMIT) {
       await supabase.from('profile_analyses').update({
         status: 'error',

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useReviewStore } from '../stores/reviewStore';
+import { useAuthStore } from '../stores/authStore';
 import { getActiveTabGameId } from '../lib/gameId';
 import { APP_REVIEW_URL } from '../lib/config';
 import { fetchChesscomGameMeta, type GameMeta } from '../lib/chesscomMeta';
+import { openBillingPage } from '../lib/openBilling';
 import ReviewSummary from './ReviewSummary';
 import GameSummaryCard from './GameSummaryCard';
 
 export default function ReviewView() {
+  const { plan } = useAuthStore();
   const { gameId, loading, checking, progress, analysis, headers, error, quota, checkCache, requestReview, reset } = useReviewStore();
   const [tabUrl, setTabUrl] = useState<string | null>(null);
   const [detectedId, setDetectedId] = useState<string | null>(null);
@@ -81,13 +84,15 @@ export default function ReviewView() {
       )}
 
       {/* Proactive upgrade CTA — fires from the cache_miss quota snapshot so
-       *  the user doesn't waste a click on Unlock review just to get rejected. */}
+       *  the user doesn't waste a click on Unlock review just to get rejected.
+       *  openBillingPage(plan) routes free users to /checkout/unlocker with a
+       *  signed billing token (the public /#pricing landing has no auth). */}
       {limitReachedProactively && (
         <>
           <span className="review-upsell-text">Upgrade to Premium for unlimited reviews</span>
-          <a className="review-cta review-cta--upgrade" href="https://chessr.io/#pricing" target="_blank" rel="noreferrer">
+          <button className="review-cta review-cta--upgrade" onClick={() => openBillingPage(plan)}>
             Upgrade to Premium
-          </a>
+          </button>
         </>
       )}
 
@@ -110,9 +115,9 @@ export default function ReviewView() {
       {/* Post-click rejection — server returned daily_limit. Mirrors the
        *  proactive CTA above. */}
       {error === 'daily_limit' && (
-        <a className="review-cta review-cta--upgrade" href="https://chessr.io/#pricing" target="_blank" rel="noreferrer">
+        <button className="review-cta review-cta--upgrade" onClick={() => openBillingPage(plan)}>
           Upgrade to Premium
-        </a>
+        </button>
       )}
 
       {error && error !== 'daily_limit' && (

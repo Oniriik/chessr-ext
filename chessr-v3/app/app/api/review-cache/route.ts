@@ -1,38 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 
-// Check if a game review is cached in DB
+/** Thin proxy to the chessr-v3 serveur /api/review-cache. The Supabase
+ *  game_reviews table was truncated when we dropped back to the free
+ *  tier; cached analyses live on the local Postgres on chessr-beta.
+ *  Fail-open: any fetch error returns { cached: false } so the review
+ *  page falls through to a fresh fetch path. */
+const API_URL = process.env.NEXT_PUBLIC_CHESSR_API_URL || 'https://api.chessr.io'
+
 export async function GET(request: NextRequest) {
-  const gameId = request.nextUrl.searchParams.get('id')
+  const gameId = request.nextUrl.searchParams.get('id') || ''
   const coachId = request.nextUrl.searchParams.get('coach') || 'Generic_coach'
-  if (!gameId) {
-    return NextResponse.json({ error: 'Missing game id' }, { status: 400 })
-  }
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
-  if (!supabaseUrl || !serviceKey) {
-    return NextResponse.json({ cached: false })
-  }
-
+  if (!gameId) return NextResponse.json({ error: 'Missing game id' }, { status: 400 })
   try {
-    const supabase = createClient(supabaseUrl, serviceKey, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    })
-
-    const { data } = await supabase
-      .from('game_reviews')
-      .select('analysis')
-      .eq('game_id', gameId)
-      .eq('platform', 'chesscom')
-      .eq('coach_id', coachId)
-      .single()
-
-    if (data?.analysis) {
-      return NextResponse.json({ cached: true, analysis: data.analysis })
-    }
-
-    return NextResponse.json({ cached: false })
+    const url = new URL(`${API_URL}/api/review-cache`)
+    url.searchParams.set('id', gameId)
+    url.searchParams.set('coach', coachId)
+    const res = await fetch(url.toString(), { cache: 'no-store' })
+    const data = await res.json()
+    return NextResponse.json(data)
   } catch {
     return NextResponse.json({ cached: false })
   }

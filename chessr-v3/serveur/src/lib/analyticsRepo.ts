@@ -81,6 +81,34 @@ export async function countUserActivityToday(
   return count ?? 0;
 }
 
+/** Count events of a given type for one user since an arbitrary cutoff.
+ *  Same data source as countUserActivityToday but with a caller-provided
+ *  window so the same helper can back the daily review limit AND the
+ *  weekly profile-analysis limit without duplicating SQL. */
+export async function countUserActivitySince(
+  userId: string,
+  eventType: ActivityEventType,
+  sinceISO: string,
+): Promise<number> {
+  if (isLocalDbEnabled()) {
+    const rows = await dbQuery<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM user_activity
+       WHERE user_id = $1 AND event_type = $2::activity_event_type AND created_at >= $3`,
+      [userId, eventType, sinceISO],
+    );
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  const { count } = await supabase
+    .from('user_activity')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('event_type', eventType)
+    .gte('created_at', sinceISO);
+  return count ?? 0;
+}
+
 /** Append a user_activity row. Caller owns the try/catch policy. */
 export async function insertUserActivity(input: UserActivityInsert): Promise<void> {
   const { userId, eventType, engine, source, metadata } = input;
