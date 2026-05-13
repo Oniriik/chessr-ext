@@ -40,10 +40,11 @@ export async function openBillingPage(): Promise<void> {
     // Unlocker extension points at /checkout/unlocker (the focused 1-card
     // billing page). The plug in that page handles the upsell path to
     // /checkout (full Chessr Premium) — same token + uid carried over so
-    // the user stays signed in when they navigate.
+    // the user stays signed in when they navigate. No `discount` param:
+    // the Paddle discount ID (earlyaccess) is Premium-only — passing it
+    // for the Unlocker product makes Paddle 400 the checkout init.
     const checkoutUrl =
       `https://chessr.io/checkout/unlocker?t=${encodeURIComponent(billingToken)}` +
-      `&discount=earlyaccess` +
       `&uid=${encodeURIComponent(userId)}`;
 
     window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
