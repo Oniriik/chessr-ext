@@ -85,6 +85,11 @@ function fetchFromChessr({ gameId, gameType, userColor, coachId, userId, token }
             type: 'chesscom_review',
             requestId: `review-${gameId}`,
             gameId, gameType, coachId, userColor,
+            // Tag the request so the serveur persists source='app' on
+            // user_activity.metadata. The auth handshake already sent
+            // source='app', but the analytics SQL reads from the
+            // chesscom_review message's metadata, not the auth frame.
+            source: 'app',
           }))
           return
         }

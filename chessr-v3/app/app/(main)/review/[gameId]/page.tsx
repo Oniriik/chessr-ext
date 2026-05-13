@@ -172,6 +172,10 @@ export default function ReviewPage() {
               gameType,
               coachId,
               userColor: orientation === 'black' ? 'black' : 'white',
+              // Tag so analytics persists source='app' on
+              // user_activity.metadata (the auth handshake's source
+              // field doesn't propagate to per-event rows).
+              source: 'app',
             }))
           }
           if (msg.type === 'chesscom_review_progress') {
