@@ -19,6 +19,8 @@ import {
 } from '@/components/discord/giveaway-shared';
 import { PrizeEditor } from '@/components/discord/PrizeEditor';
 import { GrantTicketPanel } from '@/components/discord/GrantTicketDialog';
+import { ParticipantsPanel } from '@/components/discord/ParticipantsPanel';
+import { ExcludedUsersPanel } from '@/components/discord/ExcludedUsersPanel';
 
 function toDatetimeLocal(iso: string): string {
   const d = new Date(iso);
@@ -34,6 +36,11 @@ export default function GiveawayDetailPage() {
   const [detail, setDetail] = useState<GiveawayDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Bump to force the participants list to refetch after grants /
+  // exclusions / removals. Cheaper than threading individual signals
+  // through every panel.
+  const [participantsRefresh, setParticipantsRefresh] = useState(0);
+  const bumpParticipants = () => setParticipantsRefresh((n) => n + 1);
   const [callerRole, setCallerRole] = useState<UserRole>('user');
 
   // Edit-mode local state for header.
@@ -365,7 +372,7 @@ export default function GiveawayDetailPage() {
                 <GrantTicketPanel
                   giveawayId={id}
                   disabled={!isSuper}
-                  onGranted={load}
+                  onGranted={() => { load(); bumpParticipants(); }}
                 />
                 {!isSuper && (
                   <div className="mt-2 text-[10px] text-muted-foreground">super_admin required to grant.</div>
@@ -373,6 +380,31 @@ export default function GiveawayDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* ─── Participants list ────────────────────────────────────── */}
+          <Card>
+            <CardContent className="p-4 sm:p-5">
+              <ParticipantsPanel
+                giveawayId={id}
+                participantCount={detail.stats.participants}
+                refreshSignal={participantsRefresh}
+              />
+            </CardContent>
+          </Card>
+
+          {/* ─── Excluded users ───────────────────────────────────────── */}
+          <Card>
+            <CardContent className="p-4 sm:p-5">
+              <ExcludedUsersPanel
+                giveawayId={id}
+                disabled={isLocked || !isSuper}
+                onChange={bumpParticipants}
+              />
+              {!isSuper && (
+                <div className="mt-2 text-[10px] text-muted-foreground">super_admin required to exclude.</div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* ─── Prizes ───────────────────────────────────────────────── */}
           <Card>

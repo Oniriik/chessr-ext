@@ -392,6 +392,13 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/register', async (c) => {
   if (Date.parse(gw[0].starts_at) > now) return c.json({ error: 'not_started' }, 409);
   if (Date.parse(gw[0].ends_at)   <= now) return c.json({ error: 'ended' }, 409);
 
+  // Block excluded users from earning anything via the Register button.
+  // The bot can surface a friendly message; status 409 keeps the
+  // existing front-end error-handling shape.
+  if (await isExcluded(id, discordId)) {
+    return c.json({ error: 'excluded' }, 409);
+  }
+
   // ON CONFLICT DO NOTHING + RETURNING gives us the row only when newly
   // inserted — perfect for the "grant ticket once" branch.
   const inserted = await dbQuery<{ id: number }>(
@@ -577,6 +584,13 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/tickets/grant', async (c) => {
     return c.json({ error: 'giveaway_locked', status: giveaway[0].status }, 409);
   }
 
+  // Defensive: admin grants from the dashboard should never bypass the
+  // exclusion list. The dashboard already filters the picker but a
+  // direct API call could still try — bail with a clear error.
+  if (await isExcluded(id, discordId)) {
+    return c.json({ error: 'user_excluded' }, 409);
+  }
+
   const inserted = await dbQuery<{ id: number }>(
     `INSERT INTO giveaway_tickets
        (giveaway_id, owner_discord_id, source, count, granted_by_user_id, reason)
@@ -730,6 +744,141 @@ adminGiveawayRoutes.post('/admin/giveaway/:id/migrate-v2', async (c) => {
     window: { startsAt, endsAt },
     invitesScanned: rows.length,
     summary: { distinctUsers: users.length, totalTickets, granted, failed },
+  });
+});
+
+// ─── Exclusions helpers ────────────────────────────────────────────────
+// Per-giveaway block list. Used to keep the chessr team from winning
+// their own giveaways and to retroactively scrub bad-faith accounts
+// before a draw. Checked on every ticket-earning path (register / grant
+// / invite) and filtered out of the draw pool inside giveawayDraw.ts.
+
+async function isExcluded(giveawayId: number, discordId: string): Promise<boolean> {
+  const rows = await dbQuery<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM giveaway_excluded_users
+        WHERE giveaway_id = $1 AND discord_id = $2
+     ) AS exists`,
+    [giveawayId, discordId],
+  );
+  return !!rows[0]?.exists;
+}
+
+// ─── GET /admin/giveaway/:id/excluded ──────────────────────────────────
+// Returns the per-giveaway exclusion list with audit fields. Admin-only.
+
+adminGiveawayRoutes.get('/admin/giveaway/:id/excluded', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  const rows = await dbQuery<{
+    discord_id: string;
+    reason: string | null;
+    excluded_by_user_id: string | null;
+    excluded_at: string;
+  }>(
+    `SELECT discord_id, reason, excluded_by_user_id, excluded_at::text
+       FROM giveaway_excluded_users
+      WHERE giveaway_id = $1
+      ORDER BY excluded_at DESC`,
+    [id],
+  );
+
+  return c.json({ excluded: rows });
+});
+
+// ─── POST /admin/giveaway/:id/exclude ──────────────────────────────────
+// Body: { discordId, reason?, actorUserId? }. Idempotent — ON CONFLICT
+// DO NOTHING means re-adding an existing exclusion is a no-op. Does NOT
+// retroactively remove tickets already earned: admins should clear
+// those by hand if needed (or the draw filters them out anyway).
+
+adminGiveawayRoutes.post('/admin/giveaway/:id/exclude', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  let body: { discordId?: string; reason?: string; actorUserId?: string };
+  try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+  const discordId = (body.discordId ?? '').trim();
+  const reason = (body.reason ?? '').trim() || null;
+  if (!discordId) return c.json({ error: 'discordId required' }, 400);
+
+  const gw = await dbQuery<{ id: number }>(
+    `SELECT id FROM giveaways WHERE id = $1`, [id],
+  );
+  if (gw.length === 0) return c.json({ error: 'not_found' }, 404);
+
+  const inserted = await dbQuery<{ id: number }>(
+    `INSERT INTO giveaway_excluded_users
+       (giveaway_id, discord_id, reason, excluded_by_user_id)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (giveaway_id, discord_id) DO NOTHING
+     RETURNING id`,
+    [id, discordId, reason, body.actorUserId ?? null],
+  );
+
+  return c.json({ excluded: true, already: inserted.length === 0 });
+});
+
+// ─── DELETE /admin/giveaway/:id/exclude/:discordId ─────────────────────
+// Lift an exclusion. Future ticket-earning paths will resume granting
+// normally. Existing tickets (if any) become eligible for the draw
+// again on the next cron tick.
+
+adminGiveawayRoutes.delete('/admin/giveaway/:id/exclude/:discordId', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  const discordId = (c.req.param('discordId') ?? '').trim();
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+  if (!discordId) return c.json({ error: 'discordId required' }, 400);
+
+  const deleted = await dbQuery<{ id: number }>(
+    `DELETE FROM giveaway_excluded_users
+      WHERE giveaway_id = $1 AND discord_id = $2
+     RETURNING id`,
+    [id, discordId],
+  );
+  return c.json({ removed: deleted.length > 0 });
+});
+
+// ─── GET /admin/giveaway/:id/participants ──────────────────────────────
+// Full participants list: every Discord user with at least one ticket
+// for this giveaway, sorted by ticket count DESC. Differs from the
+// leaderboard endpoint by returning the whole population (no LIMIT)
+// and flagging excluded users so the dashboard can mark them visually.
+
+adminGiveawayRoutes.get('/admin/giveaway/:id/participants', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const id = Number(c.req.param('id'));
+  if (!Number.isFinite(id)) return c.json({ error: 'invalid id' }, 400);
+
+  const rows = await dbQuery<{
+    discord_id: string;
+    tickets: string;
+    is_excluded: boolean;
+  }>(
+    `SELECT t.owner_discord_id AS discord_id,
+            SUM(t.count)::text AS tickets,
+            EXISTS (
+              SELECT 1 FROM giveaway_excluded_users e
+               WHERE e.giveaway_id = t.giveaway_id
+                 AND e.discord_id = t.owner_discord_id
+            ) AS is_excluded
+       FROM giveaway_tickets t
+      WHERE t.giveaway_id = $1
+      GROUP BY t.owner_discord_id, t.giveaway_id
+      ORDER BY SUM(t.count) DESC`,
+    [id],
+  );
+
+  return c.json({
+    participants: rows.map((r) => ({
+      discord_id: r.discord_id,
+      tickets: Number(r.tickets),
+      is_excluded: !!r.is_excluded,
+    })),
   });
 });
 

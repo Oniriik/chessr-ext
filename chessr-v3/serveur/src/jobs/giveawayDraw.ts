@@ -112,11 +112,21 @@ async function drawOne(g: DueGiveaway): Promise<void> {
     return;
   }
 
+  // Aggregate tickets but filter out excluded users (chessr team, banned
+  // accounts, etc.). Done in SQL with a LEFT JOIN so excluded users
+  // can't slip through even if they earned tickets BEFORE being added
+  // to the exclusion list — exclusions are evaluated at draw time, not
+  // grant time.
   const tickets = await dbQuery<TicketAggRow>(
-    `SELECT owner_discord_id, SUM(count)::text AS tickets
-       FROM giveaway_tickets
-      WHERE giveaway_id = $1
-      GROUP BY owner_discord_id`,
+    `SELECT t.owner_discord_id, SUM(t.count)::text AS tickets
+       FROM giveaway_tickets t
+      WHERE t.giveaway_id = $1
+        AND NOT EXISTS (
+          SELECT 1 FROM giveaway_excluded_users e
+           WHERE e.giveaway_id = t.giveaway_id
+             AND e.discord_id = t.owner_discord_id
+        )
+      GROUP BY t.owner_discord_id`,
     [g.id],
   );
 

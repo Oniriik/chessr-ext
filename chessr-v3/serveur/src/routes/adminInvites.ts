@@ -81,6 +81,20 @@ adminInviteRoutes.post('/admin/invites/use', async (c) => {
       [inviter],
     );
     for (const g of eligible) {
+      // Per-giveaway exclusion list: if the inviter is blacklisted on
+      // this giveaway, the join is still logged in invite_uses (so
+      // they can never re-claim the ticket later) but we silently skip
+      // the ticket grant. Used to keep the chessr team from earning
+      // tickets on their own giveaways.
+      const excluded = await dbQuery<{ exists: boolean }>(
+        `SELECT EXISTS (
+           SELECT 1 FROM giveaway_excluded_users
+            WHERE giveaway_id = $1 AND discord_id = $2
+         ) AS exists`,
+        [g.id, inviter],
+      );
+      if (excluded[0]?.exists) continue;
+
       await dbQuery(
         `INSERT INTO giveaway_tickets
            (giveaway_id, owner_discord_id, source, count, external_ref)
