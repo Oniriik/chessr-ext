@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, ShieldOff, Trash2, UserMinus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authQS } from './giveaway-shared';
+import { useResolvedDiscordUsers } from './useResolvedDiscordUsers';
 
 interface ExcludedUser {
   discord_id: string;
@@ -54,6 +55,9 @@ export function ExcludedUsersPanel({ giveawayId, disabled, onChange }: Props) {
   }, [giveawayId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const ids = useMemo(() => excluded.map((u) => u.discord_id), [excluded]);
+  const profiles = useResolvedDiscordUsers(ids);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -160,12 +164,35 @@ export function ExcludedUsersPanel({ giveawayId, disabled, onChange }: Props) {
       )}
       {excluded.length > 0 && (
         <div className="space-y-1">
-          {excluded.map((u) => (
+          {excluded.map((u) => {
+            const profile = profiles.get(u.discord_id);
+            return (
             <div
               key={u.discord_id}
               className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-[11px]"
             >
-              <code className="flex-1 truncate font-mono">{u.discord_id}</code>
+              {profile?.avatar ? (
+                <img
+                  src={profile.avatar}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="size-5 shrink-0 rounded-full"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="size-5 shrink-0 rounded-full bg-muted" />
+              )}
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate font-medium">
+                  {profile?.username ?? <code className="font-mono">{u.discord_id}</code>}
+                </span>
+                {profile?.username && (
+                  <code className="truncate font-mono text-[9px] text-muted-foreground">
+                    {u.discord_id}
+                  </code>
+                )}
+              </div>
               {u.reason && (
                 <span className="truncate text-[10px] text-muted-foreground" title={u.reason}>
                   {u.reason}
@@ -189,7 +216,8 @@ export function ExcludedUsersPanel({ giveawayId, disabled, onChange }: Props) {
                 </Button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

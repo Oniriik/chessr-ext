@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, RefreshCw, ShieldOff, Ticket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { authQS } from './giveaway-shared';
+import { useResolvedDiscordUsers } from './useResolvedDiscordUsers';
 
 interface Participant {
   discord_id: string;
@@ -48,6 +49,8 @@ export function ParticipantsPanel({ giveawayId, participantCount, refreshSignal 
   useEffect(() => { load(); }, [load, refreshSignal]);
 
   const total = participants.reduce((s, p) => s + p.tickets, 0);
+  const ids = useMemo(() => participants.map((p) => p.discord_id), [participants]);
+  const profiles = useResolvedDiscordUsers(ids);
 
   return (
     <div className="space-y-3">
@@ -76,6 +79,7 @@ export function ParticipantsPanel({ giveawayId, participantCount, refreshSignal 
         <div className="space-y-1">
           {participants.map((p, idx) => {
             const pct = total > 0 ? (p.tickets / total) * 100 : 0;
+            const profile = profiles.get(p.discord_id);
             return (
               <div
                 key={p.discord_id}
@@ -84,7 +88,28 @@ export function ParticipantsPanel({ giveawayId, participantCount, refreshSignal 
                 }`}
               >
                 <span className="w-6 text-right text-muted-foreground">#{idx + 1}</span>
-                <code className="flex-1 truncate font-mono text-[11px]">{p.discord_id}</code>
+                {profile?.avatar ? (
+                  <img
+                    src={profile.avatar}
+                    alt=""
+                    width={20}
+                    height={20}
+                    className="size-5 shrink-0 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="size-5 shrink-0 rounded-full bg-muted" />
+                )}
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate font-medium normal-nums no-underline">
+                    {profile?.username ?? <code className="font-mono">{p.discord_id}</code>}
+                  </span>
+                  {profile?.username && (
+                    <code className="truncate font-mono text-[9px] text-muted-foreground">
+                      {p.discord_id}
+                    </code>
+                  )}
+                </div>
                 {p.is_excluded && (
                   <span className="flex items-center gap-0.5 rounded bg-rose-500/10 px-1.5 py-0.5 text-[9px] text-rose-300 no-underline">
                     <ShieldOff size={9} />

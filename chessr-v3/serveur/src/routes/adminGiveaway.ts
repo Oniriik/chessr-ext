@@ -882,6 +882,52 @@ adminGiveawayRoutes.get('/admin/giveaway/:id/participants', async (c) => {
   });
 });
 
+// ─── GET /admin/discord-users/resolve?ids=A,B,C ────────────────────────
+// Batch lookup of Discord profile info for a list of discord_ids.
+// Source is user_settings on Supabase — only users who linked their
+// Discord via OAuth have a row. Unlinked IDs are returned with
+// username: null so callers can fall back to the raw ID.
+//
+// Lives under the giveaway admin module since that's the only caller
+// today (participants / excluded panels). Will hoist to its own route
+// file if other admin pages need it.
+//
+// Capped to 200 IDs per call to keep the Supabase round-trip predictable.
+
+adminGiveawayRoutes.get('/admin/discord-users/resolve', async (c) => {
+  if (!hasValidAdminToken(c)) return c.json({ error: 'Forbidden' }, 403);
+  const raw = (new URL(c.req.url).searchParams.get('ids') ?? '').trim();
+  if (!raw) return c.json({ users: [] });
+  const ids = Array.from(new Set(
+    raw.split(',').map((s) => s.trim()).filter((s) => /^\d{17,20}$/.test(s)),
+  )).slice(0, 200);
+  if (ids.length === 0) return c.json({ users: [] });
+
+  const { data } = await supabase
+    .from('user_settings')
+    .select('discord_id, discord_username, discord_avatar')
+    .in('discord_id', ids);
+
+  const rowByDiscord = new Map<string, { discord_username: string | null; discord_avatar: string | null }>();
+  for (const row of (data ?? [])) {
+    if (row.discord_id) {
+      rowByDiscord.set(String(row.discord_id), {
+        discord_username: (row.discord_username as string | null) ?? null,
+        discord_avatar:   (row.discord_avatar   as string | null) ?? null,
+      });
+    }
+  }
+  // Always return every requested id so the caller can render a
+  // consistent row even when we have no profile (returns nulls).
+  return c.json({
+    users: ids.map((id) => ({
+      discord_id: id,
+      username: rowByDiscord.get(id)?.discord_username ?? null,
+      avatar:   rowByDiscord.get(id)?.discord_avatar   ?? null,
+    })),
+  });
+});
+
 // ─── GET /admin/giveaway/:id/leaderboard ─────────────────────────────────
 
 adminGiveawayRoutes.get('/admin/giveaway/:id/leaderboard', async (c) => {
