@@ -53,9 +53,13 @@ export async function openBillingPage(): Promise<void> {
 
     const userId = session?.user?.id ?? '';
     const returnUrl = window.location.href;
+    // No `&discount=...` for now. The query-param machinery is preserved
+    // (checkout/page.tsx still reads `discount` and forwards it to
+    // Paddle.Checkout.open) so re-enabling a future code only requires
+    // appending `&discount=<code>` here. To restore Early Access:
+    //   `&discount=earlyaccess`
     const checkoutUrl =
       `https://chessr.io/checkout?t=${encodeURIComponent(billingToken)}` +
-      `&discount=earlyaccess` +
       `&uid=${encodeURIComponent(userId)}` +
       `&return=${encodeURIComponent(returnUrl)}`;
 
