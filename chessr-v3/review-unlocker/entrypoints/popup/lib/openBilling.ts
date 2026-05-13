@@ -6,8 +6,20 @@
 
 import { supabase } from './supabase';
 import { SERVER_URL } from './config';
+import type { Plan } from '../stores/authStore';
 
-export async function openBillingPage(): Promise<void> {
+/** Decide which checkout page to open based on the user's current plan.
+ *  Premium-tier users land on /checkout (full Chessr management);
+ *  free / unlocker users land on /checkout/unlocker (subscribe or
+ *  manage the unlocker plan, with an upsell plug to /checkout). */
+function checkoutPathFor(plan: Plan): string {
+  if (plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial') {
+    return '/checkout';
+  }
+  return '/checkout/unlocker';
+}
+
+export async function openBillingPage(plan: Plan = 'free'): Promise<void> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
@@ -37,14 +49,16 @@ export async function openBillingPage(): Promise<void> {
     }
 
     const userId = session?.user?.id ?? '';
-    // Unlocker extension points at /checkout/unlocker (the focused 1-card
-    // billing page). The plug in that page handles the upsell path to
-    // /checkout (full Chessr Premium) — same token + uid carried over so
-    // the user stays signed in when they navigate. No `discount` param:
-    // the Paddle discount ID (earlyaccess) is Premium-only — passing it
-    // for the Unlocker product makes Paddle 400 the checkout init.
+    // Premium-tier users (premium / lifetime / beta / freetrial) land on
+    // /checkout where they can actually manage their Chessr subscription.
+    // Everyone else (free / unlocker) lands on /checkout/unlocker —
+    // subscribe to the unlocker plan or manage an existing unlocker sub,
+    // with the upsell plug back to /checkout if they want full Premium.
+    // No `discount` param: PADDLE_DISCOUNT_ID is Premium-only — passing
+    // it for the unlocker product makes Paddle 400 the transaction init.
+    const path = checkoutPathFor(plan);
     const checkoutUrl =
-      `https://chessr.io/checkout/unlocker?t=${encodeURIComponent(billingToken)}` +
+      `https://chessr.io${path}?t=${encodeURIComponent(billingToken)}` +
       `&uid=${encodeURIComponent(userId)}`;
 
     window.open(checkoutUrl, '_blank', 'noopener,noreferrer');

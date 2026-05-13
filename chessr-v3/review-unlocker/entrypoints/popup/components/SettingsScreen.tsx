@@ -55,7 +55,7 @@ export default function SettingsScreen({ onBack }: Props) {
           </span>
         </div>
         {config.cta && (
-          <button className="settings-plan-cta" onClick={() => openBillingPage()}>
+          <button className="settings-plan-cta" onClick={() => openBillingPage(plan)}>
             {config.cta}
           </button>
         )}
