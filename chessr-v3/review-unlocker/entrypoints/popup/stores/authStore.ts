@@ -17,6 +17,7 @@ interface AuthState {
   fetchPlan: (userId: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   clearError: () => void;
 }
@@ -118,6 +119,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (lower.includes('invalid login') || lower.includes('email not confirmed') || lower.includes('not confirmed')) {
         message = 'Verify your email first — check your inbox (and spam folder). If you already did, your password may be wrong.';
       }
+      set({ loading: false, error: message });
+      return { success: false, error: message };
+    }
+  },
+
+  resetPassword: async (email) => {
+    set({ loading: true, error: null });
+    try {
+      // Supabase sends an email with a recovery token. The link lands on
+      // chessr.io/reset-password (existing landing page) where the user
+      // picks a new password via supabase.auth.updateUser. The unlocker
+      // popup can't host the form itself — it closes on tab change.
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://chessr.io/reset-password',
+      });
+      if (error) throw error;
+      set({ loading: false });
+      return { success: true };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Reset password failed';
       set({ loading: false, error: message });
       return { success: false, error: message };
     }

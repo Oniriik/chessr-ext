@@ -687,6 +687,7 @@ html, body {
   border-radius: 6px;
 }
 
+.auth-forgot { font-size: 11px; text-align: center; margin-top: -4px; }
 .auth-switch { font-size: 11px; color: hsl(var(--muted-foreground)); text-align: center; }
 .auth-foot {
   font-size: 9px;

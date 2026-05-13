@@ -11,7 +11,7 @@ const PLAN_CONFIG: Record<Plan, { label: string; bg: string; color: string; cta:
   lifetime:  { label: 'Lifetime',   bg: '#8263F1', color: '#3F2F7A', cta: null },
   beta:      { label: 'Beta',       bg: '#6366f1', color: '#252972', cta: null },
   premium:   { label: 'Premium',    bg: '#60a5fa', color: '#264A70', cta: 'Manage subscription' },
-  unlocker:  { label: 'Unlocker',   bg: '#22d3ee', color: '#0E4A5C', cta: 'Manage subscription' },
+  unlocker:  { label: 'Unlimited',  bg: '#22d3ee', color: '#0E4A5C', cta: 'Manage subscription' },
   freetrial: { label: 'Free trial', bg: '#9c4040', color: '#481A1A', cta: 'Upgrade to Premium' },
   free:      { label: 'Free',       bg: '#EAB308', color: '#574407', cta: 'Upgrade to Premium' },
 };
