@@ -50,6 +50,11 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       gameId,
       gameType: 'live',
       cacheOnly: true,
+      // Tag every review request from this extension so the serveur
+      // can persist `source='unlocker'` on user_activity.metadata.
+      // Used by the funnel analytics to split usage by acquisition
+      // channel (unlocker vs main chessr extension vs app).
+      source: 'unlocker',
     });
   },
 
@@ -60,6 +65,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       requestId: `review-${gameId}`,
       gameId,
       gameType: 'live',
+      source: 'unlocker',
     });
   },
 

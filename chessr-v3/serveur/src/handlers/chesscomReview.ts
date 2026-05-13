@@ -190,6 +190,10 @@ export interface ReviewMessage {
   coachId?: string;
   userColor?: string;
   cacheOnly?: boolean;
+  /** Acquisition surface that triggered the review — persisted on
+   *  user_activity.metadata.source so funnels can split usage by
+   *  channel (unlocker / main / app). Free-form for forward-compat. */
+  source?: string;
 }
 
 type SendFn = (data: Record<string, unknown>) => void;
@@ -201,7 +205,7 @@ export async function handleChesscomReview(
   send: SendFn,
   userId?: string,
 ): Promise<void> {
-  const { requestId, gameId, gameType = 'live', coachId = 'David_coach', userColor = 'white', cacheOnly = false } = message;
+  const { requestId, gameId, gameType = 'live', coachId = 'David_coach', userColor = 'white', cacheOnly = false, source } = message;
 
   if (!gameId) {
     send({ type: 'chesscom_review_error', requestId, error: 'Missing gameId' });
@@ -326,7 +330,11 @@ export async function handleChesscomReview(
         await insertUserActivity({
           userId,
           eventType: 'game_review',
-          metadata: { coach_id: coachId, platform: 'chesscom' },
+          metadata: {
+            coach_id: coachId,
+            platform: 'chesscom',
+            ...(source ? { source } : {}),
+          },
         });
       } catch { /* ignore */ }
     }
