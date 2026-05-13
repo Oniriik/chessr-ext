@@ -23,6 +23,7 @@ export type CountryRow = {
   premium_count?: number;
   beta_count?: number;
   lifetime_count?: number;
+  unlocker_count?: number;
 };
 
 export type PlanKey = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime' | 'unlocker';

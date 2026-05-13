@@ -109,6 +109,7 @@ export function GlobePageClient() {
             premium:   countsJson.planTotals.premium   ?? 0,
             beta:      countsJson.planTotals.beta      ?? 0,
             lifetime:  countsJson.planTotals.lifetime  ?? 0,
+            unlocker:  countsJson.planTotals.unlocker  ?? 0,
           });
         }
       } catch (err) {
