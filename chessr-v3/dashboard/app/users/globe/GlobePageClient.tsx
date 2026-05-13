@@ -54,7 +54,7 @@ export function GlobePageClient() {
   const [total, setTotal] = useState(0);
   const [distinct, setDistinct] = useState(0);
   const [planTotals, setPlanTotals] = useState<Record<PlanKey, number>>({
-    free: 0, freetrial: 0, premium: 0, beta: 0, lifetime: 0,
+    free: 0, freetrial: 0, premium: 0, beta: 0, lifetime: 0, unlocker: 0,
   });
   // Multi-select. Empty set = no filter (show every plan combined). The
   // chip row offers an explicit "All" pseudo-toggle that just clears
