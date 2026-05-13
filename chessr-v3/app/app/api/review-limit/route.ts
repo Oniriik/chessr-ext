@@ -33,7 +33,11 @@ export async function GET(request: NextRequest) {
       .single()
 
     const plan = settings?.plan || 'free'
-    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial'
+    // 'unlocker' is the Review Unlocker plan — reviews-only, but for the
+    // review quota it counts as unlimited (same gate as chesscomReview.ts
+    // server-side). Other premium features (profile-analysis, etc.) stay
+    // gated to the 4 main premium tiers.
+    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial' || plan === 'unlocker'
 
     if (isPremium) {
       return NextResponse.json({ isLimited: false, dailyUsage: 0, dailyLimit: null })

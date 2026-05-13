@@ -1,5 +1,5 @@
 export type UserRole = 'super_admin' | 'admin' | 'user'
-export type UserPlan = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime'
+export type UserPlan = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime' | 'unlocker'
 
 export interface AdminUser {
   id: string
@@ -49,6 +49,7 @@ export const planLabels: Record<UserPlan, string> = {
   premium: 'Premium',
   beta: 'Beta',
   lifetime: 'Lifetime',
+  unlocker: 'Unlocker',
 }
 
 export const roleLabels: Record<UserRole, string> = {
@@ -63,6 +64,7 @@ export const planColors: Record<UserPlan, string> = {
   premium: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   beta: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   lifetime: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  unlocker: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
 }
 
 export const roleColors: Record<UserRole, string> = {

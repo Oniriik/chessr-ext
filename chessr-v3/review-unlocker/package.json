@@ -1,0 +1,28 @@
+{
+  "name": "chessr-review-unlocker",
+  "version": "0.1.0",
+  "description": "Unlock chess.com game reviews — accuracy, move classifications, effective Elo. Powered by Chessr.io.",
+  "type": "module",
+  "scripts": {
+    "dev": "VITE_WS_URL=wss://api.chessr.io VITE_ENV=prod wxt",
+    "dev:local": "wxt",
+    "build": "wxt zip",
+    "build:beta": "wxt zip --mode beta",
+    "build:prod": "PROD_BUILD=1 VITE_WS_URL=wss://api.chessr.io VITE_ENV=prod wxt zip --mode beta",
+    "postinstall": "wxt prepare"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.3",
+    "@wxt-dev/module-react": "^1.2.2",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "wxt": "^0.20.23",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^6.0.2"
+  }
+}

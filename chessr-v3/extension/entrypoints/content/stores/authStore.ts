@@ -5,7 +5,7 @@ import { SERVER_URL } from '../lib/config';
 import { DISPOSABLE_EMAIL_ERROR } from '../lib/emailValidator';
 import { getFingerprint } from '../lib/fingerprint';
 
-export type Plan = 'lifetime' | 'beta' | 'premium' | 'freetrial' | 'free';
+export type Plan = 'lifetime' | 'beta' | 'premium' | 'freetrial' | 'unlocker' | 'free';
 
 interface AuthState {
   user: User | null;

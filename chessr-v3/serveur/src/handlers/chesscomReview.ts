@@ -220,7 +220,11 @@ export async function handleChesscomReview(
       .eq('user_id', userId)
       .single();
     const plan = userSettings?.plan || 'free';
-    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
+    // 'unlocker' is the standalone Review Unlocker plan — pays only for
+    // chess.com reviews, so the daily cap doesn't apply HERE. Other
+    // handlers (explanation, suggestion, profile) still treat 'unlocker'
+    // as 'free' — only review access is unlocked.
+    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial' || plan === 'unlocker';
     if (isPremium) return { dailyUsage: null, dailyLimit: null, isPremium: true };
     const dailyUsage = await countUserActivityToday(userId, 'game_review');
     return { dailyUsage, dailyLimit: DAILY_LIMIT, isPremium: false };
@@ -265,7 +269,11 @@ export async function handleChesscomReview(
         .single();
 
       const plan = userSettings?.plan || 'free';
-      const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
+      // 'unlocker' is the standalone Review Unlocker plan — pays only for
+    // chess.com reviews, so the daily cap doesn't apply HERE. Other
+    // handlers (explanation, suggestion, profile) still treat 'unlocker'
+    // as 'free' — only review access is unlocked.
+    const isPremium = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial' || plan === 'unlocker';
 
       if (!isPremium) {
         const dailyUsage = await countUserActivityToday(userId, 'game_review');

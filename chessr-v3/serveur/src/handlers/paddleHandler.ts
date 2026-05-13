@@ -60,13 +60,22 @@ const paddle = PADDLE_ENABLED
     })
   : (null as unknown as Paddle);
 
-// Price ID → plan mapping (single product with 3 prices). Empty when
-// PADDLE_ENABLED is false — no event will match anyway since we early-return.
-const PRICE_PLAN_MAP: Record<string, { plan: 'premium' | 'lifetime'; interval?: string }> = PADDLE_ENABLED
+// Price ID → plan mapping. Premium product has 3 prices (monthly / yearly
+// / lifetime). The standalone Unlocker product (chess.com Review Unlocker
+// extension) has 2 prices (monthly / yearly). Unlocker env vars are
+// OPTIONAL — falsy when omitted so the map only includes keys we have
+// price IDs for. Empty when PADDLE_ENABLED is false (no event will match).
+const PRICE_PLAN_MAP: Record<string, { plan: 'premium' | 'lifetime' | 'unlocker'; interval?: string }> = PADDLE_ENABLED
   ? {
       [process.env.PADDLE_PRICE_MONTHLY!]: { plan: 'premium', interval: 'monthly' },
       [process.env.PADDLE_PRICE_YEARLY!]:  { plan: 'premium', interval: 'yearly' },
       [process.env.PADDLE_PRICE_LIFETIME!]: { plan: 'lifetime' },
+      ...(process.env.PADDLE_PRICE_UNLOCKER_MONTHLY
+        ? { [process.env.PADDLE_PRICE_UNLOCKER_MONTHLY]: { plan: 'unlocker' as const, interval: 'monthly' } }
+        : {}),
+      ...(process.env.PADDLE_PRICE_UNLOCKER_YEARLY
+        ? { [process.env.PADDLE_PRICE_UNLOCKER_YEARLY]: { plan: 'unlocker' as const, interval: 'yearly' } }
+        : {}),
     }
   : {};
 
@@ -257,7 +266,7 @@ async function updateUserPlan(
     // routing. Both events fire on the same webhook so the bot picks
     // whichever it has a handler for.
     const FREE_TIERS = new Set(['free', 'freetrial', null, undefined]);
-    const PAID_TIERS = new Set(['premium', 'lifetime']);
+    const PAID_TIERS = new Set(['premium', 'lifetime', 'unlocker']);
     const isNewCustomer = FREE_TIERS.has(oldPlan as string | null) && PAID_TIERS.has(newPlan);
     const isRenewal =
       oldPlan === newPlan &&
@@ -708,6 +717,11 @@ const PADDLE_PRICES: Record<string, string | undefined> = {
   monthly: process.env.PADDLE_PRICE_MONTHLY,
   yearly:  process.env.PADDLE_PRICE_YEARLY,
   lifetime: process.env.PADDLE_PRICE_LIFETIME,
+  // Unlocker product — €1/mo, €10/yr. Optional: when env vars are
+  // missing, /api/paddle/checkout returns 400 'Invalid plan' for these
+  // keys, just like any other unmapped plan.
+  unlocker_monthly: process.env.PADDLE_PRICE_UNLOCKER_MONTHLY,
+  unlocker_yearly:  process.env.PADDLE_PRICE_UNLOCKER_YEARLY,
 };
 
 // ─── POST /api/paddle/checkout ──────────────────────────────────────────────
@@ -723,7 +737,7 @@ export async function handlePaddleCheckout(c: Context): Promise<Response> {
   try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
   const plan = body.plan || '';
   const priceId = PADDLE_PRICES[plan];
-  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, or lifetime' }, 400);
+  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, lifetime, unlocker_monthly, or unlocker_yearly' }, 400);
 
   logPaddle(userEmail, 'checkout', `user=${userId}, plan=${plan}, priceId=${priceId}`, 'ok');
 
@@ -803,7 +817,7 @@ export async function handlePaddleCheckoutByToken(c: Context): Promise<Response>
   if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
 
   const priceId = PADDLE_PRICES[body.plan || ''];
-  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, or lifetime' }, 400);
+  if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, lifetime, unlocker_monthly, or unlocker_yearly' }, 400);
 
   const { userId, customerId } = verified;
   try {
@@ -1007,8 +1021,12 @@ async function previewUpgrade(
   requestedCurrency: string | undefined,
 ): Promise<Response> {
   const targetPriceId = PADDLE_PRICES[plan];
-  if (!targetPriceId || (plan !== 'yearly' && plan !== 'lifetime')) {
-    return c.json({ error: 'Invalid plan. Use: yearly or lifetime' }, 400);
+  // Allowed upgrade targets: Premium monthly/yearly + Lifetime. Monthly is
+  // a valid target for `unlocker → premium-monthly` (smaller jump than to
+  // yearly). 'unlocker_*' is NOT a target here — that's a same-plan
+  // billing-cycle switch and goes through switchSubscription directly.
+  if (!targetPriceId || (plan !== 'monthly' && plan !== 'yearly' && plan !== 'lifetime')) {
+    return c.json({ error: 'Invalid plan. Use: monthly, yearly or lifetime' }, 400);
   }
 
   const { data: sub } = await supabase
@@ -1076,9 +1094,14 @@ async function previewUpgrade(
     let nextBilledAt: string | null = null;
     if (plan === 'yearly') {
       nextBilledAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+    } else if (plan === 'monthly') {
+      nextBilledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     }
 
-    const planLabel = plan === 'yearly' ? 'Yearly plan' : 'Lifetime';
+    const planLabel =
+      plan === 'yearly' ? 'Premium Yearly'
+      : plan === 'monthly' ? 'Premium Monthly'
+      : 'Lifetime';
 
     return c.json({
       planLabel,
@@ -1270,15 +1293,24 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
     const monthly = PADDLE_PRICES['monthly']!;
     const yearly = PADDLE_PRICES['yearly']!;
     const lifetime = PADDLE_PRICES['lifetime']!;
+    const unlockerMonthly = PADDLE_PRICES['unlocker_monthly'];
+    const unlockerYearly  = PADDLE_PRICES['unlocker_yearly'];
 
     logPaddle(null, 'prices', `userId=${userId || 'none'}, signupIp=${signupIp || 'none'}`, 'ok');
 
+    // Build the item list dynamically: unlocker prices are optional, only
+    // include them in the preview when the env vars are set so older deploys
+    // without the unlocker product keep working.
+    const items: { priceId: string; quantity: number }[] = [
+      { priceId: monthly,  quantity: 1 },
+      { priceId: yearly,   quantity: 1 },
+      { priceId: lifetime, quantity: 1 },
+    ];
+    if (unlockerMonthly) items.push({ priceId: unlockerMonthly, quantity: 1 });
+    if (unlockerYearly)  items.push({ priceId: unlockerYearly,  quantity: 1 });
+
     const preview = await paddle.pricingPreview.preview({
-      items: [
-        { priceId: monthly,  quantity: 1 },
-        { priceId: yearly,   quantity: 1 },
-        { priceId: lifetime, quantity: 1 },
-      ],
+      items,
       ...locationParam,
       ...(discountId ? { discountId } : {}),
     });
@@ -1291,6 +1323,8 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
       if (priceId === monthly) planKey = 'monthly';
       else if (priceId === yearly) planKey = 'yearly';
       else if (priceId === lifetime) planKey = 'lifetime';
+      else if (priceId === unlockerMonthly) planKey = 'unlocker_monthly';
+      else if (priceId === unlockerYearly)  planKey = 'unlocker_yearly';
       if (!planKey) continue;
 
       const formatted = item.formattedTotals;

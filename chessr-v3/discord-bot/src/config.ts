@@ -90,6 +90,7 @@ export const config = {
     premium:   optional('DISCORD_ROLE_ID_PREMIUM'),
     beta:      optional('DISCORD_ROLE_ID_BETA'),
     lifetime:  optional('DISCORD_ROLE_ID_LIFETIME'),
+    unlocker:  optional('DISCORD_ROLE_ID_UNLOCKER'),
   } as Record<string, string | undefined>,
   // ELO bracket → role-id map. Brackets are mutually exclusive and
   // assigned from the highest rating across the user's linked chess

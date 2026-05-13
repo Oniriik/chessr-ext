@@ -5,7 +5,7 @@ import type { UserRole } from '@/lib/roles';
 
 export const dynamic = 'force-dynamic';
 
-const VALID_PLANS = ['free', 'freetrial', 'premium', 'beta', 'lifetime'] as const;
+const VALID_PLANS = ['free', 'freetrial', 'premium', 'beta', 'lifetime', 'unlocker'] as const;
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'user'];
 
 type RouteCtx = { params: Promise<{ id: string }> };
@@ -116,7 +116,7 @@ export async function PATCH(req: Request, { params }: RouteCtx) {
     // listens to these (not plan_changed) so without them, manual
     // promotions/cancellations would be silent.
     const FREE_TIERS = new Set(['free', 'freetrial']);
-    const PAID_TIERS = new Set(['premium', 'lifetime']);
+    const PAID_TIERS = new Set(['premium', 'lifetime', 'unlocker']);
     if (oldPlan !== newPlan) {
       if (FREE_TIERS.has(oldPlan) && PAID_TIERS.has(newPlan)) {
         await emitEvent({

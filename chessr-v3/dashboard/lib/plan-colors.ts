@@ -9,6 +9,7 @@
  *   premium   → blue        (#60A5FA)
  *   lifetime  → cyan        (#67E8F9)
  *   beta      → violet      (#A78BFA)
+ *   unlocker  → teal        (#22D3EE)  — distinct from lifetime cyan
  *
  * `bg` is the same hue at ~15% opacity for the tinted Badge background.
  * `text` is the brighter variant so text reads against the dim bg on
@@ -18,7 +19,7 @@
 
 import type { CSSProperties } from 'react';
 
-export type Plan = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime';
+export type Plan = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime' | 'unlocker';
 
 export const PLAN_COLORS: Record<Plan, { bg: string; text: string; dot: string }> = {
   free:      { bg: 'rgba(234, 179, 8, 0.15)',  text: '#FACC15', dot: '#EAB308' },
@@ -26,6 +27,7 @@ export const PLAN_COLORS: Record<Plan, { bg: string; text: string; dot: string }
   premium:   { bg: 'rgba(96, 165, 250, 0.15)', text: '#93C5FD', dot: '#60A5FA' },
   lifetime:  { bg: 'rgba(103, 232, 249, 0.15)', text: '#67E8F9', dot: '#67E8F9' },
   beta:      { bg: 'rgba(167, 139, 250, 0.15)', text: '#C4B5FD', dot: '#A78BFA' },
+  unlocker:  { bg: 'rgba(34, 211, 238, 0.15)', text: '#67E8F9', dot: '#22D3EE' },
 };
 
 const FALLBACK = PLAN_COLORS.free;

@@ -278,6 +278,15 @@ async function onGiveawayDrawn(client: Client, e: IncomingEvent) {
 
 // ─── #users handlers ────────────────────────────────────────────────────
 
+/** Pretty labels for the `source` acquisition tag the serveur attaches
+ *  to signup_success events. Unknown sources surface raw so we can spot
+ *  new channels without a code change. */
+const SIGNUP_SOURCE_LABEL: Record<string, string> = {
+  unlocker: '🔓 Review Unlocker',
+  main:     '♞ Chessr extension',
+  app:      '🌐 app.chessr.io',
+};
+
 async function onSignupSuccess(client: Client, e: IncomingEvent) {
   const email = String(e.payload.email ?? '?');
   const country = String(e.payload.country ?? '');
@@ -285,10 +294,12 @@ async function onSignupSuccess(client: Client, e: IncomingEvent) {
   const flag = countryCode
     ? countryCode.split('').map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)).join('')
     : '';
+  const source = e.payload.source ? String(e.payload.source) : '';
+  const sourceLine = source ? `\nvia ${SIGNUP_SOURCE_LABEL[source] ?? source}` : '';
   const embed = new EmbedBuilder()
     .setColor(COLOR.success)
     .setTitle('🎉 New signup')
-    .setDescription(`**${email}**${flag ? ` · ${flag} ${country}` : ''}`)
+    .setDescription(`**${email}**${flag ? ` · ${flag} ${country}` : ''}${sourceLine}`)
     .setTimestamp(new Date());
   await sendEmbed(client, config.discord.mod.users, embed);
 }

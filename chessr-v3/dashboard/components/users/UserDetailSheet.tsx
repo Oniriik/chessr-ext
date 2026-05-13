@@ -61,7 +61,7 @@ type UserDetail = {
     joined_at: string;
     last_sign_in_at: string | null;
     email_verified: boolean;
-    plan: 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime';
+    plan: 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime' | 'unlocker';
     plan_expiry: string | null;
     freetrial_used: boolean;
     role: UserRole;
@@ -77,7 +77,7 @@ type UserDetail = {
   subscription: Subscription | null;
 };
 
-const PLANS = ['free', 'freetrial', 'premium', 'beta', 'lifetime'] as const;
+const PLANS = ['free', 'freetrial', 'premium', 'beta', 'lifetime', 'unlocker'] as const;
 const ROLES: UserRole[] = ['user', 'admin', 'super_admin'];
 // Plans where an expiry makes no sense: free has no entitlements to expire,
 // lifetime is forever by definition.

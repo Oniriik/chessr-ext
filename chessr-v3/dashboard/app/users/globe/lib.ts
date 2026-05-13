@@ -25,7 +25,7 @@ export type CountryRow = {
   lifetime_count?: number;
 };
 
-export type PlanKey = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime';
+export type PlanKey = 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime' | 'unlocker';
 
 /** Sum the per-plan counts on a country row across the selected plans.
  *  An empty set means "no filter" — return the unfiltered total so the
@@ -80,6 +80,7 @@ const HUE_BY_PLAN: Record<PlanKey, number> = {
   premium:   213,  // blue #60A5FA
   lifetime:  187,  // cyan #67E8F9
   beta:      255,  // violet #A78BFA
+  unlocker:  192,  // teal #22D3EE
 };
 
 /** Resolve the hue used for the choropleth ramp. Single-plan selection

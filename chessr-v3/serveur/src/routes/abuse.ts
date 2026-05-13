@@ -298,11 +298,16 @@ abuseRoutes.post('/report-signup', async (c) => {
    *  event — login isn't a new user). Defaults to `signup` for back-
    *  compat with the chessr-next pattern. */
   let kind: 'signup' | 'login' = 'signup';
+  /** Acquisition channel — set by the client that drove the signup.
+   *  Persisted on user_settings.signup_source and surfaced in the
+   *  Discord #users feed. Known values: 'unlocker', 'main', 'app'. */
+  let source: string | null = null;
   try {
     const body = await c.req.json();
     userId      = typeof body?.userId === 'string' ? body.userId : null;
     email       = typeof body?.email === 'string' ? body.email : null;
     fingerprint = typeof body?.fingerprint === 'string' ? body.fingerprint : null;
+    source      = typeof body?.source === 'string' && body.source.length > 0 ? body.source : null;
     if (body?.kind === 'login') kind = 'login';
   } catch { /* empty */ }
   if (!userId) return c.json({ ok: false, error: 'Missing userId' }, 400);
@@ -335,13 +340,29 @@ abuseRoutes.post('/report-signup', async (c) => {
     if (error) console.warn('[abuse.report-signup] signup_ips upsert:', error);
   }
 
+  // Persist the acquisition source on user_settings so analytics and the
+  // admin dashboard can break down signups by channel. Supabase upsert
+  // with onConflict=user_id only writes the columns we provide — other
+  // user_settings fields keep their default / existing values. Best-
+  // effort: a missing user_settings row (no DB trigger yet) just becomes
+  // a fresh insert with `signup_source` set; everything else defaults.
+  if (kind === 'signup' && source) {
+    const { error } = await supabase
+      .from('user_settings')
+      .upsert(
+        { user_id: userId, signup_source: source },
+        { onConflict: 'user_id' },
+      );
+    if (error) console.warn('[abuse.report-signup] user_settings signup_source upsert:', error);
+  }
+
   // Emit only on the signup path — re-logins don't represent a new
   // user joining and would spam the activity feed.
   if (kind === 'signup') {
     await emitEvent({
       type: 'signup_success',
       user_id: userId,
-      payload: { email, ip: clientIp, country, countryCode, fingerprint },
+      payload: { email, ip: clientIp, country, countryCode, fingerprint, source },
     });
   }
 

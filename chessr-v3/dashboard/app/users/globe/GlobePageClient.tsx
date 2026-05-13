@@ -19,7 +19,7 @@ import { PLAN_COLORS } from '@/lib/plan-colors';
 
 // Order matters for the chip row + the stacked bar: highest tier first
 // so the eye reads "lifetime↓free" left-to-right.
-const PLAN_KEYS: PlanKey[] = ['lifetime', 'premium', 'beta', 'freetrial', 'free'];
+const PLAN_KEYS: PlanKey[] = ['lifetime', 'premium', 'unlocker', 'beta', 'freetrial', 'free'];
 
 // Two business buckets — paying users vs. anyone else. The bar stays a
 // 5-color stack; only the legend collapses into these groups so the
@@ -27,6 +27,7 @@ const PLAN_KEYS: PlanKey[] = ['lifetime', 'premium', 'beta', 'freetrial', 'free'
 type PlanGroup = { label: string; plans: PlanKey[] };
 const PLAN_GROUPS: PlanGroup[] = [
   { label: 'Premium',    plans: ['lifetime', 'premium', 'beta'] },
+  { label: 'Unlocker',   plans: ['unlocker'] },
   { label: 'Free users', plans: ['freetrial', 'free'] },
 ];
 

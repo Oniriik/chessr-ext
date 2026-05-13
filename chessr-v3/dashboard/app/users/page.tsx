@@ -25,7 +25,7 @@ type UserRow = {
   email: string;
   joined_at: string;
   email_verified: boolean;
-  plan: 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime';
+  plan: 'free' | 'freetrial' | 'premium' | 'beta' | 'lifetime' | 'unlocker';
   plan_expiry: string | null;
   freetrial_used: boolean;
   role: UserRole;
@@ -52,7 +52,7 @@ function fmt(ts: string | null): string {
 }
 
 const LIMIT = 25;
-const PLAN_FILTERS = ['all', 'free', 'freetrial', 'premium', 'beta', 'lifetime'] as const;
+const PLAN_FILTERS = ['all', 'free', 'freetrial', 'premium', 'beta', 'lifetime', 'unlocker'] as const;
 type PlanFilter = typeof PLAN_FILTERS[number];
 
 type SortKey = 'email' | 'joined_at' | 'plan' | 'plan_expiry';

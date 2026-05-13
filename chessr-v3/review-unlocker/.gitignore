@@ -1,0 +1,6 @@
+node_modules
+.wxt
+.output
+*.zip
+.env
+.env.local

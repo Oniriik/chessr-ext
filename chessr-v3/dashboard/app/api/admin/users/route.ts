@@ -17,7 +17,7 @@ export async function GET(req: Request) {
   const offset = (page - 1) * limit;
 
   const ALLOWED_SORTS = new Set(['joined_at', 'email', 'plan', 'plan_expiry']);
-  const ALLOWED_PLANS = new Set(['free', 'freetrial', 'premium', 'beta', 'lifetime']);
+  const ALLOWED_PLANS = new Set(['free', 'freetrial', 'premium', 'beta', 'lifetime', 'unlocker']);
   const sortBy = ALLOWED_SORTS.has(sortByRaw) ? sortByRaw : 'joined_at';
   const sortOrder = sortOrderRaw === 'asc' ? 'asc' : 'desc';
   const plan = ALLOWED_PLANS.has(planFilter) ? planFilter : '';
