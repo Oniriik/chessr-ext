@@ -76,7 +76,7 @@ interface SeriesPayload {
   series: {
     suggestionsByEngine: Array<Record<string, number | string>>;
     activeUsers:     Array<{ t: string; count: number }>;
-    gameReviews:     Array<{ t: string; app: number; unlocker: number; other: number; count: number }>;
+    gameReviews:     Array<{ t: string; app: number; unlocker: number; extension: number; other: number; count: number }>;
     profileAnalyses: Array<{ t: string; count: number }>;
     sourceSplit:     Array<{ source: string; count: number }>;
     engineSource:    Array<{ engine: string; server: number; wasm: number; unknown: number; total: number }>;
@@ -419,17 +419,18 @@ function Stat({ label, value, note }: { label: string; value: number; note?: str
 function GameReviewsChart({
   series, bucket,
 }: {
-  series: Array<{ t: string; app: number; unlocker: number; other: number; count: number }>;
+  series: Array<{ t: string; app: number; unlocker: number; extension: number; other: number; count: number }>;
   bucket: BucketLabel;
 }) {
-  // 'other' covers legacy events recorded before metadata.source was
-  // tagged. Only render the line if it's actually present, so steady
-  // state shows just app vs unlocker as the user asked for.
+  // 'extension' = main Chessr extension (chess.com reviews from the
+  // overlay). 'other' = pre-tagging legacy events; only rendered if
+  // still present so the chart stays clean once backfill is done.
+  const hasExtension = series.some((r) => r.extension > 0);
   const hasOther = series.some((r) => r.other > 0);
   return (
     <Card>
       <CardContent className="p-4 sm:p-5">
-        <ChartHeader title="Game reviews" hint="app vs unlocker" />
+        <ChartHeader title="Game reviews" hint="app · unlocker · extension" />
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={series}>
             <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
@@ -451,6 +452,13 @@ function GameReviewsChart({
               dot={{ r: 2, strokeWidth: 0, fill: '#22D3EE' }}
               activeDot={{ r: 4 }}
             />
+            {hasExtension && (
+              <Line
+                type="monotone" dataKey="extension" name="extension" stroke="#22c55e" strokeWidth={2}
+                dot={{ r: 2, strokeWidth: 0, fill: '#22c55e' }}
+                activeDot={{ r: 4 }}
+              />
+            )}
             {hasOther && (
               <Line
                 type="monotone" dataKey="other" name="other" stroke="#71717a" strokeWidth={1.5}

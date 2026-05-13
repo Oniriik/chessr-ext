@@ -279,16 +279,17 @@ adminAnalyticsRoutes.get('/admin/analytics/series', async (c) => {
       })),
       gameReviews: (() => {
         // Pivot { t, source, count } → one row per bucket with
-        // app/unlocker/other columns plus a total `count` so the
-        // dashboard's stat tile keeps its single-number sum.
-        const byT = new Map<string, { t: string; app: number; unlocker: number; other: number; count: number }>();
+        // app/unlocker/extension/other columns plus a total `count`
+        // so the dashboard's stat tile keeps its single-number sum.
+        const byT = new Map<string, { t: string; app: number; unlocker: number; extension: number; other: number; count: number }>();
         for (const r of gameReviewsRaw) {
           const t = new Date(r.t).toISOString();
-          if (!byT.has(t)) byT.set(t, { t, app: 0, unlocker: 0, other: 0, count: 0 });
+          if (!byT.has(t)) byT.set(t, { t, app: 0, unlocker: 0, extension: 0, other: 0, count: 0 });
           const row = byT.get(t)!;
           const n = Number(r.count);
           if (r.source === 'app') row.app = n;
           else if (r.source === 'unlocker') row.unlocker = n;
+          else if (r.source === 'extension') row.extension = n;
           else row.other = n;
           row.count += n;
         }

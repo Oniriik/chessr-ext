@@ -50,6 +50,10 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       gameId,
       gameType: 'live',
       cacheOnly: true,
+      // Tag so analytics can split usage by acquisition channel
+      // (extension / unlocker / app). Persisted on
+      // user_activity.metadata.source server-side.
+      source: 'extension',
     });
   },
 
@@ -61,6 +65,7 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
       requestId,
       gameId,
       gameType: 'live',
+      source: 'extension',
     });
   },
 
