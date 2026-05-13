@@ -76,7 +76,7 @@ interface SeriesPayload {
   series: {
     suggestionsByEngine: Array<Record<string, number | string>>;
     activeUsers:     Array<{ t: string; count: number }>;
-    gameReviews:     Array<{ t: string; count: number }>;
+    gameReviews:     Array<{ t: string; app: number; unlocker: number; other: number; count: number }>;
     profileAnalyses: Array<{ t: string; count: number }>;
     sourceSplit:     Array<{ source: string; count: number }>;
     engineSource:    Array<{ engine: string; server: number; wasm: number; unknown: number; total: number }>;
@@ -136,7 +136,7 @@ export default function AnalyticsPage() {
 
   const totals = useMemo(() => {
     if (!data) return null;
-    const sum = (arr: Array<{ count: number }>) => arr.reduce((s, r) => s + r.count, 0);
+    const sum = <T extends { count: number }>(arr: T[]) => arr.reduce((s, r) => s + r.count, 0);
     const totalSuggestions = data.series.suggestionsByEngine.reduce((s, row) => {
       let r = 0;
       for (const k of data.engines) r += Number(row[k] ?? 0);
@@ -308,11 +308,9 @@ export default function AnalyticsPage() {
                 bucket={data.bucket}
                 color="#a855f7"
               />
-              <MiniLineChart
-                title="Game reviews"
+              <GameReviewsChart
                 series={data.series.gameReviews}
                 bucket={data.bucket}
-                color="#f59e0b"
               />
               <MiniLineChart
                 title="Profile analyses"
@@ -413,6 +411,56 @@ function Stat({ label, value, note }: { label: string; value: number; note?: str
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
         <div className="num mt-1 text-[22px] font-bold tabular-nums">{value.toLocaleString()}</div>
         {note && <div className="text-[10px] text-muted-foreground">{note}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function GameReviewsChart({
+  series, bucket,
+}: {
+  series: Array<{ t: string; app: number; unlocker: number; other: number; count: number }>;
+  bucket: BucketLabel;
+}) {
+  // 'other' covers legacy events recorded before metadata.source was
+  // tagged. Only render the line if it's actually present, so steady
+  // state shows just app vs unlocker as the user asked for.
+  const hasOther = series.some((r) => r.other > 0);
+  return (
+    <Card>
+      <CardContent className="p-4 sm:p-5">
+        <ChartHeader title="Game reviews" hint="app vs unlocker" />
+        <ResponsiveContainer width="100%" height={180}>
+          <LineChart data={series}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <XAxis
+              dataKey="t"
+              tickFormatter={(t) => format(new Date(t), tickFmt(bucket))}
+              stroke="#71717a" fontSize={11}
+            />
+            <YAxis allowDecimals={false} stroke="#71717a" fontSize={11} />
+            <Tooltip content={<ChartTooltip bucket={bucket} />} />
+            <Legend wrapperStyle={{ fontSize: 11 }} />
+            <Line
+              type="monotone" dataKey="app" name="app" stroke="#f59e0b" strokeWidth={2}
+              dot={{ r: 2, strokeWidth: 0, fill: '#f59e0b' }}
+              activeDot={{ r: 4 }}
+            />
+            <Line
+              type="monotone" dataKey="unlocker" name="unlocker" stroke="#22D3EE" strokeWidth={2}
+              dot={{ r: 2, strokeWidth: 0, fill: '#22D3EE' }}
+              activeDot={{ r: 4 }}
+            />
+            {hasOther && (
+              <Line
+                type="monotone" dataKey="other" name="other" stroke="#71717a" strokeWidth={1.5}
+                strokeDasharray="4 4"
+                dot={{ r: 2, strokeWidth: 0, fill: '#71717a' }}
+                activeDot={{ r: 4 }}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
       </CardContent>
     </Card>
   );

@@ -145,12 +145,18 @@ adminAnalyticsRoutes.get('/admin/analytics/series', async (c) => {
   );
 
   // ─── Game reviews ──────────────────────────────────────────────────
-  const gameReviewsRaw = await dbQuery<{ t: string; count: string }>(
-    `SELECT ${bSql} AS t, COUNT(*)::text AS count
+  // Split by acquisition channel: the chess.com review handler tags
+  // every event with metadata.source — 'app' (web app), 'unlocker'
+  // (standalone Review Unlocker extension), or null/other (older
+  // events from the main extension before tagging was added).
+  const gameReviewsRaw = await dbQuery<{ t: string; source: string; count: string }>(
+    `SELECT ${bSql} AS t,
+            COALESCE(metadata->>'source', 'other') AS source,
+            COUNT(*)::text AS count
        FROM user_activity
       WHERE event_type = 'game_review'
         AND created_at >= $1 AND created_at < $2
-      GROUP BY 1
+      GROUP BY 1, 2
       ORDER BY 1`,
     [fromIso, toIso],
   );
@@ -271,10 +277,23 @@ adminAnalyticsRoutes.get('/admin/analytics/series', async (c) => {
         t: new Date(r.t).toISOString(),
         count: Number(r.count),
       })),
-      gameReviews: gameReviewsRaw.map((r) => ({
-        t: new Date(r.t).toISOString(),
-        count: Number(r.count),
-      })),
+      gameReviews: (() => {
+        // Pivot { t, source, count } → one row per bucket with
+        // app/unlocker/other columns plus a total `count` so the
+        // dashboard's stat tile keeps its single-number sum.
+        const byT = new Map<string, { t: string; app: number; unlocker: number; other: number; count: number }>();
+        for (const r of gameReviewsRaw) {
+          const t = new Date(r.t).toISOString();
+          if (!byT.has(t)) byT.set(t, { t, app: 0, unlocker: 0, other: 0, count: 0 });
+          const row = byT.get(t)!;
+          const n = Number(r.count);
+          if (r.source === 'app') row.app = n;
+          else if (r.source === 'unlocker') row.unlocker = n;
+          else row.other = n;
+          row.count += n;
+        }
+        return Array.from(byT.values()).sort((a, b) => a.t.localeCompare(b.t));
+      })(),
       profileAnalyses: profileAnalysesRaw.map((r) => ({
         t: new Date(r.t).toISOString(),
         count: Number(r.count),
