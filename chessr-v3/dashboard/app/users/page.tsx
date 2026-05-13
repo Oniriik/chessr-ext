@@ -416,13 +416,15 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
               <Badge variant="warning" className="px-1.5 py-0 text-[9px]">unverified</Badge>
             )}
             {u.banned && <Badge variant="destructive" className="px-1.5 py-0 text-[9px]">banned</Badge>}
-            <span
-              className="shrink-0"
-              style={{ color: u.has_discord ? '#5865F2' : undefined }}
-              title={u.has_discord ? 'Discord linked' : 'Discord not linked'}
-            >
-              <DiscordIcon size={12} />
-            </span>
+            {u.has_discord && (
+              <span
+                className="shrink-0"
+                style={{ color: '#5865F2' }}
+                title="Discord linked"
+              >
+                <DiscordIcon size={12} />
+              </span>
+            )}
           </span>
         </div>
       </div>
@@ -459,13 +461,11 @@ function UserListRow({ u, onOpen }: { u: UserRow; onOpen: () => void }) {
         )}
         {u.freetrial_used && <Badge variant="muted" className="px-1.5 py-0.5 text-[9px]">trial</Badge>}
         {u.banned && <Badge variant="destructive" className="px-1.5 py-0.5 text-[9px]">banned</Badge>}
-        <span
-          className={cn('shrink-0', !u.has_discord && 'opacity-25 text-muted-foreground')}
-          style={{ color: u.has_discord ? '#5865F2' : undefined }}
-          title={u.has_discord ? 'Discord linked' : 'Discord not linked'}
-        >
-          <DiscordIcon size={14} />
-        </span>
+        {u.has_discord && (
+          <span className="shrink-0" style={{ color: '#5865F2' }} title="Discord linked">
+            <DiscordIcon size={14} />
+          </span>
+        )}
       </div>
     </li>
   );

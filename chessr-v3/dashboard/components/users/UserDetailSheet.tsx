@@ -23,6 +23,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { getSupabase } from '@/lib/supabase';
 import type { UserRole } from '@/lib/roles';
+import { useResolvedDiscordUsers } from '@/components/discord/useResolvedDiscordUsers';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 type LinkedAccount = {
@@ -201,6 +202,13 @@ export function UserDetailSheet({
   const [resetting, setResetting] = useState(false);
   const [resetLink, setResetLink] = useState<string | null>(null);
 
+  // Discord role re-sync (manual override when the bot drifted out of
+  // sync — e.g. it was down at the time of the plan change). Status
+  // string instead of bool so the button can briefly flash "synced".
+  const [syncingRoles, setSyncingRoles] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'ok' | 'error'>('idle');
+  const [syncError, setSyncError] = useState<string | null>(null);
+
   // Paddle extend (separate from manual plan_expiry edit — for users with
   // an active Paddle subscription where the date is the source of truth).
   // Two-step flow: input → "Add" reveals confirm/cancel buttons → confirm
@@ -280,6 +288,29 @@ export function UserDetailSheet({
     const json = await res.json();
     if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
     return json;
+  }
+
+  async function syncDiscordRoles() {
+    if (!detail?.user.discord_id) return;
+    setSyncingRoles(true);
+    setSyncStatus('idle');
+    setSyncError(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        `/api/admin/users/${userId}/sync-discord-roles?token=${encodeURIComponent(token ?? '')}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setSyncStatus('ok');
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch (err) {
+      setSyncStatus('error');
+      setSyncError(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncingRoles(false);
+    }
   }
 
   async function extendPaddle() {
@@ -1014,17 +1045,15 @@ export function UserDetailSheet({
               </Section>
 
               {/* ─── Discord ────────────────────────────────────────── */}
-              {u.discord_id && (
-                <div className="rounded-md border border-border/50 px-3 py-2">
-                  <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    <UserIcon size={11} /> Discord
-                  </div>
-                  <div className="text-[12px]">
-                    {u.discord_username ?? u.discord_id}
-                    <span className="ml-2 font-mono text-[10px] text-muted-foreground">{u.discord_id}</span>
-                  </div>
-                </div>
-              )}
+              <DiscordSection
+                discordId={u.discord_id}
+                discordUsername={u.discord_username}
+                onForceSync={syncDiscordRoles}
+                syncing={syncingRoles}
+                syncStatus={syncStatus}
+                syncError={syncError}
+                callerRole={callerRole}
+              />
             </>
           )}
         </div>
@@ -1311,6 +1340,86 @@ function LinkedAccountRow({
           <Unlink size={11} />
           Unlink
         </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Discord profile + force-sync ──────────────────────────────────────
+// Surfaces the linked Discord identity (avatar via the resolve endpoint,
+// stable across the session via the shared profile cache) and exposes a
+// "Sync roles" button super_admins can hit when the bot drifted out of
+// sync (e.g. it was down at the time of a plan change). Hidden entirely
+// when no Discord is linked — the no-icon-on-list rule matches the
+// pattern in users/page.tsx.
+function DiscordSection({
+  discordId,
+  discordUsername,
+  onForceSync,
+  syncing,
+  syncStatus,
+  syncError,
+  callerRole,
+}: {
+  discordId: string | null;
+  discordUsername: string | null;
+  onForceSync: () => void;
+  syncing: boolean;
+  syncStatus: 'idle' | 'ok' | 'error';
+  syncError: string | null;
+  callerRole: UserRole;
+}) {
+  const ids = discordId ? [discordId] : [];
+  const profiles = useResolvedDiscordUsers(ids);
+  if (!discordId) return null;
+  const profile = profiles.get(discordId);
+  const avatar = profile?.avatar ?? null;
+  const username = discordUsername ?? profile?.username ?? null;
+  const canSync = callerRole === 'super_admin';
+
+  return (
+    <div className="rounded-md border border-border/50 px-3 py-2">
+      <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <UserIcon size={11} /> Discord
+      </div>
+      <div className="flex items-center gap-2">
+        {avatar ? (
+          <img
+            src={avatar}
+            alt=""
+            width={28}
+            height={28}
+            className="size-7 shrink-0 rounded-full"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <span className="size-7 shrink-0 rounded-full bg-muted" />
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-[12px] font-medium">
+            {username ?? <code className="font-mono">{discordId}</code>}
+          </span>
+          <code className="truncate font-mono text-[10px] text-muted-foreground">
+            {discordId}
+          </code>
+        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onForceSync}
+          disabled={syncing || !canSync}
+          className="h-7 gap-1 px-2"
+          title={canSync ? 'Force re-sync of plan + ELO Discord roles' : 'super_admin required'}
+        >
+          {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          Sync roles
+        </Button>
+      </div>
+      {syncStatus === 'ok' && (
+        <div className="mt-2 text-[10px] text-emerald-400">Role sync triggered — applied within a few seconds.</div>
+      )}
+      {syncStatus === 'error' && syncError && (
+        <div className="mt-2 text-[10px] text-rose-400">{syncError}</div>
       )}
     </div>
   );
