@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { openBillingPage } from '../lib/openBilling';
 import gsap from 'gsap';
 import { useReviewStore } from '../stores/reviewStore';
 import { useGameStore } from '../stores/gameStore';
@@ -23,18 +24,33 @@ const BAR_FILL: Record<string, string> = {
   mistake: '#FFA459', miss: '#FF7769', blunder: '#FA412D',
 };
 
+/** Chess.com ships the "great" classification as camelCase 'greatFind' —
+ *  everything else comes back lowercase already. Map it back to our
+ *  'great' bucket so the count row renders the right number. */
+function normalizeClsName(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (lower === 'greatfind') return 'great';
+  return lower;
+}
+
 function countCls(positions: any[], color: string): Record<string, number> {
   const c: Record<string, number> = {};
   for (const p of positions) {
     if (p.color !== color) continue;
-    const k = p.classificationName?.toLowerCase() || '';
+    const k = normalizeClsName(p.classificationName);
+    if (!k) continue;
     c[k] = (c[k] || 0) + 1;
   }
   return c;
 }
 
+/** Truncate to 1 decimal to match chess.com's display (which floors,
+ *  doesn't round). Plain toFixed would show 85.0 where chess.com shows
+ *  84.9 for the same raw value — confusing side-by-side with their UI. */
 function fmt(v: number | null | undefined): string {
-  return v != null ? v.toFixed(1) : '—';
+  if (v == null) return '—';
+  return (Math.floor(v * 10) / 10).toFixed(1);
 }
 
 function ClsIcon({ type }: { type: string }) {
@@ -280,7 +296,17 @@ export default function ReviewScreen({ gameId }: Props) {
         />
       )}
 
-      {idle && (
+      {idle && showQuotaBadge && remaining === 0 && (
+        <>
+          <span style={{ fontSize: 11, fontWeight: 500, textAlign: 'center', display: 'block' }}>
+            {t('game.review.upgradeCTA')}
+          </span>
+          <button className="review-cta review-cta--upgrade" onClick={() => openBillingPage()}>
+            {t('game.review.upgrade')}
+          </button>
+        </>
+      )}
+      {idle && !(showQuotaBadge && remaining === 0) && (
         <>
           <button className="review-cta" onClick={() => requestReview(gameId)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
@@ -302,7 +328,7 @@ export default function ReviewScreen({ gameId }: Props) {
       )}
 
       {error === 'daily_limit' && (
-        <button className="review-cta review-cta--upgrade" onClick={() => window.open('https://chessr.io/#pricing', '_blank')}>
+        <button className="review-cta review-cta--upgrade" onClick={() => openBillingPage()}>
           {t('game.review.upgrade')}
           <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
         </button>

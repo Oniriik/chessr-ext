@@ -653,6 +653,15 @@ export function resetArrowDragProgress(from: string): void {
  * Clears existing suggestion arrows first.
  */
 export function renderPvArrows(pv: string[], isFlipped: boolean, playerIsWhite: boolean) {
+  // Same Stream Mode gate as renderArrows. PV arrows are a separate
+  // entry point — without this guard, a fresh game triggers the PV
+  // path before renderArrows can clear, and the overlay flashes back
+  // onto the host board on stream.
+  if (isStreamOpen()) {
+    clearArrows();
+    return;
+  }
+
   const board = getBoard();
   if (!board || pv.length < 1) return;
 

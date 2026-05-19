@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { openBillingPage } from '../lib/openBilling';
 import gsap from 'gsap';
 import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
@@ -126,7 +127,21 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
         />
       )}
 
-      {idle && (
+      {idle && showQuotaBadge && remaining === 0 && (
+        // Daily limit reached: surface the upgrade CTA proactively so the
+        // user doesn't waste a click on the Analyze button only to get
+        // rejected. Mirrors the post-click `error === 'daily_limit'` UI
+        // below but fires from the quota snapshot returned in cache_miss.
+        <>
+          <span style={{ fontSize: 11, fontWeight: 500, textAlign: 'center', display: 'block' }}>
+            {t('game.review.upgradeCTA')}
+          </span>
+          <button className="game-review-btn game-review-btn--upgrade" onClick={() => openBillingPage()}>
+            {t('game.review.upgrade')}
+          </button>
+        </>
+      )}
+      {idle && !(showQuotaBadge && remaining === 0) && (
         <>
           <button className="game-review-btn" onClick={() => requestReview(gameId)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
@@ -148,7 +163,7 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
       )}
 
       {error === 'daily_limit' && (
-        <button className="game-review-btn game-review-btn--upgrade" onClick={() => window.open('https://chessr.io/#pricing', '_blank')}>
+        <button className="game-review-btn game-review-btn--upgrade" onClick={() => openBillingPage()}>
           {t('game.review.upgrade')}
           <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
         </button>

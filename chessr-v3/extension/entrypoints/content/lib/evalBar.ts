@@ -84,6 +84,16 @@ function positionBar() {
   const board = getBoard();
   if (!board || !barEl) return;
 
+  // Stream Mode gate — same as updateBar. positionBar is fired by the
+  // ResizeObserver, scroll/resize listeners AND the MutationObserver on
+  // body.childList — chess.com replaces the board DOM on every new game,
+  // which would unconditionally re-set display:'flex' below and leak the
+  // bar back onto the streamer's tab right when a game starts.
+  if (isStreamOpen()) {
+    barEl.style.display = 'none';
+    return;
+  }
+
   const rect = board.getBoundingClientRect();
   Object.assign(barEl.style, {
     top: `${rect.top + window.scrollY}px`,

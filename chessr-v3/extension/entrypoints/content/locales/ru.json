@@ -101,6 +101,7 @@
   "game.review.analyze": "Анализировать партию",
   "game.review.analyzing": "Анализ... {{progress}}%",
   "game.review.upgrade": "Перейти на Premium",
+  "game.review.upgradeCTA": "Перейдите на Premium для безлимитных обзоров",
   "game.review.dailyLimit": "Достигнут дневной лимит",
   "game.review.quotaStatus": "{{used}}/{{limit}} обзоров сегодня — осталось {{remaining}}",
   "game.review.errorPrefix": "Ошибка: {{msg}}",

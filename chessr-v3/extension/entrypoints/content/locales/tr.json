@@ -101,6 +101,7 @@
   "game.review.analyze": "Bu maçı analiz et",
   "game.review.analyzing": "Analiz... {{progress}}%",
   "game.review.upgrade": "Premium'a yükselt",
+  "game.review.upgradeCTA": "Sınırsız review için Premium'a geç",
   "game.review.dailyLimit": "Günlük sınıra ulaşıldı",
   "game.review.quotaStatus": "Bugün {{used}}/{{limit}} review kullanıldı — {{remaining}} kaldı",
   "game.review.errorPrefix": "Hata: {{msg}}",

@@ -101,6 +101,7 @@
   "game.review.analyze": "Analizza questa partita",
   "game.review.analyzing": "Analisi... {{progress}}%",
   "game.review.upgrade": "Passa a Premium",
+  "game.review.upgradeCTA": "Passa a Premium per review illimitate",
   "game.review.dailyLimit": "Limite giornaliero raggiunto",
   "game.review.quotaStatus": "{{used}}/{{limit}} review usate oggi — ne restano {{remaining}}",
   "game.review.errorPrefix": "Errore: {{msg}}",
