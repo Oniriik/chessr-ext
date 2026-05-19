@@ -2,8 +2,14 @@ import { create } from 'zustand';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { SERVER_URL } from '../lib/config';
+import { getFingerprint } from '../lib/fingerprint';
 
 export type Plan = 'lifetime' | 'beta' | 'premium' | 'freetrial' | 'unlocker' | 'free';
+
+// Kept inline (not imported from the main extension) so the unlocker
+// stays self-contained — no cross-package import boundary to cross.
+const DISPOSABLE_EMAIL_ERROR =
+  'Disposable email addresses are not allowed. Please use a permanent email address.';
 
 interface AuthState {
   user: User | null;
@@ -12,6 +18,8 @@ interface AuthState {
   initializing: boolean;
   loading: boolean;
   error: string | null;
+  bannedReason: string | null;
+  appealUrl: string | null;
 
   initialize: () => Promise<void>;
   fetchPlan: (userId: string) => Promise<void>;
@@ -29,6 +37,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initializing: true,
   loading: false,
   error: null,
+  bannedReason: null,
+  appealUrl: null,
 
   initialize: async () => {
     try {
@@ -58,7 +68,47 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   signUp: async (email, password) => {
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, bannedReason: null, appealUrl: null });
+
+    // Pre-flight: serveur runs disposable check + multi-account abuse
+    // check (fingerprint + IP) in one call. Mirrors the main extension's
+    // signup flow so unlocker accounts populate `user_fingerprints` and
+    // get blocked when they collide with a banned linked account.
+    // Fail-open on serveur unreachable — same policy as the main ext.
+    const fingerprint = await getFingerprint();
+    try {
+      const checkRes = await fetch(`${SERVER_URL}/check-signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fingerprint, email }),
+      });
+      if (checkRes.ok) {
+        const payload = await checkRes.json() as {
+          allowed: boolean;
+          reason?: string;
+          banReason?: string;
+          appealUrl?: string;
+          message?: string;
+        };
+        if (!payload.allowed) {
+          if (payload.reason === 'banned') {
+            const reason = payload.banReason || 'This account is banned.';
+            set({
+              loading: false,
+              bannedReason: reason,
+              appealUrl: payload.appealUrl ?? null,
+              error: reason,
+            });
+            return { success: false, error: reason };
+          }
+          const msg = payload.message ||
+            (payload.reason === 'disposable' ? DISPOSABLE_EMAIL_ERROR : 'Sign up not allowed.');
+          set({ loading: false, error: msg, appealUrl: payload.appealUrl ?? null });
+          return { success: false, error: msg };
+        }
+      }
+    } catch { /* serveur unreachable → fail-open */ }
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -74,21 +124,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (error) throw error;
 
-      // Best-effort: tag the user with signup_source='unlocker' on
-      // user_settings + emit signup_success with source so the Discord
-      // #users channel shows "via 🔓 Review Unlocker". Fire-and-forget;
-      // we don't want a serveur outage to break sign-up.
+      // Persist fingerprint + signup IP for the new user_id so the next
+      // abuse check has a footprint to match against, and tag the user
+      // with signup_source='unlocker' on user_settings so the Discord
+      // #users channel shows "via 🔓 Review Unlocker".
+      //
+      // AWAITED (unlike the main extension's fire-and-forget): a popup
+      // closes the moment the user clicks outside (e.g. to go check
+      // their inbox), which aborts in-flight fetches. Without the
+      // await, /report-signup gets cancelled mid-request — Discord
+      // notifs go missing AND the user_fingerprints row never lands,
+      // breaking detection for any follow-up multi-account signup.
+      // 4s timeout caps the worst-case UX delay on serveur trouble.
       if (data.user?.id) {
-        fetch(`${SERVER_URL}/report-signup`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: data.user.id,
-            email,
-            source: 'unlocker',
-            kind: 'signup',
-          }),
-        }).catch(() => {});
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 4000);
+          await fetch(`${SERVER_URL}/report-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: data.user.id,
+              email,
+              fingerprint,
+              source: 'unlocker',
+              kind: 'signup',
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+        } catch { /* serveur down / timeout — proceed anyway */ }
       }
 
       set({ loading: false });
@@ -146,8 +211,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ user: null, session: null, plan: 'free' });
+    set({ user: null, session: null, plan: 'free', bannedReason: null, appealUrl: null });
   },
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, bannedReason: null, appealUrl: null }),
 }));

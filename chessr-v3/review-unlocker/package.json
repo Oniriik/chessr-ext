@@ -1,6 +1,6 @@
 {
   "name": "chessr-review-unlocker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Unlock chess.com game reviews — accuracy, move classifications, effective Elo. Powered by Chessr.io.",
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
   },
   "license": "ISC",
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "5.1.0",
     "@supabase/supabase-js": "^2.103.3",
     "@wxt-dev/module-react": "^1.2.2",
     "react": "^19.2.5",

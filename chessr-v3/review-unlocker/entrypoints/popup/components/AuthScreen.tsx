@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore';
 type Mode = 'signin' | 'signup' | 'reset';
 
 export default function AuthScreen() {
-  const { signIn, signUp, resetPassword, loading, error, clearError } = useAuthStore();
+  const { signIn, signUp, resetPassword, loading, error, appealUrl, clearError } = useAuthStore();
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -79,7 +79,19 @@ export default function AuthScreen() {
           </label>
         )}
 
-        {error && <div className="auth-error">{error}</div>}
+        {error && (
+          <div className="auth-error">
+            {error}
+            {appealUrl && (
+              <>
+                {' '}
+                <a href={appealUrl} target="_blank" rel="noopener noreferrer">
+                  Appeal
+                </a>
+              </>
+            )}
+          </div>
+        )}
         {info && <div className="auth-info">{info}</div>}
 
         <button type="submit" className="review-cta" disabled={loading} style={{ marginTop: 4 }}>

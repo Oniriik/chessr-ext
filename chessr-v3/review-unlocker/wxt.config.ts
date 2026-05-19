@@ -18,7 +18,7 @@ export default defineConfig({
   manifest: {
     name: displayName,
     description: "Unlock chess.com game reviews — accuracy, move classifications, effective Elo. Powered by Chessr.",
-    version: "0.1.0",
+    version: "0.1.1",
     icons: {
       16: "/icons/icon16.png",
       48: "/icons/icon48.png",
