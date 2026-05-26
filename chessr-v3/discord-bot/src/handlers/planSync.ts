@@ -31,7 +31,8 @@ import { config } from '../config.js';
 
 const DISCORD_API = 'https://discord.com/api/v10';
 
-async function sendDM(discordId: string, content: string): Promise<void> {
+/** Returns true if the message was delivered. */
+async function sendDM(discordId: string, content: string): Promise<boolean> {
   const dmRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
     method: 'POST',
     headers: {
@@ -42,7 +43,7 @@ async function sendDM(discordId: string, content: string): Promise<void> {
   });
   if (!dmRes.ok) {
     log.warn(`[planSync] failed to open DM channel for ${discordId}: HTTP ${dmRes.status}`);
-    return;
+    return false;
   }
   const { id: channelId } = await dmRes.json() as { id: string };
 
@@ -56,6 +57,22 @@ async function sendDM(discordId: string, content: string): Promise<void> {
   });
   if (!msgRes.ok) {
     log.warn(`[planSync] DM send to ${discordId} failed: HTTP ${msgRes.status}`);
+    return false;
+  }
+  return true;
+}
+
+async function postToChannel(channelId: string, content: string): Promise<void> {
+  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bot ${config.discord.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    log.warn(`[planSync] channel post to ${channelId} failed: HTTP ${res.status}`);
   }
 }
 
@@ -105,6 +122,26 @@ function planChangedDM(
   return null;
 }
 
+/** Message posted in the plan-notif channel (admin-visible). Always fires
+ *  alongside the DM attempt so admins can track plan changes in real time. */
+function planNotifChannelMessage(
+  discordId: string,
+  oldPlan: string | null,
+  newPlan: string,
+  dmSent: boolean,
+): string {
+  const mention = `<@${discordId}>`;
+  const dmTag = dmSent ? '✉️ DM sent' : '📵 DM blocked';
+  if (newPlan === 'freetrial') return `🆓 ${mention} started a free trial — ${dmTag}`;
+  if (newPlan === 'premium')   return `⭐ ${mention} activated Premium — ${dmTag}`;
+  if (newPlan === 'lifetime')  return `🌟 ${mention} activated Lifetime — ${dmTag}`;
+  if (newPlan === 'free') {
+    if (oldPlan === 'freetrial') return `⏰ ${mention} free trial ended — ${dmTag}`;
+    if (oldPlan === 'premium')   return `⏰ ${mention} Premium ended — ${dmTag}`;
+  }
+  return `🔄 ${mention} plan changed: ${oldPlan ?? '?'} → ${newPlan} — ${dmTag}`;
+}
+
 function getString(payload: Record<string, unknown>, key: string): string | null {
   const v = payload[key];
   return typeof v === 'string' && v.length > 0 ? v : null;
@@ -139,15 +176,22 @@ export function registerPlanSyncHandlers(): void {
     const newPlan = getString(e.payload, 'newPlan') ?? 'free';
     await syncPlanRole(discordId, newPlan);
 
-    const msg = planChangedDM(
-      getString(e.payload, 'oldPlan'),
-      newPlan,
-      getString(e.payload, 'reason'),
-    );
-    if (msg) {
-      await sendDM(discordId, msg).catch((err) =>
-        log.warn(`[planSync] plan DM to ${discordId} threw:`, err),
-      );
+    const oldPlan = getString(e.payload, 'oldPlan');
+    const reason  = getString(e.payload, 'reason');
+    const msg = planChangedDM(oldPlan, newPlan, reason);
+    if (!msg) return;
+
+    const dmSent = await sendDM(discordId, msg).catch((err) => {
+      log.warn(`[planSync] plan DM to ${discordId} threw:`, err);
+      return false;
+    });
+
+    const notifChannelId = config.discord.mod.planNotif;
+    if (notifChannelId) {
+      await postToChannel(
+        notifChannelId,
+        planNotifChannelMessage(discordId, oldPlan, newPlan, dmSent),
+      ).catch((err) => log.warn(`[planSync] notif channel post threw:`, err));
     }
   });
 

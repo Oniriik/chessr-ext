@@ -54,6 +54,9 @@ export const config = {
       subscriptions: optional('DISCORD_MOD_SUBSCRIPTIONS_CHANNEL_ID'),
       users:         optional('DISCORD_MOD_USERS_CHANNEL_ID'),
       security:      optional('DISCORD_MOD_SECURITY_CHANNEL_ID'),
+      /** Plan-change notifications (freetrial start/end, premium start/end).
+       *  Posted on every transition in addition to the DM to the user. */
+      planNotif:     optional('DISCORD_PLAN_NOTIF_CHANNEL_ID'),
     },
     /** Stats voice channels — names are rewritten on a 10-min cadence.
      *  Discord caps channel renames at 2 per 10 min per channel, so we
