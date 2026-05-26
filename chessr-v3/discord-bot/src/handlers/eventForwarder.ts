@@ -199,14 +199,13 @@ async function onPaymentFailed(client: Client, e: IncomingEvent) {
   const ctx = await fetchUserContext(e.user_id);
   const m = mention(ctx, e.user_id);
   const plan = String(e.payload.plan ?? 'Premium');
-  const expiresAt = e.payload.expiresAt as string | null;
 
   const embed = new EmbedBuilder()
     .setColor(COLOR.danger)
-    .setTitle('⚠️ Payment failed')
+    .setTitle('⚠️ Payment failed — plan cancelled')
     .setDescription(
-      `Card declined for ${m} (**${formatPlan(plan)}**).\n` +
-      `Paddle will retry automatically; access until ${formatDate(expiresAt)} if it can't recover.`,
+      `Card declined for ${m} (**${formatPlan(plan)}**). Plan revoked immediately.\n` +
+      `Paddle will retry automatically — Premium restores if payment recovers.`,
     )
     .setTimestamp(new Date());
   if (ctx?.email) embed.addFields({ name: 'Email', value: ctx.email, inline: true });

@@ -221,7 +221,18 @@ async function updateUserPlan(
     newPlan = mapping.plan;
     newExpiry = planExpiry;
     logPaddle(null, 'webhook', `${userId} → plan=${mapping.plan}, expiry=${planExpiry}`, 'processed');
-  } else if (status === 'canceled' || status === 'past_due') {
+  } else if (status === 'past_due') {
+    // Cancel immediately on first payment failure — don't honor the access-until
+    // date. If Paddle retries successfully, the next subscription.updated with
+    // status='active' will restore the plan automatically.
+    await supabase
+      .from('user_settings')
+      .update({ plan: 'free', plan_expiry: null, updated_at: new Date().toISOString() })
+      .eq('user_id', userId);
+    newPlan = 'free';
+    newExpiry = null;
+    logPaddle(null, 'webhook', `${userId} → past_due, cancelled immediately`, 'processed');
+  } else if (status === 'canceled') {
     const expiresAt = nextBilledAt || canceledAt;
     const isExpired = expiresAt && new Date(expiresAt).getTime() <= Date.now();
 

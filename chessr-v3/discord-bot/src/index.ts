@@ -39,6 +39,7 @@ import {
 import { command as giveawayCommand }            from './commands/giveaway.js';
 import { command as giveawayLeaderboardCommand } from './commands/giveawayLeaderboard.js';
 import { command as tokenCommand }               from './commands/token.js';
+import { command as clearCommand }               from './commands/clear.js';
 import { ticketCommands, registerTicketHandlers } from './handlers/tickets.js';
 registerCommand(rankCommand);
 registerCommand(leaderboardCommand);
@@ -47,6 +48,7 @@ registerCommand(inventoryCommand);
 registerCommand(giveawayCommand);
 registerCommand(giveawayLeaderboardCommand);
 registerCommand(tokenCommand);
+registerCommand(clearCommand);
 for (const cmd of ticketCommands) registerCommand(cmd);
 
 // ─── Event handlers ─────────────────────────────────────────────────────

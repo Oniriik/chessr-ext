@@ -50,6 +50,7 @@ import { registerCron, startCrons, stopCrons } from './lib/cron.js';
 import { runGiveawayDraw } from './jobs/giveawayDraw.js';
 import { runTicketAutoDelete } from './jobs/ticketAutoDelete.js';
 import { runEloRefresh } from './jobs/eloRefresh.js';
+import { runPlanExpiry } from './jobs/planExpiry.js';
 
 // Capture stdout before any other log fires so the dashboard sees boot events
 installConsoleCapture();
@@ -154,6 +155,12 @@ registerCron({
   intervalMs: 60_000,        // 1 min — matches the v2 cron cadence
   runImmediately: true,
   run: runEloRefresh,
+});
+registerCron({
+  name: 'plan-expiry',
+  intervalMs: 15 * 60_000,   // 15 min — expiry granularity doesn't need to be tighter
+  runImmediately: true,
+  run: runPlanExpiry,
 });
 startCrons();
 

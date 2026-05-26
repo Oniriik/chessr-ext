@@ -27,6 +27,83 @@ import { onEvent, type IncomingEvent } from '../lib/events.js';
 import { syncPlanRole } from '../lib/discordRoles.js';
 import { supabase } from '../lib/supabase.js';
 import { log } from '../lib/logger.js';
+import { config } from '../config.js';
+
+const DISCORD_API = 'https://discord.com/api/v10';
+
+async function sendDM(discordId: string, content: string): Promise<void> {
+  const dmRes = await fetch(`${DISCORD_API}/users/@me/channels`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bot ${config.discord.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ recipient_id: discordId }),
+  });
+  if (!dmRes.ok) {
+    log.warn(`[planSync] failed to open DM channel for ${discordId}: HTTP ${dmRes.status}`);
+    return;
+  }
+  const { id: channelId } = await dmRes.json() as { id: string };
+
+  const msgRes = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bot ${config.discord.token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  });
+  if (!msgRes.ok) {
+    log.warn(`[planSync] DM send to ${discordId} failed: HTTP ${msgRes.status}`);
+  }
+}
+
+/** Returns the DM text for a plan transition, or null when no DM should
+ *  be sent (renewals, force-sync, bans, untracked tiers). */
+function planChangedDM(
+  oldPlan: string | null,
+  newPlan: string,
+  reason: string | null,
+): string | null {
+  if (oldPlan === newPlan) return null;               // renewal / force-sync
+  if (reason === 'banned') return null;               // ban flow has its own messaging
+  if (reason === 'admin_force_sync') return null;
+
+  if (newPlan === 'freetrial') {
+    return (
+      '🆓 Your Chessr free trial has started! You have 3 days of full Premium access.\n' +
+      'Enjoy unlimited analysis, suggestions and game reviews: https://chessr.io'
+    );
+  }
+  if (newPlan === 'premium') {
+    return (
+      '⭐ Welcome to Chessr Premium! Your subscription is now active.\n' +
+      'Enjoy unlimited analysis, suggestions and game reviews: https://chessr.io'
+    );
+  }
+  if (newPlan === 'lifetime') {
+    return (
+      '🌟 Welcome to Chessr Lifetime! Enjoy unlimited access forever.\n' +
+      'Thank you for your support: https://chessr.io'
+    );
+  }
+  if (newPlan === 'free') {
+    if (oldPlan === 'freetrial') {
+      return (
+        '⏰ Your Chessr free trial has ended.\n' +
+        'Subscribe to Chessr Premium to keep full access to analysis, suggestions and game reviews: https://chessr.io'
+      );
+    }
+    if (oldPlan === 'premium') {
+      return (
+        '⏰ Your Chessr Premium plan has ended.\n' +
+        'Renew your subscription to keep full access to analysis, suggestions and game reviews: https://chessr.io'
+      );
+    }
+  }
+  return null;
+}
 
 function getString(payload: Record<string, unknown>, key: string): string | null {
   const v = payload[key];
@@ -54,9 +131,6 @@ async function lookupPlan(userId: string): Promise<string> {
 export function registerPlanSyncHandlers(): void {
   onEvent('plan_changed', async (e: IncomingEvent) => {
     if (!e.user_id) return;
-    // Prefer the snapshotted discord_id from the payload (fast path); fall
-    // back to a Supabase lookup so we still work for any legacy emitter
-    // that hasn't been updated to include it.
     const discordId = getString(e.payload, 'discordId') ?? await lookupDiscordId(e.user_id);
     if (!discordId) {
       log.debug(`[planSync] plan_changed for ${e.user_id} but no discord linked`);
@@ -64,6 +138,17 @@ export function registerPlanSyncHandlers(): void {
     }
     const newPlan = getString(e.payload, 'newPlan') ?? 'free';
     await syncPlanRole(discordId, newPlan);
+
+    const msg = planChangedDM(
+      getString(e.payload, 'oldPlan'),
+      newPlan,
+      getString(e.payload, 'reason'),
+    );
+    if (msg) {
+      await sendDM(discordId, msg).catch((err) =>
+        log.warn(`[planSync] plan DM to ${discordId} threw:`, err),
+      );
+    }
   });
 
   onEvent('discord_linked', async (e: IncomingEvent) => {

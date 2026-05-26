@@ -48,11 +48,22 @@ export const command: BotCommand = {
     }
 
     const userIds = linkedUsers.map((u) => u.user_id as string);
-    const { data: accounts } = await supabase
-      .from('linked_accounts')
-      .select(`user_id, platform, ${column}`)
-      .in('user_id', userIds)
-      .is('unlinked_at', null);
+
+    // .in() with 400+ UUIDs exceeds URL limits — batch in chunks of 50.
+    const CHUNK = 50;
+    const allAccounts: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < userIds.length; i += CHUNK) {
+      const { data, error } = await supabase
+        .from('linked_accounts')
+        .select(`user_id, platform, ${column}`)
+        .in('user_id', userIds.slice(i, i + CHUNK))
+        .is('unlinked_at', null);
+      if (error) {
+        console.warn('[leaderboard] linked_accounts chunk query failed:', error.message);
+      }
+      if (data) allAccounts.push(...(data as Array<Record<string, unknown>>));
+    }
+    const accounts = allAccounts;
 
     // Reduce to max-elo per user; remember which platform that max came
     // from so we can show a tiny tag on each row.
