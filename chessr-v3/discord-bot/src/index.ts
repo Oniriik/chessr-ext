@@ -27,6 +27,7 @@ import { registerEventForwarder } from './handlers/eventForwarder.js';
 import { registerGuildRoleSync } from './handlers/guildRoleSync.js';
 import { registerEloRoleEvents } from './handlers/eloRoleEvents.js';
 import { registerWheelTokenDrop } from './handlers/wheelTokenDrop.js';
+import { registerDmTracker } from './handlers/dmTracker.js';
 
 // ─── Command registry — explicit imports, no glob ───────────────────────
 import { command as rankCommand }        from './commands/rank.js';
@@ -102,6 +103,7 @@ client.once('clientReady', async () => {
   registerGuildRoleSync(client);
   registerEloRoleEvents();
   registerWheelTokenDrop(client);
+  registerDmTracker(client);
 });
 
 registerInviteTracker(client);
