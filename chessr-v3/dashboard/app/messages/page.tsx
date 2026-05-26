@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, Loader2, MessageSquare, Search, Send, Users as UsersIcon } from 'lucide-react';
 import { AdminShell } from '@/components/AdminShell';
+import { DiscordMessages } from '@/components/discord/DiscordMessages';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +30,7 @@ export default function MessagesPage() {
         <div className="inline-flex items-center rounded-md border border-border bg-card/40 p-0.5">
           {([
             { id: 'extension' as const, label: 'Extension' },
-            { id: 'discord'   as const, label: 'Discord (soon)' },
+            { id: 'discord'   as const, label: 'Discord' },
           ]).map(({ id, label }) => (
             <button
               key={id}
@@ -40,9 +41,8 @@ export default function MessagesPage() {
                 tab === id
                   ? 'bg-primary/15 text-primary'
                   : 'text-muted-foreground hover:text-foreground',
-                id === 'discord' && 'cursor-not-allowed opacity-60',
               )}
-              disabled={id === 'discord'}
+              disabled={false}
             >
               {label}
             </button>
@@ -50,13 +50,7 @@ export default function MessagesPage() {
         </div>
 
         {tab === 'extension' && <ExtensionForm />}
-        {tab === 'discord' && (
-          <Card>
-            <CardContent className="p-6 text-[13px] text-muted-foreground sm:p-6">
-              Discord broadcast coming soon — same UI, different transport.
-            </CardContent>
-          </Card>
-        )}
+        {tab === 'discord' && <DiscordMessages />}
       </div>
     </AdminShell>
   );
