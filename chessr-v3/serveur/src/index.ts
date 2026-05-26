@@ -158,7 +158,7 @@ registerCron({
 });
 registerCron({
   name: 'plan-expiry',
-  intervalMs: 15 * 60_000,   // 15 min — expiry granularity doesn't need to be tighter
+  intervalMs: 5 * 60_000,    // 5 min — batch of 10 keeps Discord rate limits safe
   runImmediately: true,
   run: runPlanExpiry,
 });

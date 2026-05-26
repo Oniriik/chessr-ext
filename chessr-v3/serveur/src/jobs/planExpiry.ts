@@ -19,7 +19,7 @@ import { dbQuery } from '../lib/db.js';
 import { emitEvent } from '../lib/events.js';
 import { invalidatePlanCache } from '../lib/premium.js';
 
-const BATCH = 50;
+const BATCH = 10;
 
 interface ExpiredRow {
   user_id: string;

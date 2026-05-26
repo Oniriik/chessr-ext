@@ -62,17 +62,33 @@ async function sendDM(discordId: string, content: string): Promise<boolean> {
   return true;
 }
 
-async function postToChannel(channelId: string, content: string): Promise<void> {
-  const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bot ${config.discord.token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ content }),
-  });
-  if (!res.ok) {
-    log.warn(`[planSync] channel post to ${channelId} failed: HTTP ${res.status}`);
+async function fetchEmail(userId: string): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Post an embed to a channel, retrying once on 429 with Retry-After. */
+async function postEmbed(channelId: string, embed: object): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(`${DISCORD_API}/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${config.discord.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ embeds: [embed] }),
+    });
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get('retry-after') ?? '1');
+      await new Promise((r) => setTimeout(r, Math.min(retryAfter * 1000, 10_000)));
+      continue;
+    }
+    if (!res.ok) log.warn(`[planSync] channel post to ${channelId} failed: HTTP ${res.status}`);
+    return;
   }
 }
 
@@ -122,24 +138,39 @@ function planChangedDM(
   return null;
 }
 
-/** Message posted in the plan-notif channel (admin-visible). Always fires
- *  alongside the DM attempt so admins can track plan changes in real time. */
-function planNotifChannelMessage(
-  discordId: string,
-  oldPlan: string | null,
-  newPlan: string,
-  dmSent: boolean,
-): string {
-  const mention = `<@${discordId}>`;
-  const dmTag = dmSent ? '✉️ DM sent' : '📵 DM blocked';
-  if (newPlan === 'freetrial') return `🆓 ${mention} started a free trial — ${dmTag}`;
-  if (newPlan === 'premium')   return `⭐ ${mention} activated Premium — ${dmTag}`;
-  if (newPlan === 'lifetime')  return `🌟 ${mention} activated Lifetime — ${dmTag}`;
-  if (newPlan === 'free') {
-    if (oldPlan === 'freetrial') return `⏰ ${mention} free trial ended — ${dmTag}`;
-    if (oldPlan === 'premium')   return `⏰ ${mention} Premium ended — ${dmTag}`;
-  }
-  return `🔄 ${mention} plan changed: ${oldPlan ?? '?'} → ${newPlan} — ${dmTag}`;
+function buildPlanEmbed(params: {
+  discordId: string | null;
+  email: string | null;
+  oldPlan: string | null;
+  newPlan: string;
+  dmSent: boolean;
+}): object {
+  const { discordId, email, oldPlan, newPlan, dmSent } = params;
+
+  let title: string;
+  let color: number;
+  if (newPlan === 'freetrial')                        { title = '🆓 Free trial started';  color = 0x22c55e; }
+  else if (newPlan === 'premium')                     { title = '⭐ Premium activated';    color = 0xf59e0b; }
+  else if (newPlan === 'lifetime')                    { title = '🌟 Lifetime activated';   color = 0xa855f7; }
+  else if (newPlan === 'free' && oldPlan === 'freetrial') { title = '⏰ Free trial ended'; color = 0xef4444; }
+  else if (newPlan === 'free' && oldPlan === 'premium')   { title = '⏰ Premium ended';    color = 0xef4444; }
+  else { title = `🔄 ${oldPlan ?? '?'} → ${newPlan}`; color = 0x6b7280; }
+
+  const parts: string[] = [];
+  if (discordId) parts.push(`<@${discordId}>`);
+  if (email) parts.push(`**${email}**`);
+  const description = parts.length > 0 ? parts.join(' · ') : 'Unknown user';
+
+  return {
+    title,
+    description,
+    color,
+    fields: [
+      { name: 'Plan', value: `\`${oldPlan ?? '?'}\` → \`${newPlan}\``, inline: true },
+      { name: 'DM',   value: discordId ? (dmSent ? '✉️ sent' : '📵 blocked') : '—', inline: true },
+    ],
+    timestamp: new Date().toISOString(),
+  };
 }
 
 function getString(payload: Record<string, unknown>, key: string): string | null {
@@ -168,30 +199,46 @@ async function lookupPlan(userId: string): Promise<string> {
 export function registerPlanSyncHandlers(): void {
   onEvent('plan_changed', async (e: IncomingEvent) => {
     if (!e.user_id) return;
-    const discordId = getString(e.payload, 'discordId') ?? await lookupDiscordId(e.user_id);
-    if (!discordId) {
-      log.debug(`[planSync] plan_changed for ${e.user_id} but no discord linked`);
-      return;
-    }
     const newPlan = getString(e.payload, 'newPlan') ?? 'free';
-    await syncPlanRole(discordId, newPlan);
-
     const oldPlan = getString(e.payload, 'oldPlan');
     const reason  = getString(e.payload, 'reason');
+
+    // Role sync — only when Discord is linked.
+    const discordId = getString(e.payload, 'discordId') ?? await lookupDiscordId(e.user_id);
+    if (discordId) {
+      await syncPlanRole(discordId, newPlan);
+    } else {
+      log.debug(`[planSync] plan_changed for ${e.user_id} — no discord linked`);
+    }
+
+    // DM the user if there's content and they have Discord.
+    let dmSent = false;
     const msg = planChangedDM(oldPlan, newPlan, reason);
-    if (!msg) return;
+    if (msg && discordId) {
+      dmSent = await sendDM(discordId, msg).catch((err) => {
+        log.warn(`[planSync] plan DM to ${discordId} threw:`, err);
+        return false;
+      });
+    }
 
-    const dmSent = await sendDM(discordId, msg).catch((err) => {
-      log.warn(`[planSync] plan DM to ${discordId} threw:`, err);
-      return false;
-    });
-
+    // Channel embed — eventForwarder.ts already posts a dedicated embed for
+    // freetrial_claim (→ freetrial_claimed), wheel_* (→ wheel_claim), and
+    // paddle_* (→ new_customer / customer_renewed / payment_failed). Posting
+    // here too would double-post when planNotif == subscriptions channel.
+    // We only need to post for plan_expired (cron-driven) and any future
+    // reasons without a dedicated forwarded event.
     const notifChannelId = config.discord.mod.planNotif;
-    if (notifChannelId) {
-      await postToChannel(
-        notifChannelId,
-        planNotifChannelMessage(discordId, oldPlan, newPlan, dmSent),
-      ).catch((err) => log.warn(`[planSync] notif channel post threw:`, err));
+    const forwardedElsewhere =
+      reason === 'freetrial_claim' ||
+      reason === 'wheel_claim' ||
+      reason === 'wheel_lifetime_claim' ||
+      (reason !== null && reason.startsWith('paddle_'));
+    if (notifChannelId && !forwardedElsewhere && msg !== null) {
+      const email = await fetchEmail(e.user_id);
+      const embed = buildPlanEmbed({ discordId, email, oldPlan, newPlan, dmSent });
+      await postEmbed(notifChannelId, embed).catch((err) =>
+        log.warn('[planSync] notif channel post threw:', err),
+      );
     }
   });
 
