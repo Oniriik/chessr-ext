@@ -360,8 +360,11 @@ async function handleOpenClick(interaction: ButtonInteraction): Promise<void> {
   await channel.setName(`help-${padded}-${username}`).catch(() => {});
   await channel.setTopic(`Ticket #${padded} | Opened by ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
 
+  const supportPing = config.discord.ticketSupportRoleId
+    ? ` — <@&${config.discord.ticketSupportRoleId}> will be with you shortly`
+    : '';
   await channel.send({
-    content: `🎫 **Ticket #${padded}** — opened by <@${interaction.user.id}>`,
+    content: `🎫 **Ticket #${padded}** — opened by <@${interaction.user.id}>${supportPing}`,
     embeds: [
       new EmbedBuilder()
         .setColor(COLOR_OPEN)

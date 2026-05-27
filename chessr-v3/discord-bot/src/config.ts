@@ -42,6 +42,9 @@ export const config = {
     /** Category for closed tickets — the bot moves channels here on
      *  close, and admins can scan/delete from one place. */
     ticketClosedCategoryId: optional('DISCORD_TICKET_CLOSED_CATEGORY_ID'),
+    /** Role pinged in the welcome message when a ticket is opened so
+     *  the support team gets notified. Optional — no ping if unset. */
+    ticketSupportRoleId: optional('DISCORD_TICKET_SUPPORT_ROLE_ID'),
     /** Default channel where giveaway announcements get posted. The
      *  giveaway row can override this; when neither is set the bot
      *  logs a warning and skips the announcement (giveaway stays
