@@ -67,14 +67,14 @@ export const command: BotCommand = {
           a.rating_blitz  ? `🔥${a.rating_blitz}`  : null,
           a.rating_rapid  ? `🕐${a.rating_rapid}`  : null,
         ].filter(Boolean).join(' · ');
-        return `${platformEmoji(a.platform)} **${platformLabel(a.platform)}** · ${a.platform_username}${r ? ` — ${r}` : ''}`;
+        return `${platformEmoji(a.platform)} **${platformLabel(a.platform)}**${r ? ` — ${r}` : ''}`;
       });
       fields.push({ name: 'Linked accounts', value: lines.join('\n') });
     } else if (accounts.length === 1) {
       const a = accounts[0];
       fields.push({
         name: 'Linked account',
-        value: `${platformEmoji(a.platform)} **${platformLabel(a.platform)}** · ${a.platform_username}`,
+        value: `${platformEmoji(a.platform)} **${platformLabel(a.platform)}**`,
       });
     }
 
