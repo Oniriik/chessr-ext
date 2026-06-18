@@ -54,7 +54,6 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Maia 3',
     desc:  'New Maia model with continuous ELO and wider range.',
     eloRange: '600 – 2600',
-    beta:  true,
   },
   rodent: {
     label: 'Rodent IV',
