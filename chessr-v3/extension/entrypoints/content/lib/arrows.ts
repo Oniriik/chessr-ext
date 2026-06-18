@@ -536,9 +536,10 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   // pre-classification suggestions snapshot and overwrite the badges.
   renderBadges(suggestions, animate);
 
-  // Redraw opponent arrow behind suggestion arrows (inserted as firstChild).
-  // Must come AFTER drawing suggestions so it ends up at the back of the SVG stack.
+  // Redraw persistent arrows behind suggestion arrows (inserted as firstChild).
+  // Must come AFTER drawing suggestions so they end up at the back of the SVG stack.
   if (lastOpponentMove) setOpponentMove(lastOpponentMove);
+  if (lastMyMove) setMyLastMove(lastMyMove);
 }
 
 function buildMovePath(from: string, to: string, fromPt: { x: number; y: number }, toPt: { x: number; y: number }, shortenBy: number): string {
