@@ -7,7 +7,7 @@ import type { Plan } from './authStore';
 
 export type Personality = 'Default' | 'Aggressive' | 'Defensive' | 'Active' | 'Positional' | 'Endgame' | 'Beginner' | 'Human';
 export type SearchMode = 'nodes' | 'depth' | 'movetime';
-export type EngineId = 'komodo' | 'maia2' | 'maia3' | 'rodent' | 'stockfish';
+export type EngineId = 'komodo' | 'maia3' | 'rodent' | 'stockfish';
 export type MaiaVariant = 'blitz' | 'rapid';
 
 /** Rodent IV personalities. Value = filename stem (without .txt extension)
@@ -49,11 +49,6 @@ export const ENGINE_INFO: Record<EngineId, { label: string; desc: string; eloRan
     label: 'Komodo',
     desc:  'Classical engine with deep search and full tuning.',
     eloRange: '400 – 3500',
-  },
-  maia2:  {
-    label: 'Maia 2',
-    desc:  'Neural network that plays like a human at the chosen ELO.',
-    eloRange: '1100 – 2000',
   },
   maia3:  {
     label: 'Maia 3',

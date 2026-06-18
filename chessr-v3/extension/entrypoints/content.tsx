@@ -27,7 +27,6 @@ function analysisSource(): 'wasm' | 'server' {
   return analysisEngine instanceof ServerAnalysisEngine ? 'server' : 'wasm';
 }
 import { SuggestionEngine } from './content/lib/suggestionEngine';
-import { MaiaSuggestionEngine } from './content/lib/maiaSuggestionEngine';
 import { Maia3SuggestionEngine } from './content/lib/maia3SuggestionEngine';
 import { RodentSuggestionEngine } from './content/lib/rodentSuggestionEngine';
 import { StockfishSuggestionEngine } from './content/lib/stockfishSuggestionEngine';
@@ -299,7 +298,6 @@ const WASM_INIT_TIMEOUT_MS = 3000;
 
 function newWasmEngine(id: EngineId): IEngine {
   switch (id) {
-    case 'maia2':     return new MaiaSuggestionEngine();
     case 'maia3':     return new Maia3SuggestionEngine();
     case 'rodent':    return new RodentSuggestionEngine();
     case 'stockfish': return new StockfishSuggestionEngine();
@@ -309,15 +307,15 @@ function newWasmEngine(id: EngineId): IEngine {
 
 /** Parse the chessrForceServer localStorage flag into a Set of engine
  *  identifiers that should skip WASM. Accepts:
- *    '1' or 'all' → ['komodo', 'maia2', 'rodent', 'stockfish']
+ *    '1' or 'all' → all engines
  *    'komodo'     → ['komodo']
- *    'komodo,maia2,stockfish' (any subset)
+ *    'komodo,stockfish' (any subset)
  *  Anything else / unset → empty Set (no override). */
 function forceServerSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrForceServer;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'rodent', 'stockfish', 'torch']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia3', 'rodent', 'stockfish', 'torch']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -327,7 +325,7 @@ function forceFailSet(): Set<string> {
   if (typeof localStorage === 'undefined') return new Set();
   const raw = localStorage.chessrFailWasm;
   if (!raw) return new Set();
-  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia2', 'maia3', 'rodent', 'stockfish', 'torch']);
+  if (raw === '1' || raw === 'all') return new Set(['komodo', 'maia3', 'rodent', 'stockfish', 'torch']);
   return new Set(raw.split(',').map((s: string) => s.trim()).filter(Boolean));
 }
 
@@ -336,7 +334,7 @@ async function createEngine(id: EngineId): Promise<IEngine> {
   // DevTools console:
   //   `localStorage.chessrForceServer = '1'`        → all engines
   //   `localStorage.chessrForceServer = 'komodo'`   → only Komodo
-  //   `localStorage.chessrForceServer = 'maia2,stockfish'` → both
+  //   `localStorage.chessrForceServer = 'maia3,stockfish'` → both
   // Then reload. To restore: `delete localStorage.chessrForceServer`.
   if (forceServerSet().has(id)) {
     console.log(`[Chessr] chessrForceServer set for ${id} → server engine`);
@@ -451,7 +449,7 @@ function runSuggestionSearch(fen: string) {
   const numArrows = useSettingsStore.getState().numArrows;
 
   let params: EngineSearchParams;
-  if (suggestionEngine.id === 'maia2' || suggestionEngine.id === 'maia3') {
+  if (suggestionEngine.id === 'maia3') {
     params = {
       fen,
       moves: [] as string[],
@@ -459,7 +457,7 @@ function runSuggestionSearch(fen: string) {
       eloSelf: engine.getMaiaEffectiveTargetElo(),
       eloOppo: engine.getMaiaEffectiveOppoElo(),
       variant: engine.maiaVariant,
-      useBook: suggestionEngine.id === 'maia2' ? engine.maiaUseBook : false,
+      useBook: false,
     };
   } else if (suggestionEngine.id === 'rodent') {
     const effectiveElo = engine.getEffectiveElo();
@@ -524,7 +522,7 @@ function runSuggestionSearch(fen: string) {
   const engineLabel = suggestionEngine.id;
   const source = suggestionEngine instanceof ServerEngine ? 'server' : 'wasm';
   const extra = (() => {
-    if (engineLabel === 'maia2' || engineLabel === 'maia3') {
+    if (engineLabel === 'maia3') {
       return `source=${source} engine=${engineLabel} variant=${params.variant} eloSelf=${params.eloSelf} eloOppo=${params.eloOppo} mpv=${params.multiPv}`;
     }
     const searchDesc = params.search

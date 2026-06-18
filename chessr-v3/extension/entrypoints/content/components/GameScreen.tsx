@@ -5,7 +5,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useSuggestionStore } from '../stores/suggestionStore';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
-import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, MAIA_VARIANT_INFO, type MaiaVariant, ENGINE_INFO, RODENT_PERSONALITY_GROUPS } from '../stores/engineStore';
+import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, ENGINE_INFO, RODENT_PERSONALITY_GROUPS } from '../stores/engineStore';
 import { useLayoutStore } from '../stores/layoutStore';
 import { animationGate } from '../stores/animationStore';
 import { useAnalysisStore } from '../stores/analysisStore';
@@ -843,7 +843,6 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
   const engineId = useEngineStore((s) => s.engineId);
   const engineOrder = useLayoutStore((s) => s.engineOrder);
 
-  if (engineId === 'maia2') return <Maia2Panel />;
   if (engineId === 'maia3') return <Maia3Panel />;
   if (engineId === 'rodent') return <RodentPanel />;
 
@@ -877,126 +876,6 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
         </div>
       </SortableContext>
     </DndContext>
-  );
-}
-
-function Maia2Panel() {
-  const { t } = useTranslation();
-  const engine = useEngineStore();
-  const variants = Object.keys(MAIA_VARIANT_INFO) as MaiaVariant[];
-
-  const effectiveOppo = engine.getMaiaEffectiveOppoElo();
-  const effectiveTarget = engine.getMaiaEffectiveTargetElo();
-  const oppoDetected = engine.opponentElo > 0;
-
-  return (
-    <div className="engine-panel">
-      <span className="engine-name-chip">{ENGINE_INFO.maia2.label}</span>
-
-      <EditableComponent id="maia-variant">
-        <div className="engine-section">
-          <div className="engine-section-header">
-            <span className="engine-section-label">{t('engine.maia.variant')}</span>
-            <select
-              className="engine-select"
-              value={engine.maiaVariant}
-              onChange={(e) => engine.setMaiaVariant(e.target.value as MaiaVariant)}
-            >
-              {variants.map((v) => (
-                <option key={v} value={v}>{MAIA_VARIANT_INFO[v].label}</option>
-              ))}
-            </select>
-          </div>
-          <span className="engine-desc">{MAIA_VARIANT_INFO[engine.maiaVariant].desc}</span>
-        </div>
-      </EditableComponent>
-
-      <EditableComponent id="maia-target-elo">
-        <div className="engine-section">
-          <div className="engine-section-header">
-            <span className="engine-section-label">{t('engine.targetElo')}</span>
-            <button
-              className={`engine-auto-btn ${engine.maiaTargetEloAuto ? 'engine-auto-btn--active' : ''}`}
-              onClick={() => engine.setMaiaTargetEloAuto(!engine.maiaTargetEloAuto)}
-            >{t('common.auto')}</button>
-          </div>
-          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveTarget}</span></div>
-          {engine.maiaTargetEloAuto ? (
-            <span className="engine-desc">
-              {t('engine.opponentBoost', { elo: effectiveOppo, boost: engine.autoEloBoost })}
-            </span>
-          ) : (
-            <Slider
-              min={1100} max={2000} step={100}
-              value={engine.maiaTargetEloManual}
-              onChange={engine.setMaiaTargetEloManual}
-              trackColor="linear-gradient(90deg, #22c55e, #3b82f6)"
-              thumbColor="#22c55e"
-              thumbColorEnd="#3b82f6"
-            />
-          )}
-        </div>
-      </EditableComponent>
-
-      <EditableComponent id="maia-oppo-elo">
-        <div className="engine-section">
-          <div className="engine-section-header">
-            <span className="engine-section-label">{t('engine.maia.opponentElo')}</span>
-            <button
-              className={`engine-auto-btn ${engine.maiaOppoEloAuto ? 'engine-auto-btn--active' : ''}`}
-              onClick={() => engine.setMaiaOppoEloAuto(!engine.maiaOppoEloAuto)}
-            >{t('common.auto')}</button>
-          </div>
-          <div className="engine-elo-display"><span className="engine-elo-value">{effectiveOppo}</span></div>
-          {engine.maiaOppoEloAuto ? (
-            <span className="engine-desc">
-              {oppoDetected ? t('engine.maia.detected', { elo: engine.opponentElo }) : t('engine.maia.fallback', { elo: engine.maiaOppoEloManual })}
-            </span>
-          ) : (
-            <Slider
-              min={1100} max={2000} step={100}
-              value={engine.maiaOppoEloManual}
-              onChange={engine.setMaiaOppoEloManual}
-              trackColor="linear-gradient(90deg, #3b82f6, #ef4444)"
-              thumbColor="#3b82f6"
-              thumbColorEnd="#ef4444"
-            />
-          )}
-        </div>
-      </EditableComponent>
-
-      <div className="engine-warning">
-        <div className="engine-warning-head">
-          <span className="engine-warning-icon" aria-hidden>!</span>
-          <div className="engine-warning-body">
-            <span className="engine-warning-title">{t('engine.maia.warningTitle')}</span>
-            <span className="engine-warning-text">
-              {t('engine.maia.warningBody')}
-            </span>
-          </div>
-        </div>
-
-        <div className="engine-warning-fix">
-          <span className="engine-warning-fix-arrow" aria-hidden>↳</span>
-          <div className="engine-warning-fix-text">
-            <span className="engine-warning-fix-title">
-              {t('engine.maia.fixBook')} <span className="engine-warning-fix-pill">{t('engine.maia.fixBookPill')}</span>
-            </span>
-            <span className="engine-warning-fix-desc">
-              {t('engine.maia.fixBookDesc')}
-            </span>
-          </div>
-          <Toggle
-            checked={engine.maiaUseBook}
-            onChange={engine.setMaiaUseBook}
-          />
-        </div>
-      </div>
-
-      <span className="engine-desc" style={{ marginTop: 8, lineHeight: 1.5 }}>
-        {t('engine.maia.strengthNote')}
-      </span>
-    </div>
   );
 }
 

@@ -39,11 +39,6 @@ export const COMPONENT_REGISTRY: Record<string, { label: string; engineIds?: Eng
   ambition:    { label: 'Ambition',           engineIds: ['komodo'] },
   variety:     { label: 'Variety',            engineIds: ['komodo'] },
 
-  // Maia 2-specific widgets.
-  'maia-target-elo': { label: 'Maia Target ELO',   engineIds: ['maia2'] },
-  'maia-oppo-elo':   { label: 'Maia Opponent ELO', engineIds: ['maia2'] },
-  'maia-variant':    { label: 'Maia Variant',      engineIds: ['maia2'] },
-
   // Maia 3-specific widgets — wider ELO range (600-2600, step 50), no variant.
   'maia3-target-elo': { label: 'Maia 3 Target ELO',   engineIds: ['maia3'] },
   'maia3-oppo-elo':   { label: 'Maia 3 Opponent ELO', engineIds: ['maia3'] },
