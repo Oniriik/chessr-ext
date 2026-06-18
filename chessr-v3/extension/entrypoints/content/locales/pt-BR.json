@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Falha ao copiar",
   "settings.general.copyDebug.hint": "Copia um dump de diagnóstico (versão, estado WS, erros recentes, logs background) para o clipboard. Cole num ticket de suporte ou no Discord.",
 
+  "settings.suggestions.showSuggestions": "Exibir lances sugeridos",
   "settings.suggestions.numArrows": "Número de setas",
   "settings.suggestions.highlightSquares": "Destacar casas",
   "settings.suggestions.arrow": "Seta {{n}}",
+  "settings.suggestions.arrowDisabled": "Desativada",
+  "settings.suggestions.showMyLastMove": "Mostrar meu último lance",
+  "settings.suggestions.opponentArrow": "Mostrar lance do adversário",
+  "settings.suggestions.opponentArrowColor": "Cor do lance adversário",
 
   "settings.account.title": "Conta",
   "settings.account.verified": "✓ Verificada",

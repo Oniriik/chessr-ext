@@ -26,6 +26,7 @@ import EvalBar from './EvalBar';
 import { installStreamHydration } from './streamHydration';
 import { installWidgetSync } from '../content/lib/widgetSync';
 import { useAuthStore } from '../content/stores/authStore';
+import { useSettingsStore } from '../content/stores/settingsStore';
 
 const STORAGE_KEY = 'chessr_stream_state';
 const STREAM_OPEN_KEY = 'chessr_stream_open';
@@ -49,6 +50,7 @@ interface StreamSnapshot {
   }>;
   engineId: string;
   plan: string | null;
+  opponentMove?: { uci: string; classification?: string } | null;
 }
 
 function useStreamState(): StreamSnapshot | null {
@@ -136,6 +138,7 @@ export default function StreamApp() {
     };
   }, []);
 
+  const arrowColors = useSettingsStore((s) => s.arrowColors);
   const stale = state && Date.now() - state.ts > 30_000;
   const orientation: 'white' | 'black' = state?.playerColor ?? 'white';
   const topSugg = state?.suggestions[0] ?? null;
@@ -223,12 +226,13 @@ export default function StreamApp() {
             arrows={(state?.suggestions ?? []).slice(0, 3).map((s, i) => ({
               from: s.move.slice(0, 2),
               to: s.move.slice(2, 4),
-              color: ARROW_COLORS[i] ?? '#71717a',
+              color: arrowColors[i] ?? ARROW_COLORS[i] ?? '#71717a',
               rank: i,
               labels: s.labels,
               mateScore: s.mateScore,
               cls: s.class,
             }))}
+            opponentMove={state?.opponentMove ?? null}
             size={boardSize}
           />
         </div>

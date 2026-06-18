@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Errore di copia",
   "settings.general.copyDebug.hint": "Copia un dump di diagnostica (versione, stato WS, errori recenti, log background) negli appunti. Incolla in un ticket o su Discord.",
 
+  "settings.suggestions.showSuggestions": "Mostra mosse suggerite",
   "settings.suggestions.numArrows": "Numero di frecce",
   "settings.suggestions.highlightSquares": "Evidenzia caselle",
   "settings.suggestions.arrow": "Freccia {{n}}",
+  "settings.suggestions.arrowDisabled": "Disattivata",
+  "settings.suggestions.showMyLastMove": "Mostra la mia ultima mossa",
+  "settings.suggestions.opponentArrow": "Mostra mossa avversario",
+  "settings.suggestions.opponentArrowColor": "Colore mossa avversario",
 
   "settings.account.title": "Account",
   "settings.account.verified": "✓ Verificato",

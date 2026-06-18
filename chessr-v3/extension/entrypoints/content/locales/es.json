@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Error al copiar",
   "settings.general.copyDebug.hint": "Copia un dump de diagnóstico (versión, estado WS, errores recientes, logs background) al portapapeles. Pégalo en un ticket o en Discord.",
 
+  "settings.suggestions.showSuggestions": "Mostrar movimientos sugeridos",
   "settings.suggestions.numArrows": "Número de flechas",
   "settings.suggestions.highlightSquares": "Resaltar casillas",
   "settings.suggestions.arrow": "Flecha {{n}}",
+  "settings.suggestions.arrowDisabled": "Desactivada",
+  "settings.suggestions.showMyLastMove": "Mostrar mi último movimiento",
+  "settings.suggestions.opponentArrow": "Mostrar movimiento del rival",
+  "settings.suggestions.opponentArrowColor": "Color del movimiento rival",
 
   "settings.account.title": "Cuenta",
   "settings.account.verified": "✓ Verificado",

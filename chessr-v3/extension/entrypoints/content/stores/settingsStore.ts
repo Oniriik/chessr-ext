@@ -15,8 +15,11 @@ export type ChessTitle = 'GM' | 'IM' | 'FM' | 'NM' | 'CM' | 'WGM' | 'WIM' | 'WFM
 export type FontSize = 'small' | 'normal' | 'big';
 
 interface Settings {
+  showSuggestedMoves: boolean;
   numArrows: number;
   arrowColors: [string, string, string];
+  showOpponentArrow: boolean;
+  opponentArrowColor: string;
   disableAnimations: boolean;
   /** When true, suppress proactive nudges from the system-message
    *  widget (how-tos, "join Discord", "claim free trial"). Admin
@@ -24,6 +27,7 @@ interface Settings {
    *  messages, not nudges, and bypass this gate. */
   disableInfoBanner: boolean;
   highlightSquares: boolean;
+  showMyLastMove: boolean;
   anonNames: boolean;
   showTitle: boolean;
   titleType: ChessTitle;
@@ -39,11 +43,15 @@ interface Settings {
 }
 
 const DEFAULTS: Settings = {
+  showSuggestedMoves: true,
   numArrows: 3,
   arrowColors: ['#22c55e', '#3b82f6', '#f59e0b'],
+  showOpponentArrow: true,
+  opponentArrowColor: '#cd0e2b',
   disableAnimations: false,
   disableInfoBanner: false,
   highlightSquares: false,
+  showMyLastMove: false,
   anonNames: false,
   showTitle: false,
   titleType: 'GM',
@@ -54,11 +62,17 @@ const DEFAULTS: Settings = {
 };
 
 export interface SettingsState extends Settings {
+  /** True once loadFromCloud has resolved (success or failure). */
+  settingsLoaded: boolean;
+  setShowSuggestedMoves: (v: boolean) => void;
   setNumArrows: (n: number) => void;
   setArrowColor: (index: number, color: string) => void;
+  setShowOpponentArrow: (v: boolean) => void;
+  setOpponentArrowColor: (color: string) => void;
   setDisableAnimations: (v: boolean) => void;
   setDisableInfoBanner: (v: boolean) => void;
   setHighlightSquares: (v: boolean) => void;
+  setShowMyLastMove: (v: boolean) => void;
   setAnonNames: (v: boolean) => void;
   setShowTitle: (v: boolean) => void;
   setTitleType: (t: ChessTitle) => void;
@@ -125,11 +139,15 @@ function getAutoMovePayload() {
 
 function getSettingsPayload(state: SettingsState) {
   return {
+    showSuggestedMoves: state.showSuggestedMoves,
     numArrows: state.numArrows,
     arrowColors: state.arrowColors,
+    showOpponentArrow: state.showOpponentArrow,
+    opponentArrowColor: state.opponentArrowColor,
     disableAnimations: state.disableAnimations,
     disableInfoBanner: state.disableInfoBanner,
     highlightSquares: state.highlightSquares,
+    showMyLastMove: state.showMyLastMove,
     anonNames: state.anonNames,
     showTitle: state.showTitle,
     titleType: state.titleType,
@@ -158,7 +176,12 @@ function syncToCloud(state: SettingsState) {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   ...DEFAULTS,
+  settingsLoaded: false,
 
+  setShowSuggestedMoves: (v) => {
+    set({ showSuggestedMoves: v });
+    syncToCloud(get());
+  },
   setNumArrows: (n) => {
     set({ numArrows: Math.max(1, Math.min(3, n)) });
     syncToCloud(get());
@@ -167,6 +190,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const colors = [...get().arrowColors] as [string, string, string];
     colors[index] = color;
     set({ arrowColors: colors });
+    syncToCloud(get());
+  },
+  setShowOpponentArrow: (v) => {
+    set({ showOpponentArrow: v });
+    syncToCloud(get());
+  },
+  setOpponentArrowColor: (color) => {
+    set({ opponentArrowColor: color });
     syncToCloud(get());
   },
   setDisableAnimations: (v) => {
@@ -179,6 +210,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setHighlightSquares: (v) => {
     set({ highlightSquares: v });
+    syncToCloud(get());
+  },
+  setShowMyLastMove: (v) => {
+    set({ showMyLastMove: v });
     syncToCloud(get());
   },
   setAnonNames: (v) => {
@@ -248,11 +283,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             ? rawLocale!
             : DEFAULTS.locale;
         set({
+          showSuggestedMoves: (cloud as any).showSuggestedMoves ?? DEFAULTS.showSuggestedMoves,
           numArrows: cloud.numArrows ?? DEFAULTS.numArrows,
           arrowColors: cloud.arrowColors ?? DEFAULTS.arrowColors,
+          showOpponentArrow: (cloud as any).showOpponentArrow ?? DEFAULTS.showOpponentArrow,
+          opponentArrowColor: (cloud as any).opponentArrowColor ?? DEFAULTS.opponentArrowColor,
           disableAnimations: cloud.disableAnimations ?? DEFAULTS.disableAnimations,
           disableInfoBanner: cloud.disableInfoBanner ?? DEFAULTS.disableInfoBanner,
           highlightSquares: cloud.highlightSquares ?? DEFAULTS.highlightSquares,
+          showMyLastMove: (cloud as any).showMyLastMove ?? DEFAULTS.showMyLastMove,
           anonNames: (cloud as any).anonNames ?? DEFAULTS.anonNames,
           showTitle: nextShowTitle,
           titleType: nextTitleType,
@@ -278,7 +317,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           // became classification-only). Unknown IDs fall through and the
           // store keeps its default ('komodo'). Also downgrade Maia 2 /
           // Maia 3 to Komodo on free users (premium-only engines).
-          const knownIds = ['komodo', 'maia2', 'maia3', 'rodent', 'stockfish'];
+          const knownIds = ['komodo', 'maia3', 'rodent', 'stockfish'];
           if (knownIds.includes(eng.engineId)) {
             const plan = useAuthStore.getState().plan;
             const premiumPlan = plan === 'premium' || plan === 'lifetime' || plan === 'beta' || plan === 'freetrial';
@@ -316,7 +355,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           useAutoMoveStore.setState((cloud as any).autoMove);
         }
       }
-    } catch {}
+    } catch {
+    } finally {
+      set({ settingsLoaded: true });
+    }
   },
 }));
 

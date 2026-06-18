@@ -91,6 +91,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
   const { isPlaying, gameOver } = useGameStore();
   const autoOpenOnGameEnd = useSettingsStore((s) => s.autoOpenOnGameEnd);
   const fontSize = useSettingsStore((s) => s.fontSize);
+  const settingsLoaded = useSettingsStore((s) => s.settingsLoaded);
 
   // Auto-open when a game ends (gated by setting).
   const prevGameOver = useRef(gameOver);
@@ -242,7 +243,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
   // Trial CTA is intentionally first in the cascade — eligible-for-trial
   // beats every other login nudge so users never miss the offer.
   useEffect(() => {
-    if (!user || planLoading) return;
+    if (!user || planLoading || !settingsLoaded) return;
     // User opt-out: kill the proactive nudges (claim trial / join
     // Discord / how-tos). Admin WS broadcasts bypass this.
     if (useSettingsStore.getState().disableInfoBanner) return;
@@ -285,7 +286,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
       markFired();
       pushWidget(tip);
     }
-  }, [user?.id, plan, freetrialUsed, planLoading, discordLinked, inGuild, pushWidget]);
+  }, [user?.id, plan, freetrialUsed, planLoading, settingsLoaded, discordLinked, inGuild, pushWidget]);
 
   // Check if current platform account needs linking after accounts are loaded
   useEffect(() => {

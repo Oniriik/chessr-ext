@@ -35,6 +35,10 @@ let squareSize = 0;
 let flipped = false;
 let resizeObserver: ResizeObserver | null = null;
 let lastSuggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[] = [];
+let lastOpponentMove: { uci: string; classification?: MoveClassification } | null = null;
+let opponentMoveGroup: SVGGElement | null = null;
+let lastMyMove: { uci: string; classification?: MoveClassification } | null = null;
+let myLastMoveGroup: SVGGElement | null = null;
 
 // Drawn-arrow registry keyed by `from` square so drag handlers can shorten
 // or hide the matching arrows in real time as the user drags the piece.
@@ -450,7 +454,20 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   const board = getBoard();
   if (!board) return;
 
-  if (useSettingsStore.getState().disableAnimations) animate = false;
+  const _settings = useSettingsStore.getState();
+  if (_settings.disableAnimations) animate = false;
+  if (!_settings.showSuggestedMoves) {
+    // Clear suggestion arrows but preserve the opponent move arrow.
+    lastSuggestions = [];
+    arrowsByFrom.clear();
+    badgeGroupByMove.clear();
+    if (arrowGroup) {
+      Array.from(arrowGroup.children).forEach((c) => {
+        if (c !== opponentMoveGroup) c.remove();
+      });
+    }
+    return;
+  }
 
   flipped = isFlipped;
 
@@ -463,11 +480,14 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
 
   if (!resizeObserver) {
     resizeObserver = new ResizeObserver(() => {
-      if (overlay && lastSuggestions.length) {
+      if (overlay && (lastSuggestions.length || lastOpponentMove)) {
         createOverlay(board);
         if (arrowGroup) arrowGroup.innerHTML = '';
         if (defs) defs.innerHTML = '';
         badgeGroupByMove.clear();
+        opponentMoveGroup = null;
+        if (lastOpponentMove) setOpponentMove(lastOpponentMove);
+        if (lastMyMove) setMyLastMove(lastMyMove);
         for (const s of lastSuggestions) {
           drawArrow(s.move.slice(0, 2), s.move.slice(2, 4), lastSuggestions.indexOf(s), false, s.labels, s.mateScore);
         }
@@ -485,6 +505,10 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
     arrowGroup.innerHTML = '';
   }
   if (defs) defs.innerHTML = '';
+  // innerHTML='' wiped both the suggestion groups AND the opponent/my-last-move
+  // groups — reset stale refs so re-draws are clean.
+  opponentMoveGroup = null;
+  myLastMoveGroup = null;
   arrowsByFrom.clear();
   // arrowGroup.innerHTML='' wiped every <g> we tracked too — drop the
   // badge map so renderBadges re-creates fresh entries for the new
@@ -508,14 +532,164 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   // would land first, then the delayed callback would re-run with the
   // pre-classification suggestions snapshot and overwrite the badges.
   renderBadges(suggestions, animate);
+
+  // Redraw opponent arrow behind suggestion arrows (inserted as firstChild).
+  // Must come AFTER drawing suggestions so it ends up at the back of the SVG stack.
+  if (lastOpponentMove) setOpponentMove(lastOpponentMove);
 }
+
+function buildMovePath(from: string, to: string, fromPt: { x: number; y: number }, toPt: { x: number; y: number }, shortenBy: number): string {
+  const fileDiff = Math.abs(from.charCodeAt(0) - to.charCodeAt(0));
+  const rankDiff = Math.abs(parseInt(from[1]) - parseInt(to[1]));
+  const isKnight = (fileDiff === 1 && rankDiff === 2) || (fileDiff === 2 && rankDiff === 1);
+
+  if (isKnight) {
+    const ddx = toPt.x - fromPt.x;
+    const ddy = toPt.y - fromPt.y;
+    const cornerX = Math.abs(ddx) > Math.abs(ddy) ? toPt.x : fromPt.x;
+    const cornerY = Math.abs(ddx) > Math.abs(ddy) ? fromPt.y : toPt.y;
+    const edx = toPt.x - cornerX;
+    const edy = toPt.y - cornerY;
+    const elen = Math.sqrt(edx * edx + edy * edy);
+    const ratio = elen > 0 ? (elen - shortenBy) / elen : 1;
+    const endX = cornerX + edx * ratio;
+    const endY = cornerY + edy * ratio;
+    return `M ${fromPt.x} ${fromPt.y} L ${cornerX} ${cornerY} L ${endX} ${endY}`;
+  }
+
+  const dx = toPt.x - fromPt.x;
+  const dy = toPt.y - fromPt.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const ratio = (len - shortenBy) / len;
+  return `M ${fromPt.x} ${fromPt.y} L ${fromPt.x + dx * ratio} ${fromPt.y + dy * ratio}`;
+}
+
+export function setOpponentMove(move: { uci: string; classification?: MoveClassification } | null) {
+  lastOpponentMove = move;
+  opponentMoveGroup?.remove();
+  opponentMoveGroup = null;
+  const settings = useSettingsStore.getState();
+  if (!move || !arrowGroup || !settings.showOpponentArrow) return;
+
+  const from = move.uci.slice(0, 2);
+  const to = move.uci.slice(2, 4);
+  const fromPt = getSquareCenter(from);
+  const toPt = getSquareCenter(to);
+  if (!fromPt || !toPt) return;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('data-opponent-move', move.uci);
+
+  const thickness = Math.max(4, Math.round(squareSize / 12));
+  const markerColor = settings.opponentArrowColor;
+  const markerId = 'chessr-marker-opp';
+  // Always recreate so color changes take effect immediately.
+  defs?.querySelector(`#${markerId}`)?.remove();
+  if (defs) {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth', '2.5');
+    marker.setAttribute('markerHeight', '2.5');
+    marker.setAttribute('refX', '0.5');
+    marker.setAttribute('refY', '1.25');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 2.5 1.25, 0 2.5');
+    polygon.setAttribute('fill', markerColor);
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  }
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', buildMovePath(from, to, fromPt, toPt, thickness * 2));
+  path.setAttribute('stroke', markerColor);
+  path.setAttribute('stroke-width', `${thickness}`);
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('opacity', '0.55');
+  path.setAttribute('marker-end', `url(#${markerId})`);
+  g.appendChild(path);
+
+  // Classification badge if available
+  if (move.classification && CLASSIFICATION_LABEL[move.classification]) {
+    const badge = makeBadge(toPt, CLASSIFICATION_LABEL[move.classification], CLASSIFICATION_COLOR[move.classification], 0, false);
+    g.appendChild(badge);
+  }
+
+  arrowGroup.insertBefore(g, arrowGroup.firstChild);
+  opponentMoveGroup = g;
+}
+
+export function setMyLastMove(move: { uci: string; classification?: MoveClassification } | null) {
+  lastMyMove = move;
+  myLastMoveGroup?.remove();
+  myLastMoveGroup = null;
+  if (!move || !arrowGroup) return;
+  if (!useSettingsStore.getState().showMyLastMove) return;
+
+  const from = move.uci.slice(0, 2);
+  const to = move.uci.slice(2, 4);
+  const fromPt = getSquareCenter(from);
+  const toPt = getSquareCenter(to);
+  if (!fromPt || !toPt) return;
+
+  const arrowColor = move.classification ? CLASSIFICATION_COLOR[move.classification] : '#aaaaaa';
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('data-my-last-move', move.uci);
+
+  const thickness = Math.max(4, Math.round(squareSize / 12));
+  const markerId = 'chessr-marker-mylast';
+  defs?.querySelector(`#${markerId}`)?.remove();
+  if (defs) {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth', '2.5');
+    marker.setAttribute('markerHeight', '2.5');
+    marker.setAttribute('refX', '0.5');
+    marker.setAttribute('refY', '1.25');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 2.5 1.25, 0 2.5');
+    polygon.setAttribute('fill', arrowColor);
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  }
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', buildMovePath(from, to, fromPt, toPt, thickness * 2));
+  path.setAttribute('stroke', arrowColor);
+  path.setAttribute('stroke-width', `${thickness}`);
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('opacity', '0.65');
+  path.setAttribute('marker-end', `url(#${markerId})`);
+  g.appendChild(path);
+
+  if (move.classification && CLASSIFICATION_LABEL[move.classification]) {
+    const badge = makeBadge(toPt, CLASSIFICATION_LABEL[move.classification], arrowColor, 0, false);
+    g.appendChild(badge);
+  }
+
+  arrowGroup.insertBefore(g, arrowGroup.firstChild);
+  myLastMoveGroup = g;
+}
+
 
 export function clearArrows() {
   lastSuggestions = [];
+  // NOTE: intentionally does NOT clear lastOpponentMove / opponentMoveGroup.
+  // The opponent arrow should persist while the engine recomputes suggestions.
+  // Call setOpponentMove(null) explicitly when the player moves or game ends.
   arrowsByFrom.clear();
   badgeGroupByMove.clear();
   if (!arrowGroup) return;
-  const children = Array.from(arrowGroup.children);
+  // Fade out suggestion arrows only — skip the opponent move and my-last-move groups.
+  const children = Array.from(arrowGroup.children).filter((c) => c !== opponentMoveGroup && c !== myLastMoveGroup);
   if (!children.length) return;
 
   if (useSettingsStore.getState().disableAnimations) {

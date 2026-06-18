@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Ошибка копирования",
   "settings.general.copyDebug.hint": "Копирует диагностический дамп (версия, состояние WS, ошибки, логи background) в буфер. Вставьте в тикет поддержки или в Discord.",
 
+  "settings.suggestions.showSuggestions": "Показывать предложения",
   "settings.suggestions.numArrows": "Число стрелок",
   "settings.suggestions.highlightSquares": "Подсветка полей",
   "settings.suggestions.arrow": "Стрелка {{n}}",
+  "settings.suggestions.arrowDisabled": "Выкл.",
+  "settings.suggestions.showMyLastMove": "Показать мой последний ход",
+  "settings.suggestions.opponentArrow": "Показать ход соперника",
+  "settings.suggestions.opponentArrowColor": "Цвет хода соперника",
 
   "settings.account.title": "Аккаунт",
   "settings.account.verified": "✓ Подтверждён",

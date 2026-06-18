@@ -38,6 +38,7 @@ interface AuthState {
   clearBanned: () => void;
   signOut: () => Promise<void>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
 }
 
@@ -294,6 +295,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: true };
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Password change failed';
+      return { success: false, error: message };
+    }
+  },
+
+  resetPassword: async (email) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: 'https://chessr.io/reset-password',
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Password reset failed';
       return { success: false, error: message };
     }
   },

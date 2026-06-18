@@ -221,23 +221,52 @@ function GeneralTab() {
 
 function SuggestionsTab() {
   const { t } = useTranslation();
-  const { numArrows, arrowColors, highlightSquares, setNumArrows, setArrowColor, setHighlightSquares } = useSettingsStore();
+  const {
+    showSuggestedMoves, numArrows, arrowColors, highlightSquares, showMyLastMove,
+    showOpponentArrow, opponentArrowColor,
+    setShowSuggestedMoves, setNumArrows, setArrowColor, setHighlightSquares, setShowMyLastMove,
+    setShowOpponentArrow, setOpponentArrowColor,
+  } = useSettingsStore();
 
   return (
     <div className="settings-section">
-      <div className="settings-item">
-        <span className="settings-label">{t('settings.suggestions.numArrows')}</span>
-        <div className="settings-num-arrows">
-          {[1, 2, 3].map((n) => (
+      <div className="settings-item settings-item--column">
+        <div className="settings-item-row">
+          <span className="settings-label">{t('settings.suggestions.numArrows')}</span>
+          <div className="settings-num-arrows">
             <button
-              key={n}
-              className={`settings-num-btn ${numArrows === n ? 'settings-num-btn--active' : ''}`}
-              onClick={() => setNumArrows(n)}
+              className={`settings-num-btn ${!showSuggestedMoves ? 'settings-num-btn--active' : ''}`}
+              style={{ width: 'auto', padding: '0 10px' }}
+              onClick={() => setShowSuggestedMoves(false)}
             >
-              {n}
+              {t('settings.suggestions.arrowDisabled')}
             </button>
-          ))}
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                className={`settings-num-btn ${showSuggestedMoves && numArrows === n ? 'settings-num-btn--active' : ''}`}
+                onClick={() => { setNumArrows(n); setShowSuggestedMoves(true); }}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {showSuggestedMoves && Array.from({ length: numArrows }).map((_, i) => (
+          <div key={i} className="settings-item-row">
+            <div className="settings-color-label">
+              <span className="settings-color-dot" style={{ background: arrowColors[i] }} />
+              <span className="settings-label">{t('settings.suggestions.arrow', { n: i + 1 })}</span>
+            </div>
+            <input
+              type="color"
+              value={arrowColors[i]}
+              onChange={(e) => setArrowColor(i, e.target.value)}
+              className="settings-color-input"
+            />
+          </div>
+        ))}
       </div>
 
       <div className="settings-item">
@@ -245,20 +274,32 @@ function SuggestionsTab() {
         <Toggle checked={highlightSquares} onChange={setHighlightSquares} />
       </div>
 
-      {Array.from({ length: numArrows }).map((_, i) => (
-        <div key={i} className="settings-item">
-          <div className="settings-color-label">
-            <span className="settings-color-dot" style={{ background: arrowColors[i] }} />
-            <span className="settings-label">{t('settings.suggestions.arrow', { n: i + 1 })}</span>
-          </div>
-          <input
-            type="color"
-            value={arrowColors[i]}
-            onChange={(e) => setArrowColor(i, e.target.value)}
-            className="settings-color-input"
-          />
+      <div className="settings-item">
+        <span className="settings-label">{t('settings.suggestions.showMyLastMove')}</span>
+        <Toggle checked={showMyLastMove} onChange={setShowMyLastMove} />
+      </div>
+
+      <div className="settings-item settings-item--column">
+        <div className="settings-item-row">
+          <span className="settings-label">{t('settings.suggestions.opponentArrow')}</span>
+          <Toggle checked={showOpponentArrow} onChange={setShowOpponentArrow} />
         </div>
-      ))}
+
+        {showOpponentArrow && (
+          <div className="settings-item-row">
+            <div className="settings-color-label">
+              <span className="settings-color-dot" style={{ background: opponentArrowColor }} />
+              <span className="settings-label">{t('settings.suggestions.opponentArrowColor')}</span>
+            </div>
+            <input
+              type="color"
+              value={opponentArrowColor}
+              onChange={(e) => setOpponentArrowColor(e.target.value)}
+              className="settings-color-input"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

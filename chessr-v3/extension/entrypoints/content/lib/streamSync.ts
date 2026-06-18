@@ -18,6 +18,7 @@ import { useSuggestionStore } from '../stores/suggestionStore';
 import { useEngineStore } from '../stores/engineStore';
 import { useAuthStore } from '../stores/authStore';
 import { usePlatformStore, type Platform } from '../stores/platformStore';
+import { useAnalysisStore, type MoveAnalysis, type TorchCaps } from '../stores/analysisStore';
 
 export interface StreamSnapshot {
   /** ms since epoch — lets the stream page detect stale snapshots when
@@ -49,6 +50,10 @@ export interface StreamSnapshot {
   }>;
   engineId: string;
   plan: string | null;
+  moveAnalyses: MoveAnalysis[];
+  accuracy: number;
+  caps: TorchCaps;
+  opponentMove: { uci: string; classification?: string } | null;
 }
 
 const STORAGE_KEY = 'chessr_stream_state';
@@ -79,6 +84,10 @@ function buildSnapshot(): StreamSnapshot {
     })),
     engineId: engine.engineId,
     plan: auth.plan ?? null,
+    moveAnalyses: useAnalysisStore.getState().moveAnalyses,
+    accuracy: useAnalysisStore.getState().accuracy,
+    caps: useAnalysisStore.getState().caps,
+    opponentMove: useAnalysisStore.getState().currentOpponentMove,
   };
 }
 
@@ -116,6 +125,7 @@ export function installStreamSync(): void {
   useSuggestionStore.subscribe(() => flush());
   useEngineStore.subscribe(() => flush());
   useAuthStore.subscribe(() => flush());
+  useAnalysisStore.subscribe(() => flush());
 }
 
 export const STREAM_STORAGE_KEY = STORAGE_KEY;

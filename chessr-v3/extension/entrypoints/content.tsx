@@ -11,7 +11,7 @@ import { connectWs, disconnectWs, sendWs, onWsMessage } from './content/lib/webs
 import { useWidgetStore, type SystemMessage } from './content/stores/widgetStore';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
-import { renderArrows, clearArrows, applyClassificationsToBoard } from './content/lib/arrows';
+import { renderArrows, clearArrows, applyClassificationsToBoard, setOpponentMove, setMyLastMove } from './content/lib/arrows';
 import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
@@ -242,9 +242,9 @@ async function triggerInitialAnalysisIfSeeded(): Promise<void> {
   } catch (err) {
     console.warn('[Chessr] initial fetch_analysis failed on history (', history.length, 'moves):', history.join(' '), '\nerror:', err);
     lastFailedHistoryHash = histHash;  // remember to skip until history grows
-    // If torch died, re-init so the next regular move flow has a fresh
-    // worker. The next chessr:move will retry the analysis through the
-    // normal playerJustMoved/opponentJustMoved branches.
+    // Re-init torch if it died (timeout in waitForLinePrefix sets disposed).
+    // lastFailedHistoryHash above ensures triggerInitialAnalysisIfSeeded
+    // won't retry the same history on re-init — no crash loop.
     if (!torchAnalysisEngine?.ready) {
       buildLiveAnalysis().catch((e) => console.error('[Chessr] re-init failed:', e));
     }
@@ -666,6 +666,7 @@ export default defineContentScript({
       if (!data || typeof data !== 'object' || data.kind !== 'system_message') return;
       const msg = data.message as SystemMessage | undefined;
       if (!msg?.id || !msg.title || !msg.category) return;
+      if (msg.category !== 'admin' && useSettingsStore.getState().disableInfoBanner) return;
       useWidgetStore.getState().push(msg);
     });
     // Suggestions are now served by the local SuggestionEngine; no WS
@@ -676,12 +677,17 @@ export default defineContentScript({
     // `class` on existing entries. Detect that and refresh badges
     // only, leaving arrow paths (and their draw animation) untouched.
     let lastSuggestionsKey: string | null = null;
+    // Snapshot of last classified suggestions — used by playerJustMoved to
+    // check if the played move was already classified (avoids waiting for torch).
+    let lastSuggestionSnapshot: Array<{ move: string; class?: import('./content/lib/moveAnalysis').MoveClassification | null }> = [];
     useSuggestionStore.subscribe((state) => {
       if (state.suggestions.length === 0) {
         lastSuggestionsKey = null;
         clearArrows();
         return;
       }
+      // Keep snapshot updated (including after classifyCandidate updates class).
+      lastSuggestionSnapshot = state.suggestions.map((s) => ({ move: s.move, class: s.class }));
       const moveKey = state.suggestions.map((s) => s.move).join('|');
       const isFlipped = useGameStore.getState().playerColor === 'black';
       if (moveKey === lastSuggestionsKey) {
@@ -809,6 +815,9 @@ export default defineContentScript({
       if (!isPlaying || gameOver) {
         console.log('[Chessr][gate] reset (idle):', { isPlaying, gameOver });
         resetSuggestionState();
+        setOpponentMove(null);
+        setMyLastMove(null);
+        useAnalysisStore.getState().setCurrentOpponentMove(null);
         return;
       }
 
@@ -911,11 +920,25 @@ export default defineContentScript({
         }
       }
 
+      // Player moved → hide the opponent arrow (it's now our turn to move).
+      if (playerJustMoved) {
+        setOpponentMove(null);
+        useAnalysisStore.getState().setCurrentOpponentMove(null);
+        // Show "my last move" arrow immediately using any pre-existing classification
+        // from the suggestion snapshot (classified by classifyCandidate before the move).
+        const _playerUci = useGameStore.getState().moveHistoryUci.at(-1) ?? null;
+        if (_playerUci && useSettingsStore.getState().showMyLastMove) {
+          const _preClass = lastSuggestionSnapshot.find((s) => s.move === _playerUci)?.class;
+          setMyLastMove({ uci: _playerUci, classification: _preClass ?? undefined });
+        }
+      }
+
       if (playerJustMoved && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
         playerMoveCount++;
         const moveNumber = parseMoveNumber(previousFen!);
         const fenBefore = previousFen!;
         const fenAfter = state.fen!;
+        const playerUci = useGameStore.getState().moveHistoryUci.at(-1) ?? null;
         const _diagHist = useGameStore.getState().moveHistoryUci;
         const _diagHistMatch = historyMatchesFen(_diagHist, fenAfter);
         console.log('[Chessr][analyze] playerJustMoved fired ' + JSON.stringify({
@@ -950,6 +973,10 @@ export default defineContentScript({
                 useEvalStore.getState().setEval(last.evaluation);
                 sendWs({ type: 'analysis_log_end', requestId: arid,
                          extra: `${last.classification} (torch)` });
+                // Update "my last move" arrow with the real classification.
+                if (playerUci && useSettingsStore.getState().showMyLastMove) {
+                  setMyLastMove({ uci: playerUci, classification: last.classification ?? undefined });
+                }
               } else {
                 sendWs({ type: 'analysis_log_end', requestId: arid, extra: 'empty' });
               }
@@ -1035,6 +1062,13 @@ export default defineContentScript({
               // Torch evaluation is already white-POV — pass through.
               useEvalStore.getState().setEval(last.evaluation);
             }
+            // Set opponent move arrow — last move in history is the opponent's.
+            const lastUci = history[history.length - 1];
+            if (lastUci) {
+              const oppMove = { uci: lastUci, classification: last?.classification };
+              useAnalysisStore.getState().setCurrentOpponentMove(oppMove);
+              setOpponentMove(oppMove);
+            }
             sendWs({ type: 'eval_log_end', requestId: erid,
                      extra: `eval=${last?.evaluation ?? '?'} (torch)` });
           }).catch((err) => {
@@ -1048,6 +1082,13 @@ export default defineContentScript({
           // UCI standard single-FEN eval — torch UCI worker preferred,
           // server SF fallback. Same path used in the playerJustMoved
           // else-branch.
+          // Set opponent move arrow without classification (no torch analysis).
+          const lastUci = history[history.length - 1];
+          if (lastUci) {
+            const oppMove = { uci: lastUci };
+            useAnalysisStore.getState().setCurrentOpponentMove(oppMove);
+            setOpponentMove(oppMove);
+          }
           const evalBackend = torchUciEngine?.ready ? torchUciEngine : analysisEngine;
           if (evalBackend?.ready) {
             evalBackend.analyze(state.fen!).then((result) => {
@@ -1233,9 +1274,26 @@ export default defineContentScript({
                 uciReady: !!torchUciEngine?.ready,
                 prevHistoryLen: useGameStore.getState().moveHistoryUci.length,
               });
+              // Preserve seeded move history if it already matches the
+              // current FEN — this happens on a page reload mid-game
+              // (continuation bot game). Without preservation, the history
+              // is cleared and historyMatchesFen stays false for all live
+              // moves, permanently locking torch into UCI fallback mode.
+              const _histBeforeReset = useGameStore.getState().moveHistoryUci;
+              const _fenBeforeReset = useGameStore.getState().fen;
+              const _histMatchesFen = _histBeforeReset.length > 0 &&
+                _fenBeforeReset != null &&
+                historyMatchesFen(_histBeforeReset, _fenBeforeReset);
               // Reset the game store NOW (eager, not deferred) so the next
               // chessr:move event pushes onto an empty history.
               useGameStore.getState().reset();
+              if (_histMatchesFen) {
+                // Restore the history — it's valid for THIS game, not a
+                // leftover from a previous one. Lets torch use the full
+                // seeded history for the next live move.
+                useGameStore.getState().setMoveHistoryUci(_histBeforeReset);
+                console.log('[Chessr][torch] preserved', _histBeforeReset.length, 'moves through newGame (history matches current FEN)');
+              }
               buildLiveAnalysis().catch((err) =>
                 console.error('[Chessr] torch rebuild on newGame failed:', err),
               );

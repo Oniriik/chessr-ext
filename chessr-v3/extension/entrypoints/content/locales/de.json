@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Kopie fehlgeschlagen",
   "settings.general.copyDebug.hint": "Kopiert einen Diagnose-Dump (Version, WS-Status, kürzliche Fehler, Background-Logs) in die Zwischenablage. Im Support-Ticket oder Discord einfügen.",
 
+  "settings.suggestions.showSuggestions": "Vorschläge anzeigen",
   "settings.suggestions.numArrows": "Anzahl Pfeile",
   "settings.suggestions.highlightSquares": "Felder hervorheben",
   "settings.suggestions.arrow": "Pfeil {{n}}",
+  "settings.suggestions.arrowDisabled": "Deaktiviert",
+  "settings.suggestions.showMyLastMove": "Meinen letzten Zug anzeigen",
+  "settings.suggestions.opponentArrow": "Gegnerzug anzeigen",
+  "settings.suggestions.opponentArrowColor": "Farbe Gegnerzug",
 
   "settings.account.title": "Konto",
   "settings.account.verified": "✓ Verifiziert",

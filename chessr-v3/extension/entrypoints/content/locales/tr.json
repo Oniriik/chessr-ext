@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Kopyalama başarısız",
   "settings.general.copyDebug.hint": "Tanılama dökümünü (sürüm, WS durumu, son hatalar, background logları) panoya kopyalar. Destek bileti veya Discord'a yapıştır.",
 
+  "settings.suggestions.showSuggestions": "Önerilen hamleleri göster",
   "settings.suggestions.numArrows": "Ok sayısı",
   "settings.suggestions.highlightSquares": "Kareleri vurgula",
   "settings.suggestions.arrow": "Ok {{n}}",
+  "settings.suggestions.arrowDisabled": "Devre dışı",
+  "settings.suggestions.showMyLastMove": "Son hamleimi göster",
+  "settings.suggestions.opponentArrow": "Rakip hamlesini göster",
+  "settings.suggestions.opponentArrowColor": "Rakip hamlesi rengi",
 
   "settings.account.title": "Hesap",
   "settings.account.verified": "✓ Doğrulandı",

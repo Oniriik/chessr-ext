@@ -5,7 +5,7 @@ import './auth-form.css';
 
 const DISCORD_URL = 'https://discord.gg/72j4dUadTu';
 
-type Mode = 'signin' | 'signup';
+type Mode = 'signin' | 'signup' | 'forgot';
 
 export default function AuthForm() {
   const { t } = useTranslation();
@@ -14,23 +14,32 @@ export default function AuthForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [confirmSent, setConfirmSent] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const { loading, error, signIn, signUp, clearError, bannedReason, appealUrl, clearBanned } = useAuthStore();
+  const { loading, error, signIn, signUp, resetPassword, clearError, bannedReason, appealUrl, clearBanned } = useAuthStore();
   const displayError = localError || error;
   const helpUrl = !bannedReason && error ? appealUrl : null;
 
-  const switchMode = () => {
-    setMode(mode === 'signin' ? 'signup' : 'signin');
+  const switchMode = (next: Mode) => {
+    setMode(next);
     setLocalError(null);
     clearError();
     clearBanned();
     setConfirmSent(false);
+    setResetSent(false);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setLocalError(null);
+
+    if (mode === 'forgot') {
+      const result = await resetPassword(email);
+      if (result.success) setResetSent(true);
+      else setLocalError(result.error ?? 'Password reset failed');
+      return;
+    }
 
     if (mode === 'signup' && password !== confirmPassword) {
       setLocalError(t('auth.passwordsNotMatch'));
@@ -77,6 +86,25 @@ export default function AuthForm() {
     );
   }
 
+  if (resetSent) {
+    return (
+      <div className="auth-form">
+        <img className="auth-logo" src={browser.runtime.getURL('/icons/chessr-logo.png')} alt="Chessr" />
+        <h1 className="auth-title">
+          <span className="auth-title-name">chessr</span>
+          <span className="auth-title-dot">.io</span>
+        </h1>
+        <div className="auth-success">
+          <h3>{t('auth.reset.title')}</h3>
+          <p>{t('auth.reset.body')} <strong>{email}</strong></p>
+          <button className="auth-link" onClick={() => switchMode('signin')}>
+            {t('auth.confirm.back')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (confirmSent) {
     return (
       <div className="auth-form">
@@ -104,7 +132,7 @@ export default function AuthForm() {
         <span className="auth-title-dot">.io</span>
       </h1>
       <p className="auth-subtitle">
-        {mode === 'signin' ? t('auth.title.signin') : t('auth.title.signup')}
+        {mode === 'signin' ? t('auth.title.signin') : mode === 'signup' ? t('auth.title.signup') : t('auth.title.forgot')}
       </p>
 
       <form onSubmit={handleSubmit}>
@@ -116,15 +144,17 @@ export default function AuthForm() {
           required
           autoComplete="email"
         />
-        <input
-          type="password"
-          placeholder={t('auth.password')}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-        />
+        {mode !== 'forgot' && (
+          <input
+            type="password"
+            placeholder={t('auth.password')}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+          />
+        )}
         {mode === 'signup' && (
           <input
             type="password"
@@ -154,15 +184,31 @@ export default function AuthForm() {
         )}
 
         <button type="submit" className="auth-submit" disabled={loading}>
-          {loading ? t('auth.loading') : mode === 'signin' ? t('auth.signIn') : t('auth.signUp')}
+          {loading ? t('auth.loading') : mode === 'signin' ? t('auth.signIn') : mode === 'signup' ? t('auth.signUp') : t('auth.resetSend')}
         </button>
       </form>
 
+      {mode === 'signin' && (
+        <p className="auth-switch">
+          <button className="auth-link" onClick={() => switchMode('forgot')}>
+            {t('auth.forgotPassword')}
+          </button>
+        </p>
+      )}
+
       <p className="auth-switch">
-        {mode === 'signin' ? t('auth.switchToSignUp') : t('auth.switchToSignIn')}{' '}
-        <button className="auth-link" onClick={switchMode}>
-          {mode === 'signin' ? t('auth.signUp') : t('auth.signIn')}
-        </button>
+        {mode === 'forgot' ? (
+          <button className="auth-link" onClick={() => switchMode('signin')}>
+            {t('auth.confirm.back')}
+          </button>
+        ) : (
+          <>
+            {mode === 'signin' ? t('auth.switchToSignUp') : t('auth.switchToSignIn')}{' '}
+            <button className="auth-link" onClick={() => switchMode(mode === 'signin' ? 'signup' : 'signin')}>
+              {mode === 'signin' ? t('auth.signUp') : t('auth.signIn')}
+            </button>
+          </>
+        )}
       </p>
 
       <div className="auth-footer">

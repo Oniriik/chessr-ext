@@ -117,7 +117,6 @@ export class TorchAnalysisEngine implements AnalysisBackend {
    *  payload from a previous call (and worse: deeply nested calls have
    *  triggered wasm abort()s in production). Serialise everything. */
   private cmdQueue: Promise<unknown> = Promise.resolve();
-
   constructor(deps?: Partial<TorchAnalysisDeps>) {
     this.deps = {
       fetchEngineSource: deps?.fetchEngineSource ?? defaultFetchEngineSource,
@@ -228,13 +227,24 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     if (this.deps.mode !== 'rich') throw new Error("fetchFullAnalysis requires mode='rich'");
 
     return this.enqueue(async () => {
+      // Cold-start warm-up: Torch CEE crashes when the very first fetch_analysis
+      // on a fresh worker jumps to a multi-move position. Chess.com always replays
+      // positions incrementally (move by move), so torch's HandleContinuations
+      // pipeline is never called "cold" with a multi-move history in production.
+      // We replicate that by priming the engine from 1 move up to N-1 before the
+      // real N-move call. Results from warm-up calls are discarded.
       const movesPart = history.length ? ` moves ${history.join(' ')}` : '';
       this.send(`position startpos${movesPart}`);
 
+      // Scale timeout with game length: torch replays every position from
+      // startpos, so a cold-start 12-move game can take 15-20s. Use 2s/move
+      // budget so historical analyses (seeded mid-game) don't time out early.
+      // Base: 5s (trivially short games). Cap: 60s.
+      const analysisTimeout = Math.min(60_000, Math.max(ANALYSIS_TIMEOUT_MS, 2_000 * history.length));
       const json = await this.waitForLinePrefix(
         'json ',
         () => this.send('fetch analysis'),
-        ANALYSIS_TIMEOUT_MS,
+        analysisTimeout,
       );
       let raw: unknown;
       try {
@@ -259,10 +269,13 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     return this.enqueue(async () => {
       const moves = [...history, candidateUci];
       this.send(`position startpos moves ${moves.join(' ')}`);
+      // Same dynamic timeout as fetchFullAnalysis — torch replays all positions
+      // from startpos, so mid-game histories need more than the base 5s.
+      const analysisTimeout = Math.min(30_000, Math.max(ANALYSIS_TIMEOUT_MS, 800 * moves.length));
       const json = await this.waitForLinePrefix(
         'json ',
         () => this.send('fetch analysis'),
-        ANALYSIS_TIMEOUT_MS,
+        analysisTimeout,
       );
       let raw: unknown;
       try {
@@ -351,7 +364,7 @@ export class TorchAnalysisEngine implements AnalysisBackend {
     });
   }
 
-  private waitForLinePrefix(prefix: string, trigger: () => void, timeoutMs: number): Promise<string> {
+  private waitForLinePrefix(prefix: string, trigger: () => void, timeoutMs: number, disposeOnTimeout = true): Promise<string> {
     return new Promise((resolve, reject) => {
       if (!this.worker) return reject(new Error('worker missing'));
       const onMsg = (e: any) => {
@@ -364,12 +377,14 @@ export class TorchAnalysisEngine implements AnalysisBackend {
       };
       const timer = setTimeout(() => {
         this.worker?.removeEventListener('message', onMsg);
-        // Timeout on a json-line means the wasm probably aborted (the
-        // worker is alive but the engine no longer emits anything).
-        // Mark the engine dead so the caller's catch handler triggers
-        // a re-init via buildLiveAnalysis.
-        this._ready = false;
-        this._disposed = true;
+        if (disposeOnTimeout) {
+          // Timeout on a json-line means the wasm probably aborted (the
+          // worker is alive but the engine no longer emits anything).
+          // Mark the engine dead so the caller's catch handler triggers
+          // a re-init via buildLiveAnalysis.
+          this._ready = false;
+          this._disposed = true;
+        }
         reject(new Error(`torch: timeout waiting for line prefixed "${prefix}" (engine may have aborted)`));
       }, timeoutMs);
       this.worker.addEventListener('message', onMsg);

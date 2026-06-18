@@ -273,9 +273,14 @@
   "settings.general.copyDebug.error": "⚠ Échec de copie",
   "settings.general.copyDebug.hint": "Copie un dump de diagnostic (version, état WS, erreurs récentes, logs background) dans le presse-papier. À coller dans un ticket support ou sur Discord.",
 
+  "settings.suggestions.showSuggestions": "Afficher les coups suggérés",
   "settings.suggestions.numArrows": "Nombre de flèches",
   "settings.suggestions.highlightSquares": "Surligner les cases",
   "settings.suggestions.arrow": "Flèche {{n}}",
+  "settings.suggestions.arrowDisabled": "Désactivée",
+  "settings.suggestions.showMyLastMove": "Afficher mon dernier coup",
+  "settings.suggestions.opponentArrow": "Afficher le coup adverse",
+  "settings.suggestions.opponentArrowColor": "Couleur du coup adverse",
 
   "settings.account.title": "Compte",
   "settings.account.verified": "✓ Vérifié",

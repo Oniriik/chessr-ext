@@ -112,17 +112,21 @@ function resolveLabelDisplay(label: string, mateScore?: number | null): { text: 
   return { text: label.charAt(0).toUpperCase() + label.slice(1), color: LABEL_COLOR[label] ?? '#94a3b8' };
 }
 
+interface BadgeChip { text: string; color: string }
+
 interface Props {
   fen: string | null;
   orientation: 'white' | 'black';
   /** Suggestions to render as arrows. UCI moves; first is rank 0 (best). */
   arrows?: ArrowSpec[];
   size?: number;
+  /** Opponent's last move — rendered as a muted arrow with a classification badge. */
+  opponentMove?: { uci: string; classification?: string } | null;
 }
 
 const ARROW_COLORS = ['#22c55e', '#3b82f6', '#f59e0b']; // green / blue / amber
 
-export default function Chessboard({ fen, orientation, arrows = [], size = 480 }: Props) {
+export default function Chessboard({ fen, orientation, arrows = [], size = 480, opponentMove = null }: Props) {
   const board = parseFenBoard(fen);
   const sq = size / 8;
 
@@ -219,7 +223,35 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480 }
         );
       })}
 
-      {/* Arrows on top */}
+      {/* Opponent move arrow — muted, rendered below suggestion arrows */}
+      {opponentMove && (() => {
+        const from = opponentMove.uci.slice(0, 2);
+        const to = opponentMove.uci.slice(2, 4);
+        const fromXY = squareToCoords(from, orientation);
+        const toXY = squareToCoords(to, orientation);
+        if (!fromXY || !toXY) return null;
+        const x1 = fromXY[0] * sq + sq / 2;
+        const y1 = fromXY[1] * sq + sq / 2;
+        const x2 = toXY[0] * sq + sq / 2;
+        const y2 = toXY[1] * sq + sq / 2;
+        return (
+          <React.Fragment key="opp-move">
+            <Arrow x1={x1} y1={y1} x2={x2} y2={y2} color="#94a3b8" squareSize={sq} opacity={0.5} />
+            {opponentMove.classification && CLASSIFICATION_LABEL[opponentMove.classification as keyof typeof CLASSIFICATION_LABEL] && (
+              <BadgeStack
+                cx={x2} cy={y2}
+                chips={[{
+                  text: CLASSIFICATION_LABEL[opponentMove.classification as keyof typeof CLASSIFICATION_LABEL],
+                  color: CLASSIFICATION_COLOR[opponentMove.classification as keyof typeof CLASSIFICATION_COLOR],
+                }]}
+                squareSize={sq}
+              />
+            )}
+          </React.Fragment>
+        );
+      })()}
+
+      {/* Suggestion arrows */}
       {arrows.map((a, i) => {
         const fromXY = squareToCoords(a.from, orientation);
         const toXY = squareToCoords(a.to, orientation);
@@ -298,8 +330,8 @@ function BadgeStack({
 }
 
 function Arrow({
-  x1, y1, x2, y2, color, squareSize,
-}: { x1: number; y1: number; x2: number; y2: number; color: string; squareSize: number }) {
+  x1, y1, x2, y2, color, squareSize, opacity = 0.85,
+}: { x1: number; y1: number; x2: number; y2: number; color: string; squareSize: number; opacity?: number }) {
   // Shorten the arrow at both ends so it doesn't overlap pieces too hard.
   const dx = x2 - x1;
   const dy = y2 - y1;
@@ -331,7 +363,7 @@ function Arrow({
   const hy2 = baseY - py * (headWidth / 2);
 
   return (
-    <g opacity={0.85}>
+    <g opacity={opacity}>
       <line
         x1={sx} y1={sy} x2={baseX} y2={baseY}
         stroke={color} strokeWidth={shaftWidth} strokeLinecap="round"

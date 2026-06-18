@@ -15,6 +15,8 @@
 import { useGameStore } from '../content/stores/gameStore';
 import { useSuggestionStore } from '../content/stores/suggestionStore';
 import { usePlatformStore, type Platform } from '../content/stores/platformStore';
+import { useAnalysisStore } from '../content/stores/analysisStore';
+import type { MoveClassification } from '../content/lib/moveAnalysis';
 import type { Color } from '../content/stores/gameStore';
 
 const STORAGE_KEY = 'chessr_stream_state';
@@ -42,6 +44,7 @@ interface StreamSnapshot {
   }>;
   engineId: string;
   plan: string | null;
+  opponentMove?: { uci: string; classification?: string } | null;
 }
 
 /** Apply a snapshot to the local stores. Treats missing fields as
@@ -60,6 +63,12 @@ function apply(snap: StreamSnapshot): void {
   // chrome-extension://.
   if (snap.platform !== undefined) {
     usePlatformStore.setState({ platform: snap.platform });
+  }
+  if (snap.opponentMove !== undefined) {
+    const opp = snap.opponentMove;
+    useAnalysisStore.getState().setCurrentOpponentMove(
+      opp ? { uci: opp.uci, classification: opp.classification as MoveClassification | undefined } : null,
+    );
   }
   // Suggestions: provide a synthetic requestId so any subscribers that
   // gate on requestId match still pass.

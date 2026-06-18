@@ -30,6 +30,11 @@
   "auth.confirm.title": "Verify your email",
   "auth.confirm.body": "We sent a confirmation link to",
   "auth.confirm.back": "Back to sign in",
+  "auth.title.forgot": "Reset your password",
+  "auth.forgotPassword": "Forgot password?",
+  "auth.resetSend": "Send reset link",
+  "auth.reset.title": "Check your inbox",
+  "auth.reset.body": "We sent a password reset link to",
   "auth.footer.community": "Join our community for tips, updates & support",
   "auth.footer.discord": "Join Discord server",
 
@@ -273,9 +278,14 @@
   "settings.general.copyDebug.error": "⚠ Copy failed",
   "settings.general.copyDebug.hint": "Copies a diagnostic dump (extension version, WS state, recent errors + WS messages, background script logs) to clipboard. Paste it in a support ticket or Discord.",
 
+  "settings.suggestions.showSuggestions": "Display suggested moves",
   "settings.suggestions.numArrows": "Number of arrows",
   "settings.suggestions.highlightSquares": "Highlight squares",
   "settings.suggestions.arrow": "Arrow {{n}}",
+  "settings.suggestions.arrowDisabled": "Disabled",
+  "settings.suggestions.showMyLastMove": "Show my last move",
+  "settings.suggestions.opponentArrow": "Show opponent move",
+  "settings.suggestions.opponentArrowColor": "Opponent move color",
 
   "settings.account.title": "Account",
   "settings.account.verified": "✓ Verified",
