@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Evidenzia caselle",
   "settings.suggestions.arrow": "Freccia {{n}}",
   "settings.suggestions.arrowDisabled": "Disattivata",
-  "settings.suggestions.showMyLastMove": "Mostra la mia ultima mossa",
+  "settings.suggestions.showMyLastMove": "Mostra la tua ultima mossa",
+  "game.lastMoves.title": "Ultime mosse",
+  "game.lastMoves.opponent": "Avversario",
+  "game.lastMoves.you": "Tu",
   "settings.suggestions.opponentArrow": "Mostra mossa avversario",
   "settings.suggestions.opponentArrowColor": "Colore mossa avversario",
 

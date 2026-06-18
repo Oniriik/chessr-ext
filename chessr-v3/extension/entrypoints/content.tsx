@@ -11,7 +11,7 @@ import { connectWs, disconnectWs, sendWs, onWsMessage } from './content/lib/webs
 import { useWidgetStore, type SystemMessage } from './content/stores/widgetStore';
 import { useAuthStore } from './content/stores/authStore';
 import { useSettingsStore } from './content/stores/settingsStore';
-import { renderArrows, clearArrows, applyClassificationsToBoard, setOpponentMove, setMyLastMove } from './content/lib/arrows';
+import { renderArrows, clearArrows, clearPersistentArrows, redrawPersistentArrows, applyClassificationsToBoard, setOpponentMove, setMyLastMove } from './content/lib/arrows';
 import { installArrowDrag } from './content/lib/dragArrows';
 import { initEvalBar } from './content/lib/evalBar';
 import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
@@ -645,12 +645,14 @@ export default defineContentScript({
     subscribeStreamOpen((open) => {
       if (open) {
         clearArrows();
+        clearPersistentArrows();
         return;
       }
       const { suggestions } = useSuggestionStore.getState();
       if (suggestions.length === 0) return;
       const isFlipped = useGameStore.getState().playerColor === 'black';
       renderArrows(suggestions, isFlipped, true);
+      redrawPersistentArrows();
     });
 
     // Mirror system-message widget state across this content script
@@ -818,6 +820,7 @@ export default defineContentScript({
         setOpponentMove(null);
         setMyLastMove(null);
         useAnalysisStore.getState().setCurrentOpponentMove(null);
+        useAnalysisStore.getState().setCurrentMyLastMove(null);
         return;
       }
 
@@ -836,6 +839,19 @@ export default defineContentScript({
       const turnChanged = turn !== prev.turn;
       const gameJustStarted = isPlaying && !prev.isPlaying;
       const playerColorChanged = playerColor !== prev.playerColor;
+
+      // Backfill last-move data when the extension loads into an in-progress game.
+      // opponentJustMoved / playerJustMoved both require previousFen !== null so
+      // they never fire on the first detection — reconstruct from history here.
+      if (gameJustStarted && state.moveHistoryUci.length > 0) {
+        const h = state.moveHistoryUci;
+        // We're in the player's turn branch (playerColor === turn).
+        // Last UCI in history = opponent's last move; second-to-last = ours.
+        const lastUci = h[h.length - 1];
+        if (lastUci) useAnalysisStore.getState().setCurrentOpponentMove({ uci: lastUci });
+        const secondLastUci = h[h.length - 2];
+        if (secondLastUci) useAnalysisStore.getState().setCurrentMyLastMove({ uci: secondLastUci });
+      }
 
       if (positionChanged || turnChanged || gameJustStarted || playerColorChanged) {
         console.log('[Chessr][gate] firing requestSuggestion', { positionChanged, turnChanged, gameJustStarted, playerColorChanged, fen: fen.slice(0, 22) + '…' });
@@ -927,9 +943,13 @@ export default defineContentScript({
         // Show "my last move" arrow immediately using any pre-existing classification
         // from the suggestion snapshot (classified by classifyCandidate before the move).
         const _playerUci = useGameStore.getState().moveHistoryUci.at(-1) ?? null;
-        if (_playerUci && useSettingsStore.getState().showMyLastMove) {
+        if (_playerUci) {
           const _preClass = lastSuggestionSnapshot.find((s) => s.move === _playerUci)?.class;
-          setMyLastMove({ uci: _playerUci, classification: _preClass ?? undefined });
+          // Always propagate to analysisStore so stream mode can show it independently.
+          useAnalysisStore.getState().setCurrentMyLastMove({ uci: _playerUci, classification: _preClass ?? undefined });
+          if (useSettingsStore.getState().showMyLastMove) {
+            setMyLastMove({ uci: _playerUci, classification: _preClass ?? undefined });
+          }
         }
       }
 
@@ -974,8 +994,12 @@ export default defineContentScript({
                 sendWs({ type: 'analysis_log_end', requestId: arid,
                          extra: `${last.classification} (torch)` });
                 // Update "my last move" arrow with the real classification.
-                if (playerUci && useSettingsStore.getState().showMyLastMove) {
-                  setMyLastMove({ uci: playerUci, classification: last.classification ?? undefined });
+                if (playerUci) {
+                  // Always propagate to analysisStore so stream mode can show it independently.
+                  useAnalysisStore.getState().setCurrentMyLastMove({ uci: playerUci, classification: last.classification ?? undefined });
+                  if (useSettingsStore.getState().showMyLastMove) {
+                    setMyLastMove({ uci: playerUci, classification: last.classification ?? undefined });
+                  }
                 }
               } else {
                 sendWs({ type: 'analysis_log_end', requestId: arid, extra: 'empty' });

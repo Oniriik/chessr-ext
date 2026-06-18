@@ -14,6 +14,12 @@ const zipName = isProd ? "chessr" : displayName;
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
+  vite: () => ({
+    server: {
+      port: 3700,
+      strictPort: true,
+    },
+  }),
   zip: {
     name: zipName,
     artifactTemplate: "{{name}} v{{version}}.zip",
@@ -28,7 +34,7 @@ export default defineConfig({
       ? "[BETA] Chessr.io — Chess assist done right!"
       : "Chessr.io — Chess assist done right!",
     description: isBeta ? "Chessr.io v3 BETA" : "Chessr.io v3",
-    version: "3.2.4",
+    version: "3.2.5",
     icons: {
       16: "/icons/icon16.png",
       48: "/icons/icon48.png",

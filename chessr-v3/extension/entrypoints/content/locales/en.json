@@ -283,7 +283,10 @@
   "settings.suggestions.highlightSquares": "Highlight squares",
   "settings.suggestions.arrow": "Arrow {{n}}",
   "settings.suggestions.arrowDisabled": "Disabled",
-  "settings.suggestions.showMyLastMove": "Show my last move",
+  "settings.suggestions.showMyLastMove": "Show your last move",
+  "game.lastMoves.title": "Last Moves",
+  "game.lastMoves.opponent": "Opponent",
+  "game.lastMoves.you": "You",
   "settings.suggestions.opponentArrow": "Show opponent move",
   "settings.suggestions.opponentArrowColor": "Opponent move color",
 

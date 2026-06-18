@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Surligner les cases",
   "settings.suggestions.arrow": "Flèche {{n}}",
   "settings.suggestions.arrowDisabled": "Désactivée",
-  "settings.suggestions.showMyLastMove": "Afficher mon dernier coup",
+  "settings.suggestions.showMyLastMove": "Afficher votre dernier coup",
+  "game.lastMoves.title": "Derniers coups",
+  "game.lastMoves.opponent": "Adversaire",
+  "game.lastMoves.you": "Vous",
   "settings.suggestions.opponentArrow": "Afficher le coup adverse",
   "settings.suggestions.opponentArrowColor": "Couleur du coup adverse",
 

@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Resaltar casillas",
   "settings.suggestions.arrow": "Flecha {{n}}",
   "settings.suggestions.arrowDisabled": "Desactivada",
-  "settings.suggestions.showMyLastMove": "Mostrar mi último movimiento",
+  "settings.suggestions.showMyLastMove": "Mostrar tu último movimiento",
+  "game.lastMoves.title": "Últimas jugadas",
+  "game.lastMoves.opponent": "Adversario",
+  "game.lastMoves.you": "Tú",
   "settings.suggestions.opponentArrow": "Mostrar movimiento del rival",
   "settings.suggestions.opponentArrowColor": "Color del movimiento rival",
 

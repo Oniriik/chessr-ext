@@ -2,7 +2,7 @@ import gsap from 'gsap';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useGameStore } from '../stores/gameStore';
 import { boardSelectors } from '../adapters/BoardSelectors';
-import { isStreamOpen } from './streamOpen';
+import { isStreamOpen, streamOpenReady } from './streamOpen';
 import type { LabeledSuggestion } from './engineLabeler';
 import type { MoveClassification } from './moveAnalysis';
 
@@ -273,7 +273,7 @@ function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | '
  *  same gate, but torch results arrive async and can land after stream
  *  opens — without this check they re-inject badges on the host board. */
 export function applyClassificationsToBoard(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[]) {
-  if (isStreamOpen()) return;
+  if (!streamOpenReady() || isStreamOpen()) return;
   renderBadges(suggestions, true);
 }
 
@@ -441,6 +441,9 @@ function drawArrow(from: string, to: string, index: number, animate = true, labe
 }
 
 export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore'>[], isFlipped: boolean, animate = true) {
+  // Block until we've confirmed stream state from storage — the async
+  // read resolves in <10 ms, well before any suggestion can arrive.
+  if (!streamOpenReady()) return;
   // Stream Mode hides the chessr UI from the host page so the streamer
   // can share their board without leaking moves on stream. The arrow
   // overlay sits on the host's chess board (not on our shadow root), so
@@ -568,6 +571,7 @@ export function setOpponentMove(move: { uci: string; classification?: MoveClassi
   lastOpponentMove = move;
   opponentMoveGroup?.remove();
   opponentMoveGroup = null;
+  if (!streamOpenReady() || isStreamOpen()) return;
   const settings = useSettingsStore.getState();
   if (!move || !arrowGroup || !settings.showOpponentArrow) return;
 
@@ -626,6 +630,7 @@ export function setMyLastMove(move: { uci: string; classification?: MoveClassifi
   lastMyMove = move;
   myLastMoveGroup?.remove();
   myLastMoveGroup = null;
+  if (!streamOpenReady() || isStreamOpen()) return;
   if (!move || !arrowGroup) return;
   if (!useSettingsStore.getState().showMyLastMove) return;
 
@@ -718,6 +723,24 @@ export function clearArrows() {
       }
     },
   });
+}
+
+/** Remove the opponent-move and my-last-move DOM groups without clearing
+ *  their stored state. Called when stream mode opens so existing arrows
+ *  on the host board disappear immediately. */
+export function clearPersistentArrows(): void {
+  opponentMoveGroup?.remove();
+  opponentMoveGroup = null;
+  myLastMoveGroup?.remove();
+  myLastMoveGroup = null;
+}
+
+/** Redraw the opponent-move and my-last-move arrows from the last known
+ *  state. Called when stream mode closes so these persistent arrows
+ *  reappear on the host board without waiting for the next move. */
+export function redrawPersistentArrows(): void {
+  if (lastOpponentMove) setOpponentMove(lastOpponentMove);
+  if (lastMyMove) setMyLastMove(lastMyMove);
 }
 
 /**
@@ -827,6 +850,7 @@ export function resetArrowDragProgress(from: string): void {
  * Clears existing suggestion arrows first.
  */
 export function renderPvArrows(pv: string[], isFlipped: boolean, playerIsWhite: boolean) {
+  if (!streamOpenReady()) return;
   // Same Stream Mode gate as renderArrows. PV arrows are a separate
   // entry point — without this guard, a fresh game triggers the PV
   // path before renderArrows can clear, and the overlay flashes back

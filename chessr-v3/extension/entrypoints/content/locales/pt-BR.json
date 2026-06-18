@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Destacar casas",
   "settings.suggestions.arrow": "Seta {{n}}",
   "settings.suggestions.arrowDisabled": "Desativada",
-  "settings.suggestions.showMyLastMove": "Mostrar meu último lance",
+  "settings.suggestions.showMyLastMove": "Mostrar seu último lance",
+  "game.lastMoves.title": "Últimos lances",
+  "game.lastMoves.opponent": "Adversário",
+  "game.lastMoves.you": "Você",
   "settings.suggestions.opponentArrow": "Mostrar lance do adversário",
   "settings.suggestions.opponentArrowColor": "Cor do lance adversário",
 

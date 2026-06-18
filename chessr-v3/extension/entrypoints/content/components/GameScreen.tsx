@@ -8,6 +8,8 @@ import { useAuthStore } from '../stores/authStore';
 import { useEngineStore, type Personality, PERSONALITY_INFO, getDynamismLabel, getKingSafetyLabel, MAIA_VARIANT_INFO, type MaiaVariant, ENGINE_INFO, RODENT_PERSONALITY_GROUPS } from '../stores/engineStore';
 import { useLayoutStore } from '../stores/layoutStore';
 import { animationGate } from '../stores/animationStore';
+import { useAnalysisStore } from '../stores/analysisStore';
+import type { MoveClassification } from '../lib/moveAnalysis';
 import { COMPONENT_REGISTRY } from './ComponentRegistry';
 import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -28,6 +30,115 @@ import { ReviewSummary } from './ReviewScreen';
 import { useTranslation, t as tStatic } from '../lib/i18n';
 import './review-screen.css';
 import './game-screen.css';
+
+const CLS_COLOR: Partial<Record<MoveClassification, string>> = {
+  best: '#81B64C', brilliant: '#26C2A3', great: '#749BBF',
+  excellent: '#6ee7b7', good: '#95B776', book: '#D5A47D',
+  forced: '#96AF8B', inaccuracy: '#F7C631', mistake: '#FFA459',
+  miss: '#FF7769', blunder: '#FA412D',
+};
+const CLS_LABEL: Partial<Record<MoveClassification, string>> = {
+  best: 'Best', brilliant: 'Brill', great: 'Great', excellent: 'Excel',
+  good: 'Good', book: 'Book', forced: 'Frcd',
+  inaccuracy: 'Inacc', mistake: 'Mist', miss: 'Miss', blunder: 'Blund',
+};
+
+function LastMoveRow({ pawn, label, uci, classification, fallbackColor }: {
+  pawn: string;
+  pawnColor: string;
+  label: string;
+  uci: string;
+  classification?: MoveClassification;
+  fallbackColor: string;
+}) {
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const promo = uci.length > 4 ? `=${uci[4].toUpperCase()}` : '';
+  const clsColor = classification ? (CLS_COLOR[classification] ?? null) : null;
+  const clsLabel = classification ? (CLS_LABEL[classification] ?? null) : null;
+  const accentColor = clsColor ?? fallbackColor;
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 9,
+      padding: '5px 10px', borderRadius: 7,
+      background: `${accentColor}0d`,
+    }}>
+      <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0, opacity: 0.75 }}>{pawn}</span>
+      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', color: '#52525b', flexShrink: 0, width: 58 }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'monospace', color: '#d4d4d8', flex: 1, letterSpacing: '0.01em' }}>
+        {from}<span style={{ color: '#52525b', fontWeight: 400 }}>→</span>{to}{promo}
+      </span>
+      {clsLabel && clsColor ? (
+        <span style={{
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+          textTransform: 'uppercase', padding: '2px 6px', borderRadius: 4,
+          background: `${clsColor}1e`, color: clsColor,
+          border: `1px solid ${clsColor}44`, flexShrink: 0,
+        }}>
+          {clsLabel}
+        </span>
+      ) : (
+        <div style={{ width: 7, height: 7, borderRadius: '50%', background: fallbackColor, opacity: 0.4, flexShrink: 0 }} />
+      )}
+    </div>
+  );
+}
+
+function LastMovesSection() {
+  const { t } = useTranslation();
+  const showOpponentArrow = useSettingsStore((s) => s.showOpponentArrow);
+  const showMyLastMove = useSettingsStore((s) => s.showMyLastMove);
+  const opponentArrowColor = useSettingsStore((s) => s.opponentArrowColor);
+  const opponentMove = useAnalysisStore((s) => s.currentOpponentMove);
+  const myLastMove = useAnalysisStore((s) => s.currentMyLastMove);
+  const playerColor = useGameStore((s) => s.playerColor);
+
+  const showOpp = showOpponentArrow && opponentMove;
+  const showMine = showMyLastMove && myLastMove;
+
+  if (!showOpp && !showMine) return null;
+
+  // Piece glyphs: ♙ = white pawn, ♟ = black pawn
+  const playerIsWhite = playerColor !== 'black';
+  const yourPawn  = playerIsWhite ? '♙' : '♟';
+  const oppPawn   = playerIsWhite ? '♟' : '♙';
+  const yourPawnColor  = playerIsWhite ? '#d5d5d5' : '#18181b';
+  const oppPawnColor   = playerIsWhite ? '#18181b' : '#d5d5d5';
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+        <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+        <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#3f3f46', textTransform: 'uppercase' }}>
+          {t('game.lastMoves.title')}
+        </span>
+        <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.07)' }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        {showOpp && opponentMove && (
+          <LastMoveRow
+            pawn={oppPawn} pawnColor={oppPawnColor}
+            label={t('game.lastMoves.opponent')}
+            uci={opponentMove.uci}
+            classification={opponentMove.classification as MoveClassification | undefined}
+            fallbackColor={opponentArrowColor}
+          />
+        )}
+        {showMine && myLastMove && (
+          <LastMoveRow
+            pawn={yourPawn} pawnColor={yourPawnColor}
+            label={t('game.lastMoves.you')}
+            uci={myLastMove.uci}
+            classification={myLastMove.classification as MoveClassification | undefined}
+            fallbackColor='#71717a'
+          />
+        )}
+      </div>
+    </div>
+  );
+}
 
 type GameTab = 'game' | 'engine' | 'automove';
 
@@ -412,6 +523,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                             ))}
                           </div>
                         )}
+                        <LastMovesSection />
                       </div>
                     )}
                   </SortableItem>

@@ -54,6 +54,7 @@ export interface StreamSnapshot {
   accuracy: number;
   caps: TorchCaps;
   opponentMove: { uci: string; classification?: string } | null;
+  myLastMove: { uci: string; classification?: string } | null;
 }
 
 const STORAGE_KEY = 'chessr_stream_state';
@@ -88,6 +89,7 @@ function buildSnapshot(): StreamSnapshot {
     accuracy: useAnalysisStore.getState().accuracy,
     caps: useAnalysisStore.getState().caps,
     opponentMove: useAnalysisStore.getState().currentOpponentMove,
+    myLastMove: useAnalysisStore.getState().currentMyLastMove,
   };
 }
 

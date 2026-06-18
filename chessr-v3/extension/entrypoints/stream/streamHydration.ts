@@ -45,6 +45,7 @@ interface StreamSnapshot {
   engineId: string;
   plan: string | null;
   opponentMove?: { uci: string; classification?: string } | null;
+  myLastMove?: { uci: string; classification?: string } | null;
 }
 
 /** Apply a snapshot to the local stores. Treats missing fields as
@@ -68,6 +69,12 @@ function apply(snap: StreamSnapshot): void {
     const opp = snap.opponentMove;
     useAnalysisStore.getState().setCurrentOpponentMove(
       opp ? { uci: opp.uci, classification: opp.classification as MoveClassification | undefined } : null,
+    );
+  }
+  if (snap.myLastMove !== undefined) {
+    const ml = snap.myLastMove;
+    useAnalysisStore.getState().setCurrentMyLastMove(
+      ml ? { uci: ml.uci, classification: ml.classification as MoveClassification | undefined } : null,
     );
   }
   // Suggestions: provide a synthetic requestId so any subscribers that

@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Подсветка полей",
   "settings.suggestions.arrow": "Стрелка {{n}}",
   "settings.suggestions.arrowDisabled": "Выкл.",
-  "settings.suggestions.showMyLastMove": "Показать мой последний ход",
+  "settings.suggestions.showMyLastMove": "Показать ваш последний ход",
+  "game.lastMoves.title": "Последние ходы",
+  "game.lastMoves.opponent": "Соперник",
+  "game.lastMoves.you": "Вы",
   "settings.suggestions.opponentArrow": "Показать ход соперника",
   "settings.suggestions.opponentArrowColor": "Цвет хода соперника",
 

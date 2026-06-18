@@ -48,6 +48,11 @@ interface AnalysisState {
   currentOpponentMove: { uci: string; classification?: MoveClassification } | null;
   setCurrentOpponentMove: (v: { uci: string; classification?: MoveClassification } | null) => void;
 
+  /** Player's last move — UCI + optional classification badge. Exposed
+   *  so streamSync can propagate it to the stream-mode board. */
+  currentMyLastMove: { uci: string; classification?: MoveClassification } | null;
+  setCurrentMyLastMove: (v: { uci: string; classification?: MoveClassification } | null) => void;
+
   addAnalysis: (analysis: MoveAnalysis) => void;
   /** Bulk-replace state from a torch fetch_analysis result. Computes
    *  caps2/diff/wpDiff per move locally so existing accuracy reducers
@@ -76,6 +81,8 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
   tallies: { white: null, black: null },
   currentOpponentMove: null,
   setCurrentOpponentMove: (v) => set({ currentOpponentMove: v }),
+  currentMyLastMove: null,
+  setCurrentMyLastMove: (v) => set({ currentMyLastMove: v }),
 
   addAnalysis: (analysis) => {
     const prev = get();
@@ -165,6 +172,7 @@ export const useAnalysisStore = create<AnalysisState>()((set, get) => ({
       isAnalyzing: false,
       lastAnalysis: null,
       currentOpponentMove: null,
+      currentMyLastMove: null,
       caps: { white: null, black: null },
       effectiveElo: { white: null, black: null },
       tallies: { white: null, black: null },

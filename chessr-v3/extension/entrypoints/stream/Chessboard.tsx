@@ -1,22 +1,16 @@
 /**
  * Stream Mode chessboard — pure SVG renderer.
  *
- * Self-contained: no chessground, no external piece sets, just a 320×320
- * (or scaled) SVG that paints squares + Unicode chess glyphs from a FEN
- * board portion. Suggestion arrows are drawn as SVG paths on top of the
- * pieces.
- *
- * Why not chessground: we only display, never accept user input. A 200-
- * line SVG is lighter than a +200KB chessground bundle and avoids the
- * asset packaging headache for the standalone stream page.
+ * Self-contained: no chessground, no external piece sets, just a scaled
+ * SVG that paints squares + Unicode chess glyphs from a FEN board portion.
+ * Suggestion arrows are drawn as SVG paths on top of the pieces.
  */
 
 import React from 'react';
 
-// Use the filled (black-Unicode) glyphs for BOTH colors and tint via
-// SVG `fill`. The outlined (white-Unicode) glyphs ♔♕♖♗♘♙ render as
-// thin strokes that are hard to read on a busy background; the filled
-// variants ♚♛♜♝♞♟ are heavier shapes that read clearly at small sizes.
+// Use filled glyphs for BOTH colors and tint via SVG `fill`. The outlined
+// white glyphs render as thin strokes that are hard to read on busy
+// backgrounds; the filled variants are heavier shapes that read clearly.
 const PIECE_GLYPH: Record<string, string> = {
   K: '♚', Q: '♛', R: '♜', B: '♝', N: '♞', P: '♟',
   k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟',
@@ -43,45 +37,19 @@ function parseFenBoard(fen: string | null): (string | null)[] {
   return board;
 }
 
-/** UCI square (e.g. "e2") → [file 0..7, rank 0..7]. */
-function uciToFileRank(sq: string): [number, number] | null {
-  if (sq.length < 2) return null;
-  const f = sq.charCodeAt(0) - 97;     // 'a' = 0
-  const r = parseInt(sq[1], 10) - 1;   // '1' = 0
-  if (f < 0 || f > 7 || r < 0 || r > 7) return null;
-  return [f, r];
-}
-
-/** Apply orientation: returns [col, row] in board pixels (0..7).
- *  When orientation is 'black', the board is flipped — black pieces at
- *  the bottom of the rendered SVG. */
+/** Apply orientation: returns [col, row] in board grid coords (0..7).
+ *  When orientation is 'black', the board is flipped. */
 function squareToCoords(sq: string, orientation: 'white' | 'black'): [number, number] | null {
-  const fr = uciToFileRank(sq);
-  if (!fr) return null;
-  const [file, rank] = fr;
-  const col = orientation === 'white' ? file : 7 - file;
-  const row = orientation === 'white' ? 7 - rank : rank;
+  if (sq.length < 2) return null;
+  const f = sq.charCodeAt(0) - 97;
+  const r = parseInt(sq[1], 10) - 1;
+  if (f < 0 || f > 7 || r < 0 || r > 7) return null;
+  const col = orientation === 'white' ? f : 7 - f;
+  const row = orientation === 'white' ? 7 - r : r;
   return [col, row];
 }
 
-interface ArrowSpec {
-  from: string;
-  to: string;
-  color: string;
-  rank: number;
-  /** Chess-state labels (check / mate / capture / promotion:*). Rendered
-   *  as colored chips stacked on the destination square. Optional —
-   *  older snapshots / fresh suggestions don't include them. */
-  labels?: string[];
-  mateScore?: number | null;
-  /** Move quality classification (best / brilliant / great / …). Sits
-   *  on top of the label stack at slot 0, matching the on-platform
-   *  arrows.ts convention. */
-  cls?: string;
-}
-
-// Mirror PerformanceCard / arrows.ts palette — keep in sync if those
-// move.
+// Mirror PerformanceCard / arrows.ts palette — keep in sync if those move.
 const CLASSIFICATION_COLOR: Record<string, string> = {
   best: '#81B64C',       brilliant: '#26C2A3',  great: '#749BBF',
   excellent: '#6ee7b7',  good: '#95B776',       book: '#D5A47D',
@@ -100,7 +68,6 @@ const PROMO_SYMBOL: Record<string, string> = {
   q: 'Q', r: 'R', b: 'B', n: 'N',
 };
 
-/** Resolve a chess-state label to display text + chip color. */
 function resolveLabelDisplay(label: string, mateScore?: number | null): { text: string; color: string } {
   if (label.startsWith('promotion:')) {
     const piece = label.split(':')[1];
@@ -112,26 +79,42 @@ function resolveLabelDisplay(label: string, mateScore?: number | null): { text: 
   return { text: label.charAt(0).toUpperCase() + label.slice(1), color: LABEL_COLOR[label] ?? '#94a3b8' };
 }
 
-interface BadgeChip { text: string; color: string }
+interface ArrowSpec {
+  from: string;
+  to: string;
+  color: string;
+  rank: number;
+  labels?: string[];
+  mateScore?: number | null;
+  cls?: string;
+}
 
 interface Props {
   fen: string | null;
   orientation: 'white' | 'black';
-  /** Suggestions to render as arrows. UCI moves; first is rank 0 (best). */
   arrows?: ArrowSpec[];
   size?: number;
-  /** Opponent's last move — rendered as a muted arrow with a classification badge. */
   opponentMove?: { uci: string; classification?: string } | null;
+  /** Override opponent arrow color (from settingsStore.opponentArrowColor). */
+  opponentArrowColor?: string;
+  /** Player's own last move arrow (from analysisStore.currentMyLastMove). */
+  myLastMove?: { uci: string; classification?: string } | null;
 }
 
-const ARROW_COLORS = ['#22c55e', '#3b82f6', '#f59e0b']; // green / blue / amber
+const ARROW_COLORS = ['#22c55e', '#3b82f6', '#f59e0b'];
 
-export default function Chessboard({ fen, orientation, arrows = [], size = 480, opponentMove = null }: Props) {
+export default function Chessboard({
+  fen,
+  orientation,
+  arrows = [],
+  size = 480,
+  opponentMove = null,
+  opponentArrowColor = '#94a3b8',
+  myLastMove = null,
+}: Props) {
   const board = parseFenBoard(fen);
   const sq = size / 8;
 
-  // Reorder cells for rendering when board is flipped — index 0 = top-left
-  // visual square, which corresponds to a8 (when white) or h1 (when black).
   const visualOrder = (() => {
     const idxs: number[] = [];
     for (let row = 0; row < 8; row++) {
@@ -168,15 +151,7 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480, 
         );
       })}
 
-      {/* File + rank labels (a-h on bottom, 1-8 on left). The fill
-          alternates with the underlying square so the text always
-          contrasts — chess.com convention: label rendered in the
-          OPPOSITE square's color.
-          - File row sits on the bottom rank (visual row 7). Bottom-
-            left (col 0) is dark in both orientations, so col 0 needs
-            a light label, col 1 a dark one, etc.
-          - Rank column sits on the leftmost file (visual col 0). Top-
-            left (row 0) is light, so row 0 needs dark, row 1 light. */}
+      {/* File + rank labels (a–h on bottom, 1–8 on left). */}
       {Array.from({ length: 8 }).map((_, i) => {
         const file = orientation === 'white' ? i : 7 - i;
         const rank = orientation === 'white' ? 7 - i : i;
@@ -227,24 +202,43 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480, 
       {opponentMove && (() => {
         const from = opponentMove.uci.slice(0, 2);
         const to = opponentMove.uci.slice(2, 4);
-        const fromXY = squareToCoords(from, orientation);
-        const toXY = squareToCoords(to, orientation);
-        if (!fromXY || !toXY) return null;
-        const x1 = fromXY[0] * sq + sq / 2;
-        const y1 = fromXY[1] * sq + sq / 2;
-        const x2 = toXY[0] * sq + sq / 2;
-        const y2 = toXY[1] * sq + sq / 2;
         return (
           <React.Fragment key="opp-move">
-            <Arrow x1={x1} y1={y1} x2={x2} y2={y2} color="#94a3b8" squareSize={sq} opacity={0.5} />
-            {opponentMove.classification && CLASSIFICATION_LABEL[opponentMove.classification as keyof typeof CLASSIFICATION_LABEL] && (
-              <BadgeStack
-                cx={x2} cy={y2}
-                chips={[{
-                  text: CLASSIFICATION_LABEL[opponentMove.classification as keyof typeof CLASSIFICATION_LABEL],
-                  color: CLASSIFICATION_COLOR[opponentMove.classification as keyof typeof CLASSIFICATION_COLOR],
-                }]}
+            <Arrow from={from} to={to} orientation={orientation} color={opponentArrowColor} squareSize={sq} opacity={0.55} />
+            {opponentMove.classification && CLASSIFICATION_LABEL[opponentMove.classification] && (
+              <Badge
+                sq={to}
+                orientation={orientation}
                 squareSize={sq}
+                chips={[{
+                  text: CLASSIFICATION_LABEL[opponentMove.classification],
+                  color: CLASSIFICATION_COLOR[opponentMove.classification] ?? '#94a3b8',
+                }]}
+              />
+            )}
+          </React.Fragment>
+        );
+      })()}
+
+      {/* My last move arrow — colored by classification */}
+      {myLastMove && (() => {
+        const from = myLastMove.uci.slice(0, 2);
+        const to = myLastMove.uci.slice(2, 4);
+        const arrowColor = myLastMove.classification
+          ? (CLASSIFICATION_COLOR[myLastMove.classification] ?? '#aaaaaa')
+          : '#aaaaaa';
+        return (
+          <React.Fragment key="my-last-move">
+            <Arrow from={from} to={to} orientation={orientation} color={arrowColor} squareSize={sq} opacity={0.65} />
+            {myLastMove.classification && CLASSIFICATION_LABEL[myLastMove.classification] && (
+              <Badge
+                sq={to}
+                orientation={orientation}
+                squareSize={sq}
+                chips={[{
+                  text: CLASSIFICATION_LABEL[myLastMove.classification],
+                  color: arrowColor,
+                }]}
               />
             )}
           </React.Fragment>
@@ -252,24 +246,20 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480, 
       })()}
 
       {/* Suggestion arrows */}
-      {arrows.map((a, i) => {
-        const fromXY = squareToCoords(a.from, orientation);
-        const toXY = squareToCoords(a.to, orientation);
-        if (!fromXY || !toXY) return null;
-        const x1 = fromXY[0] * sq + sq / 2;
-        const y1 = fromXY[1] * sq + sq / 2;
-        const x2 = toXY[0] * sq + sq / 2;
-        const y2 = toXY[1] * sq + sq / 2;
-        return <Arrow key={`arr-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} color={a.color} squareSize={sq} />;
-      })}
+      {arrows.map((a, i) => (
+        <Arrow
+          key={`arr-${i}`}
+          from={a.from}
+          to={a.to}
+          orientation={orientation}
+          color={a.color}
+          squareSize={sq}
+        />
+      ))}
 
       {/* Badges (classification + chess-state labels) on each arrow's
           destination. Rendered after the arrows so they paint on top. */}
       {arrows.map((a, i) => {
-        const toXY = squareToCoords(a.to, orientation);
-        if (!toXY) return null;
-        const cx = toXY[0] * sq + sq / 2;
-        const cy = toXY[1] * sq + sq / 2;
         const chips: { text: string; color: string }[] = [];
         if (a.cls && CLASSIFICATION_LABEL[a.cls]) {
           chips.push({ text: CLASSIFICATION_LABEL[a.cls], color: CLASSIFICATION_COLOR[a.cls] });
@@ -278,18 +268,29 @@ export default function Chessboard({ fen, orientation, arrows = [], size = 480, 
           chips.push(resolveLabelDisplay(l, a.mateScore));
         }
         if (chips.length === 0) return null;
-        return <BadgeStack key={`badges-${i}`} cx={cx} cy={cy} chips={chips} squareSize={sq} />;
+        return <Badge key={`badges-${i}`} sq={a.to} orientation={orientation} squareSize={sq} chips={chips} />;
       })}
     </svg>
   );
 }
 
-/** Stack of chips floating just inside the destination square's top
- *  edge. Mirrors arrows.ts makeBadge layout (slot 0 at top, others
- *  below). */
-function BadgeStack({
-  cx, cy, chips, squareSize,
-}: { cx: number; cy: number; chips: { text: string; color: string }[]; squareSize: number }) {
+/** Stack of chips at the top-right corner of a destination square.
+ *  Mirrors arrows.ts makeBadge layout — slot 0 at top, others below. */
+function Badge({
+  sq: square,
+  orientation,
+  squareSize,
+  chips,
+}: {
+  sq: string;
+  orientation: 'white' | 'black';
+  squareSize: number;
+  chips: { text: string; color: string }[];
+}) {
+  const coords = squareToCoords(square, orientation);
+  if (!coords) return null;
+  const cx = coords[0] * squareSize + squareSize / 2;
+  const cy = coords[1] * squareSize + squareSize / 2;
   const fontSize = Math.max(6, squareSize / 11);
   const padX = fontSize * 0.6;
   const padY = fontSize * 0.2;
@@ -299,7 +300,8 @@ function BadgeStack({
     <g>
       {chips.map((chip, i) => {
         const badgeW = chip.text.length * fontSize * 0.65 + padX * 2;
-        const x = cx - badgeW / 2 - inset;
+        // Top-right corner of the destination square — matches arrows.ts makeBadge.
+        const x = cx + squareSize / 2 - badgeW / 2 - inset;
         const y = cy - squareSize / 2 + badgeH / 2 + inset + i * (badgeH + 2);
         const r = parseInt(chip.color.slice(1, 3), 16);
         const g = parseInt(chip.color.slice(3, 5), 16);
@@ -329,10 +331,84 @@ function BadgeStack({
   );
 }
 
+/** Arrow from one square to another. Handles straight and L-shaped (knight)
+ *  moves, matching the buildMovePath logic in content/lib/arrows.ts. */
 function Arrow({
-  x1, y1, x2, y2, color, squareSize, opacity = 0.85,
-}: { x1: number; y1: number; x2: number; y2: number; color: string; squareSize: number; opacity?: number }) {
-  // Shorten the arrow at both ends so it doesn't overlap pieces too hard.
+  from, to, orientation, color, squareSize, opacity = 0.85,
+}: {
+  from: string;
+  to: string;
+  orientation: 'white' | 'black';
+  color: string;
+  squareSize: number;
+  opacity?: number;
+}) {
+  const fromXY = squareToCoords(from, orientation);
+  const toXY = squareToCoords(to, orientation);
+  if (!fromXY || !toXY) return null;
+  const x1 = fromXY[0] * squareSize + squareSize / 2;
+  const y1 = fromXY[1] * squareSize + squareSize / 2;
+  const x2 = toXY[0] * squareSize + squareSize / 2;
+  const y2 = toXY[1] * squareSize + squareSize / 2;
+
+  const fileDiff = Math.abs(from.charCodeAt(0) - to.charCodeAt(0));
+  const rankDiff = Math.abs(parseInt(from[1], 10) - parseInt(to[1], 10));
+  const isKnight = (fileDiff === 1 && rankDiff === 2) || (fileDiff === 2 && rankDiff === 1);
+
+  const startInset = squareSize * 0.18;
+  const endInset = squareSize * 0.32;
+  const headLen = squareSize * 0.32;
+  const headWidth = squareSize * 0.36;
+  const shaftWidth = squareSize * 0.16;
+
+  if (isKnight) {
+    const ddx = x2 - x1;
+    const ddy = y2 - y1;
+    // L-path corner: the long leg goes first.
+    const cornerX = Math.abs(ddx) > Math.abs(ddy) ? x2 : x1;
+    const cornerY = Math.abs(ddx) > Math.abs(ddy) ? y1 : y2;
+
+    // Inset start along first segment.
+    const dx1 = cornerX - x1;
+    const dy1 = cornerY - y1;
+    const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
+    const sx = len1 > 0 ? x1 + (dx1 / len1) * startInset : x1;
+    const sy = len1 > 0 ? y1 + (dy1 / len1) * startInset : y1;
+
+    // Direction of last segment (corner → destination).
+    const dx2 = x2 - cornerX;
+    const dy2 = y2 - cornerY;
+    const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+    if (len2 < 1) return null;
+    const ux2 = dx2 / len2;
+    const uy2 = dy2 / len2;
+
+    const ex = x2 - ux2 * endInset;
+    const ey = y2 - uy2 * endInset;
+    const bx = ex - ux2 * headLen;
+    const by = ey - uy2 * headLen;
+    const px = -uy2;
+    const py = ux2;
+
+    return (
+      <g opacity={opacity}>
+        <polyline
+          points={`${sx},${sy} ${cornerX},${cornerY} ${bx},${by}`}
+          stroke={color}
+          strokeWidth={shaftWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        <polygon
+          points={`${ex},${ey} ${bx + px * (headWidth / 2)},${by + py * (headWidth / 2)} ${bx - px * (headWidth / 2)},${by - py * (headWidth / 2)}`}
+          fill={color}
+        />
+      </g>
+    );
+  }
+
+  // Straight arrow.
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.sqrt(dx * dx + dy * dy);
@@ -340,36 +416,20 @@ function Arrow({
   const ux = dx / len;
   const uy = dy / len;
 
-  const startInset = squareSize * 0.18;
-  const endInset = squareSize * 0.32;
   const sx = x1 + ux * startInset;
   const sy = y1 + uy * startInset;
   const ex = x2 - ux * endInset;
   const ey = y2 - uy * endInset;
-
-  const headLen = squareSize * 0.32;
-  const headWidth = squareSize * 0.36;
-  const shaftWidth = squareSize * 0.16;
-
-  // Head triangle base center
-  const baseX = ex - ux * headLen;
-  const baseY = ey - uy * headLen;
-  // Perpendicular vector for head width
+  const bx = ex - ux * headLen;
+  const by = ey - uy * headLen;
   const px = -uy;
   const py = ux;
-  const hx1 = baseX + px * (headWidth / 2);
-  const hy1 = baseY + py * (headWidth / 2);
-  const hx2 = baseX - px * (headWidth / 2);
-  const hy2 = baseY - py * (headWidth / 2);
 
   return (
     <g opacity={opacity}>
-      <line
-        x1={sx} y1={sy} x2={baseX} y2={baseY}
-        stroke={color} strokeWidth={shaftWidth} strokeLinecap="round"
-      />
+      <line x1={sx} y1={sy} x2={bx} y2={by} stroke={color} strokeWidth={shaftWidth} strokeLinecap="round" />
       <polygon
-        points={`${ex},${ey} ${hx1},${hy1} ${hx2},${hy2}`}
+        points={`${ex},${ey} ${bx + px * (headWidth / 2)},${by + py * (headWidth / 2)} ${bx - px * (headWidth / 2)},${by - py * (headWidth / 2)}`}
         fill={color}
       />
     </g>

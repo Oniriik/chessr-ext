@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Kareleri vurgula",
   "settings.suggestions.arrow": "Ok {{n}}",
   "settings.suggestions.arrowDisabled": "Devre dışı",
-  "settings.suggestions.showMyLastMove": "Son hamleimi göster",
+  "settings.suggestions.showMyLastMove": "Son hamlenizi göster",
+  "game.lastMoves.title": "Son Hamleler",
+  "game.lastMoves.opponent": "Rakip",
+  "game.lastMoves.you": "Siz",
   "settings.suggestions.opponentArrow": "Rakip hamlesini göster",
   "settings.suggestions.opponentArrowColor": "Rakip hamlesi rengi",
 

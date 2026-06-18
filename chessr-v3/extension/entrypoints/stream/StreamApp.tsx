@@ -4,22 +4,20 @@
  * the trigger, alongside a self-contained chessboard with arrows + an
  * eval bar.
  *
- * Layout:
- *   ┌───────────────────────────────────────────────────────┐
- *   │  Stream Mode header (source · live indicator · timestamp)│
- *   ├──────────────────────┬────────────────────────────────┤
- *   │  EvalBar  +  Board   │   Chessr panel (App with        │
- *   │                      │    streamMode=true) — Game/     │
- *   │                      │    Engine/AutoMove/Settings    │
- *   └──────────────────────┴────────────────────────────────┘
+ * Layout (desktop):
+ *   ┌────────────────────────────────────────────────────────┐
+ *   │  Stream Mode header (source · live indicator · stamp)  │
+ *   ├──────────────────────┬────┬───────────────────────────┤
+ *   │  EvalBar  +  Board   │ ⇔  │  Chessr panel (App)        │
+ *   └──────────────────────┴────┴───────────────────────────┘
+ *   The ⇔ is a drag handle — drag right to grow the board; when the
+ *   board no longer leaves room for a side-by-side panel, the layout
+ *   stacks vertically (board on top, panel below).
  *
- * The panel reads game data from streamHydration (synced from content
- * scripts via browser.storage.local). Settings / engine / auth use
- * their normal init paths — Supabase auth + cloud settings work the
- * same in extension-page contexts as in content scripts.
+ * On mobile / narrow viewport the layout starts stacked.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import App from '../content/App';
 import Chessboard, { ARROW_COLORS } from './Chessboard';
 import EvalBar from './EvalBar';
@@ -27,6 +25,7 @@ import { installStreamHydration } from './streamHydration';
 import { installWidgetSync } from '../content/lib/widgetSync';
 import { useAuthStore } from '../content/stores/authStore';
 import { useSettingsStore } from '../content/stores/settingsStore';
+import { useAnalysisStore } from '../content/stores/analysisStore';
 
 const STORAGE_KEY = 'chessr_stream_state';
 const STREAM_OPEN_KEY = 'chessr_stream_open';
@@ -50,7 +49,6 @@ interface StreamSnapshot {
   }>;
   engineId: string;
   plan: string | null;
-  opponentMove?: { uci: string; classification?: string } | null;
 }
 
 function useStreamState(): StreamSnapshot | null {
@@ -78,8 +76,6 @@ function ago(ts: number): string {
   return `${Math.round(sec / 60)}m ago`;
 }
 
-/** Track viewport width so we can switch to a stacked layout on narrow
- *  windows (≤900 px) — board on top, panel underneath. */
 function useViewportWidth(): number {
   const [w, setW] = useState(typeof window === 'undefined' ? 1400 : window.innerWidth);
   useEffect(() => {
@@ -90,42 +86,75 @@ function useViewportWidth(): number {
   return w;
 }
 
+const PANEL_W = 400;
+
 export default function StreamApp() {
   const state = useStreamState();
   const [, setTick] = useState(0);
   const viewportW = useViewportWidth();
-  // Panel stays at the same fixed 400 px width as on the platforms;
-  // the chessboard takes the remaining horizontal space and scales.
-  const PANEL_W = 400;
-  const isMobile = viewportW < PANEL_W + 360 + 60; // not enough room for board+panel side-by-side
-  const horizontalGap = 20;
-  const horizontalPadding = isMobile ? 32 : 48;
-  const evalBarW = isMobile ? 18 : 22;
+
+  const evalBarW = 22;
   const evalGap = 8;
-  // On desktop the board fills the row minus the panel + paddings; on
-  // mobile it spans the full available width minus a small breathing room.
-  const desktopBoardSize = Math.min(
-    Math.max(viewportW - PANEL_W - horizontalGap - horizontalPadding - evalBarW - evalGap, 320),
-    640,
+  const hPad = 48;
+  const hGap = 20;
+
+  // Maximum board size before the panel would be pushed off-screen.
+  const maxDesktopBoard = Math.max(viewportW - PANEL_W - hGap - hPad - evalBarW - evalGap, 240);
+  const naturalDesktopBoard = Math.min(Math.max(maxDesktopBoard, 320), 640);
+  const naturalMobileBoard = Math.min(viewportW - 32 - evalBarW - evalGap, 520);
+
+  // User-controlled board size via drag handle.
+  const [userBoardSize, setUserBoardSize] = useState<number | null>(null);
+  const dragRef = useRef<{ startX: number; startW: number } | null>(null);
+
+  // Clamp stored size when viewport changes.
+  useEffect(() => {
+    if (userBoardSize !== null && userBoardSize > maxDesktopBoard) {
+      setUserBoardSize(maxDesktopBoard);
+    }
+  }, [maxDesktopBoard]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = e.clientX - dragRef.current.startX;
+      const next = Math.max(240, Math.min(dragRef.current.startW + delta, viewportW - PANEL_W - hGap - hPad - evalBarW - evalGap));
+      setUserBoardSize(next);
+    };
+    const onUp = () => { dragRef.current = null; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [viewportW]);
+
+  // Below 760 px the viewport is too narrow to fit board + panel side-by-side.
+  const isMobileViewport = viewportW < PANEL_W + 360 + 60;
+  const effectiveBoardSize = userBoardSize ?? naturalDesktopBoard;
+  // Stack when viewport is narrow OR the user has grown the board so far
+  // the panel would no longer fit beside it.
+  const isStacked = isMobileViewport || (
+    effectiveBoardSize + PANEL_W + hGap + hPad + evalBarW + evalGap > viewportW
   );
-  const mobileBoardSize = Math.min(viewportW - horizontalPadding - evalBarW - evalGap, 520);
-  const boardSize = isMobile ? mobileBoardSize : desktopBoardSize;
-  // Initial Supabase auth bootstrap (same as content scripts do at boot).
+  const boardSize = isStacked ? naturalMobileBoard : effectiveBoardSize;
+
   const initialize = useAuthStore((s) => s.initialize);
+  const arrowColors = useSettingsStore((s) => s.arrowColors);
+  const opponentArrowColor = useSettingsStore((s) => s.opponentArrowColor);
+  const showMyLastMove = useSettingsStore((s) => s.showMyLastMove);
+  const opponentMove = useAnalysisStore((s) => s.currentOpponentMove);
+  const myLastMove = useAnalysisStore((s) => s.currentMyLastMove);
 
   useEffect(() => {
     initialize();
     installStreamHydration();
-    // Mirror the system-message widget state with the host content
-    // script (chess.com / lichess / worldchess) so admin nudges + login
-    // triggers show up here when the streamer is on this tab.
     installWidgetSync();
-    // Keep the "ago" timestamp fresh.
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, [initialize]);
 
-  // Tell content scripts to hide their on-page panel while we're mounted.
   useEffect(() => {
     browser.storage.local.set({ [STREAM_OPEN_KEY]: { value: true, ts: Date.now() } });
     const cleanup = () => {
@@ -138,42 +167,67 @@ export default function StreamApp() {
     };
   }, []);
 
-  const arrowColors = useSettingsStore((s) => s.arrowColors);
   const stale = state && Date.now() - state.ts > 30_000;
   const orientation: 'white' | 'black' = state?.playerColor ?? 'white';
   const topSugg = state?.suggestions[0] ?? null;
 
+  const boardColumn = (
+    <div style={{
+      display: 'flex',
+      gap: evalGap,
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      flexShrink: 0,
+    }}>
+      <EvalBar
+        evaluation={topSugg?.evaluation ?? null}
+        mateScore={topSugg?.mateScore ?? null}
+        turn={state?.turn ?? null}
+        orientation={orientation}
+        height={boardSize}
+        width={isStacked ? 18 : evalBarW}
+      />
+      <Chessboard
+        fen={state?.fen ?? null}
+        orientation={orientation}
+        arrows={(state?.suggestions ?? []).slice(0, 3).map((s, i) => ({
+          from: s.move.slice(0, 2),
+          to: s.move.slice(2, 4),
+          color: arrowColors[i] ?? ARROW_COLORS[i] ?? '#71717a',
+          rank: i,
+          labels: s.labels,
+          mateScore: s.mateScore,
+          cls: s.class,
+        }))}
+        opponentMove={opponentMove}
+        opponentArrowColor={opponentArrowColor}
+        myLastMove={showMyLastMove ? myLastMove : null}
+        size={boardSize}
+      />
+    </div>
+  );
+
   return (
     <div style={{
-      // Fill the viewport so the panel column has a real height to flex
-      // against. `100vh` + flex column lets the body row grow vertically
-      // while the panel / board children inherit a defined height.
       height: '100vh',
       maxWidth: 1400,
       margin: '0 auto',
-      padding: isMobile ? '14px 16px' : '20px 24px',
+      padding: isStacked ? '14px 16px' : '20px 24px',
       display: 'flex',
       flexDirection: 'column',
       gap: 14,
       boxSizing: 'border-box',
       overflow: 'hidden',
     }}>
-      {/* Header — single row on desktop, allowed to wrap on mobile */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 12,
-        flexWrap: 'wrap',
-      }}>
-        <span style={{ fontSize: isMobile ? 17 : 20, fontWeight: 700, color: '#fff' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: isStacked ? 17 : 20, fontWeight: 700, color: '#fff' }}>
           Chessr<span style={{ color: '#3b82f6' }}>.io</span>
         </span>
         <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: '#a1a1aa' }}>
           STREAM MODE
         </span>
-        <span style={{
-          marginLeft: 'auto',
-          fontSize: 11, color: '#71717a',
-          textAlign: 'right',
-        }}>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#71717a', textAlign: 'right' }}>
           {state ? (
             <>
               <span style={{ color: state.gameOver ? '#71717a' : '#22c55e' }}>
@@ -192,65 +246,56 @@ export default function StreamApp() {
         </span>
       </div>
 
-      {/* Body — two columns on desktop, stacked on mobile. flex:1 + min-height:0
-          lets the children actually fill the remaining vertical space. */}
-      <div style={{
-        display: 'flex',
-        flexDirection: isMobile ? 'column' : 'row',
-        gap: isMobile ? 14 : horizontalGap,
-        flex: 1,
-        minHeight: 0,
-        alignItems: 'stretch',
-      }}>
-        {/* Board column — flex:1 grow on desktop so the board uses all
-            the space the panel doesn't claim. Centered on mobile. */}
-        <div style={{
-          display: 'flex',
-          gap: evalGap,
-          flex: isMobile ? 'none' : 1,
-          alignItems: 'flex-start',
-          justifyContent: 'center',
-          minWidth: 0,
-        }}>
-          <EvalBar
-            evaluation={topSugg?.evaluation ?? null}
-            mateScore={topSugg?.mateScore ?? null}
-            turn={state?.turn ?? null}
-            orientation={orientation}
-            height={boardSize}
-            width={evalBarW}
-          />
-          <Chessboard
-            fen={state?.fen ?? null}
-            orientation={orientation}
-            arrows={(state?.suggestions ?? []).slice(0, 3).map((s, i) => ({
-              from: s.move.slice(0, 2),
-              to: s.move.slice(2, 4),
-              color: arrowColors[i] ?? ARROW_COLORS[i] ?? '#71717a',
-              rank: i,
-              labels: s.labels,
-              mateScore: s.mateScore,
-              cls: s.class,
-            }))}
-            opponentMove={state?.opponentMove ?? null}
-            size={boardSize}
-          />
+      {/* Body */}
+      {isStacked ? (
+        /* Stacked layout — board on top, panel below, scrollable */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          {boardColumn}
+          <div style={{ width: '100%', flex: '0 0 auto', minHeight: 480 }}>
+            <App streamMode />
+          </div>
         </div>
+      ) : (
+        /* Side-by-side layout with drag handle */
+        <div style={{ display: 'flex', flexDirection: 'row', gap: 0, flex: 1, minHeight: 0, alignItems: 'stretch' }}>
+          {boardColumn}
 
-        {/* Chessr panel column — fixed 400 px width to mirror the on-
-            platform overlay; takes the full vertical space available
-            in the row so all 4 tabs (Game/Engine/AutoMove/Settings)
-            see the same layout users get on chess.com / lichess. */}
-        <div style={{
-          width: isMobile ? '100%' : PANEL_W,
-          flex: isMobile ? 'none' : '0 0 auto',
-          minHeight: 0,
-          display: 'flex',
-          flexDirection: 'column',
-        }}>
-          <App streamMode />
+          {/* Drag handle */}
+          <div
+            onMouseDown={(e) => {
+              dragRef.current = { startX: e.clientX, startW: boardSize };
+              e.preventDefault();
+            }}
+            style={{
+              width: hGap,
+              flexShrink: 0,
+              cursor: 'col-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <div style={{
+              width: 3,
+              height: 40,
+              borderRadius: 2,
+              background: '#3f3f46',
+              transition: 'background 0.15s',
+            }} />
+          </div>
+
+          {/* Chessr panel */}
+          <div style={{
+            width: PANEL_W,
+            flex: '0 0 auto',
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <App streamMode />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

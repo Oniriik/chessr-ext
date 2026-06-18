@@ -138,14 +138,25 @@ async function cdpMouseMove(
 export default defineBackground(() => {
   console.log('Chessr v3 background loaded');
 
-  // Clear the stream-open flag at every boot. If the previous session
-  // crashed the browser before the stream tab's beforeunload fired, the
-  // flag could be stuck `true` — content scripts would then keep their
-  // panel hidden forever. Background restart is a clean opportunity to
-  // reset: no stream tab can be open if we just booted.
-  browser.storage.local.set({
-    chessr_stream_open: { value: false, ts: Date.now() },
-  }).catch(() => { /* no-op */ });
+  // On background boot, check whether a stream tab is actually open before
+  // clearing the flag. In MV3 the service worker restarts frequently (e.g.
+  // after 5 min idle, or on any extension event) — not just on browser launch.
+  // Unconditionally setting false here was the bug: a mid-game SW restart
+  // would clear the flag while the stream tab was still open, causing content
+  // scripts to start drawing arrows on chess.com again.
+  browser.tabs.query({ url: browser.runtime.getURL('/stream.html') }).then((tabs) => {
+    if (tabs.length === 0) {
+      // No stream tab open — clear any stuck flag from a previous crashed session.
+      browser.storage.local.set({ chessr_stream_open: { value: false, ts: Date.now() } }).catch(() => {});
+    } else {
+      // Stream tab(s) still open — re-register them so onRemoved keeps working.
+      for (const tab of tabs) {
+        if (tab.id !== undefined) streamTabIds.add(tab.id);
+      }
+    }
+  }).catch(() => {
+    // Query failed (unlikely) — don't touch the flag.
+  });
 
   // Track debugger detach (user clicked the "Cancel" banner, or tab closed)
   // so we don't try to reuse a stale attachment.

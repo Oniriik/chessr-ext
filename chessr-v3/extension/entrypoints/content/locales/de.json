@@ -278,7 +278,10 @@
   "settings.suggestions.highlightSquares": "Felder hervorheben",
   "settings.suggestions.arrow": "Pfeil {{n}}",
   "settings.suggestions.arrowDisabled": "Deaktiviert",
-  "settings.suggestions.showMyLastMove": "Meinen letzten Zug anzeigen",
+  "settings.suggestions.showMyLastMove": "Deinen letzten Zug anzeigen",
+  "game.lastMoves.title": "Letzte Züge",
+  "game.lastMoves.opponent": "Gegner",
+  "game.lastMoves.you": "Du",
   "settings.suggestions.opponentArrow": "Gegnerzug anzeigen",
   "settings.suggestions.opponentArrowColor": "Farbe Gegnerzug",
 
