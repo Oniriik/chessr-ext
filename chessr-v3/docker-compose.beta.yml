@@ -276,6 +276,30 @@ services:
     networks:
       - chessr
 
+  # ─── Opens API — SQLite-backed opening database ──────────────────────
+  # Exposes GET /openings and GET /position endpoints used by the extension
+  # for in-game opening detection. SQLite DB lives in a named volume (seeded
+  # on first boot from lichess-org/chess-openings + Lichess Explorer win
+  # rates). Seed takes ~40 min on first run; subsequent starts are instant.
+  opens-api:
+    build:
+      context: ./opens-api
+      dockerfile: Dockerfile
+    container_name: chessr-opens-api
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3900
+      - DB_PATH=/app/data/openings.db
+    volumes:
+      - opens_api_data:/app/data
+    networks:
+      - chessr
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   # ─── Discord bot ─────────────────────────────────────────────────────
   # Subscribes to the `chessr:events` Redis channel for real-time fanout
   # (plan changes, bans, link/unlink). Issues HTTP calls to the serveur
@@ -322,6 +346,7 @@ services:
 volumes:
   redis_data:
   postgres_analytics_data:
+  opens_api_data:
 
 networks:
   chessr:

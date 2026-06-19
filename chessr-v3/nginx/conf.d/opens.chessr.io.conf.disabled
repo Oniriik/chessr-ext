@@ -1,0 +1,44 @@
+# HTTPS config for opens.chessr.io — the opening database API.
+# Enable after: certbot certonly --webroot -w /var/www/certbot -d opens.chessr.io
+# Then: mv opens.chessr.io.conf.disabled opens.chessr.io.conf && docker compose exec nginx nginx -s reload
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name opens.chessr.io;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name opens.chessr.io;
+
+    ssl_certificate     /etc/letsencrypt/live/opens.chessr.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/opens.chessr.io/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    location / {
+        set $upstream opens-api:3900;
+        proxy_pass         http://$upstream;
+        proxy_http_version 1.1;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        add_header         Cache-Control "public, max-age=30";
+    }
+}
