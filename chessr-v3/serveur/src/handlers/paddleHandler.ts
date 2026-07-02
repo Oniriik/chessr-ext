@@ -182,10 +182,32 @@ async function updateUserPlan(
   // transitions vs duplicate webhooks on already-canceled subs.
   const { data: prevSubRow } = await supabase
     .from('subscriptions')
-    .select('status')
+    .select('status, paddle_subscription_id')
     .eq('user_id', userId)
     .maybeSingle();
   const oldStatus: string | null = prevSubRow?.status ?? null;
+
+  // Stale-event guard. Paddle keeps emitting events for a user's OLD
+  // subscription after they've moved to a new one — e.g. the final
+  // subscription.canceled when a past_due sub exhausts its payment
+  // retries a month later, while the user already re-subscribed. The
+  // row is keyed by user_id (one sub per user), so processing that
+  // event would clobber the new active sub and revoke a paid plan.
+  // Only negative transitions are ignored: an incoming active sub with
+  // a new id is precisely how the row migrates to a re-subscription.
+  if (
+    (status === 'canceled' || status === 'past_due') &&
+    prevSubRow?.paddle_subscription_id &&
+    prevSubRow.paddle_subscription_id !== subscriptionId
+  ) {
+    logPaddle(
+      null,
+      'webhook',
+      `ignoring stale ${status} for ${subscriptionId} — ${userId} is now on ${prevSubRow.paddle_subscription_id}`,
+      'processed',
+    );
+    return;
+  }
 
   // Update subscription record (upsert by user_id — one subscription per user).
   await supabase.from('subscriptions').upsert(
