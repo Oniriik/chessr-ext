@@ -10,7 +10,6 @@
   "common.dismiss": "Fermer",
   "common.back": "Retour",
   "common.auto": "Auto",
-
   "auth.title.signin": "Connectez-vous à votre compte",
   "auth.title.signup": "Créer un nouveau compte",
   "auth.email": "E-mail",
@@ -32,37 +31,32 @@
   "auth.confirm.back": "Retour à la connexion",
   "auth.footer.community": "Rejoignez notre communauté pour des conseils, actus & support",
   "auth.footer.discord": "Rejoindre le serveur Discord",
-
   "betaGate.title": "Chessr est en bêta",
   "betaGate.body": "Seuls les membres premium peuvent utiliser Chessr pendant la bêta.",
   "betaGate.signedIn": "Connecté en tant que",
   "betaGate.cta": "Passer à Premium",
   "betaGate.signOut": "Se déconnecter",
-
   "update.title": "Mise à jour requise",
   "update.body": "Une nouvelle version de Chessr est disponible. Mettez à jour pour continuer.",
   "update.button": "Télécharger la mise à jour",
   "update.discordCta": "Recevez les infos de maintenance et de mise à jour",
   "update.discordButton": "Rejoindre le serveur Discord",
-
   "linkAccount.eyebrow": "Lier un compte",
   "linkAccount.title": "Liez votre profil {{platform}}",
   "linkAccount.linking": "Liaison…",
   "linkAccount.button": "Lier ce compte {{platform}}",
   "linkAccount.error.alreadyLinked": "Ce compte est déjà lié à un autre utilisateur",
   "linkAccount.error.generic": "Échec de la liaison",
-
   "panel.title.settings": "Paramètres",
   "panel.title.back": "Retour",
   "panel.edit.done": "Terminer l'édition",
   "panel.edit.layout": "Éditer la mise en page",
   "panel.settings": "Paramètres",
   "panel.upgrade": "Upgrade",
-
   "game.tab.game": "Partie",
   "game.tab.engine": "Moteur",
   "game.tab.automove": "Auto Move",
-
+  "game.tab.opening": "Ouverture",
   "game.status.checkmateLost": "Échec et mat — Vous avez perdu",
   "game.status.checkmateWon": "Échec et mat — Vous avez gagné !",
   "game.status.stalemate": "Pat",
@@ -73,14 +67,12 @@
   "game.status.youWon": "Vous avez gagné !",
   "game.status.youLost": "Vous avez perdu",
   "game.status.gameOver": "Partie terminée",
-
   "game.card.waiting": "En attente d'une partie",
   "game.card.youPlay": "Vous jouez",
   "game.card.white": "Blancs",
   "game.card.black": "Noirs",
   "game.card.rescan": "Re-scanner l'état (re-détecte le tour, la couleur, rafraîchit les suggestions)",
   "game.card.tryDetect": "Essayer de détecter une partie",
-
   "game.turn.your": "À votre tour",
   "game.turn.opponent": "Tour de l'adversaire",
   "game.auto.paused": "En pause",
@@ -88,7 +80,6 @@
   "game.auto.playingIn": "Joue dans {{time}}",
   "game.auto.resume": "Reprendre l'auto-play",
   "game.auto.pause": "Mettre en pause l'auto-play",
-
   "game.suggestions.title": "Suggestions",
   "game.suggestions.engineHint": "Moteur actif — changer dans Paramètres → Moteur",
   "game.suggestions.depthReached": "Profondeur de recherche atteinte",
@@ -97,7 +88,6 @@
   "game.suggestions.legendWin": "Win",
   "game.waiting.title": "En attente d'une partie…",
   "game.waiting.hint": "Démarrez une partie et Chessr s'activera automatiquement.",
-
   "game.review.analyze": "Analyser cette partie",
   "game.review.analyzing": "Analyse... {{progress}}%",
   "game.review.upgrade": "Passer à Premium",
@@ -109,7 +99,6 @@
   "game.review.reviewOnChessr": "Revue sur Chessr",
   "game.review.seeFullGame": "Voir la revue complète",
   "game.review.loadingShort": "Chargement...",
-
   "review.banner.title": "Revue de partie Chess.com",
   "review.banner.sub": "Déverrouillée — pas besoin de Diamond",
   "review.you": "Vous",
@@ -122,7 +111,6 @@
   "review.phase.endgame": "Finale",
   "review.moveQuality": "Qualité des coups",
   "review.movesCount": "{{n}} coups",
-
   "perf.title": "Performance",
   "perf.ready": "Prêt",
   "perf.movesCount": "{{n}} coups",
@@ -142,7 +130,6 @@
   "perf.cls.mistake": "Erreur",
   "perf.cls.miss": "Manqué",
   "perf.cls.blunder": "Gaffe",
-
   "engine.targetElo": "ELO cible",
   "engine.opponentBoost": "Adversaire {{elo}} + bonus {{boost}}",
   "engine.noOpponent": "Aucun adversaire détecté, utilise {{elo}} + bonus {{boost}}",
@@ -194,7 +181,6 @@
   "engine.rodent.groupStyles": "Styles",
   "engine.rodent.groupOthers": "Autres",
   "engine.betaBadge": "BÊTA",
-
   "auto.mode.off": "Off",
   "auto.mode.hotkey": "Raccourci",
   "auto.mode.auto": "Auto",
@@ -243,12 +229,10 @@
   "auto.humanize.move": "Coup",
   "auto.key.press": "Appuyez…",
   "auto.platform.thisPlatform": "cette plateforme",
-
   "settings.tab.account": "Compte",
   "settings.tab.general": "Général",
   "settings.tab.engine": "Moteur",
   "settings.tab.suggestions": "Suggestions",
-
   "settings.general.language": "Langue",
   "settings.general.language.auto": "Auto (langue du navigateur)",
   "settings.general.anonNames": "Noms anonymes",
@@ -272,7 +256,6 @@
   "settings.general.copyDebug.copied": "✓ Copié",
   "settings.general.copyDebug.error": "⚠ Échec de copie",
   "settings.general.copyDebug.hint": "Copie un dump de diagnostic (version, état WS, erreurs récentes, logs background) dans le presse-papier. À coller dans un ticket support ou sur Discord.",
-
   "settings.suggestions.showSuggestions": "Afficher les coups suggérés",
   "settings.suggestions.numArrows": "Nombre de flèches",
   "settings.suggestions.highlightSquares": "Surligner les cases",
@@ -284,7 +267,6 @@
   "game.lastMoves.you": "Vous",
   "settings.suggestions.opponentArrow": "Afficher le coup adverse",
   "settings.suggestions.opponentArrowColor": "Couleur du coup adverse",
-
   "settings.account.title": "Compte",
   "settings.account.verified": "✓ Vérifié",
   "settings.account.unverified": "Non vérifié",
@@ -308,11 +290,41 @@
   "settings.account.discord.unlink": "Délier",
   "settings.account.chessAccounts": "Comptes d'échecs",
   "settings.account.addAccount": "Ajouter un compte",
-
   "sys.label.info": "INFO",
   "sys.label.discord": "DISCORD",
   "sys.label.trial": "ESSAI GRATUIT",
   "sys.label.admin": "ANNONCE",
   "sys.label.howto": "ASTUCE",
-  "sys.dismiss": "Fermer"
+  "sys.dismiss": "Fermer",
+  "opening.section.title": "Ouverture",
+  "opening.section.yourTheoryMove": "Ton coup théorique",
+  "opening.section.oppDeviated": "adv. dévié",
+  "opening.section.oppPlayed": "L'adversaire a joué",
+  "opening.section.continuePlan": "Continue ton plan",
+  "opening.section.bookReply": "Réponse book",
+  "opening.section.playerDeviated": "hors théorie",
+  "opening.section.continuation": "Continuation",
+  "opening.tab.mySlots": "Mes ouvertures",
+  "opening.tab.addSlot": "+ Ajouter une ouverture…",
+  "opening.tab.maxReached": "Maximum atteint · Retire une ouverture pour en ajouter une autre.",
+  "opening.tab.browse": "Parcourir",
+  "opening.tab.searchPlaceholder": "Sicilienne, Italienne, e4…",
+  "opening.tab.loading": "Chargement…",
+  "opening.tab.noResults": "Aucun résultat",
+  "opening.tab.add": "+ Ajouter",
+  "opening.tab.others": "Autres",
+  "opening.tab.theoryArrows": "Flèches théorie",
+  "opening.tab.deviationArrows": "Flèches déviation",
+  "opening.tab.deviationDesc": "Flèches alternatives quand l'adversaire sort de la théorie.",
+  "opening.tab.color": "Couleur",
+  "opening.tab.changeColor": "Changer la couleur",
+  "opening.tab.playAs": "Jouer avec",
+  "opening.tab.white": "Blancs",
+  "opening.tab.black": "Noirs",
+  "opening.tab.both": "Les deux",
+  "opening.section.noMatch": "Aucune de tes ouvertures ne correspond à cette partie ({{move}})",
+  "opening.tab.whiteOnly": "Pour l'instant, les ouvertures ne fonctionnent que quand tu joues les Blancs.",
+  "opening.tab.popular": "Les plus jouées",
+  "opening.tab.premiumOnly": "+3 700 ouvertures théoriques — fonctionnalité Premium",
+  "opening.tab.totalCount": "+3 700 ouvertures"
 }

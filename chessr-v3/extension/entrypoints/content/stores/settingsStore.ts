@@ -4,6 +4,7 @@ import { useLayoutStore } from './layoutStore';
 import { useEngineStore } from './engineStore';
 import { useAutoMoveStore } from './autoMoveStore';
 import { useAuthStore } from './authStore';
+import { useOpeningStore } from './openingStore';
 import {
   setLocalePreference,
   SUPPORTED_LOCALES,
@@ -158,6 +159,7 @@ function getSettingsPayload(state: SettingsState) {
     layout: useLayoutStore.getState().getConfig(),
     engine: getEnginePayload(),
     autoMove: getAutoMovePayload(),
+    opening: useOpeningStore.getState().getPayload(),
   };
 }
 
@@ -354,6 +356,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           // Hydrate autoMove store directly — bypass setters to avoid triggering re-sync
           useAutoMoveStore.setState((cloud as any).autoMove);
         }
+        if ((cloud as any).opening) {
+          useOpeningStore.getState().loadFromCloud((cloud as any).opening);
+        }
       }
     } catch {
     } finally {
@@ -380,3 +385,4 @@ function syncExternalStores() {
 useLayoutStore.subscribe(syncExternalStores);
 useEngineStore.subscribe(syncExternalStores);
 useAutoMoveStore.subscribe(syncExternalStores);
+useOpeningStore.subscribe(syncExternalStores);

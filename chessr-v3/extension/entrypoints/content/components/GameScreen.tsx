@@ -27,6 +27,8 @@ import GameSummaryCard from './GameSummaryCard';
 import { useGameMeta } from '../hooks/useGameMeta';
 import { useReviewStore } from '../stores/reviewStore';
 import { ReviewSummary } from './ReviewScreen';
+import OpeningSection from './OpeningSection';
+import OpeningTab from './OpeningTab';
 import { useTranslation, t as tStatic } from '../lib/i18n';
 import './review-screen.css';
 import './game-screen.css';
@@ -140,7 +142,7 @@ function LastMovesSection() {
   );
 }
 
-type GameTab = 'game' | 'engine' | 'automove';
+type GameTab = 'game' | 'engine' | 'automove' | 'opening';
 
 function useGameTabs(): { id: GameTab; label: string }[] {
   const { t } = useTranslation();
@@ -148,6 +150,7 @@ function useGameTabs(): { id: GameTab; label: string }[] {
     { id: 'game',     label: t('game.tab.game') },
     { id: 'engine',   label: t('game.tab.engine') },
     { id: 'automove', label: t('game.tab.automove') },
+    { id: 'opening',  label: t('game.tab.opening') },
   ];
 }
 
@@ -474,6 +477,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                 return (
                   <SortableItem key={id} id={id}>
                     <PerformanceCard />
+                    <OpeningSection />
                   </SortableItem>
                 );
               }
@@ -541,6 +545,10 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
 
       {activeTab === 'automove' && (
         <AutoMoveTab />
+      )}
+
+      {activeTab === 'opening' && (
+        <OpeningTab />
       )}
       </div>
     </div>

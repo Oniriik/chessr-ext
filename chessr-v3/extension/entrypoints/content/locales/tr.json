@@ -10,7 +10,6 @@
   "common.dismiss": "Kapat",
   "common.back": "Geri",
   "common.auto": "Oto",
-
   "auth.title.signin": "Hesabına giriş yap",
   "auth.title.signup": "Yeni hesap oluştur",
   "auth.email": "E-posta",
@@ -32,37 +31,32 @@
   "auth.confirm.back": "Girişe geri dön",
   "auth.footer.community": "İpuçları, güncellemeler ve destek için topluluğa katıl",
   "auth.footer.discord": "Discord sunucusuna katıl",
-
   "betaGate.title": "Chessr beta sürümde",
   "betaGate.body": "Beta süresince Chessr'ı sadece Premium üyeler kullanabilir.",
   "betaGate.signedIn": "Giriş yapan:",
   "betaGate.cta": "Premium'a yükselt",
   "betaGate.signOut": "Çıkış yap",
-
   "update.title": "Güncelleme gerekli",
   "update.body": "Chessr'ın yeni bir sürümü mevcut. Devam etmek için güncelle.",
   "update.button": "Güncellemeyi indir",
   "update.discordCta": "Bakım ve güncelleme bilgilerini al",
   "update.discordButton": "Discord sunucusuna katıl",
-
   "linkAccount.eyebrow": "Hesap bağla",
   "linkAccount.title": "{{platform}} profilini bağla",
   "linkAccount.linking": "Bağlanıyor…",
   "linkAccount.button": "Bu {{platform}} hesabını bağla",
   "linkAccount.error.alreadyLinked": "Bu hesap zaten başka bir kullanıcıya bağlı",
   "linkAccount.error.generic": "Bağlama başarısız",
-
   "panel.title.settings": "Ayarlar",
   "panel.title.back": "Geri",
   "panel.edit.done": "Düzenlemeyi bitir",
   "panel.edit.layout": "Düzeni düzenle",
   "panel.settings": "Ayarlar",
   "panel.upgrade": "Upgrade",
-
   "game.tab.game": "Oyun",
   "game.tab.engine": "Motor",
   "game.tab.automove": "Auto Move",
-
+  "game.tab.opening": "Açılış",
   "game.status.checkmateLost": "Şah mat — Kaybettin",
   "game.status.checkmateWon": "Şah mat — Kazandın!",
   "game.status.stalemate": "Pat",
@@ -73,14 +67,12 @@
   "game.status.youWon": "Kazandın!",
   "game.status.youLost": "Kaybettin",
   "game.status.gameOver": "Maç bitti",
-
   "game.card.waiting": "Maç bekleniyor",
   "game.card.youPlay": "Oynadığın renk",
   "game.card.white": "Beyaz",
   "game.card.black": "Siyah",
   "game.card.rescan": "Yeniden tara (sıra, renk, önerileri yenile)",
   "game.card.tryDetect": "Maç bulmayı dene",
-
   "game.turn.your": "Sıra sende",
   "game.turn.opponent": "Rakibin sırası",
   "game.auto.paused": "Duraklatıldı",
@@ -88,7 +80,6 @@
   "game.auto.playingIn": "{{time}} sonra oynayacak",
   "game.auto.resume": "Otomatik oynatmayı sürdür",
   "game.auto.pause": "Otomatik oynatmayı duraklat",
-
   "game.suggestions.title": "Öneriler",
   "game.suggestions.engineHint": "Aktif motor — Ayarlar → Motor'dan değiştir",
   "game.suggestions.depthReached": "Arama derinliği aşıldı",
@@ -97,7 +88,6 @@
   "game.suggestions.legendWin": "Win",
   "game.waiting.title": "Maç bekleniyor…",
   "game.waiting.hint": "Bir maç başlat, Chessr otomatik aktifleşecek.",
-
   "game.review.analyze": "Bu maçı analiz et",
   "game.review.analyzing": "Analiz... {{progress}}%",
   "game.review.upgrade": "Premium'a yükselt",
@@ -109,7 +99,6 @@
   "game.review.reviewOnChessr": "Chessr'da incele",
   "game.review.seeFullGame": "Tam analizi gör",
   "game.review.loadingShort": "Yükleniyor...",
-
   "review.banner.title": "Chess.com Maç Analizi",
   "review.banner.sub": "Açık — Diamond gerekmez",
   "review.you": "Sen",
@@ -122,7 +111,6 @@
   "review.phase.endgame": "Final",
   "review.moveQuality": "Hamle kalitesi",
   "review.movesCount": "{{n}} hamle",
-
   "perf.title": "Performans",
   "perf.ready": "Hazır",
   "perf.movesCount": "{{n}} hamle",
@@ -142,7 +130,6 @@
   "perf.cls.mistake": "Hata",
   "perf.cls.miss": "Kaçırılan",
   "perf.cls.blunder": "Gaf",
-
   "engine.targetElo": "Hedef ELO",
   "engine.opponentBoost": "Rakip {{elo}} + bonus {{boost}}",
   "engine.noOpponent": "Rakip algılanmadı, {{elo}} + bonus {{boost}} kullanılıyor",
@@ -194,7 +181,6 @@
   "engine.rodent.groupStyles": "Stiller",
   "engine.rodent.groupOthers": "Diğer",
   "engine.betaBadge": "BETA",
-
   "auto.mode.off": "Kapalı",
   "auto.mode.hotkey": "Hotkey",
   "auto.mode.auto": "Oto",
@@ -243,12 +229,10 @@
   "auto.humanize.move": "Hamle",
   "auto.key.press": "Tuşa bas…",
   "auto.platform.thisPlatform": "bu platform",
-
   "settings.tab.account": "Hesap",
   "settings.tab.general": "Genel",
   "settings.tab.engine": "Motor",
   "settings.tab.suggestions": "Öneriler",
-
   "settings.general.language": "Dil",
   "settings.general.language.auto": "Oto (tarayıcı dili)",
   "settings.general.anonNames": "Anonim isimler",
@@ -272,7 +256,6 @@
   "settings.general.copyDebug.copied": "✓ Kopyalandı",
   "settings.general.copyDebug.error": "⚠ Kopyalama başarısız",
   "settings.general.copyDebug.hint": "Tanılama dökümünü (sürüm, WS durumu, son hatalar, background logları) panoya kopyalar. Destek bileti veya Discord'a yapıştır.",
-
   "settings.suggestions.showSuggestions": "Önerilen hamleleri göster",
   "settings.suggestions.numArrows": "Ok sayısı",
   "settings.suggestions.highlightSquares": "Kareleri vurgula",
@@ -284,7 +267,6 @@
   "game.lastMoves.you": "Siz",
   "settings.suggestions.opponentArrow": "Rakip hamlesini göster",
   "settings.suggestions.opponentArrowColor": "Rakip hamlesi rengi",
-
   "settings.account.title": "Hesap",
   "settings.account.verified": "✓ Doğrulandı",
   "settings.account.unverified": "Doğrulanmadı",
@@ -308,11 +290,41 @@
   "settings.account.discord.unlink": "Bağlantıyı kaldır",
   "settings.account.chessAccounts": "Satranç hesapları",
   "settings.account.addAccount": "Hesap ekle",
-
   "sys.label.info": "BİLGİ",
   "sys.label.discord": "DISCORD",
   "sys.label.trial": "ÜCRETSİZ DENEME",
   "sys.label.admin": "DUYURU",
   "sys.label.howto": "İPUCU",
-  "sys.dismiss": "Kapat"
+  "sys.dismiss": "Kapat",
+  "opening.section.title": "Açılış",
+  "opening.section.yourTheoryMove": "Teori hamlen",
+  "opening.section.oppDeviated": "rakip saptı",
+  "opening.section.oppPlayed": "Rakip oynadı",
+  "opening.section.continuePlan": "Planına devam et",
+  "opening.section.bookReply": "Kitap cevabı",
+  "opening.section.playerDeviated": "teori dışı",
+  "opening.section.continuation": "Devam",
+  "opening.tab.mySlots": "Açılışlarım",
+  "opening.tab.addSlot": "+ Açılış ekle…",
+  "opening.tab.maxReached": "Maksimuma ulaşıldı · Başka eklemek için bir açılışı kaldır.",
+  "opening.tab.browse": "Gözat",
+  "opening.tab.searchPlaceholder": "Sicilya, İtalyan, e4…",
+  "opening.tab.loading": "Yükleniyor…",
+  "opening.tab.noResults": "Sonuç yok",
+  "opening.tab.add": "+ Ekle",
+  "opening.tab.others": "Diğerleri",
+  "opening.tab.theoryArrows": "Teori okları",
+  "opening.tab.deviationArrows": "Sapma okları",
+  "opening.tab.deviationDesc": "Rakip teoriden çıktığında alternatif oklar.",
+  "opening.tab.color": "Renk",
+  "opening.tab.changeColor": "Rengi değiştir",
+  "opening.tab.playAs": "Şu renkle oyna",
+  "opening.tab.white": "Beyaz",
+  "opening.tab.black": "Siyah",
+  "opening.tab.both": "İkisi de",
+  "opening.section.noMatch": "Seçili açılışlardan hiçbiri bu oyunla eşleşmiyor ({{move}})",
+  "opening.tab.whiteOnly": "Şimdilik açılışlar yalnızca Beyaz oynarken çalışıyor.",
+  "opening.tab.popular": "En çok oynananlar",
+  "opening.tab.premiumOnly": "3.700+ teori açılışı — Premium özellik",
+  "opening.tab.totalCount": "3.700+ açılış"
 }

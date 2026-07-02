@@ -10,7 +10,6 @@
   "common.dismiss": "Закрыть",
   "common.back": "Назад",
   "common.auto": "Авто",
-
   "auth.title.signin": "Войдите в аккаунт",
   "auth.title.signup": "Создать новый аккаунт",
   "auth.email": "Эл. почта",
@@ -32,37 +31,32 @@
   "auth.confirm.back": "Вернуться ко входу",
   "auth.footer.community": "Присоединяйтесь к сообществу: советы, новости и поддержка",
   "auth.footer.discord": "Присоединиться к Discord",
-
   "betaGate.title": "Chessr в бете",
   "betaGate.body": "В период беты Chessr могут использовать только Premium-подписчики.",
   "betaGate.signedIn": "Вы вошли как",
   "betaGate.cta": "Перейти на Premium",
   "betaGate.signOut": "Выйти",
-
   "update.title": "Требуется обновление",
   "update.body": "Доступна новая версия Chessr. Пожалуйста, обновите для продолжения.",
   "update.button": "Скачать обновление",
   "update.discordCta": "Получайте новости о техобслуживании и обновлениях",
   "update.discordButton": "Присоединиться к Discord",
-
   "linkAccount.eyebrow": "Привязать аккаунт",
   "linkAccount.title": "Привяжите профиль {{platform}}",
   "linkAccount.linking": "Привязка…",
   "linkAccount.button": "Привязать этот аккаунт {{platform}}",
   "linkAccount.error.alreadyLinked": "Этот аккаунт уже привязан к другому пользователю",
   "linkAccount.error.generic": "Не удалось привязать",
-
   "panel.title.settings": "Настройки",
   "panel.title.back": "Назад",
   "panel.edit.done": "Завершить редактирование",
   "panel.edit.layout": "Редактировать макет",
   "panel.settings": "Настройки",
   "panel.upgrade": "Upgrade",
-
   "game.tab.game": "Партия",
   "game.tab.engine": "Движок",
   "game.tab.automove": "Auto Move",
-
+  "game.tab.opening": "Дебют",
   "game.status.checkmateLost": "Мат — Вы проиграли",
   "game.status.checkmateWon": "Мат — Вы выиграли!",
   "game.status.stalemate": "Пат",
@@ -73,14 +67,12 @@
   "game.status.youWon": "Вы выиграли!",
   "game.status.youLost": "Вы проиграли",
   "game.status.gameOver": "Партия окончена",
-
   "game.card.waiting": "Ожидание партии",
   "game.card.youPlay": "Вы играете",
   "game.card.white": "Белыми",
   "game.card.black": "Чёрными",
   "game.card.rescan": "Пересканировать (ход, цвет, обновить подсказки)",
   "game.card.tryDetect": "Попытаться найти партию",
-
   "game.turn.your": "Ваш ход",
   "game.turn.opponent": "Ход соперника",
   "game.auto.paused": "Пауза",
@@ -88,7 +80,6 @@
   "game.auto.playingIn": "Играем через {{time}}",
   "game.auto.resume": "Продолжить авто-игру",
   "game.auto.pause": "Пауза авто-игры",
-
   "game.suggestions.title": "Подсказки",
   "game.suggestions.engineHint": "Активный движок — измените в Настройки → Движок",
   "game.suggestions.depthReached": "Достигнута глубина поиска",
@@ -97,7 +88,6 @@
   "game.suggestions.legendWin": "Win",
   "game.waiting.title": "Ожидание партии…",
   "game.waiting.hint": "Начните партию — Chessr активируется автоматически.",
-
   "game.review.analyze": "Анализировать партию",
   "game.review.analyzing": "Анализ... {{progress}}%",
   "game.review.upgrade": "Перейти на Premium",
@@ -109,7 +99,6 @@
   "game.review.reviewOnChessr": "Обзор на Chessr",
   "game.review.seeFullGame": "Полный обзор партии",
   "game.review.loadingShort": "Загрузка...",
-
   "review.banner.title": "Обзор партии Chess.com",
   "review.banner.sub": "Открыто — Diamond не нужен",
   "review.you": "Вы",
@@ -122,7 +111,6 @@
   "review.phase.endgame": "Эндшпиль",
   "review.moveQuality": "Качество ходов",
   "review.movesCount": "{{n}} ходов",
-
   "perf.title": "Производительность",
   "perf.ready": "Готово",
   "perf.movesCount": "{{n}} ходов",
@@ -142,7 +130,6 @@
   "perf.cls.mistake": "Ошибка",
   "perf.cls.miss": "Промах",
   "perf.cls.blunder": "Зевок",
-
   "engine.targetElo": "Целевой ELO",
   "engine.opponentBoost": "Соперник {{elo}} + бонус {{boost}}",
   "engine.noOpponent": "Соперник не определён, используется {{elo}} + бонус {{boost}}",
@@ -194,7 +181,6 @@
   "engine.rodent.groupStyles": "Стили",
   "engine.rodent.groupOthers": "Прочие",
   "engine.betaBadge": "БЕТА",
-
   "auto.mode.off": "Выкл",
   "auto.mode.hotkey": "Хоткей",
   "auto.mode.auto": "Авто",
@@ -243,12 +229,10 @@
   "auto.humanize.move": "Ход",
   "auto.key.press": "Нажмите…",
   "auto.platform.thisPlatform": "эту платформу",
-
   "settings.tab.account": "Аккаунт",
   "settings.tab.general": "Общие",
   "settings.tab.engine": "Движок",
   "settings.tab.suggestions": "Подсказки",
-
   "settings.general.language": "Язык",
   "settings.general.language.auto": "Авто (язык браузера)",
   "settings.general.anonNames": "Скрыть имена",
@@ -272,7 +256,6 @@
   "settings.general.copyDebug.copied": "✓ Скопировано",
   "settings.general.copyDebug.error": "⚠ Ошибка копирования",
   "settings.general.copyDebug.hint": "Копирует диагностический дамп (версия, состояние WS, ошибки, логи background) в буфер. Вставьте в тикет поддержки или в Discord.",
-
   "settings.suggestions.showSuggestions": "Показывать предложения",
   "settings.suggestions.numArrows": "Число стрелок",
   "settings.suggestions.highlightSquares": "Подсветка полей",
@@ -284,7 +267,6 @@
   "game.lastMoves.you": "Вы",
   "settings.suggestions.opponentArrow": "Показать ход соперника",
   "settings.suggestions.opponentArrowColor": "Цвет хода соперника",
-
   "settings.account.title": "Аккаунт",
   "settings.account.verified": "✓ Подтверждён",
   "settings.account.unverified": "Не подтверждён",
@@ -308,11 +290,41 @@
   "settings.account.discord.unlink": "Отвязать",
   "settings.account.chessAccounts": "Шахматные аккаунты",
   "settings.account.addAccount": "Добавить аккаунт",
-
   "sys.label.info": "ИНФО",
   "sys.label.discord": "DISCORD",
   "sys.label.trial": "ПРОБНЫЙ ПЕРИОД",
   "sys.label.admin": "ОБЪЯВЛЕНИЕ",
   "sys.label.howto": "СОВЕТ",
-  "sys.dismiss": "Закрыть"
+  "sys.dismiss": "Закрыть",
+  "opening.section.title": "Дебют",
+  "opening.section.yourTheoryMove": "Твой теоретический ход",
+  "opening.section.oppDeviated": "соперник отклонился",
+  "opening.section.oppPlayed": "Соперник сыграл",
+  "opening.section.continuePlan": "Продолжай свой план",
+  "opening.section.bookReply": "Книжный ответ",
+  "opening.section.playerDeviated": "вне теории",
+  "opening.section.continuation": "Продолжение",
+  "opening.tab.mySlots": "Мои дебюты",
+  "opening.tab.addSlot": "+ Добавить дебют…",
+  "opening.tab.maxReached": "Достигнут максимум · Удалите дебют, чтобы добавить другой.",
+  "opening.tab.browse": "Обзор",
+  "opening.tab.searchPlaceholder": "Сицилианская, Итальянская, e4…",
+  "opening.tab.loading": "Загрузка…",
+  "opening.tab.noResults": "Ничего не найдено",
+  "opening.tab.add": "+ Добавить",
+  "opening.tab.others": "Другие",
+  "opening.tab.theoryArrows": "Стрелки теории",
+  "opening.tab.deviationArrows": "Стрелки отклонения",
+  "opening.tab.deviationDesc": "Альтернативные стрелки, когда соперник выходит из теории.",
+  "opening.tab.color": "Цвет",
+  "opening.tab.changeColor": "Изменить цвет",
+  "opening.tab.playAs": "Играть за",
+  "opening.tab.white": "Белые",
+  "opening.tab.black": "Чёрные",
+  "opening.tab.both": "Оба",
+  "opening.section.noMatch": "Ни один из выбранных дебютов не подходит к этой партии ({{move}})",
+  "opening.tab.whiteOnly": "Пока дебюты работают только когда вы играете белыми.",
+  "opening.tab.popular": "Самые популярные",
+  "opening.tab.premiumOnly": "3 700+ теоретических дебютов — функция Premium",
+  "opening.tab.totalCount": "3 700+ дебютов"
 }

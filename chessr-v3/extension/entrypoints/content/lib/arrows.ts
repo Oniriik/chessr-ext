@@ -39,6 +39,14 @@ let lastOpponentMove: { uci: string; classification?: MoveClassification } | nul
 let opponentMoveGroup: SVGGElement | null = null;
 let lastMyMove: { uci: string; classification?: MoveClassification } | null = null;
 let myLastMoveGroup: SVGGElement | null = null;
+let lastTheoryMove: string | null = null;
+let lastTheoryColor: string = '#D5A47D';
+let lastTheoryLabel: string | undefined = undefined;
+let theoryArrowGroup: SVGGElement | null = null;
+let lastDeviationMove: string | null = null;
+let lastDeviationColor: string = '#fde047';
+let lastDeviationLabel: string | undefined = undefined;
+let deviationArrowGroup: SVGGElement | null = null;
 
 // Drawn-arrow registry keyed by `from` square so drag handlers can shorten
 // or hide the matching arrows in real time as the user drags the piece.
@@ -202,6 +210,16 @@ function buildSuggestionBadges(s: Pick<LabeledSuggestion, 'move' | 'labels' | 'm
   const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   wrapper.setAttribute('data-badges-for', s.move);
   let slot = 0;
+  // Opening theory label always tops the stack when this suggestion IS the
+  // theory move — the theory arrow itself is not drawn in that case (the
+  // suggestion arrow already shows the move), only its label survives here.
+  if (lastTheoryLabel && lastTheoryMove === s.move) {
+    wrapper.appendChild(makeBadge(toPt, lastTheoryLabel.slice(0, 5), lastTheoryColor, slot++, animate));
+  }
+  // Same merge rule for the deviation (book-reply) arrow label.
+  if (lastDeviationLabel && lastDeviationMove === s.move) {
+    wrapper.appendChild(makeBadge(toPt, lastDeviationLabel.slice(0, 5), lastDeviationColor, slot++, animate));
+  }
   if (s.class) {
     const cls = s.class;
     wrapper.appendChild(makeBadge(toPt, CLASSIFICATION_LABEL[cls], CLASSIFICATION_COLOR[cls], slot++, animate));
@@ -249,7 +267,11 @@ function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | '
         promoSeenAtSquare.add(to);
       }
     }
-    const stateKey = `${s.class ?? '-'}|${effectiveLabels.join(',')}|${s.mateScore ?? '-'}`;
+    const theoryKey = lastTheoryLabel && lastTheoryMove === s.move
+      ? `${lastTheoryLabel.slice(0, 5)}@${lastTheoryColor}` : '-';
+    const devKey = lastDeviationLabel && lastDeviationMove === s.move
+      ? `${lastDeviationLabel.slice(0, 5)}@${lastDeviationColor}` : '-';
+    const stateKey = `${theoryKey}|${devKey}|${s.class ?? '-'}|${effectiveLabels.join(',')}|${s.mateScore ?? '-'}`;
     const existing = badgeGroupByMove.get(s.move);
     if (existing && existing.getAttribute('data-state') === stateKey) continue;
     if (existing) {
@@ -274,6 +296,10 @@ function renderBadges(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | '
  *  opens — without this check they re-inject badges on the host board. */
 export function applyClassificationsToBoard(suggestions: Pick<LabeledSuggestion, 'move' | 'labels' | 'mateScore' | 'class'>[]) {
   if (!streamOpenReady() || isStreamOpen()) return;
+  // Keep the snapshot in sync — theory/deviation arrow updates re-run
+  // renderBadges(lastSuggestions) at any time, and a stale array here
+  // would rebuild the badges WITHOUT the classifications torch just sent.
+  lastSuggestions = suggestions;
   renderBadges(suggestions, true);
 }
 
@@ -489,12 +515,16 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
         if (defs) defs.innerHTML = '';
         badgeGroupByMove.clear();
         opponentMoveGroup = null;
+        theoryArrowGroup = null;
+        deviationArrowGroup = null;
         if (lastOpponentMove) setOpponentMove(lastOpponentMove);
         if (lastMyMove) setMyLastMove(lastMyMove);
         for (const s of lastSuggestions) {
           drawArrow(s.move.slice(0, 2), s.move.slice(2, 4), lastSuggestions.indexOf(s), false, s.labels, s.mateScore);
         }
         renderBadges(lastSuggestions, false);
+        if (lastTheoryMove) setTheoryArrow(lastTheoryMove, lastTheoryColor, lastTheoryLabel);
+        if (lastDeviationMove) setDeviationArrow(lastDeviationMove, lastDeviationColor, lastDeviationLabel);
       }
     });
     resizeObserver.observe(board);
@@ -512,6 +542,8 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   // groups — reset stale refs so re-draws are clean.
   opponentMoveGroup = null;
   myLastMoveGroup = null;
+  theoryArrowGroup = null;
+  deviationArrowGroup = null;
   arrowsByFrom.clear();
   // arrowGroup.innerHTML='' wiped every <g> we tracked too — drop the
   // badge map so renderBadges re-creates fresh entries for the new
@@ -540,6 +572,8 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   // Must come AFTER drawing suggestions so they end up at the back of the SVG stack.
   if (lastOpponentMove) setOpponentMove(lastOpponentMove);
   if (lastMyMove) setMyLastMove(lastMyMove);
+  if (lastTheoryMove) setTheoryArrow(lastTheoryMove, lastTheoryColor, lastTheoryLabel);
+  if (lastDeviationMove) setDeviationArrow(lastDeviationMove, lastDeviationColor, lastDeviationLabel);
 }
 
 function buildMovePath(from: string, to: string, fromPt: { x: number; y: number }, toPt: { x: number; y: number }, shortenBy: number): string {
@@ -686,6 +720,123 @@ export function setMyLastMove(move: { uci: string; classification?: MoveClassifi
 }
 
 
+/** Shared renderer for the theory + deviation book arrows. Same geometry
+ *  as suggestion arrows (drawArrow) — only the color differs. Returns the
+ *  drawn group, or null when the move can't be placed. Handles the
+ *  suggestion-dedup rule: if a suggestion arrow already shows this exact
+ *  move, no second arrow is drawn — the label merges into that
+ *  suggestion's badge stack via renderBadges (see buildSuggestionBadges). */
+function drawBookArrow(uci: string, color: string, markerId: string, dataAttr: string, label?: string): SVGGElement | null {
+  if (!streamOpenReady() || isStreamOpen()) return null;
+  const board = getBoard();
+  if (!board) return null;
+  // Staleness check — on a rematch chess.com swaps the board node,
+  // leaving our overlay attached to a detached element. Drawing into it
+  // silently produces an invisible arrow. (Size changes are left to the
+  // ResizeObserver in renderArrows, which also redraws suggestions.)
+  if (!overlay || !overlay.isConnected || overlay.parentElement !== board) {
+    createOverlay(board);
+  }
+  if (!arrowGroup) return null;
+
+  // Book arrows are often drawn before the first renderArrows of the game
+  // (the opening tracker reacts to a move instantly, engine suggestions
+  // take ~1s) — so `flipped` can still hold the previous orientation.
+  // Sync it from the store or a black player gets mirrored arrows.
+  flipped = useGameStore.getState().playerColor === 'black';
+
+  if (lastSuggestions.some((s) => s.move === uci)) {
+    renderBadges(lastSuggestions, false);
+    return null;
+  }
+  // Move is off the suggestion set (or badges are stale) — refresh stacks
+  // so a previously merged badge disappears from them.
+  if (lastSuggestions.length) renderBadges(lastSuggestions, false);
+
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const fromPt = getSquareCenter(from);
+  const toPt = getSquareCenter(to);
+  if (!fromPt || !toPt) return null;
+
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute(dataAttr, uci);
+
+  const thickness = Math.max(5, Math.round(squareSize / 10));
+  defs?.querySelector(`#${markerId}`)?.remove();
+  if (defs) {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth', '2.5');
+    marker.setAttribute('markerHeight', '2.5');
+    marker.setAttribute('refX', '0.5');
+    marker.setAttribute('refY', '1.25');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 2.5 1.25, 0 2.5');
+    polygon.setAttribute('fill', color);
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  }
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', buildMovePath(from, to, fromPt, toPt, thickness * 2));
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', `${thickness}`);
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('opacity', '0.85');
+  path.setAttribute('marker-end', `url(#${markerId})`);
+  g.appendChild(path);
+
+  // Opening name label — same badge style/position as suggestion badges.
+  if (label) {
+    g.appendChild(makeBadge(toPt, label.slice(0, 5), color, 0, false));
+  }
+
+  arrowGroup.appendChild(g);
+  return g;
+}
+
+export function setTheoryArrow(uci: string, color: string, label?: string) {
+  lastTheoryMove = uci;
+  lastTheoryColor = color;
+  lastTheoryLabel = label;
+  theoryArrowGroup?.remove();
+  theoryArrowGroup = null;
+  theoryArrowGroup = drawBookArrow(uci, color, 'chessr-marker-theory', 'data-theory-move', label);
+}
+
+export function clearTheoryArrow() {
+  const hadLabel = lastTheoryLabel !== undefined;
+  lastTheoryMove = null;
+  lastTheoryLabel = undefined;
+  theoryArrowGroup?.remove();
+  theoryArrowGroup = null;
+  // Drop the merged theory badge from any suggestion stack it was on.
+  if (hadLabel && arrowGroup && lastSuggestions.length) renderBadges(lastSuggestions, false);
+}
+
+export function setDeviationArrow(uci: string, color: string, label?: string) {
+  lastDeviationMove = uci;
+  lastDeviationColor = color;
+  lastDeviationLabel = label;
+  deviationArrowGroup?.remove();
+  deviationArrowGroup = null;
+  deviationArrowGroup = drawBookArrow(uci, color, 'chessr-marker-deviation', 'data-deviation-move', label);
+}
+
+export function clearDeviationArrow() {
+  const hadLabel = lastDeviationLabel !== undefined;
+  lastDeviationMove = null;
+  lastDeviationLabel = undefined;
+  deviationArrowGroup?.remove();
+  deviationArrowGroup = null;
+  if (hadLabel && arrowGroup && lastSuggestions.length) renderBadges(lastSuggestions, false);
+}
+
 export function clearArrows() {
   lastSuggestions = [];
   // NOTE: intentionally does NOT clear lastOpponentMove / opponentMoveGroup.
@@ -695,7 +846,7 @@ export function clearArrows() {
   badgeGroupByMove.clear();
   if (!arrowGroup) return;
   // Fade out suggestion arrows only — skip the opponent move and my-last-move groups.
-  const children = Array.from(arrowGroup.children).filter((c) => c !== opponentMoveGroup && c !== myLastMoveGroup);
+  const children = Array.from(arrowGroup.children).filter((c) => c !== opponentMoveGroup && c !== myLastMoveGroup && c !== theoryArrowGroup && c !== deviationArrowGroup);
   if (!children.length) return;
 
   if (useSettingsStore.getState().disableAnimations) {
@@ -734,14 +885,20 @@ export function clearPersistentArrows(): void {
   opponentMoveGroup = null;
   myLastMoveGroup?.remove();
   myLastMoveGroup = null;
+  theoryArrowGroup?.remove();
+  theoryArrowGroup = null;
+  deviationArrowGroup?.remove();
+  deviationArrowGroup = null;
 }
 
-/** Redraw the opponent-move and my-last-move arrows from the last known
+/** Redraw the opponent-move, my-last-move, and theory arrows from the last known
  *  state. Called when stream mode closes so these persistent arrows
  *  reappear on the host board without waiting for the next move. */
 export function redrawPersistentArrows(): void {
   if (lastOpponentMove) setOpponentMove(lastOpponentMove);
   if (lastMyMove) setMyLastMove(lastMyMove);
+  if (lastTheoryMove) setTheoryArrow(lastTheoryMove, lastTheoryColor, lastTheoryLabel);
+  if (lastDeviationMove) setDeviationArrow(lastDeviationMove, lastDeviationColor, lastDeviationLabel);
 }
 
 /**

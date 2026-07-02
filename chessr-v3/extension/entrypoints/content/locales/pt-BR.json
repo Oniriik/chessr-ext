@@ -10,7 +10,6 @@
   "common.dismiss": "Fechar",
   "common.back": "Voltar",
   "common.auto": "Auto",
-
   "auth.title.signin": "Entre na sua conta",
   "auth.title.signup": "Criar uma nova conta",
   "auth.email": "E-mail",
@@ -32,37 +31,32 @@
   "auth.confirm.back": "Voltar para entrar",
   "auth.footer.community": "Entre na nossa comunidade para dicas, novidades e suporte",
   "auth.footer.discord": "Entrar no servidor do Discord",
-
   "betaGate.title": "Chessr está em beta",
   "betaGate.body": "Só membros premium podem usar o Chessr durante o beta.",
   "betaGate.signedIn": "Logado como",
   "betaGate.cta": "Upgrade para Premium",
   "betaGate.signOut": "Sair",
-
   "update.title": "Atualização necessária",
   "update.body": "Uma nova versão do Chessr está disponível. Atualize para continuar.",
   "update.button": "Baixar atualização",
   "update.discordCta": "Receba avisos de manutenção e atualizações",
   "update.discordButton": "Entrar no servidor do Discord",
-
   "linkAccount.eyebrow": "Vincular conta",
   "linkAccount.title": "Vincule seu perfil {{platform}}",
   "linkAccount.linking": "Vinculando…",
   "linkAccount.button": "Vincular esta conta {{platform}}",
   "linkAccount.error.alreadyLinked": "Esta conta já está vinculada a outro usuário",
   "linkAccount.error.generic": "Falha ao vincular",
-
   "panel.title.settings": "Configurações",
   "panel.title.back": "Voltar",
   "panel.edit.done": "Terminar edição",
   "panel.edit.layout": "Editar layout",
   "panel.settings": "Configurações",
   "panel.upgrade": "Upgrade",
-
   "game.tab.game": "Partida",
   "game.tab.engine": "Motor",
   "game.tab.automove": "Auto Move",
-
+  "game.tab.opening": "Abertura",
   "game.status.checkmateLost": "Xeque-mate — Você perdeu",
   "game.status.checkmateWon": "Xeque-mate — Você ganhou!",
   "game.status.stalemate": "Empate por afogamento",
@@ -73,14 +67,12 @@
   "game.status.youWon": "Você ganhou!",
   "game.status.youLost": "Você perdeu",
   "game.status.gameOver": "Partida terminada",
-
   "game.card.waiting": "Aguardando partida",
   "game.card.youPlay": "Você joga de",
   "game.card.white": "Brancas",
   "game.card.black": "Pretas",
   "game.card.rescan": "Reescanear (re-detectar turno, cor, atualizar sugestões)",
   "game.card.tryDetect": "Tentar detectar uma partida",
-
   "game.turn.your": "Sua vez",
   "game.turn.opponent": "Vez do adversário",
   "game.auto.paused": "Pausado",
@@ -88,7 +80,6 @@
   "game.auto.playingIn": "Jogando em {{time}}",
   "game.auto.resume": "Retomar auto-play",
   "game.auto.pause": "Pausar auto-play",
-
   "game.suggestions.title": "Sugestões",
   "game.suggestions.engineHint": "Motor ativo — alterar em Configurações → Motor",
   "game.suggestions.depthReached": "Profundidade atingida",
@@ -97,7 +88,6 @@
   "game.suggestions.legendWin": "Win",
   "game.waiting.title": "Aguardando partida…",
   "game.waiting.hint": "Inicie uma partida e o Chessr vai ativar automaticamente.",
-
   "game.review.analyze": "Analisar esta partida",
   "game.review.analyzing": "Analisando... {{progress}}%",
   "game.review.upgrade": "Upgrade para Premium",
@@ -109,7 +99,6 @@
   "game.review.reviewOnChessr": "Analisar no Chessr",
   "game.review.seeFullGame": "Ver análise completa",
   "game.review.loadingShort": "Carregando...",
-
   "review.banner.title": "Análise de partida Chess.com",
   "review.banner.sub": "Desbloqueado — sem Diamond",
   "review.you": "Você",
@@ -122,7 +111,6 @@
   "review.phase.endgame": "Final",
   "review.moveQuality": "Qualidade dos lances",
   "review.movesCount": "{{n}} lances",
-
   "perf.title": "Performance",
   "perf.ready": "Pronto",
   "perf.movesCount": "{{n}} lances",
@@ -142,7 +130,6 @@
   "perf.cls.mistake": "Erro",
   "perf.cls.miss": "Perdido",
   "perf.cls.blunder": "Capivarada",
-
   "engine.targetElo": "ELO alvo",
   "engine.opponentBoost": "Adversário {{elo}} + bônus {{boost}}",
   "engine.noOpponent": "Sem adversário detectado, usando {{elo}} + bônus {{boost}}",
@@ -194,7 +181,6 @@
   "engine.rodent.groupStyles": "Estilos",
   "engine.rodent.groupOthers": "Outros",
   "engine.betaBadge": "BETA",
-
   "auto.mode.off": "Off",
   "auto.mode.hotkey": "Hotkey",
   "auto.mode.auto": "Auto",
@@ -243,12 +229,10 @@
   "auto.humanize.move": "Mover",
   "auto.key.press": "Pressione…",
   "auto.platform.thisPlatform": "esta plataforma",
-
   "settings.tab.account": "Conta",
   "settings.tab.general": "Geral",
   "settings.tab.engine": "Motor",
   "settings.tab.suggestions": "Sugestões",
-
   "settings.general.language": "Idioma",
   "settings.general.language.auto": "Auto (idioma do navegador)",
   "settings.general.anonNames": "Nomes anônimos",
@@ -272,7 +256,6 @@
   "settings.general.copyDebug.copied": "✓ Copiado",
   "settings.general.copyDebug.error": "⚠ Falha ao copiar",
   "settings.general.copyDebug.hint": "Copia um dump de diagnóstico (versão, estado WS, erros recentes, logs background) para o clipboard. Cole num ticket de suporte ou no Discord.",
-
   "settings.suggestions.showSuggestions": "Exibir lances sugeridos",
   "settings.suggestions.numArrows": "Número de setas",
   "settings.suggestions.highlightSquares": "Destacar casas",
@@ -284,7 +267,6 @@
   "game.lastMoves.you": "Você",
   "settings.suggestions.opponentArrow": "Mostrar lance do adversário",
   "settings.suggestions.opponentArrowColor": "Cor do lance adversário",
-
   "settings.account.title": "Conta",
   "settings.account.verified": "✓ Verificada",
   "settings.account.unverified": "Não verificada",
@@ -308,11 +290,41 @@
   "settings.account.discord.unlink": "Desvincular",
   "settings.account.chessAccounts": "Contas de xadrez",
   "settings.account.addAccount": "Adicionar conta",
-
   "sys.label.info": "INFO",
   "sys.label.discord": "DISCORD",
   "sys.label.trial": "TESTE GRÁTIS",
   "sys.label.admin": "ANÚNCIO",
   "sys.label.howto": "DICA",
-  "sys.dismiss": "Fechar"
+  "sys.dismiss": "Fechar",
+  "opening.section.title": "Abertura",
+  "opening.section.yourTheoryMove": "Seu lance teórico",
+  "opening.section.oppDeviated": "adv. desviou",
+  "opening.section.oppPlayed": "O adversário jogou",
+  "opening.section.continuePlan": "Continue seu plano",
+  "opening.section.bookReply": "Resposta do livro",
+  "opening.section.playerDeviated": "fora da teoria",
+  "opening.section.continuation": "Continuação",
+  "opening.tab.mySlots": "Minhas aberturas",
+  "opening.tab.addSlot": "+ Adicionar uma abertura…",
+  "opening.tab.maxReached": "Máximo atingido · Remova uma abertura para adicionar outra.",
+  "opening.tab.browse": "Explorar",
+  "opening.tab.searchPlaceholder": "Siciliana, Italiana, e4…",
+  "opening.tab.loading": "Carregando…",
+  "opening.tab.noResults": "Sem resultados",
+  "opening.tab.add": "+ Adicionar",
+  "opening.tab.others": "Outras",
+  "opening.tab.theoryArrows": "Setas de teoria",
+  "opening.tab.deviationArrows": "Setas de desvio",
+  "opening.tab.deviationDesc": "Setas alternativas quando o adversário sai da teoria.",
+  "opening.tab.color": "Cor",
+  "opening.tab.changeColor": "Mudar cor",
+  "opening.tab.playAs": "Jogar de",
+  "opening.tab.white": "Brancas",
+  "opening.tab.black": "Pretas",
+  "opening.tab.both": "Ambos",
+  "opening.section.noMatch": "Nenhuma das suas aberturas corresponde a esta partida ({{move}})",
+  "opening.tab.whiteOnly": "Por enquanto, as aberturas só funcionam quando você joga de Brancas.",
+  "opening.tab.popular": "Mais jogadas",
+  "opening.tab.premiumOnly": "+3 700 aberturas teóricas — recurso Premium",
+  "opening.tab.totalCount": "+3 700 aberturas"
 }

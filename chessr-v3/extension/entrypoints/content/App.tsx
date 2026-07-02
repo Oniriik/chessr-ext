@@ -23,6 +23,7 @@ import { SystemMessageWidget } from './components/SystemMessageWidget';
 import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
 import { useStreamOpen } from './lib/streamOpen';
+import { useOpeningTracker } from './hooks/useOpeningTracker';
 // BetaGate removed — free users now have access to the extension with
 // per-feature premium gating (engine selection, ELO max, personalities,
 // etc.). See lib/premium and the individual gates in GameScreen.
@@ -92,6 +93,10 @@ export default function App({ streamMode = false }: AppProps = {}) {
   const autoOpenOnGameEnd = useSettingsStore((s) => s.autoOpenOnGameEnd);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const settingsLoaded = useSettingsStore((s) => s.settingsLoaded);
+
+  // Run opening tracker at root level so theory arrows show even when the
+  // panel is closed. OpeningSection calls it too for the phase display.
+  useOpeningTracker();
 
   // Auto-open when a game ends (gated by setting).
   const prevGameOver = useRef(gameOver);

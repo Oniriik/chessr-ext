@@ -10,7 +10,6 @@
   "common.dismiss": "Dismiss",
   "common.back": "Back",
   "common.auto": "Auto",
-
   "auth.title.signin": "Sign in to your account",
   "auth.title.signup": "Create a new account",
   "auth.email": "Email",
@@ -37,37 +36,32 @@
   "auth.reset.body": "We sent a password reset link to",
   "auth.footer.community": "Join our community for tips, updates & support",
   "auth.footer.discord": "Join Discord server",
-
   "betaGate.title": "Chessr is in beta",
   "betaGate.body": "Only premium members can use Chessr during the beta period.",
   "betaGate.signedIn": "Signed in as",
   "betaGate.cta": "Upgrade to Premium",
   "betaGate.signOut": "Sign out",
-
   "update.title": "Update required",
   "update.body": "A new version of Chessr is available. Please update to continue.",
   "update.button": "Download update",
   "update.discordCta": "Get maintenance and update infos",
   "update.discordButton": "Join Discord server",
-
   "linkAccount.eyebrow": "Link account",
   "linkAccount.title": "Link your {{platform}} profile",
   "linkAccount.linking": "Linking…",
   "linkAccount.button": "Link this {{platform}} account",
   "linkAccount.error.alreadyLinked": "This account is already linked to another user",
   "linkAccount.error.generic": "Failed to link",
-
   "panel.title.settings": "Settings",
   "panel.title.back": "Back",
   "panel.edit.done": "Done editing",
   "panel.edit.layout": "Edit layout",
   "panel.settings": "Settings",
   "panel.upgrade": "Upgrade",
-
   "game.tab.game": "Game",
   "game.tab.engine": "Engine",
   "game.tab.automove": "Auto Move",
-
+  "game.tab.opening": "Opening",
   "game.status.checkmateLost": "Checkmate — You lost",
   "game.status.checkmateWon": "Checkmate — You won!",
   "game.status.stalemate": "Stalemate",
@@ -78,14 +72,12 @@
   "game.status.youWon": "You won!",
   "game.status.youLost": "You lost",
   "game.status.gameOver": "Game over",
-
   "game.card.waiting": "Waiting for game",
   "game.card.youPlay": "You play",
   "game.card.white": "White",
   "game.card.black": "Black",
   "game.card.rescan": "Rescan state (re-detect turn, color, refresh suggestions)",
   "game.card.tryDetect": "Try detecting a game",
-
   "game.turn.your": "Your turn",
   "game.turn.opponent": "Opponent's turn",
   "game.auto.paused": "Paused",
@@ -93,7 +85,6 @@
   "game.auto.playingIn": "Playing in {{time}}",
   "game.auto.resume": "Resume auto-play",
   "game.auto.pause": "Pause auto-play",
-
   "game.suggestions.title": "Suggestions",
   "game.suggestions.engineHint": "Active engine — change in Settings → Engine",
   "game.suggestions.depthReached": "Search depth reached",
@@ -102,7 +93,6 @@
   "game.suggestions.legendWin": "Win",
   "game.waiting.title": "Waiting for game…",
   "game.waiting.hint": "Start a game and Chessr will activate automatically.",
-
   "game.review.analyze": "Analyze this game",
   "game.review.analyzing": "Analyzing... {{progress}}%",
   "game.review.upgrade": "Upgrade to Premium",
@@ -114,7 +104,6 @@
   "game.review.reviewOnChessr": "Review on Chessr",
   "game.review.seeFullGame": "See full game review",
   "game.review.loadingShort": "Loading...",
-
   "review.banner.title": "Chess.com Game Review",
   "review.banner.sub": "Unlocked — no Diamond needed",
   "review.you": "You",
@@ -127,7 +116,6 @@
   "review.phase.endgame": "Endgame",
   "review.moveQuality": "Move Quality",
   "review.movesCount": "{{n}} moves",
-
   "perf.title": "Performance",
   "perf.ready": "Ready",
   "perf.movesCount": "{{n}} moves",
@@ -147,7 +135,6 @@
   "perf.cls.mistake": "Mistake",
   "perf.cls.miss": "Miss",
   "perf.cls.blunder": "Blunder",
-
   "engine.targetElo": "Target ELO",
   "engine.opponentBoost": "Opponent {{elo}} + {{boost}} boost",
   "engine.noOpponent": "No opponent detected, using {{elo}} + {{boost}} boost",
@@ -199,7 +186,6 @@
   "engine.rodent.groupStyles": "Styles",
   "engine.rodent.groupOthers": "Others",
   "engine.betaBadge": "BETA",
-
   "auto.mode.off": "Off",
   "auto.mode.hotkey": "Hotkey",
   "auto.mode.auto": "Auto",
@@ -248,12 +234,10 @@
   "auto.humanize.move": "Move",
   "auto.key.press": "Press…",
   "auto.platform.thisPlatform": "this platform",
-
   "settings.tab.account": "Account",
   "settings.tab.general": "General",
   "settings.tab.engine": "Engine",
   "settings.tab.suggestions": "Suggestions",
-
   "settings.general.language": "Language",
   "settings.general.language.auto": "Auto (browser default)",
   "settings.general.anonNames": "Anonymous names",
@@ -277,7 +261,6 @@
   "settings.general.copyDebug.copied": "✓ Copied to clipboard",
   "settings.general.copyDebug.error": "⚠ Copy failed",
   "settings.general.copyDebug.hint": "Copies a diagnostic dump (extension version, WS state, recent errors + WS messages, background script logs) to clipboard. Paste it in a support ticket or Discord.",
-
   "settings.suggestions.showSuggestions": "Display suggested moves",
   "settings.suggestions.numArrows": "Number of arrows",
   "settings.suggestions.highlightSquares": "Highlight squares",
@@ -289,7 +272,6 @@
   "game.lastMoves.you": "You",
   "settings.suggestions.opponentArrow": "Show opponent move",
   "settings.suggestions.opponentArrowColor": "Opponent move color",
-
   "settings.account.title": "Account",
   "settings.account.verified": "✓ Verified",
   "settings.account.unverified": "Unverified",
@@ -313,11 +295,41 @@
   "settings.account.discord.unlink": "Unlink",
   "settings.account.chessAccounts": "Chess accounts",
   "settings.account.addAccount": "Add an account",
-
   "sys.label.info": "INFO",
   "sys.label.discord": "DISCORD",
   "sys.label.trial": "FREE TRIAL",
   "sys.label.admin": "ANNOUNCEMENT",
   "sys.label.howto": "TIP",
-  "sys.dismiss": "Dismiss"
+  "sys.dismiss": "Dismiss",
+  "opening.section.title": "Opening",
+  "opening.section.yourTheoryMove": "Your theory move",
+  "opening.section.oppDeviated": "opp. deviated",
+  "opening.section.oppPlayed": "Opponent played",
+  "opening.section.continuePlan": "Continue your plan",
+  "opening.section.bookReply": "Book reply",
+  "opening.section.playerDeviated": "off theory",
+  "opening.section.continuation": "Continuation",
+  "opening.tab.mySlots": "My openings",
+  "opening.tab.addSlot": "+ Add an opening…",
+  "opening.tab.maxReached": "Maximum reached · Remove an opening to add another.",
+  "opening.tab.browse": "Browse",
+  "opening.tab.searchPlaceholder": "Sicilian, Italian, e4…",
+  "opening.tab.loading": "Loading…",
+  "opening.tab.noResults": "No results",
+  "opening.tab.add": "+ Add",
+  "opening.tab.others": "Others",
+  "opening.tab.theoryArrows": "Theory arrows",
+  "opening.tab.deviationArrows": "Deviation arrows",
+  "opening.tab.deviationDesc": "Alternative arrows when the opponent leaves theory.",
+  "opening.tab.color": "Color",
+  "opening.tab.changeColor": "Change color",
+  "opening.tab.playAs": "Play as",
+  "opening.tab.white": "White",
+  "opening.tab.black": "Black",
+  "opening.tab.both": "Both",
+  "opening.section.noMatch": "No selected opening matches this game ({{move}})",
+  "opening.tab.whiteOnly": "For now, openings only work when you play White.",
+  "opening.tab.popular": "Most played",
+  "opening.tab.premiumOnly": "3,700+ theory openings — a Premium feature",
+  "opening.tab.totalCount": "3,700+ openings"
 }
