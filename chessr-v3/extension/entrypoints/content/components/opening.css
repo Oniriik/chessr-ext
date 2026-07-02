@@ -518,3 +518,28 @@
 .opening-toggle--on .opening-toggle-thumb {
   left: 14px;
 }
+
+/* Win-rate mini bar (masters W/D/B) — browse rows + selected slots */
+.opening-wr {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.opening-wr-bar {
+  display: flex;
+  width: 42px;
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #18181b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.opening-wr-bar > span {
+  height: 100%;
+}
+.opening-wr-pct {
+  font-size: 9px;
+  color: #a1a1aa;
+  font-variant-numeric: tabular-nums;
+}

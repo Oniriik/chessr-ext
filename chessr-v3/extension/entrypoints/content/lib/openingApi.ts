@@ -1,4 +1,4 @@
-const OPENS_API = 'http://localhost:3900';
+const OPENS_API = 'https://opens.chessr.io';
 
 export interface OpeningEntry {
   eco: string;

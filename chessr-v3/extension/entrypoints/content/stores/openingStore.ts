@@ -5,6 +5,9 @@ export interface SelectedOpening {
   eco: string;
   name: string;
   uci: string;
+  /** Masters win rates (fractions) — absent on entries selected before
+   *  the win-rate seed, or for lines with no masters games. */
+  winRate?: { white: number | null; draw: number | null; black: number | null; total: number } | null;
 }
 
 interface OpeningState {

@@ -39,6 +39,23 @@ function ColorSwatch({ color, onChange }: { color: string; onChange: (c: string)
   );
 }
 
+function WinRateBar({ wr }: { wr: OpeningEntry['winRate'] | undefined }) {
+  if (!wr || wr.white == null) return null;
+  const w = Math.round(wr.white * 100);
+  const d = Math.round((wr.draw ?? 0) * 100);
+  const b = Math.max(0, 100 - w - d);
+  return (
+    <span className="opening-wr" title={`White ${w}% · Draw ${d}% · Black ${b}%`}>
+      <span className="opening-wr-bar">
+        <span style={{ width: `${w}%`, background: '#e4e4e7' }} />
+        <span style={{ width: `${d}%`, background: '#52525b' }} />
+        <span style={{ width: `${b}%`, background: '#18181b' }} />
+      </span>
+      <span className="opening-wr-pct">{w}%</span>
+    </span>
+  );
+}
+
 export default function OpeningTab() {
   const {
     selectedOpenings,
@@ -149,6 +166,7 @@ export default function OpeningTab() {
             <div key={o.eco} className="opening-slot-filled">
               <span className="opening-eco">{o.eco}</span>
               <span className="opening-slot-filled-name">{o.name}</span>
+              <WinRateBar wr={o.winRate} />
               <button className="opening-slot-remove" onClick={() => removeOpening(o.eco)}>✕</button>
             </div>
           ))}
@@ -158,7 +176,7 @@ export default function OpeningTab() {
               className="opening-slot-empty"
               onClick={() => {
                 const first = browseResults.find((r) => !isSelected(r.eco));
-                if (first) addOpening({ eco: first.eco, name: first.name, uci: first.uci });
+                if (first) addOpening({ eco: first.eco, name: first.name, uci: first.uci, winRate: first.winRate });
               }}
               disabled={isFull}
             >
@@ -208,10 +226,11 @@ export default function OpeningTab() {
                 <div
                   key={o.eco}
                   className={`opening-browse-row ${already ? 'opening-browse-row--already' : isFull ? 'opening-browse-row--disabled' : ''}`}
-                  onClick={() => { if (!already && !isFull) addOpening({ eco: o.eco, name: o.name, uci: o.uci }); }}
+                  onClick={() => { if (!already && !isFull) addOpening({ eco: o.eco, name: o.name, uci: o.uci, winRate: o.winRate }); }}
                 >
                   <span className="opening-browse-eco">{o.eco}</span>
                   <span className="opening-browse-name">{o.name}</span>
+                  <WinRateBar wr={o.winRate} />
                   {already
                     ? <span className="opening-browse-check">✓</span>
                     : <span className="opening-browse-add">{t('opening.tab.add')}</span>}
@@ -229,10 +248,11 @@ export default function OpeningTab() {
                 <div
                   key={o.eco}
                   className={`opening-browse-row ${already ? 'opening-browse-row--already' : isFull ? 'opening-browse-row--disabled' : ''}`}
-                  onClick={() => { if (!already && !isFull) addOpening({ eco: o.eco, name: o.name, uci: o.uci }); }}
+                  onClick={() => { if (!already && !isFull) addOpening({ eco: o.eco, name: o.name, uci: o.uci, winRate: o.winRate }); }}
                 >
                   <span className="opening-browse-eco">{o.eco}</span>
                   <span className="opening-browse-name">{o.name}</span>
+                  <WinRateBar wr={o.winRate} />
                   {already
                     ? <span className="opening-browse-check">✓</span>
                     : <span className="opening-browse-add">{t('opening.tab.add')}</span>}
