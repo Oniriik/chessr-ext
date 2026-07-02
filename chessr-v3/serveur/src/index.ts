@@ -22,6 +22,7 @@ import { adminAnalyticsRoutes } from './routes/adminAnalytics.js';
 import { adminUsersRoutes } from './routes/adminUsers.js';
 import { adminDiscordRoutes } from './routes/adminDiscord.js';
 import { limitsRoutes } from './routes/limits.js';
+import { statsRoutes } from './routes/stats.js';
 import {
   handlePaddleWebhook,
   handlePaddleBillingLink,
@@ -82,6 +83,7 @@ app.route('/', adminAnalyticsRoutes);
 app.route('/', adminUsersRoutes);
 app.route('/', adminDiscordRoutes);
 app.route('/', limitsRoutes);
+app.route('/', statsRoutes);
 
 // Paddle billing — webhook (signed, Paddle → us) + the full set of
 // extension-authenticated and billing-token endpoints. Same routes,
