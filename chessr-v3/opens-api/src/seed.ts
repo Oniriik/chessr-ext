@@ -72,6 +72,7 @@ function sleep(ms: number) {
 }
 
 async function main() {
+  const skipWinRates = process.argv.includes('--no-winrates');
   const db = getDb();
 
   // 1. Load TSVs
@@ -98,6 +99,10 @@ async function main() {
   console.log('Openings inserted.');
 
   // 3. Fetch win rates for those without one
+  if (skipWinRates) {
+    console.log('Skipping win rates (--no-winrates).');
+    return;
+  }
   const pending = db.prepare(`SELECT eco, epd FROM openings WHERE fetched_at IS NULL`).all() as { eco: string; epd: string }[];
   console.log(`Fetching win rates for ${pending.length} openings...`);
 

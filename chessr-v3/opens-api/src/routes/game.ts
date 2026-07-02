@@ -41,7 +41,7 @@ function nextMoves(parentUci: string): Alternative[] {
     FROM openings
     WHERE uci LIKE ? ESCAPE '\\'
     ORDER BY total DESC, eco ASC
-    LIMIT 20
+    LIMIT 300
   `).all(escaped + '%') as Pick<DbOpening, 'eco' | 'name' | 'uci' | 'total' | 'white_wr' | 'draw_wr' | 'black_wr'>[];
 
   const seen = new Set<string>();
@@ -71,29 +71,45 @@ gameRouter.get('/', (c) => {
 
   const db = getDb();
 
-  // Walk back from the full game to find the deepest exact book match.
-  // Opening UCIs are space-separated so we join with ' '.
+  // Walk back from the full game to find the deepest exact book match —
+  // the deepest NAMED opening, kept for display purposes.
   let lastBookOpening: DbOpening | null = null;
-  let lastBookDepth = 0;
 
   for (let i = moves.length; i >= 0; i--) {
     const uci = moves.slice(0, i).join(' ');
     const row = db.prepare(`SELECT * FROM openings WHERE uci = ? LIMIT 1`).get(uci) as DbOpening | undefined;
     if (row) {
       lastBookOpening = row;
-      lastBookDepth = i;
       break;
     }
   }
 
-  const inBook = lastBookDepth === moves.length;
-  const deviationMove = inBook ? null : (moves[lastBookDepth] ?? null);
+  // Deepest prefix of the game still inside the opening TREE. A position
+  // can sit between two named openings (e.g. "f2f4 d7d5 g1f3" has no row
+  // of its own but is a prefix of longer A03 lines) — being a prefix of
+  // any stored line means the book still has continuations for it.
+  const inTreeStmt = db.prepare(`
+    SELECT 1 FROM openings WHERE uci = ? OR uci LIKE ? ESCAPE '\\' LIMIT 1
+  `);
+  let treeDepth = 0;
+  for (let i = moves.length; i >= 0; i--) {
+    const uci = moves.slice(0, i).join(' ');
+    const prefixPattern = (uci ? uci + ' ' : '').replace(/[%_\\]/g, '\\$&') + '%';
+    if (inTreeStmt.get(uci, prefixPattern)) {
+      treeDepth = i;
+      break;
+    }
+  }
 
-  const alts = nextMoves(lastBookOpening?.uci ?? '');
+  const inBook = treeDepth === moves.length;
+  const deviationMove = inBook ? null : (moves[treeDepth] ?? null);
+
+  const alts = nextMoves(moves.slice(0, treeDepth).join(' '));
 
   return c.json({
     opening: lastBookOpening ? fmtOpening(lastBookOpening) : null,
     inBook,
+    deviationDepth: inBook ? null : lastBookDepth,
     nextMoves: inBook ? alts : null,
     deviation: inBook ? null : {
       move: deviationMove,

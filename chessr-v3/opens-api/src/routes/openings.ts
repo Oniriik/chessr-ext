@@ -32,6 +32,7 @@ function fmt(o: Opening) {
 }
 
 // GET /openings?q=sicilian&color=black&sort=winrate&limit=20
+// GET /openings?ecos=C50,B20,C60 — canonical opening per ECO, in the given order
 openingsRouter.get('/', (c) => {
   const db = getDb();
   const q      = c.req.query('q') ?? '';
@@ -39,6 +40,15 @@ openingsRouter.get('/', (c) => {
   const moves  = c.req.query('moves'); // UCI move prefix e.g. "e2e4 c7c5"
   const sort   = c.req.query('sort') ?? 'eco'; // 'eco' | 'winrate'
   const limit  = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200);
+  const ecos   = c.req.query('ecos'); // comma-separated ECO codes, order preserved
+
+  if (ecos) {
+    const list = ecos.split(',').map((e) => e.trim().toUpperCase()).filter(Boolean).slice(0, 30);
+    // Shortest line per ECO = the root opening (not one of its sub-variations)
+    const stmt = db.prepare(`SELECT * FROM openings WHERE eco = ? ORDER BY length(uci) ASC, id ASC LIMIT 1`);
+    const rows = list.map((e) => stmt.get(e)).filter(Boolean) as Opening[];
+    return c.json({ openings: rows.map(fmt), count: rows.length });
+  }
 
   let sql = `SELECT * FROM openings WHERE 1=1`;
   const params: Record<string, string | number> = {};
