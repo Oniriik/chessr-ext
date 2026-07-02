@@ -110,6 +110,12 @@ export class TorchAnalysisEngine implements AnalysisBackend {
   private blobUrl: string | null = null;
   private _ready = false;
   private _disposed = false;
+  /** False until the first fetch_analysis completes. The very first call
+   *  on a fresh worker pays wasm JIT/warm-up cost and can blow the normal
+   *  per-move budget (seen: >5s for a 1-move game right after page load),
+   *  which disposes the engine and drops the seed analysis. Give that
+   *  first call a much higher timeout floor. */
+  private firstAnalysisDone = false;
   private deps: TorchAnalysisDeps;
   /** Sequential queue: torch processes UCI commands in order; pipelining
    *  position+go OR position+fetch_analysis from concurrent calls puts
@@ -240,7 +246,8 @@ export class TorchAnalysisEngine implements AnalysisBackend {
       // startpos, so a cold-start 12-move game can take 15-20s. Use 2s/move
       // budget so historical analyses (seeded mid-game) don't time out early.
       // Base: 5s (trivially short games). Cap: 60s.
-      const analysisTimeout = Math.min(60_000, Math.max(ANALYSIS_TIMEOUT_MS, 2_000 * history.length));
+      const coldStartFloor = this.firstAnalysisDone ? 0 : 20_000;
+      const analysisTimeout = Math.min(60_000, Math.max(ANALYSIS_TIMEOUT_MS, coldStartFloor, 2_000 * history.length));
       const json = await this.waitForLinePrefix(
         'json ',
         () => this.send('fetch analysis'),
@@ -252,6 +259,7 @@ export class TorchAnalysisEngine implements AnalysisBackend {
       } catch (e) {
         throw new Error(`torch JSON parse error: ${(e as Error).message}`);
       }
+      this.firstAnalysisDone = true;
       return parseFetchAnalysisJson(raw);
     });
   }
@@ -271,7 +279,8 @@ export class TorchAnalysisEngine implements AnalysisBackend {
       this.send(`position startpos moves ${moves.join(' ')}`);
       // Same dynamic timeout as fetchFullAnalysis — torch replays all positions
       // from startpos, so mid-game histories need more than the base 5s.
-      const analysisTimeout = Math.min(30_000, Math.max(ANALYSIS_TIMEOUT_MS, 800 * moves.length));
+      const coldStartFloor = this.firstAnalysisDone ? 0 : 20_000;
+      const analysisTimeout = Math.min(30_000, Math.max(ANALYSIS_TIMEOUT_MS, coldStartFloor, 800 * moves.length));
       const json = await this.waitForLinePrefix(
         'json ',
         () => this.send('fetch analysis'),
@@ -283,6 +292,7 @@ export class TorchAnalysisEngine implements AnalysisBackend {
       } catch (e) {
         throw new Error(`torch JSON parse error: ${(e as Error).message}`);
       }
+      this.firstAnalysisDone = true;
       const parsed = parseFetchAnalysisJson(raw);
       const last = parsed.moveAnalyses[parsed.moveAnalyses.length - 1];
       return last?.classification ?? null;
