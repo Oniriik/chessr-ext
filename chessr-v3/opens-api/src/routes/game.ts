@@ -109,7 +109,7 @@ gameRouter.get('/', (c) => {
   return c.json({
     opening: lastBookOpening ? fmtOpening(lastBookOpening) : null,
     inBook,
-    deviationDepth: inBook ? null : lastBookDepth,
+    deviationDepth: inBook ? null : treeDepth,
     nextMoves: inBook ? alts : null,
     deviation: inBook ? null : {
       move: deviationMove,
