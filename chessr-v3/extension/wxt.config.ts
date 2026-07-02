@@ -40,6 +40,9 @@ export default defineConfig({
       48: "/icons/icon48.png",
       128: "/icons/icon128.png",
     },
+    // No default_popup — clicking the toolbar icon fires action.onClicked
+    // in the background, which opens the welcome page (see background.ts).
+    action: {},
     permissions: ["storage", "activeTab", "declarativeNetRequest", "debugger"],
     declarative_net_request: {
       rule_resources: [

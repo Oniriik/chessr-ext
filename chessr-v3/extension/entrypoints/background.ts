@@ -138,6 +138,23 @@ async function cdpMouseMove(
 export default defineBackground(() => {
   console.log('Chessr v3 background loaded');
 
+  // First-install welcome page — hosted on the landing site so we can
+  // iterate on content/analytics without republishing the extension.
+  // reason === 'install' only fires once per profile; updates don't reopen it.
+  browser.runtime.onInstalled.addListener((details) => {
+    if (details.reason === 'install') {
+      const v = browser.runtime.getManifest().version;
+      browser.tabs.create({ url: `https://chessr.io/welcome?v=${v}&utm_source=extension_install` }).catch(() => {});
+    }
+  });
+
+  // Toolbar icon click → welcome page (the popup was removed — the panel
+  // lives on the chess platforms themselves, the icon just onboards).
+  browser.action.onClicked.addListener(() => {
+    const v = browser.runtime.getManifest().version;
+    browser.tabs.create({ url: `https://chessr.io/welcome?v=${v}&utm_source=extension_icon` }).catch(() => {});
+  });
+
   // On background boot, check whether a stream tab is actually open before
   // clearing the flag. In MV3 the service worker restarts frequently (e.g.
   // after 5 min idle, or on any extension event) — not just on browser launch.
