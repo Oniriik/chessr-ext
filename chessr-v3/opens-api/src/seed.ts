@@ -58,11 +58,21 @@ async function fetchWinRate(epd: string): Promise<{ white: number; draws: number
     const headers: Record<string, string> = { 'User-Agent': 'Chessr (contact: oniriik.dev@gmail.com)' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(url, { headers });
+    // Systemic failures must ABORT the run — returning null would mark the
+    // row fetched_at and permanently exclude it from retries. The explorer
+    // now requires an OAuth token (401 without one); 429 = rate limited.
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`Explorer returned ${res.status} — set LICHESS_TOKEN (create one at lichess.org/account/oauth/token, no scopes needed)`);
+    }
+    if (res.status === 429) {
+      throw new Error('Explorer rate-limited (429) — increase THROTTLE_MS or retry later');
+    }
     if (!res.ok) return null;
     const json = await res.json() as { white: number; draws: number; black: number };
     const total = json.white + json.draws + json.black;
     return { white: json.white, draws: json.draws, black: json.black, total };
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && /LICHESS_TOKEN|rate-limited/.test(e.message)) throw e;
     return null;
   }
 }
