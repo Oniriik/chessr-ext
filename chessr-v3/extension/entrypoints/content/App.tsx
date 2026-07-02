@@ -382,7 +382,9 @@ export default function App({ streamMode = false }: AppProps = {}) {
             onClick={() => open ? handleClose() : setOpen(true)}
             aria-label="Toggle Chessr"
           >
-            <img src={browser.runtime.getURL('/icons/icon128.png')} alt="Chessr" width={54} height={54} style={{ marginTop: 4 }} />
+            {/* New knight logo is full-bleed (no baked-in padding) — keep it
+                well inside the 56px round button. */}
+            <img src={browser.runtime.getURL('/icons/icon128.png')} alt="Chessr" width={38} height={38} style={{ display: 'block', margin: '0 auto' }} />
           </button>
         </div>
       )}
