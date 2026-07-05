@@ -886,6 +886,7 @@ function ServerPingChip() {
   const { t } = useTranslation();
   const mode = useEngineStore((s) => s.activeEngineMode);
   const engineId = useEngineStore((s) => s.engineId);
+  const forceServer = useEngineStore((s) => s.forceServerEngine);
   const [ping, setPing] = useState<number | null>(null);
   const [avgMs, setAvgMs] = useState<number | null>(null);
 
@@ -913,6 +914,17 @@ function ServerPingChip() {
     return () => { cancelled = true; clearInterval(iv); };
   }, [mode, engineId]);
 
+  // Server mode requested but the load router fell back to the local
+  // engine — say so instead of silently dropping the chip.
+  if (mode === 'wasm' && forceServer) {
+    return (
+      <span className="game-suggestions-server" style={{ color: '#94a3b8' }}>
+        <span className="chessr-tip" data-tip={t('game.suggestions.tip.local')}>
+          💻 {t('game.suggestions.localChip')}
+        </span>
+      </span>
+    );
+  }
   if (mode !== 'server') return null;
   const color = ping === null ? '#94a3b8' : ping < 80 ? '#22c55e' : ping < 150 ? '#f59e0b' : '#ef4444';
   return (

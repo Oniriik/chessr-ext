@@ -283,6 +283,8 @@
   "engine.info.rodent.desc": "39 personalità con nome (stili GM + archetipi) con imprecisione regolabile.",
   "engine.info.stockfish.desc": "Motore classico open-source — veloce, pura forza tattica, senza regolazione della personalità.",
   "game.suggestions.serverChipHint": "I suggerimenti girano sul server — questa è la tua latenza verso di esso",
+  "game.suggestions.localChip": "locale",
+  "game.suggestions.tip.local": "Server occupato — i suggerimenti girano sul tuo dispositivo",
   "game.suggestions.tip.ping": "Latenza del server",
   "game.suggestions.tip.avg": "Tempo medio per suggerimento",
   "settings.engine.server.title": "Suggerimenti su server",
