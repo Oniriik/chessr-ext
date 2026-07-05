@@ -25,6 +25,7 @@
  */
 
 import { Hono } from 'hono';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { supabase } from '../lib/supabase.js';
 import { emitEvent } from '../lib/events.js';
 
@@ -63,7 +64,7 @@ function cleanIpAddress(raw: string | undefined | null): string | null {
   return ip || null;
 }
 
-function getClientIp(c: { req: { header: (k: string) => string | undefined } }): string | null {
+export function getClientIp(c: { req: { header: (k: string) => string | undefined } }): string | null {
   // Trust the proxy's X-Forwarded-For — nginx in front of us already
   // strips spoofed values from the client. Falls back to no-IP if both
   // headers are missing (containerised dev environment).
@@ -141,15 +142,10 @@ abuseRoutes.post('/check-signup', async (c) => {
   // No need for the auth.admin.listUsers email→id lookup the chessr-
   // next code did: a signup-flow email shouldn't exist yet, and
   // supabase.auth.signUp will reject duplicates later if it does.
-  // Only block on matches younger than this window. Older matches are
-  // typically false positives — carrier-grade NAT pools recycle IPs
-  // (very common in India, Indonesia, Brazil, mobile networks), and a
-  // fingerprint from an inactive account is almost always a coincidence
-  // by the time it ages out. 10 days is the same window the v2 abuse
-  // logic used; tune via MATCH_WINDOW_DAYS env if needed.
-  const MATCH_WINDOW_DAYS = Number(process.env.MATCH_WINDOW_DAYS) || 10;
-  const windowStart = new Date(Date.now() - MATCH_WINDOW_DAYS * 86400_000).toISOString();
-
+  // No time window — matching is all-time. The 10-day window inherited
+  // from v2 let multi-accounters simply wait it out; the cost is more
+  // IP false positives (recycled carrier-grade NAT pools), which
+  // moderators can triage via the matchedBy field on the event.
   let matchedUserIds: string[] = [];
   let reason = '';
   let fpMatch = false;
@@ -158,8 +154,7 @@ abuseRoutes.post('/check-signup', async (c) => {
     const { data: rows, error } = await supabase
       .from('user_fingerprints')
       .select('user_id')
-      .eq('fingerprint', fingerprint)
-      .gte('created_at', windowStart);
+      .eq('fingerprint', fingerprint);
     if (error) console.warn('[abuse.check-signup] user_fingerprints select:', error);
     if (rows && rows.length > 0) {
       matchedUserIds = rows.map((r) => r.user_id as string);
@@ -171,8 +166,7 @@ abuseRoutes.post('/check-signup', async (c) => {
     const { data: rows, error } = await supabase
       .from('signup_ips')
       .select('user_id')
-      .eq('ip_address', clientIp)
-      .gte('created_at', windowStart);
+      .eq('ip_address', clientIp);
     if (error) console.warn('[abuse.check-signup] signup_ips select:', error);
     if (rows && rows.length > 0) {
       matchedUserIds = [...matchedUserIds, ...rows.map((r) => r.user_id as string)];
@@ -187,6 +181,26 @@ abuseRoutes.post('/check-signup', async (c) => {
   // false-positive candidate.
   const matchedBy: 'fingerprint' | 'ip' | 'both' | null =
     fpMatch && ipMatch ? 'both' : fpMatch ? 'fingerprint' : ipMatch ? 'ip' : null;
+
+  // Self-exclusion — retrying a signup for the SAME email (typically after
+  // a lost confirmation email) matches the half-created account's own
+  // footprint. Blocking that traps legit users in a loop with no exit;
+  // excluded matches fall through to supabase.signUp, which re-sends the
+  // confirmation email for an unconfirmed account and lets the client's
+  // already-registered flow guide confirmed ones. Lookup failures keep
+  // the match (fail-closed on the exclusion, not on the block).
+  if (matchedUserIds.length > 0 && email) {
+    const targetEmail = email.toLowerCase();
+    const stillMatched: string[] = [];
+    for (const id of [...new Set(matchedUserIds)]) {
+      try {
+        const { data } = await supabase.auth.admin.getUserById(id);
+        if ((data?.user?.email ?? '').toLowerCase() === targetEmail) continue;
+      } catch { /* keep the match */ }
+      stillMatched.push(id);
+    }
+    matchedUserIds = stillMatched;
+  }
   console.log(`[abuse.check-signup] fp=${fingerprint?.slice(0,8) ?? 'none'} ip=${clientIp ?? 'none'} matched=${matchedUserIds.length} by=${matchedBy ?? '-'}`);
 
   // Step 2 — if any match, resolve their accounts and block. A banned
@@ -429,6 +443,73 @@ abuseRoutes.post('/report-banned-login', async (c) => {
   }).catch((err) => console.warn('[abuse.report-banned-login] discord:', err));
 
   return c.json({ ok: true, sent: true });
+});
+
+// ─── POST /hooks/before-user-created ────────────────────────────────────
+// Supabase Auth Hook — GoTrue calls this BEFORE creating any user, no
+// matter how the signup was initiated (extension, raw API script with the
+// public anon key, curl…). This closes the bypass where /check-signup is
+// skipped entirely: the disposable-email gate is enforced here server-to-
+// server. Fingerprint/IP gates can't run at this stage (no fingerprint
+// exists yet and GoTrue doesn't forward the client IP), so multi-account
+// enforcement stays with /check-signup + the free-trial claim gates.
+//
+// Setup (one-time, Supabase dashboard): Authentication → Hooks →
+// "Before User Created" → HTTPS → https://<server>/hooks/before-user-created,
+// then copy the generated secret into SUPABASE_BEFORE_USER_CREATED_SECRET.
+//
+// Payloads are signed with the standardwebhooks scheme (webhook-id /
+// webhook-timestamp / webhook-signature headers, HMAC-SHA256 base64).
+// Missing secret env → accept-with-warning so enabling the hook in the
+// dashboard before deploying the env var can't brick every signup.
+function verifyStandardWebhook(secret: string, msgId: string, timestamp: string, body: string, signatureHeader: string): boolean {
+  const key = Buffer.from(secret.replace(/^v1,whsec_/, '').replace(/^whsec_/, ''), 'base64');
+  const expected = createHmac('sha256', key).update(`${msgId}.${timestamp}.${body}`).digest('base64');
+  return signatureHeader.split(' ').some((part) => {
+    const sig = part.startsWith('v1,') ? part.slice(3) : part;
+    try {
+      const a = Buffer.from(sig, 'base64');
+      const b = Buffer.from(expected, 'base64');
+      return a.length === b.length && timingSafeEqual(a, b);
+    } catch { return false; }
+  });
+}
+
+abuseRoutes.post('/hooks/before-user-created', async (c) => {
+  const raw = await c.req.text();
+
+  const secret = process.env.SUPABASE_BEFORE_USER_CREATED_SECRET;
+  if (secret) {
+    const msgId = c.req.header('webhook-id') ?? '';
+    const ts = c.req.header('webhook-timestamp') ?? '';
+    const sig = c.req.header('webhook-signature') ?? '';
+    const fresh = Math.abs(Date.now() / 1000 - Number(ts)) < 300;
+    if (!msgId || !ts || !sig || !fresh || !verifyStandardWebhook(secret, msgId, ts, raw, sig)) {
+      console.warn('[abuse.hook] before-user-created: signature verification failed');
+      return c.json({ error: { http_code: 401, message: 'Invalid signature' } }, 401);
+    }
+  } else {
+    console.warn('[abuse.hook] SUPABASE_BEFORE_USER_CREATED_SECRET not set — accepting unverified hook payload');
+  }
+
+  let email: string | null = null;
+  try {
+    const body = JSON.parse(raw) as { user?: { email?: string } };
+    email = typeof body?.user?.email === 'string' ? body.user.email : null;
+  } catch { /* malformed body → allow (GoTrue payload should always parse) */ }
+
+  if (email && await isDisposableEmail(email)) {
+    await emitEvent({
+      type: 'signup_blocked',
+      payload: { email, reason: 'disposable', source: 'auth-hook' },
+    }).catch(() => {});
+    return c.json({
+      error: { http_code: 400, message: 'Disposable email addresses are not allowed. Please use a permanent email.' },
+    }, 400);
+  }
+
+  // Continue user creation.
+  return c.json({});
 });
 
 // ─── Discord embed for duplicate-signup events ──────────────────────────

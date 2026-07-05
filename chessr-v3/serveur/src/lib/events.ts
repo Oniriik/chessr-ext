@@ -60,6 +60,10 @@ export const EVENT_KINDS = [
   //                  account → "you already have an account"
   //   'disposable' — UserCheck flagged the email
   'signup_blocked',
+  // payload: { reason: 'device_already_used' | 'ip_already_used',
+  //            siblingUserId, discordId } — a free-trial claim was denied
+  // because a fingerprint- or IP-linked account already consumed one.
+  'freetrial_denied',
   // payload: { email, ip, country, countryCode, fingerprint, banReason }
   // Emitted when a banned user attempts to sign in via the form. The
   // signIn already calls supabase.auth.signOut so no token leaks.

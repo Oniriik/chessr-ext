@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { supabase } from '../lib/supabase.js';
 import { emitEvent } from '../lib/events.js';
 import { claimFreeTrial } from './freetrial.js';
+import { getClientIp } from './abuse.js';
 
 const app = new Hono();
 
@@ -195,7 +196,7 @@ app.get('/discord/callback', async (c) => {
   // picks up to swap their Free role for Freetrial. The deny path
   // surfaces the reason in the URL so the extension can show a non-
   // alarming "didn't get the trial because X" message.
-  const trial = await claimFreeTrial(userId, userId);
+  const trial = await claimFreeTrial(userId, userId, getClientIp(c));
   const trialQuery = trial.ok
     ? '&trial=granted'
     : `&trial=denied&trial_reason=${encodeURIComponent(trial.reason)}`;
