@@ -11,6 +11,7 @@ import { useTranslation, t as tStatic } from '../lib/i18n';
 import './auto-move-tab.css';
 
 import { isPremium } from '../lib/premium';
+import PremiumCta, { PremiumCtaCard } from './PremiumCta';
 
 function platformLabel(p: ReturnType<typeof usePlatformStore.getState>['platform']): string {
   switch (p) {
@@ -178,7 +179,15 @@ export default function AutoMoveTab() {
         )}
 
         {s.mode === 'off' && (
-          <div className="am-off-hint">{t('auto.offHint')}</div>
+          premium ? (
+            <div className="am-off-hint">{t('auto.offHint')}</div>
+          ) : (
+            <PremiumCtaCard
+              source="automove-off"
+              label={t('auto.unlock.title')}
+              body={t('auto.unlock.body')}
+            />
+          )
         )}
       </div>
     </div>
@@ -267,7 +276,10 @@ function HotkeysCard() {
       </div>
 
       {!premium && (
-        <div className="am-upgrade-note">{t('auto.upgrade.hotkey')}</div>
+        <>
+          <div className="am-upgrade-note">{t('auto.upgrade.hotkey')}</div>
+          <PremiumCta source="automove-hotkey" />
+        </>
       )}
     </div>
   );
@@ -360,7 +372,10 @@ function AutoPlayCard() {
         />
       </div>
       {!premium && (
-        <div className="am-upgrade-note">{t('auto.upgrade.auto')}</div>
+        <>
+          <div className="am-upgrade-note">{t('auto.upgrade.auto')}</div>
+          <PremiumCta source="automove-auto" />
+        </>
       )}
     </div>
   );

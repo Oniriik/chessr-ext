@@ -17,3 +17,14 @@ export function isPremium(plan: string | undefined): boolean {
 
 /** Alias for callsites that historically used `isPremiumPlan` naming. */
 export const isPremiumPlan = isPremium;
+
+/**
+ * Whether we can offer the 3-day free trial to this user — drives every
+ * "Start your free trial" CTA on premium walls. True only for a settled
+ * (`!planLoading`) free-plan account that never claimed a trial. The
+ * server enforces the same gates (plus the Discord anti-abuse check) in
+ * claimFreeTrial; this is just the display condition.
+ */
+export function canOfferTrial(plan: string | undefined, freetrialUsed: boolean, planLoading: boolean): boolean {
+  return plan === 'free' && !freetrialUsed && !planLoading;
+}

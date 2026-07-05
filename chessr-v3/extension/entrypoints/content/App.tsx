@@ -19,6 +19,7 @@ import SettingsScreen, { type SettingsTab } from './components/SettingsScreen';
 import LinkAccountScreen from './components/LinkAccountScreen';
 import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
+import TrialModal from './components/TrialModal';
 import { SystemMessageWidget } from './components/SystemMessageWidget';
 import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
@@ -441,6 +442,9 @@ export default function App({ streamMode = false }: AppProps = {}) {
       )}
 
       <FloatingWidget />
+      {/* Free-trial modal — opened from premium walls. Never on the
+          dedicated stream page (audience must not see account prompts). */}
+      {!streamMode && <TrialModal />}
       <HotkeyMoveButtons />
       {/* The system-message widget hides on the host page (chess.com /
           lichess / worldchess) whenever the dedicated Stream Mode tab

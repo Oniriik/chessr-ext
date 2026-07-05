@@ -1,0 +1,251 @@
+.trial-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Same layer as the FAB (2147483647) and ABOVE the chessr panel
+     (2147483646) — the modal must cover the whole page, sidebar included.
+     Equal z-index vs the FAB resolves by DOM order (modal mounts later). */
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--background) / 0.75);
+  backdrop-filter: blur(3px);
+  animation: trial-backdrop-in 0.18s ease-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+@keyframes trial-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.trial-modal {
+  position: relative;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 28px 26px 20px;
+  border-radius: calc(var(--radius) * 1.5);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  color: hsl(var(--card-foreground));
+  animation: trial-modal-in 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@keyframes trial-modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.trial-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.trial-modal-close:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+
+.trial-modal-emoji {
+  font-size: 42px;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.trial-modal-title {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+}
+
+.trial-modal-subtitle {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.trial-modal-features {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  border: 1px solid hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+}
+
+.trial-modal-features li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+}
+
+.trial-modal-feature-icon {
+  font-size: 15px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.trial-modal-error {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: hsl(var(--destructive) / 0.12);
+  border: 1px solid hsl(var(--destructive) / 0.35);
+  color: hsl(var(--destructive));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.trial-modal-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: var(--radius);
+  /* Discord brand color — same accent the system-message widget uses for
+     its `discord` category. The action IS a Discord link. */
+  background: #5865f2;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+.trial-modal-cta:hover:not(:disabled) {
+  background: #6a76f5;
+  transform: translateY(-1px);
+}
+.trial-modal-cta:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.trial-modal-alt {
+  margin-top: 10px;
+  border: none;
+  background: none;
+  color: hsl(var(--muted-foreground));
+  font-size: 11.5px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.trial-modal-alt:hover {
+  color: hsl(var(--foreground));
+}
+
+/* Secondary "or upgrade" text link shown under a trial-first primary CTA. */
+.trial-upgrade-alt {
+  border: none;
+  background: none;
+  color: hsl(var(--muted-foreground));
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-align: center;
+  display: block;
+  width: 100%;
+}
+.trial-upgrade-alt:hover {
+  color: hsl(var(--foreground));
+}
+
+/* Lock-banner card (PremiumCtaCard) — amber frame + 🔒 label + CTA. */
+.premium-cta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.premium-cta-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #fbbf24;
+}
+
+.premium-cta-card-lock {
+  font-size: 12px;
+}
+
+.premium-cta-card-body {
+  font-size: 11px;
+  line-height: 1.55;
+  color: hsl(var(--muted-foreground));
+}
+
+/* Standard premium-wall CTA button (PremiumCta) — mirrors the OpeningTab
+   lock-banner buttons so every wall converts with the same visual. */
+.premium-cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.premium-cta-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.premium-cta-btn--trial {
+  /* Chessr primary blue, same gradient treatment as the gold Upgrade
+     button. The Discord blurple is reserved for the modal's CTA, which
+     is the actual "link Discord" action. */
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.premium-cta-btn--gold {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a1917;
+}
+
+.trial-modal-note {
+  margin-top: 12px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: hsl(var(--muted-foreground));
+}

@@ -21,7 +21,9 @@ import { useAutoMoveStore, formatCountdown } from '../stores/autoMoveStore';
 import EditableComponent from './EditableComponent';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
-import { isPremium } from '../lib/premium';
+import { isPremium, canOfferTrial } from '../lib/premium';
+import { useTrialModalStore } from '../stores/trialModalStore';
+import { PremiumCtaCard } from './PremiumCta';
 import Slider, { lerpColor } from './Slider';
 import GameSummaryCard from './GameSummaryCard';
 import { useGameMeta } from '../hooks/useGameMeta';
@@ -220,6 +222,9 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
   const { t } = useTranslation();
   const meta = useGameMeta(gameId);
   const { loading, progress, analysis, headers, error, quota, checkCache, requestReview } = useReviewStore();
+  const { plan: _plan, planLoading: _planLoading, freetrialUsed: _ftUsed } = useAuthStore();
+  const openTrialModal = useTrialModalStore((s) => s.open);
+  const trialOffer = canOfferTrial(_plan, _ftUsed, _planLoading);
 
   useEffect(() => { checkCache(gameId); }, [gameId]);
 
@@ -250,9 +255,20 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
           <span style={{ fontSize: 11, fontWeight: 500, textAlign: 'center', display: 'block' }}>
             {t('game.review.upgradeCTA')}
           </span>
-          <button className="game-review-btn game-review-btn--upgrade" onClick={() => openBillingPage()}>
-            {t('game.review.upgrade')}
-          </button>
+          {trialOffer ? (
+            <>
+              <button className="game-review-btn game-review-btn--upgrade" onClick={() => openTrialModal('review-quota')}>
+                🎁 {t('trial.cta.full')}
+              </button>
+              <button className="trial-upgrade-alt" onClick={() => openBillingPage()}>
+                {t('game.review.upgrade')}
+              </button>
+            </>
+          ) : (
+            <button className="game-review-btn game-review-btn--upgrade" onClick={() => openBillingPage()}>
+              {t('game.review.upgrade')}
+            </button>
+          )}
         </>
       )}
       {idle && !(showQuotaBadge && remaining === 0) && (
@@ -277,10 +293,22 @@ function GameOverCard({ gameId, playerColor }: { gameId: string; playerColor: st
       )}
 
       {error === 'daily_limit' && (
-        <button className="game-review-btn game-review-btn--upgrade" onClick={() => openBillingPage()}>
-          {t('game.review.upgrade')}
-          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
-        </button>
+        trialOffer ? (
+          <>
+            <button className="game-review-btn game-review-btn--upgrade" onClick={() => openTrialModal('review-quota')}>
+              🎁 {t('trial.cta.full')}
+              <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
+            </button>
+            <button className="trial-upgrade-alt" onClick={() => openBillingPage()}>
+              {t('game.review.upgrade')}
+            </button>
+          </>
+        ) : (
+          <button className="game-review-btn game-review-btn--upgrade" onClick={() => openBillingPage()}>
+            {t('game.review.upgrade')}
+            <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.7, display: 'block', marginTop: 2 }}>{t('game.review.dailyLimit')}</span>
+          </button>
+        )
       )}
 
       {error && error !== 'daily_limit' && (
@@ -848,8 +876,11 @@ const ENGINE_SUPPORTED_SECTIONS: Record<string, string[]> = {
 };
 
 function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
+  const { t } = useTranslation();
   const engineId = useEngineStore((s) => s.engineId);
   const engineOrder = useLayoutStore((s) => s.engineOrder);
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
 
   if (engineId === 'maia3') return <Maia3Panel />;
   if (engineId === 'rodent') return <RodentPanel />;
@@ -871,6 +902,9 @@ function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }
     <DndContext collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={visibleOrder} strategy={verticalListSortingStrategy}>
         <div className="engine-panel">
+          {/* Single upgrade CTA for the whole tab — the per-section yellow
+              notes below explain WHAT is locked, this is the one action. */}
+          {!premium && <PremiumCtaCard source="engine-tab" label={t('engine.premiumCard')} />}
           <span className="engine-name-chip">{ENGINE_INFO[engineId]?.label ?? engineId}</span>
           {visibleOrder.map((id) => {
             const renderFn = ENGINE_SECTIONS[id];

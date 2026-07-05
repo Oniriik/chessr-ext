@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation, t as tStatic } from '../lib/i18n';
 import { useAuthStore } from '../stores/authStore';
 import { isPremium } from '../lib/premium';
-import { openBillingPage } from '../lib/openBilling';
+import { PremiumCtaCard } from './PremiumCta';
 import { useOpeningStore } from '../stores/openingStore';
 import { searchOpenings, fetchPopularOpenings, type OpeningEntry } from '../lib/openingApi';
 import './opening.css';
@@ -112,28 +112,7 @@ export default function OpeningTab() {
     <div className="opening-tab">
 
       {/* ── Premium lock banner + upgrade CTA ───── */}
-      {!premium && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: 7,
-          padding: '9px 10px', borderRadius: 8,
-          background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.3)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 600, color: '#fbbf24' }}>
-            <span style={{ fontSize: 12 }}>🔒</span>
-            <span>{t('opening.tab.premiumOnly')}</span>
-          </div>
-          <button
-            onClick={() => openBillingPage()}
-            style={{
-              border: 'none', cursor: 'pointer', borderRadius: 6,
-              padding: '6px 10px', fontSize: 11, fontWeight: 700,
-              background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#1a1917',
-            }}
-          >
-            {t('game.review.upgrade')}
-          </button>
-        </div>
-      )}
+      {!premium && <PremiumCtaCard source="opening-tab" label={t('opening.tab.premiumOnly')} />}
 
       {/* Locked content stays visible (greyed) so free users see what an
           upgrade unlocks — same pattern as the AutoMove mode buttons. */}

@@ -11,7 +11,7 @@ import LichessIcon from './icons/LichessIcon';
 import { useSettingsStore } from '../stores/settingsStore';
 import { SERVER_URL, WS_SERVER_URL, BUILD_ENV, SERVER_LABEL } from '../lib/config';
 import { openBillingPage } from '../lib/openBilling';
-import { isPremium } from '../lib/premium';
+import { isPremium, canOfferTrial } from '../lib/premium';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import Slider from './Slider';
@@ -337,7 +337,8 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
   const tabs = useTabs();
   const planDisplay = usePlanDisplay();
   const [accountsOpen, setAccountsOpen] = useState(false);
-  const { user, plan, planExpiry } = useAuthStore();
+  const { user, plan, planExpiry, planLoading, freetrialUsed } = useAuthStore();
+  const trialOffer = canOfferTrial(plan, freetrialUsed, planLoading);
   const discord = useDiscordStore();
   const { accounts, loading: accountsLoading, unlinkAccount } = useLinkedAccountsStore();
   const [latency, setLatency] = useState<number | null>(null);
@@ -442,8 +443,10 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
               )}
             </div>
             {!discord.linked && !discord.loading && (
+              // Linking auto-claims the 3-day trial server-side, so while
+              // it's still claimable the button sells the trial, not the link.
               <button className="settings-discord-link-btn" onClick={() => user && discord.initLink(user.id)}>
-                {t('settings.account.discord.linkBtn')}
+                {trialOffer ? <><span style={{ fontSize: 13, lineHeight: 1 }}>🎁</span>{t('trial.modal.ctaLink')}</> : t('settings.account.discord.linkBtn')}
               </button>
             )}
           </div>

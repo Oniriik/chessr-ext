@@ -14,6 +14,9 @@
 
 .panel-header-title {
   font-size: 14px;
+  /* line-height 1 so the flex centering of the badges next to it is true —
+     the default ~1.2 line box made the pill look vertically off. */
+  line-height: 1;
   font-weight: 800;
   color: hsl(var(--foreground));
 }
@@ -47,6 +50,8 @@
 }
 
 .plan-badge-upgrade {
+  display: inline-flex;
+  align-items: center;
   padding: 2px 6px;
   border-radius: 4px;
   border: none;
