@@ -1,7 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { decideRoute, HYSTERESIS_DWELL_MS, type RouteState } from '../serverRouteDecision.js';
-import { fakeEngineLoad, fakeLoadBucket } from '../fakeEngineLoad.js';
 
 const onServer: RouteState = { fallbackActive: false, belowSince: null };
 
@@ -48,33 +47,5 @@ describe('decideRoute (hysteresis)', () => {
     ({ next: s } = decideRoute(s, 70, 80, 30_000));
     assert.equal(s.belowSince, null);
     assert.equal(s.fallbackActive, true);
-  });
-});
-
-describe('fakeEngineLoad', () => {
-  it('is deterministic per (engine, bucket)', () => {
-    assert.deepEqual(fakeEngineLoad('maia3', 42), fakeEngineLoad('maia3', 42));
-  });
-
-  it('varies across engines and buckets', () => {
-    const a = fakeEngineLoad('maia3', 42);
-    const b = fakeEngineLoad('komodo', 42);
-    const c = fakeEngineLoad('maia3', 43);
-    assert.ok(JSON.stringify(a) !== JSON.stringify(b) || JSON.stringify(a) !== JSON.stringify(c));
-  });
-
-  it('stays inside the plausible ranges', () => {
-    for (let b = 0; b < 50; b++) {
-      const v = fakeEngineLoad('komodo', b);
-      assert.ok(v.activeUsers >= 2 && v.activeUsers <= 8);
-      assert.ok((v.avgResponseMs ?? 0) >= 600 && (v.avgResponseMs ?? 0) <= 950);
-      assert.ok(v.loadPct >= 25 && v.loadPct <= 65);
-    }
-  });
-
-  it('buckets change every 5 minutes', () => {
-    assert.equal(fakeLoadBucket(0), 0);
-    assert.equal(fakeLoadBucket(299_999), 0);
-    assert.equal(fakeLoadBucket(300_000), 1);
   });
 });

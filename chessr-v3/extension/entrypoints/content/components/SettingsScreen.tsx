@@ -18,7 +18,6 @@ import Slider from './Slider';
 import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
 import { useGameStore } from '../stores/gameStore';
 import { clearPremoveArrow } from '../lib/arrows';
-import { fakeEngineLoad, fakeLoadBucket, type EngineLoadSnapshot } from '../lib/fakeEngineLoad';
 import { PremiumCtaCard } from './PremiumCta';
 import { useTranslation, SUPPORTED_LOCALES, LOCALE_LABELS, t as tStatic, type LocalePreference } from '../lib/i18n';
 import './settings-screen.css';
@@ -536,32 +535,29 @@ function ServerEngineSection() {
   } = useEngineStore();
   const plan = useAuthStore((s) => s.plan);
   const premium = isPremium(plan);
-  const [load, setLoad] = React.useState<EngineLoadSnapshot | null>(null);
+  const [load, setLoad] = React.useState<{ activeUsers: number; avgResponseMs: number | null; loadPct: number } | null>(null);
   const [ping, setPing] = React.useState<number | null>(null);
 
+  // Real telemetry for everyone — the endpoint is public and cheap; only
+  // the toggle/slider are premium-gated.
   React.useEffect(() => {
     let cancelled = false;
     const tick = async () => {
-      if (!premium) {
-        setLoad(fakeEngineLoad(engineId, fakeLoadBucket(Date.now())));
-        setPing(40 + (fakeLoadBucket(Date.now()) % 5) * 7);
-        return;
-      }
       try {
         const t0 = performance.now();
         const res = await fetch(`${SERVER_URL}/engine-load?engine=${encodeURIComponent(engineId)}`, { cache: 'no-store' });
         const rtt = Math.round(performance.now() - t0);
         if (cancelled) return;
         setPing(rtt);
-        if (res.ok) setLoad(await res.json() as EngineLoadSnapshot);
+        if (res.ok) setLoad(await res.json() as { activeUsers: number; avgResponseMs: number | null; loadPct: number });
       } catch {
         if (!cancelled) { setLoad(null); setPing(null); }
       }
     };
     tick();
-    const iv = setInterval(tick, premium ? 5000 : 30_000);
+    const iv = setInterval(tick, 5000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [engineId, premium]);
+  }, [engineId]);
 
   const pct = load?.loadPct ?? 0;
   const loadColor = pct < 60 ? '#22c55e' : pct < 85 ? '#f59e0b' : '#ef4444';
