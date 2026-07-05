@@ -240,12 +240,19 @@
   background: rgba(255, 255, 255, 0.04);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .game-suggestions-legend {
   display: flex;
   gap: 10px;
   padding-right: 46px;
+  /* Anchor for the depth badge, which floats in the reserved 46px above
+     the row-icon column so POS/WIN stay aligned with their columns. */
+  position: relative;
   font-size: 9px;
   color: hsl(var(--muted-foreground) / 0.6);
   text-transform: uppercase;
