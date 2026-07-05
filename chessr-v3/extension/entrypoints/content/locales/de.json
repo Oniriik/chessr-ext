@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Du",
   "settings.suggestions.opponentArrow": "Gegnerzug anzeigen",
   "settings.suggestions.opponentArrowColor": "Farbe Gegnerzug",
+  "settings.suggestions.premoveArrow": "Premove-Pfeil anzeigen",
+  "settings.suggestions.premoveArrowColor": "Farbe Premove-Pfeil",
   "settings.account.title": "Konto",
   "settings.account.verified": "✓ Verifiziert",
   "settings.account.unverified": "Nicht verifiziert",

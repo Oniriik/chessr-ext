@@ -17,6 +17,7 @@ import Toggle from './Toggle';
 import Slider from './Slider';
 import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
 import { useGameStore } from '../stores/gameStore';
+import { clearPremoveArrow } from '../lib/arrows';
 import { useTranslation, SUPPORTED_LOCALES, LOCALE_LABELS, t as tStatic, type LocalePreference } from '../lib/i18n';
 import './settings-screen.css';
 
@@ -223,9 +224,9 @@ function SuggestionsTab() {
   const { t } = useTranslation();
   const {
     showSuggestedMoves, numArrows, arrowColors, highlightSquares, showMyLastMove,
-    showOpponentArrow, opponentArrowColor,
+    showOpponentArrow, opponentArrowColor, showPremoveArrow, premoveArrowColor,
     setShowSuggestedMoves, setNumArrows, setArrowColor, setHighlightSquares, setShowMyLastMove,
-    setShowOpponentArrow, setOpponentArrowColor,
+    setShowOpponentArrow, setOpponentArrowColor, setShowPremoveArrow, setPremoveArrowColor,
   } = useSettingsStore();
 
   return (
@@ -295,6 +296,31 @@ function SuggestionsTab() {
               type="color"
               value={opponentArrowColor}
               onChange={(e) => setOpponentArrowColor(e.target.value)}
+              className="settings-color-input"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="settings-item settings-item--column">
+        <div className="settings-item-row">
+          <span className="settings-label">{t('settings.suggestions.premoveArrow')}</span>
+          <Toggle
+            checked={showPremoveArrow}
+            onChange={(v) => { setShowPremoveArrow(v); if (!v) clearPremoveArrow(); }}
+          />
+        </div>
+
+        {showPremoveArrow && (
+          <div className="settings-item-row">
+            <div className="settings-color-label">
+              <span className="settings-color-dot" style={{ background: premoveArrowColor }} />
+              <span className="settings-label">{t('settings.suggestions.premoveArrowColor')}</span>
+            </div>
+            <input
+              type="color"
+              value={premoveArrowColor}
+              onChange={(e) => setPremoveArrowColor(e.target.value)}
               className="settings-color-input"
             />
           </div>

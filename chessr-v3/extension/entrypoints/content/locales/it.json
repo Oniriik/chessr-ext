@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Tu",
   "settings.suggestions.opponentArrow": "Mostra mossa avversario",
   "settings.suggestions.opponentArrowColor": "Colore mossa avversario",
+  "settings.suggestions.premoveArrow": "Mostra freccia premossa",
+  "settings.suggestions.premoveArrowColor": "Colore freccia premossa",
   "settings.account.title": "Account",
   "settings.account.verified": "✓ Verificato",
   "settings.account.unverified": "Non verificato",

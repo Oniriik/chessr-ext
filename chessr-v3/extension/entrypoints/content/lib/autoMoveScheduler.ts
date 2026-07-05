@@ -4,6 +4,7 @@ import { useGameStore } from '../stores/gameStore';
 import { useAuthStore } from '../stores/authStore';
 import { usePlatformStore, platformSupportsPremove } from '../stores/platformStore';
 import { executeAutoMove, executePremove, cancelPremoves } from './autoMove';
+import { setPremoveArrow, clearPremoveArrow } from './arrows';
 
 import { isPremiumPlan } from './premium';
 
@@ -90,6 +91,10 @@ function schedulePremove(premoveUci: string): void {
       const cur = useGameStore.getState();
       // Opponent already replied → premove pointless / would be wrong.
       if (cur.moveHistoryUci.length > baseline + 1) return;
+      // Arrow appears only now — when the premove actually fires. It
+      // clears when the turn comes back to the player (premove consumed
+      // or invalidated) or on game end.
+      setPremoveArrow(premoveUci);
       executeAutoMove(premoveUci, buildHumanizeDelays(useAutoMoveStore.getState()));
     }, delay);
   };
@@ -260,6 +265,7 @@ export function installAutoPlayScheduler(): () => void {
     if (!state.isPlaying || state.gameOver) {
       clearPendingAuto();
       clearPendingPremove();
+      clearPremoveArrow();
       lastPlayedFen = null;
 
       // Auto-rematch: trigger on game-over transition, online only, not paused.
@@ -281,6 +287,19 @@ export function installAutoPlayScheduler(): () => void {
       clearPendingAuto();
     }
 
+    // Turn came back to the player → any queued premove was consumed or
+    // invalidated by the opponent's move; drop its arrow. Covers both the
+    // hotkey and auto-premove paths.
+    if (state.turn !== prev.turn && state.turn !== null && state.turn === state.playerColor) {
+      clearPremoveArrow();
+    }
+    // A premove executing shows up as a 2-ply history jump with the turn
+    // staying on the opponent (opponent move + premove applied atomically)
+    // — the turn-based clear above misses that case.
+    if (state.moveHistoryUci.length >= prev.moveHistoryUci.length + 2) {
+      clearPremoveArrow();
+    }
+
     // If in auto mode and auto-premove is on, schedule a premove during opponent's turn.
     // Premove is gated by platform — only chess.com is enabled today (see
     // platformSupportsPremove). On lichess / worldchess we skip this entirely.
@@ -292,12 +311,16 @@ export function installAutoPlayScheduler(): () => void {
     ) {
       const suggestions = useSuggestionStore.getState().suggestions;
       if (suggestions.length > 0 && state.fen !== prev.fen) {
-        // Cancel any existing premove and schedule a new one
+        // Cancel any existing premove and schedule a new one — the arrow
+        // of the cancelled premove goes away with it.
         cancelPremoves();
         clearPendingPremove();
+        clearPremoveArrow();
         const delay = randomInRangeBiased(s.premoveDelay);
         pendingPremoveTimeout = setTimeout(() => {
           executePremove(suggestions[0].move);
+          // Arrow appears only when the premove actually fires.
+          setPremoveArrow(suggestions[0].move);
           pendingPremoveTimeout = null;
         }, delay);
       }

@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Siz",
   "settings.suggestions.opponentArrow": "Rakip hamlesini göster",
   "settings.suggestions.opponentArrowColor": "Rakip hamlesi rengi",
+  "settings.suggestions.premoveArrow": "Ön hamle okunu göster",
+  "settings.suggestions.premoveArrowColor": "Ön hamle oku rengi",
   "settings.account.title": "Hesap",
   "settings.account.verified": "✓ Doğrulandı",
   "settings.account.unverified": "Doğrulanmadı",

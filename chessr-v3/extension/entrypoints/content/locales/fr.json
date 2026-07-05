@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Vous",
   "settings.suggestions.opponentArrow": "Afficher le coup adverse",
   "settings.suggestions.opponentArrowColor": "Couleur du coup adverse",
+  "settings.suggestions.premoveArrow": "Afficher la flèche de premove",
+  "settings.suggestions.premoveArrowColor": "Couleur de la flèche de premove",
   "settings.account.title": "Compte",
   "settings.account.verified": "✓ Vérifié",
   "settings.account.unverified": "Non vérifié",

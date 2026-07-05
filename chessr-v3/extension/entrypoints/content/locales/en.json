@@ -272,6 +272,8 @@
   "game.lastMoves.you": "You",
   "settings.suggestions.opponentArrow": "Show opponent move",
   "settings.suggestions.opponentArrowColor": "Opponent move color",
+  "settings.suggestions.premoveArrow": "Show premove arrow",
+  "settings.suggestions.premoveArrowColor": "Premove arrow color",
   "settings.account.title": "Account",
   "settings.account.verified": "✓ Verified",
   "settings.account.unverified": "Unverified",

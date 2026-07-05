@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Вы",
   "settings.suggestions.opponentArrow": "Показать ход соперника",
   "settings.suggestions.opponentArrowColor": "Цвет хода соперника",
+  "settings.suggestions.premoveArrow": "Показать стрелку предхода",
+  "settings.suggestions.premoveArrowColor": "Цвет стрелки предхода",
   "settings.account.title": "Аккаунт",
   "settings.account.verified": "✓ Подтверждён",
   "settings.account.unverified": "Не подтверждён",

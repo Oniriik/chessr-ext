@@ -47,6 +47,8 @@ let lastDeviationMove: string | null = null;
 let lastDeviationColor: string = '#fde047';
 let lastDeviationLabel: string | undefined = undefined;
 let deviationArrowGroup: SVGGElement | null = null;
+let lastPremoveMove: string | null = null;
+let premoveArrowGroup: SVGGElement | null = null;
 
 // Drawn-arrow registry keyed by `from` square so drag handlers can shorten
 // or hide the matching arrows in real time as the user drags the piece.
@@ -198,6 +200,32 @@ function makeBadge(toPt: { x: number; y: number }, text: string, badgeColor: str
   return g;
 }
 
+/** Number of badge slots already occupied on `square` by OTHER arrow
+ *  groups (suggestion stacks + persistent arrows). Badges from independent
+ *  sources (suggestion, opponent move, my last move, book, premove) can
+ *  target the same destination square — e.g. a recapture — and each source
+ *  stacks its own badges from 0, so without this offset they'd overlap. */
+function occupiedBadgeSlots(square: string, exclude?: SVGGElement | null): number {
+  let n = 0;
+  for (const [move, g] of badgeGroupByMove) {
+    if (g !== exclude && g.isConnected && move.slice(2, 4) === square) n += g.childElementCount;
+  }
+  const persistent: Array<[SVGGElement | null, string | null]> = [
+    [opponentMoveGroup, lastOpponentMove?.uci ?? null],
+    [myLastMoveGroup, lastMyMove?.uci ?? null],
+    [theoryArrowGroup, lastTheoryMove],
+    [deviationArrowGroup, lastDeviationMove],
+    [premoveArrowGroup, lastPremoveMove],
+  ];
+  for (const [g, uci] of persistent) {
+    if (g && g !== exclude && g.isConnected && uci && uci.slice(2, 4) === square) {
+      // Persistent groups hold the arrow <path> plus badge <g> children.
+      n += Array.from(g.children).filter((c) => c.tagName.toLowerCase() === 'g').length;
+    }
+  }
+  return n;
+}
+
 /** Draw all badges (classification + standard labels) for one suggestion.
  *  Classification ALWAYS sits at slot 0 (per UI convention — see
  *  SuggestionRow); standard labels stack below it. Returns the wrapping
@@ -209,7 +237,9 @@ function buildSuggestionBadges(s: Pick<LabeledSuggestion, 'move' | 'labels' | 'm
 
   const wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   wrapper.setAttribute('data-badges-for', s.move);
-  let slot = 0;
+  // Start below any badges other sources already placed on this square
+  // (persistent arrows targeting the same destination).
+  let slot = occupiedBadgeSlots(to);
   // Opening theory label always tops the stack when this suggestion IS the
   // theory move — the theory arrow itself is not drawn in that case (the
   // suggestion arrow already shows the move), only its label survives here.
@@ -517,6 +547,7 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
         opponentMoveGroup = null;
         theoryArrowGroup = null;
         deviationArrowGroup = null;
+        premoveArrowGroup = null;
         if (lastOpponentMove) setOpponentMove(lastOpponentMove);
         if (lastMyMove) setMyLastMove(lastMyMove);
         for (const s of lastSuggestions) {
@@ -525,6 +556,7 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
         renderBadges(lastSuggestions, false);
         if (lastTheoryMove) setTheoryArrow(lastTheoryMove, lastTheoryColor, lastTheoryLabel);
         if (lastDeviationMove) setDeviationArrow(lastDeviationMove, lastDeviationColor, lastDeviationLabel);
+        if (lastPremoveMove) setPremoveArrow(lastPremoveMove);
       }
     });
     resizeObserver.observe(board);
@@ -544,6 +576,7 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   myLastMoveGroup = null;
   theoryArrowGroup = null;
   deviationArrowGroup = null;
+  premoveArrowGroup = null;
   arrowsByFrom.clear();
   // arrowGroup.innerHTML='' wiped every <g> we tracked too — drop the
   // badge map so renderBadges re-creates fresh entries for the new
@@ -574,6 +607,7 @@ export function renderArrows(suggestions: Pick<LabeledSuggestion, 'move' | 'labe
   if (lastMyMove) setMyLastMove(lastMyMove);
   if (lastTheoryMove) setTheoryArrow(lastTheoryMove, lastTheoryColor, lastTheoryLabel);
   if (lastDeviationMove) setDeviationArrow(lastDeviationMove, lastDeviationColor, lastDeviationLabel);
+  if (lastPremoveMove) setPremoveArrow(lastPremoveMove);
 }
 
 function buildMovePath(from: string, to: string, fromPt: { x: number; y: number }, toPt: { x: number; y: number }, shortenBy: number): string {
@@ -651,9 +685,10 @@ export function setOpponentMove(move: { uci: string; classification?: MoveClassi
   path.setAttribute('marker-end', `url(#${markerId})`);
   g.appendChild(path);
 
-  // Classification badge if available
+  // Classification badge if available — stacked below any badges other
+  // sources already placed on this square (e.g. my-last-move on a recapture).
   if (move.classification && CLASSIFICATION_LABEL[move.classification]) {
-    const badge = makeBadge(toPt, CLASSIFICATION_LABEL[move.classification], CLASSIFICATION_COLOR[move.classification], 0, false);
+    const badge = makeBadge(toPt, CLASSIFICATION_LABEL[move.classification], CLASSIFICATION_COLOR[move.classification], occupiedBadgeSlots(to), false);
     g.appendChild(badge);
   }
 
@@ -711,7 +746,7 @@ export function setMyLastMove(move: { uci: string; classification?: MoveClassifi
   g.appendChild(path);
 
   if (move.classification && CLASSIFICATION_LABEL[move.classification]) {
-    const badge = makeBadge(toPt, CLASSIFICATION_LABEL[move.classification], arrowColor, 0, false);
+    const badge = makeBadge(toPt, CLASSIFICATION_LABEL[move.classification], arrowColor, occupiedBadgeSlots(to), false);
     g.appendChild(badge);
   }
 
@@ -791,9 +826,10 @@ function drawBookArrow(uci: string, color: string, markerId: string, dataAttr: s
   path.setAttribute('marker-end', `url(#${markerId})`);
   g.appendChild(path);
 
-  // Opening name label — same badge style/position as suggestion badges.
+  // Opening name label — same badge style/position as suggestion badges,
+  // stacked below badges other sources already placed on this square.
   if (label) {
-    g.appendChild(makeBadge(toPt, label.slice(0, 5), color, 0, false));
+    g.appendChild(makeBadge(toPt, label.slice(0, 5), color, occupiedBadgeSlots(to), false));
   }
 
   arrowGroup.appendChild(g);
@@ -828,6 +864,81 @@ export function setDeviationArrow(uci: string, color: string, label?: string) {
   deviationArrowGroup = drawBookArrow(uci, color, 'chessr-marker-deviation', 'data-deviation-move', label);
 }
 
+/** Arrow for a premove queued by Chessr (hotkey + modifier, or
+ *  auto-premove). Unlike book arrows there is no suggestion-merge rule —
+ *  the premove displays during the opponent's turn, when suggestion
+ *  arrows for our next move aren't on the board. */
+export function setPremoveArrow(uci: string) {
+  lastPremoveMove = uci;
+  premoveArrowGroup?.remove();
+  premoveArrowGroup = null;
+  if (!streamOpenReady() || isStreamOpen()) return;
+  const settings = useSettingsStore.getState();
+  if (!settings.showPremoveArrow) return;
+  const board = getBoard();
+  if (!board) return;
+  // Premoves are queued during the opponent's turn, sometimes before the
+  // first renderArrows of the game — same staleness/orientation caveats
+  // as book arrows (see drawBookArrow).
+  if (!overlay || !overlay.isConnected || overlay.parentElement !== board) {
+    createOverlay(board);
+  }
+  if (!arrowGroup) return;
+  flipped = useGameStore.getState().playerColor === 'black';
+
+  const from = uci.slice(0, 2);
+  const to = uci.slice(2, 4);
+  const fromPt = getSquareCenter(from);
+  const toPt = getSquareCenter(to);
+  if (!fromPt || !toPt) return;
+
+  const color = settings.premoveArrowColor;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('data-premove-move', uci);
+
+  const thickness = Math.max(5, Math.round(squareSize / 10));
+  const markerId = 'chessr-marker-premove';
+  // Always recreate so color changes take effect immediately.
+  defs?.querySelector(`#${markerId}`)?.remove();
+  if (defs) {
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+    marker.setAttribute('id', markerId);
+    marker.setAttribute('markerWidth', '2.5');
+    marker.setAttribute('markerHeight', '2.5');
+    marker.setAttribute('refX', '0.5');
+    marker.setAttribute('refY', '1.25');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    polygon.setAttribute('points', '0 0, 2.5 1.25, 0 2.5');
+    polygon.setAttribute('fill', color);
+    marker.appendChild(polygon);
+    defs.appendChild(marker);
+  }
+
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', buildMovePath(from, to, fromPt, toPt, thickness * 2));
+  path.setAttribute('stroke', color);
+  path.setAttribute('stroke-width', `${thickness}`);
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('opacity', '0.85');
+  path.setAttribute('marker-end', `url(#${markerId})`);
+  g.appendChild(path);
+
+  g.appendChild(makeBadge(toPt, 'Premove', color, occupiedBadgeSlots(to), false));
+
+  arrowGroup.appendChild(g);
+  premoveArrowGroup = g;
+}
+
+export function clearPremoveArrow() {
+  lastPremoveMove = null;
+  premoveArrowGroup?.remove();
+  premoveArrowGroup = null;
+}
+
 export function clearDeviationArrow() {
   const hadLabel = lastDeviationLabel !== undefined;
   lastDeviationMove = null;
@@ -846,7 +957,7 @@ export function clearArrows() {
   badgeGroupByMove.clear();
   if (!arrowGroup) return;
   // Fade out suggestion arrows only — skip the opponent move and my-last-move groups.
-  const children = Array.from(arrowGroup.children).filter((c) => c !== opponentMoveGroup && c !== myLastMoveGroup && c !== theoryArrowGroup && c !== deviationArrowGroup);
+  const children = Array.from(arrowGroup.children).filter((c) => c !== opponentMoveGroup && c !== myLastMoveGroup && c !== theoryArrowGroup && c !== deviationArrowGroup && c !== premoveArrowGroup);
   if (!children.length) return;
 
   if (useSettingsStore.getState().disableAnimations) {
@@ -889,6 +1000,8 @@ export function clearPersistentArrows(): void {
   theoryArrowGroup = null;
   deviationArrowGroup?.remove();
   deviationArrowGroup = null;
+  premoveArrowGroup?.remove();
+  premoveArrowGroup = null;
 }
 
 /** Redraw the opponent-move, my-last-move, and theory arrows from the last known
@@ -899,6 +1012,7 @@ export function redrawPersistentArrows(): void {
   if (lastMyMove) setMyLastMove(lastMyMove);
   if (lastTheoryMove) setTheoryArrow(lastTheoryMove, lastTheoryColor, lastTheoryLabel);
   if (lastDeviationMove) setDeviationArrow(lastDeviationMove, lastDeviationColor, lastDeviationLabel);
+  if (lastPremoveMove) setPremoveArrow(lastPremoveMove);
 }
 
 /**

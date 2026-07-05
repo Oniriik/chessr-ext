@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Tú",
   "settings.suggestions.opponentArrow": "Mostrar movimiento del rival",
   "settings.suggestions.opponentArrowColor": "Color del movimiento rival",
+  "settings.suggestions.premoveArrow": "Mostrar flecha de premovimiento",
+  "settings.suggestions.premoveArrowColor": "Color de la flecha de premovimiento",
   "settings.account.title": "Cuenta",
   "settings.account.verified": "✓ Verificado",
   "settings.account.unverified": "Sin verificar",

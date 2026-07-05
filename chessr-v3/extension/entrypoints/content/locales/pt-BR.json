@@ -267,6 +267,8 @@
   "game.lastMoves.you": "Você",
   "settings.suggestions.opponentArrow": "Mostrar lance do adversário",
   "settings.suggestions.opponentArrowColor": "Cor do lance adversário",
+  "settings.suggestions.premoveArrow": "Mostrar seta de pré-lance",
+  "settings.suggestions.premoveArrowColor": "Cor da seta de pré-lance",
   "settings.account.title": "Conta",
   "settings.account.verified": "✓ Verificada",
   "settings.account.unverified": "Não verificada",

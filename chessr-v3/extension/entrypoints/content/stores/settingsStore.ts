@@ -21,6 +21,8 @@ interface Settings {
   arrowColors: [string, string, string];
   showOpponentArrow: boolean;
   opponentArrowColor: string;
+  showPremoveArrow: boolean;
+  premoveArrowColor: string;
   disableAnimations: boolean;
   /** When true, suppress proactive nudges from the system-message
    *  widget (how-tos, "join Discord", "claim free trial"). Admin
@@ -49,6 +51,8 @@ const DEFAULTS: Settings = {
   arrowColors: ['#22c55e', '#3b82f6', '#f59e0b'],
   showOpponentArrow: true,
   opponentArrowColor: '#cd0e2b',
+  showPremoveArrow: false,
+  premoveArrowColor: '#fb923c',
   disableAnimations: false,
   disableInfoBanner: false,
   highlightSquares: false,
@@ -70,6 +74,8 @@ export interface SettingsState extends Settings {
   setArrowColor: (index: number, color: string) => void;
   setShowOpponentArrow: (v: boolean) => void;
   setOpponentArrowColor: (color: string) => void;
+  setShowPremoveArrow: (v: boolean) => void;
+  setPremoveArrowColor: (color: string) => void;
   setDisableAnimations: (v: boolean) => void;
   setDisableInfoBanner: (v: boolean) => void;
   setHighlightSquares: (v: boolean) => void;
@@ -145,6 +151,8 @@ function getSettingsPayload(state: SettingsState) {
     arrowColors: state.arrowColors,
     showOpponentArrow: state.showOpponentArrow,
     opponentArrowColor: state.opponentArrowColor,
+    showPremoveArrow: state.showPremoveArrow,
+    premoveArrowColor: state.premoveArrowColor,
     disableAnimations: state.disableAnimations,
     disableInfoBanner: state.disableInfoBanner,
     highlightSquares: state.highlightSquares,
@@ -200,6 +208,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setOpponentArrowColor: (color) => {
     set({ opponentArrowColor: color });
+    syncToCloud(get());
+  },
+  setShowPremoveArrow: (v) => {
+    set({ showPremoveArrow: v });
+    syncToCloud(get());
+  },
+  setPremoveArrowColor: (color) => {
+    set({ premoveArrowColor: color });
     syncToCloud(get());
   },
   setDisableAnimations: (v) => {
@@ -290,6 +306,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           arrowColors: cloud.arrowColors ?? DEFAULTS.arrowColors,
           showOpponentArrow: (cloud as any).showOpponentArrow ?? DEFAULTS.showOpponentArrow,
           opponentArrowColor: (cloud as any).opponentArrowColor ?? DEFAULTS.opponentArrowColor,
+          showPremoveArrow: (cloud as any).showPremoveArrow ?? DEFAULTS.showPremoveArrow,
+          premoveArrowColor: (cloud as any).premoveArrowColor ?? DEFAULTS.premoveArrowColor,
           disableAnimations: cloud.disableAnimations ?? DEFAULTS.disableAnimations,
           disableInfoBanner: cloud.disableInfoBanner ?? DEFAULTS.disableInfoBanner,
           highlightSquares: cloud.highlightSquares ?? DEFAULTS.highlightSquares,
