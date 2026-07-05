@@ -885,24 +885,33 @@ const ENGINE_SUPPORTED_SECTIONS: Record<string, string[]> = {
 function ServerPingChip() {
   const { t } = useTranslation();
   const mode = useEngineStore((s) => s.activeEngineMode);
+  const engineId = useEngineStore((s) => s.engineId);
   const [ping, setPing] = useState<number | null>(null);
+  const [avgMs, setAvgMs] = useState<number | null>(null);
 
+  // One request serves both numbers: the RTT of the /engine-load call IS
+  // the ping, and its body carries the engine's avg suggestion time.
   useEffect(() => {
     if (mode !== 'server') return;
     let cancelled = false;
     const tick = async () => {
       try {
         const t0 = performance.now();
-        await fetch(`${SERVER_URL}/health`, { cache: 'no-store' });
-        if (!cancelled) setPing(Math.round(performance.now() - t0));
+        const res = await fetch(`${SERVER_URL}/engine-load?engine=${encodeURIComponent(engineId)}`, { cache: 'no-store' });
+        if (cancelled) return;
+        setPing(Math.round(performance.now() - t0));
+        if (res.ok) {
+          const data = await res.json() as { avgResponseMs?: number | null };
+          if (!cancelled) setAvgMs(data.avgResponseMs ?? null);
+        }
       } catch {
-        if (!cancelled) setPing(null);
+        if (!cancelled) { setPing(null); setAvgMs(null); }
       }
     };
     tick();
     const iv = setInterval(tick, 10_000);
     return () => { cancelled = true; clearInterval(iv); };
-  }, [mode]);
+  }, [mode, engineId]);
 
   if (mode !== 'server') return null;
   const color = ping === null ? '#94a3b8' : ping < 80 ? '#22c55e' : ping < 150 ? '#f59e0b' : '#ef4444';
@@ -912,7 +921,7 @@ function ServerPingChip() {
       style={{ color }}
       title={t('game.suggestions.serverChipHint')}
     >
-      🌐 {ping !== null ? `${ping}ms` : '…'}
+      🌐 {ping !== null ? `${ping}ms` : '…'}{avgMs != null ? ` · ⏱️ ~${avgMs}ms` : ''}
     </span>
   );
 }
