@@ -225,6 +225,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Tight panels: badges wrap to the next line as whole units. */
+  flex-wrap: wrap;
+  row-gap: 3px;
 }
 
 .game-suggestions-depth {
@@ -236,6 +239,7 @@
   color: hsl(var(--muted-foreground));
   background: rgba(255, 255, 255, 0.04);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .game-suggestions-legend {
@@ -992,7 +996,13 @@
 
 .game-suggestions-server {
   display: inline-flex;
+  align-items: center;
   gap: 6px;
+  /* Never wrap INSIDE the chip — when the header runs out of width the
+     chip moves to the next line as a whole unit instead of stacking the
+     emoji above its value. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Styled hover tooltip (non-native) — same visual language as the FAB's
@@ -1000,6 +1010,7 @@
 .chessr-tip {
   position: relative;
   cursor: default;
+  white-space: nowrap;
 }
 
 .chessr-tip::after {
