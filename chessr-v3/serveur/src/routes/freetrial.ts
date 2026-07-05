@@ -67,6 +67,17 @@ export async function claimFreeTrial(userId: string, actorId?: string | null): P
         [prev.discord_id],
       );
       if (rows.length > 0) {
+        // Burn the trial on THIS account too: the linked Discord already
+        // claimed one elsewhere, so this account must stop being offered
+        // the trial (extension CTAs key off freetrial_used) — including
+        // after unlinking and relinking a fresh Discord.
+        const { error: flagError } = await supabase
+          .from('user_settings')
+          .update({ freetrial_used: true })
+          .eq('user_id', userId);
+        if (flagError) {
+          console.warn('[freetrial.claim] failed to flag freetrial_used on discord_already_used:', flagError.message);
+        }
         return { ok: false, reason: 'discord_already_used' };
       }
     } catch (err) {
