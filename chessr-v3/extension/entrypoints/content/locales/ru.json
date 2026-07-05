@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "У этого email уже есть аккаунт. Войди ниже — или воспользуйся «Забыли пароль», если не помнишь его.",
   "auth.confirm.spamHint": "Ничего нет во входящих? Проверь папку «Спам».",
   "auth.confirm.resend": "Отправить письмо ещё раз",
-  "auth.confirm.resendIn": "Повторная отправка через {s}с",
+  "auth.confirm.resendIn": "Повторная отправка через {{s}}с",
   "auth.confirm.resent": "Письмо отправлено — проверь почту.",
   "auth.confirm.resendError": "Не удалось отправить письмо. Попробуй через несколько минут.",
   "auth.confirm.confirmedBack": "Подтвердил — вернуться ко входу",

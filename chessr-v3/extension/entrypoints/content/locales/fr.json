@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "Cet email a déjà un compte. Connecte-toi ci-dessous — ou utilise « Mot de passe oublié » si tu ne t'en souviens plus.",
   "auth.confirm.spamHint": "Rien dans ta boîte de réception ? Vérifie tes spams.",
   "auth.confirm.resend": "Renvoyer l'email de confirmation",
-  "auth.confirm.resendIn": "Renvoi possible dans {s}s",
+  "auth.confirm.resendIn": "Renvoi possible dans {{s}}s",
   "auth.confirm.resent": "Email envoyé — vérifie ta boîte.",
   "auth.confirm.resendError": "Impossible de renvoyer l'email. Réessaie dans quelques minutes.",
   "auth.confirm.confirmedBack": "J'ai confirmé — retour à la connexion",

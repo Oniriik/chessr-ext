@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "This email already has an account. Sign in below — or use \"Forgot password\" if you don't remember it.",
   "auth.confirm.spamHint": "Nothing in your inbox? Check your spam folder.",
   "auth.confirm.resend": "Resend confirmation email",
-  "auth.confirm.resendIn": "Resend available in {s}s",
+  "auth.confirm.resendIn": "Resend available in {{s}}s",
   "auth.confirm.resent": "Email sent — check your inbox.",
   "auth.confirm.resendError": "Couldn't resend the email. Try again in a few minutes.",
   "auth.confirm.confirmedBack": "I've confirmed — back to sign in",

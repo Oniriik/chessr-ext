@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "Este email ya tiene una cuenta. Inicia sesión abajo — o usa \"Olvidé mi contraseña\" si no la recuerdas.",
   "auth.confirm.spamHint": "¿Nada en tu bandeja? Revisa la carpeta de spam.",
   "auth.confirm.resend": "Reenviar email de confirmación",
-  "auth.confirm.resendIn": "Reenvío disponible en {s}s",
+  "auth.confirm.resendIn": "Reenvío disponible en {{s}}s",
   "auth.confirm.resent": "Email enviado — revisa tu bandeja.",
   "auth.confirm.resendError": "No se pudo reenviar el email. Inténtalo en unos minutos.",
   "auth.confirm.confirmedBack": "Ya confirmé — volver a iniciar sesión",

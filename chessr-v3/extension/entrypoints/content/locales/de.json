@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "Diese E-Mail hat bereits ein Konto. Melde dich unten an — oder nutze „Passwort vergessen“, falls du es nicht mehr weißt.",
   "auth.confirm.spamHint": "Nichts im Posteingang? Prüfe deinen Spam-Ordner.",
   "auth.confirm.resend": "Bestätigungs-E-Mail erneut senden",
-  "auth.confirm.resendIn": "Erneut senden in {s}s",
+  "auth.confirm.resendIn": "Erneut senden in {{s}}s",
   "auth.confirm.resent": "E-Mail gesendet — prüfe deinen Posteingang.",
   "auth.confirm.resendError": "E-Mail konnte nicht gesendet werden. Versuche es in ein paar Minuten erneut.",
   "auth.confirm.confirmedBack": "Bestätigt — zurück zur Anmeldung",

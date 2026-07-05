@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "Questa email ha già un account. Accedi qui sotto — o usa \"Password dimenticata\" se non la ricordi.",
   "auth.confirm.spamHint": "Niente nella posta in arrivo? Controlla lo spam.",
   "auth.confirm.resend": "Rinvia email di conferma",
-  "auth.confirm.resendIn": "Rinvio disponibile tra {s}s",
+  "auth.confirm.resendIn": "Rinvio disponibile tra {{s}}s",
   "auth.confirm.resent": "Email inviata — controlla la posta.",
   "auth.confirm.resendError": "Impossibile rinviare l'email. Riprova tra qualche minuto.",
   "auth.confirm.confirmedBack": "Ho confermato — torna all'accesso",

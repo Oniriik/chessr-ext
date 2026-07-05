@@ -29,7 +29,7 @@
   "auth.alreadyRegistered": "Bu e-postanın zaten bir hesabı var. Aşağıdan giriş yap — hatırlamıyorsan \"Şifremi unuttum\"u kullan.",
   "auth.confirm.spamHint": "Gelen kutusunda bir şey yok mu? Spam klasörünü kontrol et.",
   "auth.confirm.resend": "Onay e-postasını yeniden gönder",
-  "auth.confirm.resendIn": "{s} sn içinde yeniden gönderilebilir",
+  "auth.confirm.resendIn": "{{s}} sn içinde yeniden gönderilebilir",
   "auth.confirm.resent": "E-posta gönderildi — gelen kutunu kontrol et.",
   "auth.confirm.resendError": "E-posta gönderilemedi. Birkaç dakika sonra tekrar dene.",
   "auth.confirm.confirmedBack": "Onayladım — girişe geri dön",
