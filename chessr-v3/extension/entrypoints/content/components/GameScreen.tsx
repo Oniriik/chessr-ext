@@ -522,14 +522,14 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                             <span className="game-suggestions-label">{t('game.suggestions.title')}</span>
                             <span className="game-suggestions-engine" title={t('game.suggestions.engineHint')}>{ENGINE_INFO[activeEngineId]?.label ?? activeEngineId}</span>
                             <ServerPingChip />
-                            {isPlaying && suggestions.length > 0 && suggestions[0]?.depth != null && suggestions[0].depth > 0 && (
-                              <span className="game-suggestions-depth" title={t('game.suggestions.depthReached')}>{t('game.suggestions.depth', { n: suggestions[0].depth })}</span>
-                            )}
                           </div>
                           {isPlaying && (
                             <div className="game-suggestions-legend">
                               <span>{t('game.suggestions.legendPos')}</span>
                               <span>{t('game.suggestions.legendWin')}</span>
+                              {suggestions.length > 0 && suggestions[0]?.depth != null && suggestions[0].depth > 0 && (
+                                <span className="game-suggestions-depth" title={t('game.suggestions.depthReached')}>{t('game.suggestions.depth', { n: suggestions[0].depth })}</span>
+                              )}
                             </div>
                           )}
                         </div>
