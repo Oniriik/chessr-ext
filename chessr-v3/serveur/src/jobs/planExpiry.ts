@@ -91,9 +91,15 @@ export async function runPlanExpiry(): Promise<void> {
 
   let count = 0;
   for (const user of toExpire) {
+    const patch: Record<string, unknown> = { plan: 'free', plan_expiry: null };
+    // Stamp trial endings so the extension can show its one-shot
+    // "trial ended" modal — cleared by POST /freetrial/ended-ack once
+    // shown. DB-backed so the once-only survives reinstalls and is
+    // shared across devices.
+    if (user.plan === 'freetrial') patch.freetrial_ended_at = now;
     const { error: updateErr } = await supabase
       .from('user_settings')
-      .update({ plan: 'free', plan_expiry: null })
+      .update(patch)
       .eq('user_id', user.user_id)
       .eq('plan', user.plan); // guard against a concurrent plan change
 

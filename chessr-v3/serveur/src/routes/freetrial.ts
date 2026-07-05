@@ -158,4 +158,23 @@ app.post('/freetrial/claim', async (c) => {
   return c.json(result);
 });
 
+// One-shot ack for the "trial ended" modal — clears the stamp written by
+// the plan-expiry sweeper so the extension never shows the modal twice.
+// Same trust-on-userId model as /freetrial/claim above.
+app.post('/freetrial/ended-ack', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const userId = typeof body?.userId === 'string' ? body.userId : '';
+  if (!userId) return c.json({ ok: false, error: 'Missing userId' }, 400);
+
+  const { error } = await supabase
+    .from('user_settings')
+    .update({ freetrial_ended_at: null })
+    .eq('user_id', userId);
+  if (error) {
+    console.error('[freetrial.ended-ack] update failed:', error.message);
+    return c.json({ ok: false }, 500);
+  }
+  return c.json({ ok: true });
+});
+
 export { app as freetrialRoutes };
