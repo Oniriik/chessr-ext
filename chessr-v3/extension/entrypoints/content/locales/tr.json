@@ -283,6 +283,8 @@
   "engine.info.rodent.desc": "Ayarlanabilir hassasiyet kadranıyla 39 adlandırılmış kişilik (GM stilleri + arketipler).",
   "engine.info.stockfish.desc": "Açık kaynak klasik motor — hızlı, saf taktik güç, kişilik ayarı yok.",
   "game.suggestions.serverChipHint": "Öneriler sunucuda çalışıyor — bu, sunucuya olan gecikmen",
+  "game.suggestions.tip.ping": "Sunucu gecikmesi",
+  "game.suggestions.tip.avg": "Ortalama öneri süresi",
   "settings.engine.server.title": "Sunucu önerileri",
   "settings.engine.server.desc": "Aramaları cihazın yerine sunucularımızda çalıştırır — yerelde sıfır CPU kullanımı.",
   "settings.engine.server.threshold": "Şu değerin üzerinde yerel motora geç:",

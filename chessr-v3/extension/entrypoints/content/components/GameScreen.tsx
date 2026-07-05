@@ -916,12 +916,15 @@ function ServerPingChip() {
   if (mode !== 'server') return null;
   const color = ping === null ? '#94a3b8' : ping < 80 ? '#22c55e' : ping < 150 ? '#f59e0b' : '#ef4444';
   return (
-    <span
-      className="game-suggestions-server"
-      style={{ color }}
-      title={t('game.suggestions.serverChipHint')}
-    >
-      🌐 {ping !== null ? `${ping}ms` : '…'}{avgMs != null ? ` · ⏱️ ~${avgMs}ms` : ''}
+    <span className="game-suggestions-server" style={{ color }}>
+      <span className="chessr-tip" data-tip={t('game.suggestions.tip.ping')}>
+        🌐 {ping !== null ? `${ping}ms` : '…'}
+      </span>
+      {avgMs != null && (
+        <span className="chessr-tip" data-tip={t('game.suggestions.tip.avg')}>
+          ⏱️ ~{avgMs}ms
+        </span>
+      )}
     </span>
   );
 }

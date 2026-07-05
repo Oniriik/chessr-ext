@@ -283,6 +283,8 @@
   "engine.info.rodent.desc": "39 benannte Persönlichkeiten (GM-Stile + Archetypen) mit einstellbarer Ungenauigkeit.",
   "engine.info.stockfish.desc": "Open-Source-Engine — schnell, reine taktische Stärke, kein Persönlichkeits-Tuning.",
   "game.suggestions.serverChipHint": "Vorschläge laufen auf dem Server — das ist deine Latenz dorthin",
+  "game.suggestions.tip.ping": "Server-Latenz",
+  "game.suggestions.tip.avg": "Ø Zeit pro Vorschlag",
   "settings.engine.server.title": "Server-Vorschläge",
   "settings.engine.server.desc": "Führt Suchen auf unseren Servern statt auf deinem Gerät aus — null lokale CPU-Last.",
   "settings.engine.server.threshold": "Zu lokaler Engine wechseln ab",

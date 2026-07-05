@@ -283,6 +283,8 @@
   "engine.info.rodent.desc": "39 именованных стилей (стили гроссмейстеров + архетипы) с настраиваемой неточностью.",
   "engine.info.stockfish.desc": "Классический open-source движок — быстрый, чистая тактическая сила, без настройки стиля.",
   "game.suggestions.serverChipHint": "Подсказки выполняются на сервере — это твоя задержка до него",
+  "game.suggestions.tip.ping": "Задержка сервера",
+  "game.suggestions.tip.avg": "Среднее время подсказки",
   "settings.engine.server.title": "Серверные подсказки",
   "settings.engine.server.desc": "Поиск выполняется на наших серверах вместо твоего устройства — ноль нагрузки на локальный CPU.",
   "settings.engine.server.threshold": "Переключаться на локальный движок выше",
