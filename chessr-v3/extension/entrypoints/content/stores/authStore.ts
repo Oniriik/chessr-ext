@@ -36,8 +36,9 @@ interface AuthState {
 
   initialize: () => Promise<void>;
   fetchPlan: (userId: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; banned?: boolean }>;
+  signUp: (email: string, password: string) => Promise<{ success: boolean; error?: string; alreadyRegistered?: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; banned?: boolean; emailNotConfirmed?: boolean }>;
+  resendConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   /** Clear the ban screen so the form goes back to its normal state. */
   clearBanned: () => void;
   signOut: () => Promise<void>;
@@ -187,6 +188,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (error) throw error;
 
+      // Supabase anti-enumeration: signUp on an ALREADY-REGISTERED email
+      // does not error — it returns a fake success whose user carries an
+      // empty identities array (and no confirmation email is sent). Left
+      // undetected, we'd show "check your inbox" for an email that will
+      // never arrive. Surface it so the form can route to sign-in /
+      // password-reset instead.
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        set({ loading: false });
+        return { success: false, alreadyRegistered: true };
+      }
+
       // 4) Persist fingerprint + signup IP for the new user_id so the
       //    next abuse check has a footprint to match against. Best-
       //    effort, fire-and-forget.
@@ -251,6 +263,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       await get().fetchPlan(data.user.id);
+      // Email is necessarily confirmed at this point — drop the pending-
+      // confirmation marker so the AuthForm never resurrects that screen.
+      browser.storage.local.remove('chessr-pending-confirm-email').catch(() => {});
       // Explicit form login — clear the per-tab login-trigger flag so
       // the system-message widget can re-evaluate the cascade and show
       // a fresh nudge (claim trial / join discord / how-to). Page
@@ -275,6 +290,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: true };
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Sign in failed';
+      // Unconfirmed email is not a credentials problem — route the form
+      // to the pending-confirmation screen (with resend) instead of the
+      // cryptic raw error that sends users into a re-signup loop.
+      const code = (e as { code?: string })?.code;
+      if (code === 'email_not_confirmed' || /email not confirmed/i.test(message)) {
+        set({ loading: false, error: null });
+        return { success: false, emailNotConfirmed: true };
+      }
       set({ loading: false, error: message });
       return { success: false, error: message };
     }
@@ -309,6 +332,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Password change failed';
       return { success: false, error: message };
+    }
+  },
+
+  resendConfirmation: async (email) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: { emailRedirectTo: 'https://chessr.io/email-confirmed' },
+      });
+      if (error) throw error;
+      return { success: true };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Resend failed' };
     }
   },
 

@@ -21,6 +21,7 @@ import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
 import TrialModal from './components/TrialModal';
 import TrialExpiryModal from './components/TrialExpiryModal';
+import FreeUpgradeModal from './components/FreeUpgradeModal';
 import { SystemMessageWidget } from './components/SystemMessageWidget';
 import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
@@ -74,6 +75,8 @@ const TRIAL_DENY_TEXT: Record<string, string> = {
   not_found:           'Couldn\'t find your account.',
   db_error:            'Trial couldn\'t be saved. Ping support if it matters.',
   discord_already_used:'This Discord account already used a free trial on chessr.',
+  device_already_used: 'A free trial was already used from this device.',
+  ip_already_used:     'A free trial has already been used from your network.',
 };
 
 export default function App({ streamMode = false }: AppProps = {}) {
@@ -465,6 +468,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
           dedicated stream page (audience must not see account prompts). */}
       {!streamMode && <TrialModal />}
       {!streamMode && <TrialExpiryModal />}
+      {!streamMode && <FreeUpgradeModal />}
       <HotkeyMoveButtons />
       {/* The system-message widget hides on the host page (chess.com /
           lichess / worldchess) whenever the dedicated Stream Mode tab

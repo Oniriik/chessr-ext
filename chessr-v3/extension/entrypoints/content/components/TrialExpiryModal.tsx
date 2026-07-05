@@ -26,6 +26,7 @@ import { openBillingPage } from '../lib/openBilling';
 import { sendWs } from '../lib/websocket';
 import { SERVER_URL } from '../lib/config';
 import { FEATURES } from './TrialModal';
+import { stampFreeUpgradeShown } from './FreeUpgradeModal';
 import { useTranslation } from '../lib/i18n';
 import './trial-modal.css';
 
@@ -135,6 +136,11 @@ export default function TrialExpiryModal() {
       if (remaining !== null && remaining <= 0) {
         browser.storage.local.set({ [`chessr-trial-ended-live-dismissed:${user.id}`]: Date.now() }).catch(() => {});
       }
+    }
+    // Dismissing any "ended" state starts the recurring free-upgrade
+    // modal's 24h clock — never two takeovers back to back.
+    if (user && (endedMode || (remaining !== null && remaining <= 0))) {
+      stampFreeUpgradeShown(user.id);
     }
     setOpen(false);
   };

@@ -1,9 +1,17 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useTranslation } from '../lib/i18n';
 import './auth-form.css';
 
 const DISCORD_URL = 'https://discord.gg/72j4dUadTu';
+
+// Pending-confirmation marker — written on signup (and on a sign-in that
+// bounced on "email not confirmed"), cleared on a successful sign-in or
+// when the user opts for a different email. Persisted in extension storage
+// so a panel remount / reload keeps showing "verify your inbox" instead of
+// silently dropping back to a blank sign-in form (users read that as "my
+// signup didn't work" and loop into re-signups).
+const PENDING_CONFIRM_KEY = 'chessr-pending-confirm-email';
 
 type Mode = 'signin' | 'signup' | 'forgot';
 
@@ -13,11 +21,40 @@ export default function AuthForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [confirmSent, setConfirmSent] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{ email: string } | null>(null);
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [resetSent, setResetSent] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const { loading, error, signIn, signUp, resetPassword, clearError, bannedReason, appealUrl, clearBanned } = useAuthStore();
+  const { loading, error, signIn, signUp, resendConfirmation, resetPassword, clearError, bannedReason, appealUrl, clearBanned } = useAuthStore();
+
+  // Rehydrate the pending-confirmation screen across remounts.
+  useEffect(() => {
+    browser.storage.local.get(PENDING_CONFIRM_KEY).then((s) => {
+      const v = s[PENDING_CONFIRM_KEY] as { email?: unknown } | undefined;
+      if (v && typeof v.email === 'string') setPendingConfirm({ email: v.email });
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const id = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendCooldown]);
+
+  const markPendingConfirm = (addr: string) => {
+    browser.storage.local.set({ [PENDING_CONFIRM_KEY]: { email: addr, at: Date.now() } }).catch(() => {});
+    setPendingConfirm({ email: addr });
+  };
+
+  const handleResend = async () => {
+    if (!pendingConfirm || resendCooldown > 0 || resendState === 'sending') return;
+    setResendState('sending');
+    const result = await resendConfirmation(pendingConfirm.email);
+    setResendState(result.success ? 'sent' : 'error');
+    setResendCooldown(60);
+  };
   const displayError = localError || error;
   const helpUrl = !bannedReason && error ? appealUrl : null;
 
@@ -26,7 +63,6 @@ export default function AuthForm() {
     setLocalError(null);
     clearError();
     clearBanned();
-    setConfirmSent(false);
     setResetSent(false);
   };
 
@@ -47,10 +83,22 @@ export default function AuthForm() {
     }
 
     if (mode === 'signin') {
-      await signIn(email, password);
+      const result = await signIn(email, password);
+      if (result.emailNotConfirmed) {
+        // Account exists but was never verified — show the pending screen
+        // (with resend) instead of a cryptic credentials error.
+        markPendingConfirm(email);
+      }
     } else {
       const result = await signUp(email, password);
-      if (result.success) setConfirmSent(true);
+      if (result.success) {
+        markPendingConfirm(email);
+      } else if (result.alreadyRegistered) {
+        // Supabase fake-success on an existing email — route to sign-in
+        // with an honest explanation rather than "check your inbox".
+        setMode('signin');
+        setLocalError(t('auth.alreadyRegistered'));
+      }
     }
   };
 
@@ -105,7 +153,7 @@ export default function AuthForm() {
     );
   }
 
-  if (confirmSent) {
+  if (pendingConfirm) {
     return (
       <div className="auth-form">
         <img className="auth-logo" src={browser.runtime.getURL('/icons/chessr-logo.png')} alt="Chessr" />
@@ -115,9 +163,33 @@ export default function AuthForm() {
         </h1>
         <div className="auth-success">
           <h3>{t('auth.confirm.title')}</h3>
-          <p>{t('auth.confirm.body')} <strong>{email}</strong></p>
-          <button className="auth-link" onClick={() => { setConfirmSent(false); setMode('signin'); }}>
-            {t('auth.confirm.back')}
+          <p>{t('auth.confirm.body')} <strong>{pendingConfirm.email}</strong></p>
+          <p className="auth-confirm-hint">{t('auth.confirm.spamHint')}</p>
+          {resendState === 'sent' && <p className="auth-confirm-resent">{t('auth.confirm.resent')}</p>}
+          {resendState === 'error' && <p className="auth-error">{t('auth.confirm.resendError')}</p>}
+          <button
+            className="auth-submit"
+            onClick={handleResend}
+            disabled={resendCooldown > 0 || resendState === 'sending'}
+          >
+            {resendState === 'sending'
+              ? t('auth.loading')
+              : resendCooldown > 0
+                ? t('auth.confirm.resendIn', { s: resendCooldown })
+                : t('auth.confirm.resend')}
+          </button>
+          <button className="auth-link" onClick={() => { setPendingConfirm(null); setMode('signin'); }}>
+            {t('auth.confirm.confirmedBack')}
+          </button>
+          <button
+            className="auth-link"
+            onClick={() => {
+              browser.storage.local.remove(PENDING_CONFIRM_KEY).catch(() => {});
+              setPendingConfirm(null);
+              setMode('signup');
+            }}
+          >
+            {t('auth.confirm.differentEmail')}
           </button>
         </div>
       </div>

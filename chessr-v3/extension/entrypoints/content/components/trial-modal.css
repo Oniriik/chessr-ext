@@ -147,6 +147,15 @@
   cursor: default;
 }
 
+/* Chessr-blue trial variant (recurring free-upgrade modal). */
+.trial-modal-cta--blue {
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.trial-modal-cta--blue:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7ab5fb, #4b8ef7);
+}
+
 /* Gold checkout variant (trial-expiry modal — no trial left to sell). */
 .trial-modal-cta--gold {
   background: linear-gradient(135deg, #fbbf24, #f59e0b);

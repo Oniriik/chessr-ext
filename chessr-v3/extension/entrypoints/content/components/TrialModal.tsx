@@ -38,6 +38,8 @@ export const FEATURES: { icon: string; key: string }[] = [
 
 const CLAIM_ERROR_KEYS: Record<string, string> = {
   discord_already_used: 'trial.modal.error.discordUsed',
+  device_already_used: 'trial.modal.error.footprintUsed',
+  ip_already_used: 'trial.modal.error.footprintUsed',
   already_used: 'trial.modal.error.alreadyUsed',
   paid_plan: 'trial.modal.error.paidPlan',
 };
@@ -98,7 +100,7 @@ export default function TrialModal() {
         setClaimError(t(CLAIM_ERROR_KEYS[reason] ?? 'trial.modal.error.generic'));
         // The server flagged the account — refetch so every trial CTA
         // disappears (this modal included, via the canOfferTrial gate).
-        if (reason === 'discord_already_used' || reason === 'already_used') {
+        if (reason === 'discord_already_used' || reason === 'device_already_used' || reason === 'already_used') {
           fetchPlan(user.id);
         }
       }
