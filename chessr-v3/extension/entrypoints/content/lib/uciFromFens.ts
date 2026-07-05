@@ -46,6 +46,50 @@ export function historyMatchesFen(history: string[], fen: string): boolean {
   return replayKey === targetKey;
 }
 
+/**
+ * Derive the TWO UCI moves connecting fenBefore → fenAfter when the
+ * positions are exactly 2 plies apart.
+ *
+ * This happens with premoves: chess.com applies the opponent's move AND
+ * the queued premove in the same synchronous cascade, so the FEN we
+ * observe on the `game.move` hook jumps 2 plies in a single transition.
+ * Without this recovery the move history desyncs and gets cleared, which
+ * permanently disables torch's rich fetch_analysis path for the game.
+ *
+ * Returns the pair plus the intermediate FEN (position after the first
+ * move — chess.js normalized), or null if no legal 2-move sequence
+ * connects the positions. Cost: worst-case ~40×40 probes, only paid when
+ * the 1-ply match already failed (rare).
+ */
+export function uciPairFromFens(
+  fenBefore: string,
+  fenAfter: string,
+): { moves: [string, string]; fenMid: string } | null {
+  let chess: Chess;
+  try {
+    chess = new Chess(fenBefore);
+  } catch {
+    return null;
+  }
+  const targetBoard = fenAfter.split(' ').slice(0, 3).join(' ');
+  for (const m1 of chess.moves({ verbose: true })) {
+    const mid = new Chess(fenBefore);
+    mid.move(m1);
+    const fenMid = mid.fen();
+    for (const m2 of mid.moves({ verbose: true })) {
+      const probe = new Chess(fenMid);
+      probe.move(m2);
+      if (probe.fen().split(' ').slice(0, 3).join(' ') === targetBoard) {
+        return {
+          moves: [m1.from + m1.to + (m1.promotion ?? ''), m2.from + m2.to + (m2.promotion ?? '')],
+          fenMid,
+        };
+      }
+    }
+  }
+  return null;
+}
+
 export function uciFromFens(fenBefore: string, fenAfter: string): string | null {
   let chess: Chess;
   try {

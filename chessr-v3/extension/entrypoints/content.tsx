@@ -18,7 +18,7 @@ import { ServerAnalysisEngine } from './content/lib/serverAnalysisEngine';
 import { TorchAnalysisEngine } from './content/lib/torchAnalysisEngine';
 import { setTorchLiveEngine } from './content/lib/torchLiveRef';
 import type { TorchAnalysis } from './content/lib/torchJson';
-import { uciFromFens, historyMatchesFen } from './content/lib/uciFromFens';
+import { uciFromFens, uciPairFromFens, historyMatchesFen } from './content/lib/uciFromFens';
 import { Chess } from 'chess.js';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
 
@@ -908,6 +908,10 @@ export default defineContentScript({
       const aMoveHappened =
         previousFen !== null && previousFen !== state.fen && !!state.fen &&
         prev.isPlaying && !prev.gameOver;
+      // Set when the transition was a 2-ply jump (opponent move + instantly
+      // executed premove observed atomically). Holds the intermediate FEN
+      // (position between the two moves of the pair).
+      let premovePairFenMid: string | null = null;
       if (aMoveHappened) {
         const uci = uciFromFens(previousFen!, state.fen!);
         if (uci) {
@@ -923,10 +927,21 @@ export default defineContentScript({
             useGameStore.getState().setMoveHistoryUci(hist.slice(0, -1));
             console.log('[Chessr][hist] takeback detected — popped 1 move, history now', hist.length - 1);
           } else {
-            // Unreachable transition (chess960, sub-variant, page-rebind,
-            // or chessr loaded the page in a weird state). Drop the
-            // history and let UCI-mode handle it from here.
-            if (hist.length > 0) {
+            // Premove: chess.com applies the opponent's move AND the queued
+            // premove in the same synchronous cascade, so the FEN we observe
+            // jumps 2 plies at once. Recover the pair instead of dropping
+            // the history (which would kill torch's rich analysis path for
+            // the rest of the game).
+            const pair = uciPairFromFens(previousFen!, state.fen!);
+            if (pair) {
+              useGameStore.getState().pushUciMove(pair.moves[0]);
+              useGameStore.getState().pushUciMove(pair.moves[1]);
+              premovePairFenMid = pair.fenMid;
+              console.log('[Chessr][hist] 2-ply jump (premove) — pushed ' + pair.moves.join('+') + ', historyLen now ' + useGameStore.getState().moveHistoryUci.length);
+            } else if (hist.length > 0) {
+              // Unreachable transition (chess960, sub-variant, page-rebind,
+              // or chessr loaded the page in a weird state). Drop the
+              // history and let UCI-mode handle it from here.
               useGameStore.getState().setMoveHistoryUci([]);
               console.log('[Chessr][hist] resync (history desynced) — cleared,', hist.length, 'moves dropped');
             }
@@ -934,8 +949,15 @@ export default defineContentScript({
         }
       }
 
+      // A pair ending with the PLAYER's move (the premove) must count as
+      // "player just moved" — the normal detection misses it because the
+      // side-to-move looks unchanged across the 2-ply jump. The side that
+      // played the second move of the pair is fenMid's side-to-move.
+      const pairEndedWithPlayerMove =
+        premovePairFenMid !== null && premovePairFenMid.split(' ')[1] === playerChar;
+
       // Player moved → hide the opponent arrow (it's now our turn to move).
-      if (playerJustMoved) {
+      if (playerJustMoved || pairEndedWithPlayerMove) {
         setOpponentMove(null);
         useAnalysisStore.getState().setCurrentOpponentMove(null);
         // Show "my last move" arrow immediately using any pre-existing classification
@@ -951,10 +973,12 @@ export default defineContentScript({
         }
       }
 
-      if (playerJustMoved && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
+      if ((playerJustMoved || pairEndedWithPlayerMove) && (torchAnalysisEngine?.ready || torchUciEngine?.ready || analysisEngine?.ready)) {
         playerMoveCount++;
-        const moveNumber = parseMoveNumber(previousFen!);
-        const fenBefore = previousFen!;
+        // For a premove pair, the player's move starts from the intermediate
+        // position (after the opponent's move of the pair), not previousFen.
+        const fenBefore = premovePairFenMid ?? previousFen!;
+        const moveNumber = parseMoveNumber(fenBefore);
         const fenAfter = state.fen!;
         const playerUci = useGameStore.getState().moveHistoryUci.at(-1) ?? null;
         const _diagHist = useGameStore.getState().moveHistoryUci;
@@ -1026,9 +1050,10 @@ export default defineContentScript({
           const liveBackend = torchUciEngine?.ready ? torchUciEngine : analysisEngine;
           if (liveBackend?.ready) {
             // playerJustMoved fired → side that played is the user. Side
-            // to move BEFORE the move = sideToMove from previousFen.
+            // to move BEFORE the move = sideToMove from fenBefore (the
+            // intermediate FEN when the move came from a premove pair).
             const playedColor: 'white' | 'black' =
-              previousFen!.split(' ')[1] === 'w' ? 'white' : 'black';
+              fenBefore.split(' ')[1] === 'w' ? 'white' : 'black';
             analyzeLastMove(fenBefore, fenAfter, liveBackend)
               .then((result) => {
                 useAnalysisStore.getState().addAnalysis({ ...result, moveNumber, color: playedColor });

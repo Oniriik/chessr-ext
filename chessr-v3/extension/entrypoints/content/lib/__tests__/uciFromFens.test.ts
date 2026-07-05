@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { uciFromFens, historyMatchesFen } from '../uciFromFens.js';
+import { uciFromFens, uciPairFromFens, historyMatchesFen } from '../uciFromFens.js';
 
 const STARTPOS = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
@@ -43,6 +43,51 @@ describe('uciFromFens', () => {
     // on the en-passant field.
     const after = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
     assert.equal(uciFromFens(STARTPOS, after), 'e2e4');
+  });
+});
+
+describe('uciPairFromFens', () => {
+  it('derives the 2-ply pair of a premove jump (opponent move + premove)', () => {
+    // White played 1.e4 earlier. Observed transition: black plays e7e5 AND
+    // white's queued premove g1f3 executes in the same synchronous cascade,
+    // so the FEN jumps 2 plies at once.
+    const before = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const after  = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2';
+    const pair = uciPairFromFens(before, after);
+    assert.ok(pair);
+    assert.deepEqual(pair!.moves, ['e7e5', 'g1f3']);
+    // Intermediate FEN is the position after the first move only.
+    assert.equal(uciFromFens(pair!.fenMid, after), 'g1f3');
+    assert.equal(uciFromFens(before, pair!.fenMid), 'e7e5');
+  });
+
+  it('derives a pair involving a capture premove', () => {
+    // After 1.e4 d5: white queued exd5 as premove. Observed jump:
+    // black plays d7d5 + white premove e4xd5 in one transition.
+    const before = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    const after  = 'rnbqkbnr/ppp1pppp/8/3P4/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2';
+    const pair = uciPairFromFens(before, after);
+    assert.ok(pair);
+    assert.deepEqual(pair!.moves, ['d7d5', 'e4d5']);
+  });
+
+  it('returns null for a 1-ply transition', () => {
+    const after = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
+    assert.equal(uciPairFromFens(STARTPOS, after), null);
+  });
+
+  it('returns null for identical positions', () => {
+    assert.equal(uciPairFromFens(STARTPOS, STARTPOS), null);
+  });
+
+  it('returns null for non-adjacent positions (3+ plies)', () => {
+    // After 1.e4 e5 2.Nf3 Nc6 — 4 plies from startpos.
+    const after = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3';
+    assert.equal(uciPairFromFens(STARTPOS, after), null);
+  });
+
+  it('returns null on invalid fenBefore', () => {
+    assert.equal(uciPairFromFens('not a fen', STARTPOS), null);
   });
 });
 
