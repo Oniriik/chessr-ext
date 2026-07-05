@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Activity, BarChart3, Gift, Globe, Layers, LayoutDashboard, LogOut,
-  Menu, MessageSquare, ScrollText, Server, Sparkles, Users,
+  Menu, MessageSquare, ScrollText, Server, ShieldAlert, Sparkles, Users,
 } from 'lucide-react';
 import { getSupabase } from '@/lib/supabase';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
@@ -37,6 +37,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/users',        label: 'All users', icon: Users },
       { href: '/users/globe',  label: 'Globe',     icon: Globe },
+      { href: '/abuse',        label: 'Abuse',     icon: ShieldAlert },
     ],
   },
   {
