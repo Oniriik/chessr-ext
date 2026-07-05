@@ -12,6 +12,10 @@ interface AuthState {
   session: Session | null;
   plan: Plan;
   planExpiry: Date | null;
+  /** Stamped by the server when the free trial expired; the extension
+   *  shows the one-shot "trial ended" modal then acks it (server nulls
+   *  the column). Null = nothing pending. */
+  freetrialEndedAt: Date | null;
   /** Whether the 3-day free trial has ever been claimed for this user.
    *  Drives the "claim your free trial" CTA in the system-message
    *  widget — we hide it once burned, even if the user is back to
@@ -47,6 +51,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   session: null,
   plan: 'free',
   planExpiry: null,
+  freetrialEndedAt: null,
   freetrialUsed: false,
   planLoading: true,
   initializing: true,
@@ -104,23 +109,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('plan, plan_expiry, freetrial_used')
+        .select('plan, plan_expiry, freetrial_used, freetrial_ended_at')
         .eq('user_id', userId)
         .single();
 
       if (error) {
-        set({ plan: 'free', planExpiry: null, freetrialUsed: false, planLoading: false });
+        set({ plan: 'free', planExpiry: null, freetrialEndedAt: null, freetrialUsed: false, planLoading: false });
         return;
       }
 
+      const rawPlan = (data?.plan ?? 'free') as Plan;
+      const rawExpiry = data?.plan_expiry ? new Date(data.plan_expiry) : null;
+      // A freetrial past its expiry is effectively free — the server
+      // sweeper can lag up to 15 min behind; don't resurrect premium UI
+      // in that window (App's expiry watcher already downgraded locally).
+      const effectivePlan: Plan =
+        rawPlan === 'freetrial' && rawExpiry && rawExpiry.getTime() <= Date.now() ? 'free' : rawPlan;
       set({
-        plan: (data?.plan ?? 'free') as Plan,
-        planExpiry: data?.plan_expiry ? new Date(data.plan_expiry) : null,
+        plan: effectivePlan,
+        planExpiry: effectivePlan === rawPlan ? rawExpiry : null,
+        freetrialEndedAt: (data as any)?.freetrial_ended_at ? new Date((data as any).freetrial_ended_at) : null,
         freetrialUsed: !!data?.freetrial_used,
         planLoading: false,
       });
     } catch {
-      set({ plan: 'free', planExpiry: null, freetrialUsed: false, planLoading: false });
+      set({ plan: 'free', planExpiry: null, freetrialEndedAt: null, freetrialUsed: false, planLoading: false });
     }
   },
 
@@ -271,7 +284,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true });
     try {
       await supabase.auth.signOut();
-      set({ user: null, session: null, plan: 'free', planExpiry: null, freetrialUsed: false, loading: false });
+      set({ user: null, session: null, plan: 'free', planExpiry: null, freetrialEndedAt: null, freetrialUsed: false, loading: false });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Sign out failed';
       set({ loading: false, error: message });

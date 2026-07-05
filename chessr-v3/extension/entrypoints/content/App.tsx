@@ -20,11 +20,13 @@ import LinkAccountScreen from './components/LinkAccountScreen';
 import { useGameStore } from './stores/gameStore';
 import FloatingWidget from './components/FloatingWidget';
 import TrialModal from './components/TrialModal';
+import TrialExpiryModal from './components/TrialExpiryModal';
 import { SystemMessageWidget } from './components/SystemMessageWidget';
 import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
 import { useStreamOpen } from './lib/streamOpen';
 import { useOpeningTracker } from './hooks/useOpeningTracker';
+import { enforceFreeTierLimits } from './lib/planLimits';
 // BetaGate removed — free users now have access to the extension with
 // per-feature premium gating (engine selection, ELO max, personalities,
 // etc.). See lib/premium and the individual gates in GameScreen.
@@ -88,12 +90,29 @@ export default function App({ streamMode = false }: AppProps = {}) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('account');
   const [gameTab, setGameTab] = useState<GameTab>('game');
   const panelRef = useRef<HTMLDivElement>(null);
-  const { user, initializing, initialize, plan, planLoading, freetrialUsed } = useAuthStore();
+  const { user, initializing, initialize, plan, planLoading, freetrialUsed, planExpiry } = useAuthStore();
   const waitingForPlan = !!user && planLoading;
   const { isPlaying, gameOver } = useGameStore();
   const autoOpenOnGameEnd = useSettingsStore((s) => s.autoOpenOnGameEnd);
   const fontSize = useSettingsStore((s) => s.fontSize);
   const settingsLoaded = useSettingsStore((s) => s.settingsLoaded);
+
+  // Live downgrade at trial expiry — don't wait for a page refresh or the
+  // server sweeper (runs every 15 min): the moment planExpiry passes, flip
+  // the plan to free locally and clamp premium-only settings back into
+  // free-tier bounds (engine, Elo, personality, auto-move mode…).
+  const planExpiryMs = planExpiry?.getTime() ?? null;
+  useEffect(() => {
+    if (plan !== 'freetrial' || planExpiryMs === null) return;
+    const fire = () => {
+      useAuthStore.setState({ plan: 'free', planExpiry: null });
+      enforceFreeTierLimits();
+    };
+    const ms = planExpiryMs - Date.now();
+    if (ms <= 0) { fire(); return; }
+    const id = setTimeout(fire, ms + 1500);
+    return () => clearTimeout(id);
+  }, [plan, planExpiryMs]);
 
   // Run opening tracker at root level so theory arrows show even when the
   // panel is closed. OpeningSection calls it too for the phase display.
@@ -445,6 +464,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
       {/* Free-trial modal — opened from premium walls. Never on the
           dedicated stream page (audience must not see account prompts). */}
       {!streamMode && <TrialModal />}
+      {!streamMode && <TrialExpiryModal />}
       <HotkeyMoveButtons />
       {/* The system-message widget hides on the host page (chess.com /
           lichess / worldchess) whenever the dedicated Stream Mode tab

@@ -5,6 +5,7 @@ import { useEngineStore } from './engineStore';
 import { useAutoMoveStore } from './autoMoveStore';
 import { useAuthStore } from './authStore';
 import { useOpeningStore } from './openingStore';
+import { enforceFreeTierLimits } from '../lib/planLimits';
 import {
   setLocalePreference,
   SUPPORTED_LOCALES,
@@ -380,6 +381,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
     } catch {
     } finally {
+      // Cloud settings can carry premium values from a previous premium /
+      // trial session (Maia engine, Elo 2600, hotkey mode…). On a
+      // non-premium account, clamp them back into free-tier bounds.
+      // Guarded on planLoading: the default plan is 'free' while the plan
+      // fetch is still in flight, and clamping a premium user's settings
+      // on that transient default would be destructive.
+      const { plan: currentPlan, planLoading: planStillLoading } = useAuthStore.getState();
+      if (!planStillLoading &&
+          !(currentPlan === 'premium' || currentPlan === 'lifetime' || currentPlan === 'beta' || currentPlan === 'freetrial')) {
+        enforceFreeTierLimits();
+      }
       set({ settingsLoaded: true });
     }
   },

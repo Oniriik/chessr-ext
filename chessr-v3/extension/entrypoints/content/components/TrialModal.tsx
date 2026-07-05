@@ -28,7 +28,7 @@ import DiscordIcon from './icons/DiscordIcon';
 import { useTranslation } from '../lib/i18n';
 import './trial-modal.css';
 
-const FEATURES: { icon: string; key: string }[] = [
+export const FEATURES: { icon: string; key: string }[] = [
   { icon: '🧠', key: 'trial.modal.feature.engines' },
   { icon: '🎛️', key: 'trial.modal.feature.tuning' },
   { icon: '📖', key: 'trial.modal.feature.openings' },

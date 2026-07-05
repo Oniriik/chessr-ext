@@ -17,7 +17,22 @@
 import { supabase } from './supabase';
 import { SERVER_URL } from './config';
 
-export async function openBillingPage(): Promise<void> {
+export interface OpenBillingOptions {
+  /** Navigate the current tab instead of opening a new one. Used by the
+   *  full-screen modals (trial expiry) where the takeover context makes a
+   *  same-tab redirect the expected behavior — the checkout page's
+   *  `return` param brings the user back here. */
+  sameTab?: boolean;
+}
+
+export async function openBillingPage(options: OpenBillingOptions = {}): Promise<void> {
+  const navigate = (url: string) => {
+    if (options.sameTab) {
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
@@ -25,7 +40,7 @@ export async function openBillingPage(): Promise<void> {
     if (!token) {
       console.error('[Chessr][billing] no auth session');
       // Fall through to public pricing page so the user sees something.
-      window.open('https://chessr.io/#pricing', '_blank', 'noopener,noreferrer');
+      navigate('https://chessr.io/#pricing');
       return;
     }
 
@@ -40,14 +55,14 @@ export async function openBillingPage(): Promise<void> {
     if (!res.ok) {
       console.error('[Chessr][billing] billing-link failed:', res.status);
       // Fall back to public pricing.
-      window.open('https://chessr.io/#pricing', '_blank', 'noopener,noreferrer');
+      navigate('https://chessr.io/#pricing');
       return;
     }
 
     const { token: billingToken } = await res.json() as { token?: string };
     if (!billingToken) {
       console.error('[Chessr][billing] no token in billing-link response');
-      window.open('https://chessr.io/#pricing', '_blank', 'noopener,noreferrer');
+      navigate('https://chessr.io/#pricing');
       return;
     }
 
@@ -64,10 +79,10 @@ export async function openBillingPage(): Promise<void> {
       `&return=${encodeURIComponent(returnUrl)}`;
 
     console.log('[Chessr][billing] opening', checkoutUrl);
-    window.open(checkoutUrl, '_blank', 'noopener,noreferrer');
+    navigate(checkoutUrl);
   } catch (err) {
     console.error('[Chessr][billing] error:', err);
     // Last-ditch fallback so the click never feels dead.
-    window.open('https://chessr.io/#pricing', '_blank', 'noopener,noreferrer');
+    navigate('https://chessr.io/#pricing');
   }
 }

@@ -147,6 +147,48 @@
   cursor: default;
 }
 
+/* Gold checkout variant (trial-expiry modal — no trial left to sell). */
+.trial-modal-cta--gold {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #1a1917;
+}
+.trial-modal-cta--gold:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fcd34d, #fbbf24);
+}
+
+/* Brand row — knight logo + bicolor wordmark (expiry modal header). */
+.trial-modal-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.trial-modal-brand-name {
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 800;
+  color: hsl(var(--foreground));
+}
+
+.trial-modal-brand-dot {
+  color: #3b82f6;
+}
+
+/* Live HH:MM:SS countdown — the centerpiece of the expiry modal. */
+.trial-modal-countdown {
+  margin: 4px 0 10px;
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--warning));
+}
+.trial-modal-countdown--urgent {
+  color: hsl(var(--destructive));
+}
+
 .trial-modal-alt {
   margin-top: 10px;
   border: none;
