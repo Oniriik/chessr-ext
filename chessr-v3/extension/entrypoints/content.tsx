@@ -19,6 +19,7 @@ import { TorchAnalysisEngine } from './content/lib/torchAnalysisEngine';
 import { setTorchLiveEngine } from './content/lib/torchLiveRef';
 import type { TorchAnalysis } from './content/lib/torchJson';
 import { uciFromFens, uciPairFromFens, historyMatchesFen } from './content/lib/uciFromFens';
+import { serverModeActive, startServerEngineRouter } from './content/lib/serverEngineRouter';
 import { Chess } from 'chess.js';
 import type { AnalysisBackend } from './content/lib/moveAnalysis';
 
@@ -330,6 +331,15 @@ function forceFailSet(): Set<string> {
 }
 
 async function createEngine(id: EngineId): Promise<IEngine> {
+  // Premium "server suggestions" mode — unless the load router has
+  // currently fallen back to local (see serverEngineRouter).
+  if (serverModeActive()) {
+    const srv = new ServerEngine(id);
+    await srv.init();
+    recordEngineSwap({ slot: 'suggestion', engineId: id, mode: 'server', success: true, detail: 'forceServerEngine' });
+    return srv;
+  }
+
   // DEV affordance: skip WASM and force the server path. Toggle from
   // DevTools console:
   //   `localStorage.chessrForceServer = '1'`        → all engines
@@ -387,9 +397,9 @@ async function createEngine(id: EngineId): Promise<IEngine> {
  * Serialised via `suggestionEngineSwapInFlight` so rapid-fire engine toggles
  * don't race two inits in parallel.
  */
-function swapSuggestionEngine(id: EngineId): Promise<void> {
+function swapSuggestionEngine(id: EngineId, force = false): Promise<void> {
   const swap = (suggestionEngineSwapInFlight ?? Promise.resolve()).then(async () => {
-    if (suggestionEngine?.id === id && suggestionEngine.ready) return;
+    if (!force && suggestionEngine?.id === id && suggestionEngine.ready) return;
 
     if (suggestionEngine) {
       try { await suggestionEngine.cancel(); } catch { /* ignore */ }
@@ -803,6 +813,15 @@ export default defineContentScript({
       if (!useAuthStore.getState().user) return;
       swapSuggestionEngine(state.engineId).catch((err) => {
         console.error('[Chessr] engine swap failed:', err);
+      });
+    });
+
+    // Server-suggestions load router — rebuilds the engine when the
+    // server/local route flips (mode toggled, threshold crossed).
+    startServerEngineRouter(() => {
+      if (!useAuthStore.getState().user) return;
+      swapSuggestionEngine(useEngineStore.getState().engineId, true).catch((err) => {
+        console.error('[Chessr] server-route swap failed:', err);
       });
     });
 

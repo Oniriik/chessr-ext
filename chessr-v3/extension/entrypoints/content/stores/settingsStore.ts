@@ -121,6 +121,8 @@ function getEnginePayload() {
     searchMovetime: e.searchMovetime,
     rodentPersonality: e.rodentPersonality,
     imprecision: e.imprecision,
+    forceServerEngine: e.forceServerEngine,
+    serverLoadThreshold: e.serverLoadThreshold,
   };
 }
 
@@ -370,6 +372,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           if (eng.searchMovetime !== undefined) es.setSearchMovetime(eng.searchMovetime);
           if (eng.rodentPersonality !== undefined) es.setRodentPersonality(eng.rodentPersonality);
           if (eng.imprecision !== undefined) es.setImprecision(eng.imprecision);
+          if (eng.forceServerEngine !== undefined) es.setForceServerEngine(!!eng.forceServerEngine);
+          if (eng.serverLoadThreshold !== undefined) es.setServerLoadThreshold(eng.serverLoadThreshold);
         }
         if ((cloud as any).autoMove) {
           // Hydrate autoMove store directly — bypass setters to avoid triggering re-sync

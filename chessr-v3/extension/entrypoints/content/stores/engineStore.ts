@@ -170,6 +170,16 @@ interface EngineState {
   /** Rodent IV — 0..100 slider controlling EvalBlur noise. Mapped to
    *  EvalBlur via `round(imprecision^2 * 20)` (quadratic) at send time. */
   imprecision: number;
+  /** Premium: run suggestion searches on the server instead of the local
+   *  WASM engine. The actual route can still fall back to local when the
+   *  server load crosses serverLoadThreshold — see serverEngineRouter. */
+  forceServerEngine: boolean;
+  /** Auto-fallback threshold (50-100, % of server engine load). At 100 the
+   *  suggestions never leave the server. */
+  serverLoadThreshold: number;
+  /** Runtime only (not synced): where suggestions are currently running
+   *  when server mode is on. Drives the settings-panel indicator. */
+  serverRoute: 'server' | 'local-fallback' | null;
 
   capabilities: EngineCapabilities;
   setCapabilities: (c: EngineCapabilities) => void;
@@ -209,6 +219,9 @@ interface EngineState {
   setSearchMovetime: (v: number) => void;
   setRodentPersonality: (v: string) => void;
   setImprecision: (v: number) => void;
+  setForceServerEngine: (v: boolean) => void;
+  setServerLoadThreshold: (v: number) => void;
+  setServerRoute: (v: 'server' | 'local-fallback' | null) => void;
   resetToDefaults: () => void;
 
   getEffectiveElo: () => number;
@@ -241,12 +254,15 @@ const ENGINE_DEFAULTS = {
   searchMovetime: 2000,
   rodentPersonality: 'default',
   imprecision: 0,
+  forceServerEngine: false,
+  serverLoadThreshold: 80,
 };
 
 import { isPremium } from '../lib/premium';
 
 export const useEngineStore = create<EngineState>()((set, get) => ({
   ...ENGINE_DEFAULTS,
+  serverRoute: null,
   capabilities: CAPABILITIES_PERMISSIVE,
   setCapabilities: (c) => set({ capabilities: c }),
 
@@ -298,6 +314,9 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
     rodentPersonality: RODENT_PERSONALITIES.includes(v) ? v : 'default',
   }),
   setImprecision: (v) => set({ imprecision: Math.max(0, Math.min(100, Math.round(v))) }),
+  setForceServerEngine: (v) => set({ forceServerEngine: v }),
+  setServerLoadThreshold: (v) => set({ serverLoadThreshold: Math.max(50, Math.min(100, Math.round(v))) }),
+  setServerRoute: (v) => set({ serverRoute: v }),
   resetToDefaults: () => set({ ...ENGINE_DEFAULTS }),
 
   getEffectiveElo: () => {

@@ -18,6 +18,8 @@ import Slider from './Slider';
 import { useEngineStore, ENGINE_INFO, type EngineId } from '../stores/engineStore';
 import { useGameStore } from '../stores/gameStore';
 import { clearPremoveArrow } from '../lib/arrows';
+import { fakeEngineLoad, fakeLoadBucket, type EngineLoadSnapshot } from '../lib/fakeEngineLoad';
+import { PremiumCtaCard } from './PremiumCta';
 import { useTranslation, SUPPORTED_LOCALES, LOCALE_LABELS, t as tStatic, type LocalePreference } from '../lib/i18n';
 import './settings-screen.css';
 
@@ -522,6 +524,108 @@ export default function SettingsScreen({ activeTab, setActiveTab }: { activeTab:
   );
 }
 
+
+/** Premium "server suggestions" block + per-engine load telemetry.
+ *  Free users see plausible fake numbers (no network) and the usual
+ *  premium lock card; premium users get live polling every 5s while
+ *  this tab is mounted. */
+function ServerEngineSection() {
+  const {
+    engineId, forceServerEngine, serverLoadThreshold, serverRoute,
+    setForceServerEngine, setServerLoadThreshold,
+  } = useEngineStore();
+  const plan = useAuthStore((s) => s.plan);
+  const premium = isPremium(plan);
+  const [load, setLoad] = React.useState<EngineLoadSnapshot | null>(null);
+  const [ping, setPing] = React.useState<number | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (!premium) {
+        setLoad(fakeEngineLoad(engineId, fakeLoadBucket(Date.now())));
+        setPing(40 + (fakeLoadBucket(Date.now()) % 5) * 7);
+        return;
+      }
+      try {
+        const t0 = performance.now();
+        const res = await fetch(`${SERVER_URL}/engine-load?engine=${encodeURIComponent(engineId)}`, { cache: 'no-store' });
+        const rtt = Math.round(performance.now() - t0);
+        if (cancelled) return;
+        setPing(rtt);
+        if (res.ok) setLoad(await res.json() as EngineLoadSnapshot);
+      } catch {
+        if (!cancelled) { setLoad(null); setPing(null); }
+      }
+    };
+    tick();
+    const iv = setInterval(tick, premium ? 5000 : 30_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [engineId, premium]);
+
+  const pct = load?.loadPct ?? 0;
+  const loadColor = pct < 60 ? '#22c55e' : pct < 85 ? '#f59e0b' : '#ef4444';
+  const loadLabel = pct < 60 ? 'Low' : pct < 85 ? 'Medium' : 'High';
+
+  return (
+    <div className="settings-item settings-item--column">
+      <div className="settings-item-row">
+        <span className="settings-label">Server suggestions</span>
+        <Toggle
+          checked={premium && forceServerEngine}
+          onChange={(v) => { if (premium) setForceServerEngine(v); }}
+          disabled={!premium}
+        />
+      </div>
+      <span className="settings-engine-desc">
+        Run suggestion searches on our servers instead of your device — zero CPU usage locally.
+      </span>
+
+      {premium && forceServerEngine && (
+        <>
+          <div className="settings-item-row" style={{ marginTop: 6 }}>
+            <span className="settings-label">Switch to local engine above</span>
+            <span className="settings-slider-value">{serverLoadThreshold === 100 ? 'never' : `${serverLoadThreshold}%`}</span>
+          </div>
+          <Slider
+            min={50} max={100} step={5}
+            value={serverLoadThreshold}
+            onChange={setServerLoadThreshold}
+            trackColor="linear-gradient(90deg, #22c55e, #f59e0b, #ef4444)"
+            thumbColor="#22c55e"
+            thumbColorEnd="#ef4444"
+          />
+          <span className="settings-engine-desc">
+            If server load goes above this, suggestions automatically run on your device instead — so you never wait in a queue. Back to the server once load calms down.
+          </span>
+          {serverRoute && (
+            <span className="settings-server-route">
+              ● Running on: {serverRoute === 'server' ? 'server' : 'your device (server busy)'}
+            </span>
+          )}
+        </>
+      )}
+
+      <div className="settings-load-panel">
+        <div className="settings-load-header">
+          <span>{ENGINE_INFO[engineId]?.label ?? engineId} server load</span>
+          <span style={{ color: loadColor, fontWeight: 700 }}>{load ? `${loadLabel} · ${pct}%` : '—'}</span>
+        </div>
+        <div className="settings-load-bar">
+          <div className="settings-load-bar-fill" style={{ width: `${pct}%`, background: loadColor }} />
+        </div>
+        <div className="settings-load-stats">
+          <span>👥 {load ? `${load.activeUsers} active user${load.activeUsers === 1 ? '' : 's'}` : '—'}</span>
+          <span>📶 {ping !== null ? `${ping}ms ping` : '—'}</span>
+          <span>⏱️ {load?.avgResponseMs != null ? `~${load.avgResponseMs}ms avg` : 'no data yet'}</span>
+        </div>
+      </div>
+
+      {!premium && <PremiumCtaCard source="server-engine" label="Server suggestions — a Premium feature" />}
+    </div>
+  );
+}
+
 /** Engines available on the free tier. Maia 2 / Maia 3 stay premium —
  *  they're the human-style engines that justify upgrading. Komodo and
  *  Stockfish are the two classical engines; both unlocked on free. */
@@ -577,6 +681,8 @@ function EngineSettingsTab() {
           <span className="settings-engine-desc">{info.desc}</span>
         </div>
       </div>
+
+      <ServerEngineSection />
 
       <div className="settings-item settings-item--column">
         <div className="settings-item-row">

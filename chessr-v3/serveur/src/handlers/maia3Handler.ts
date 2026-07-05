@@ -13,6 +13,7 @@ import {
   type Maia3JobData,
 } from '../queue/maia3Queue.js';
 import { insertUserActivity } from '../lib/analyticsRepo.js';
+import { loadTrackStart, loadTrackEnd } from '../lib/engineLoad.js';
 
 export interface Maia3Message {
   type: 'maia3_request';
@@ -54,6 +55,9 @@ export async function handleMaia3Request(
     return;
   }
 
+  loadTrackStart('maia3', userId);
+  const loadT0 = Date.now();
+
   // Supersede any previous pending Maia 3 request from this user.
   try { await removePendingMaia3ForUser(userId); } catch { /* ignore */ }
 
@@ -68,6 +72,7 @@ export async function handleMaia3Request(
 
   try {
     const result = await enqueueMaia3(data);
+    loadTrackEnd('maia3', Date.now() - loadT0);
     // Same shape as suggestion_response so client handles uniformly.
     send({
       type: 'suggestion_response',
@@ -88,6 +93,7 @@ export async function handleMaia3Request(
       source: 'server',
     }).catch((err) => console.warn('[maia3] analytics log failed:', err));
   } catch (err) {
+    loadTrackEnd('maia3', null);
     const msg = err instanceof Error ? err.message : String(err);
     send({ type: 'suggestion_error', requestId, error: msg });
   }

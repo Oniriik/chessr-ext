@@ -33,6 +33,7 @@ export function enforceFreeTierLimits(): void {
   if (!e.dynamismAuto) e.setDynamismAuto(true);
   if (!e.kingSafetyAuto) e.setKingSafetyAuto(true);
   if (e.variety !== 0) e.setVariety(0);
+  if (e.forceServerEngine) e.setForceServerEngine(false);
 
   const am = useAutoMoveStore.getState();
   if (am.mode !== 'off') am.setMode('off');

@@ -15,6 +15,7 @@ import {
   type SuggestionJobData,
 } from '../queue/suggestionQueue.js';
 import { insertUserActivity } from '../lib/analyticsRepo.js';
+import { loadTrackStart, loadTrackEnd } from '../lib/engineLoad.js';
 // NOTE: per-request logStart/logEnd removed from this handler. The extension
 // drives a single `[suggestion] source=wasm|server` line via
 // suggestion_log_start/end (see content.tsx). Logging here too would
@@ -140,6 +141,9 @@ export async function handleSuggestionRequest(
     searchOptions.nodes = SEARCH_NODES;
   }
 
+  loadTrackStart(engineType, userId);
+  const loadT0 = Date.now();
+
   // Supersede: drop any previously-queued (not yet running) request from
   // this user. An older request already in 'active' state will finish but
   // its result will be ignored by the handler (requestId check) — the
@@ -159,6 +163,7 @@ export async function handleSuggestionRequest(
       engineType,
     });
 
+    loadTrackEnd(engineType, Date.now() - loadT0);
     send({
       type: 'suggestion_response',
       requestId,
@@ -181,6 +186,7 @@ export async function handleSuggestionRequest(
       source: 'server',
     }).catch((err) => console.warn('[suggestion] analytics log failed:', err));
   } catch (err) {
+    loadTrackEnd(engineType, null);
     const msg = err instanceof Error ? err.message : String(err);
     send({ type: 'suggestion_error', requestId, error: msg });
   }
