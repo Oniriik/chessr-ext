@@ -326,10 +326,16 @@ abuseRoutes.post('/report-signup', async (c) => {
   } catch { /* empty */ }
   if (!userId) return c.json({ ok: false, error: 'Missing userId' }, 400);
 
+  // Step logging — a signup report that upserts its fingerprint but never
+  // emits signup_success has been observed in prod (request seemingly
+  // hanging mid-route); these breadcrumbs localize where it stops.
+  console.log(`[abuse.report-signup] start kind=${kind} user=${userId.slice(0, 8)} email=${email ?? '-'}`);
+
   const clientIp = getClientIp(c);
   const { country, countryCode } = clientIp
     ? await resolveIpCountry(clientIp)
     : { country: null, countryCode: null };
+  console.log(`[abuse.report-signup] geo done user=${userId.slice(0, 8)} ip=${clientIp ?? '-'}`);
 
   // Insert / upsert both records. The supabase builder doesn't reject
   // on DB errors — it resolves with { data, error }. So we have to
@@ -372,12 +378,14 @@ abuseRoutes.post('/report-signup', async (c) => {
 
   // Emit only on the signup path — re-logins don't represent a new
   // user joining and would spam the activity feed.
+  console.log(`[abuse.report-signup] upserts done user=${userId.slice(0, 8)}`);
   if (kind === 'signup') {
     await emitEvent({
       type: 'signup_success',
       user_id: userId,
       payload: { email, ip: clientIp, country, countryCode, fingerprint, source },
     });
+    console.log(`[abuse.report-signup] event emitted user=${userId.slice(0, 8)}`);
   }
 
   return c.json({ ok: true });
