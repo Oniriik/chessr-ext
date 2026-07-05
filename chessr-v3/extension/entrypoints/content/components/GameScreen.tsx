@@ -22,6 +22,7 @@ import EditableComponent from './EditableComponent';
 import TabBar from './TabBar';
 import Toggle from './Toggle';
 import { isPremium, canOfferTrial } from '../lib/premium';
+import { SERVER_URL } from '../lib/config';
 import { useTrialModalStore } from '../stores/trialModalStore';
 import { PremiumCtaCard } from './PremiumCta';
 import Slider, { lerpColor } from './Slider';
@@ -520,6 +521,7 @@ export default function GameScreen({ activeTab, setActiveTab }: { activeTab: Gam
                           <div className="game-suggestions-label-group">
                             <span className="game-suggestions-label">{t('game.suggestions.title')}</span>
                             <span className="game-suggestions-engine" title={t('game.suggestions.engineHint')}>{ENGINE_INFO[activeEngineId]?.label ?? activeEngineId}</span>
+                            <ServerPingChip />
                             {isPlaying && suggestions.length > 0 && suggestions[0]?.depth != null && suggestions[0].depth > 0 && (
                               <span className="game-suggestions-depth" title={t('game.suggestions.depthReached')}>{t('game.suggestions.depth', { n: suggestions[0].depth })}</span>
                             )}
@@ -874,6 +876,46 @@ const ENGINE_SUPPORTED_SECTIONS: Record<string, string[]> = {
   komodo:    ['elo', 'personality', 'dynamism', 'kingsafety', 'variety'],
   stockfish: ['elo'],
 };
+
+
+/** "🌐 42ms" chip next to the engine name — shown whenever the active
+ *  suggestion engine is the SERVER one (premium server mode OR the
+ *  wasm-init-failure fallback). Pings /health every 10s while visible so
+ *  players see their live latency to the suggestion server. */
+function ServerPingChip() {
+  const { t } = useTranslation();
+  const mode = useEngineStore((s) => s.activeEngineMode);
+  const [ping, setPing] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'server') return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const t0 = performance.now();
+        await fetch(`${SERVER_URL}/health`, { cache: 'no-store' });
+        if (!cancelled) setPing(Math.round(performance.now() - t0));
+      } catch {
+        if (!cancelled) setPing(null);
+      }
+    };
+    tick();
+    const iv = setInterval(tick, 10_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [mode]);
+
+  if (mode !== 'server') return null;
+  const color = ping === null ? '#94a3b8' : ping < 80 ? '#22c55e' : ping < 150 ? '#f59e0b' : '#ef4444';
+  return (
+    <span
+      className="game-suggestions-server"
+      style={{ color }}
+      title={t('game.suggestions.serverChipHint')}
+    >
+      🌐 {ping !== null ? `${ping}ms` : '…'}
+    </span>
+  );
+}
 
 function EnginePanel({ onDragEnd }: { onDragEnd: (event: DragEndEvent) => void }) {
   const { t } = useTranslation();

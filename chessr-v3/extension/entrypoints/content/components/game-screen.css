@@ -979,3 +979,13 @@
   max-width: 240px;
 }
 
+
+/* Server/ping chip next to the engine name in the suggestions header. */
+.game-suggestions-server {
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}

@@ -180,6 +180,11 @@ interface EngineState {
   /** Runtime only (not synced): where suggestions are currently running
    *  when server mode is on. Drives the settings-panel indicator. */
   serverRoute: 'server' | 'local-fallback' | null;
+  /** Runtime only: what the ACTIVE suggestion engine actually is — covers
+   *  both the premium server mode and the wasm-init-failure fallback.
+   *  Set by content.tsx after every engine swap; drives the Game-tab
+   *  server/ping chip. */
+  activeEngineMode: 'wasm' | 'server' | null;
 
   capabilities: EngineCapabilities;
   setCapabilities: (c: EngineCapabilities) => void;
@@ -222,6 +227,7 @@ interface EngineState {
   setForceServerEngine: (v: boolean) => void;
   setServerLoadThreshold: (v: number) => void;
   setServerRoute: (v: 'server' | 'local-fallback' | null) => void;
+  setActiveEngineMode: (v: 'wasm' | 'server' | null) => void;
   resetToDefaults: () => void;
 
   getEffectiveElo: () => number;
@@ -263,6 +269,7 @@ import { isPremium } from '../lib/premium';
 export const useEngineStore = create<EngineState>()((set, get) => ({
   ...ENGINE_DEFAULTS,
   serverRoute: null,
+  activeEngineMode: null,
   capabilities: CAPABILITIES_PERMISSIVE,
   setCapabilities: (c) => set({ capabilities: c }),
 
@@ -317,6 +324,7 @@ export const useEngineStore = create<EngineState>()((set, get) => ({
   setForceServerEngine: (v) => set({ forceServerEngine: v }),
   setServerLoadThreshold: (v) => set({ serverLoadThreshold: Math.max(50, Math.min(100, Math.round(v))) }),
   setServerRoute: (v) => set({ serverRoute: v }),
+  setActiveEngineMode: (v) => set({ activeEngineMode: v }),
   resetToDefaults: () => set({ ...ENGINE_DEFAULTS }),
 
   getEffectiveElo: () => {

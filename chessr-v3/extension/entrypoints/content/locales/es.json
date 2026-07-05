@@ -282,6 +282,7 @@
   "engine.info.maia3.desc": "Nuevo modelo Maia con ELO continuo y rango más amplio.",
   "engine.info.rodent.desc": "39 personalidades con nombre (estilos de GM + arquetipos) con imprecisión ajustable.",
   "engine.info.stockfish.desc": "Motor clásico open-source — rápido, fuerza táctica pura, sin ajuste de personalidad.",
+  "game.suggestions.serverChipHint": "Las sugerencias se ejecutan en el servidor — esta es tu latencia hacia él",
   "settings.engine.server.title": "Sugerencias en servidor",
   "settings.engine.server.desc": "Ejecuta las búsquedas en nuestros servidores en lugar de tu dispositivo — cero uso de CPU local.",
   "settings.engine.server.threshold": "Cambiar a motor local por encima de",

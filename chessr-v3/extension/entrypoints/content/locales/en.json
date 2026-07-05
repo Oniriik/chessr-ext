@@ -287,6 +287,7 @@
   "engine.info.maia3.desc": "New Maia model with continuous ELO and wider range.",
   "engine.info.rodent.desc": "39 named personalities (GM-style + style archetypes) with a tunable imprecision dial.",
   "engine.info.stockfish.desc": "Open-source classical engine — fast, pure tactical strength, no personality tuning.",
+  "game.suggestions.serverChipHint": "Suggestions are running on the server — this is your latency to it",
   "settings.engine.server.title": "Server suggestions",
   "settings.engine.server.desc": "Run suggestion searches on our servers instead of your device — zero CPU usage locally.",
   "settings.engine.server.threshold": "Switch to local engine above",

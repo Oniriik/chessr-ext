@@ -410,6 +410,7 @@ function swapSuggestionEngine(id: EngineId, force = false): Promise<void> {
     const fresh = await createEngine(id);
     suggestionEngine = fresh;
     useEngineStore.getState().setCapabilities(fresh.getCapabilities());
+    useEngineStore.getState().setActiveEngineMode(fresh instanceof ServerEngine ? 'server' : 'wasm');
     console.log(`[Chessr] suggestion engine ready: ${id}`);
 
     // Re-fire if a game is live and waiting for our move.
