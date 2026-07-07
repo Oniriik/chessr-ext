@@ -42,6 +42,7 @@ import { command as giveawayLeaderboardCommand } from './commands/giveawayLeader
 import { command as tokenCommand }               from './commands/token.js';
 import { command as clearCommand }               from './commands/clear.js';
 import { ticketCommands, registerTicketHandlers } from './handlers/tickets.js';
+import { unverifiedSetupCommand, registerWelcomeUnverified } from './handlers/welcomeUnverified.js';
 registerCommand(rankCommand);
 registerCommand(leaderboardCommand);
 registerCommand(lookupCommand);
@@ -51,6 +52,7 @@ registerCommand(giveawayLeaderboardCommand);
 registerCommand(tokenCommand);
 registerCommand(clearCommand);
 for (const cmd of ticketCommands) registerCommand(cmd);
+registerCommand(unverifiedSetupCommand);
 
 // ─── Event handlers ─────────────────────────────────────────────────────
 import { registerPlanSyncHandlers } from './handlers/planSync.js';
@@ -104,6 +106,7 @@ client.once('clientReady', async () => {
   registerEloRoleEvents();
   registerWheelTokenDrop(client);
   registerDmTracker(client);
+  registerWelcomeUnverified(client);
 });
 
 registerInviteTracker(client);

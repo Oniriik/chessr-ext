@@ -45,6 +45,10 @@ export const config = {
     /** Role pinged in the welcome message when a ticket is opened so
      *  the support team gets notified. Optional — no ping if unset. */
     ticketSupportRoleId: optional('DISCORD_TICKET_SUPPORT_ROLE_ID'),
+    /** Channel where unlinked newcomers land (#unverified-chat). The
+     *  bot greets each unlinked join there and the /unverified-setup
+     *  panel lives in it. Unset = welcome flow disabled. */
+    unverifiedChannelId: optional('DISCORD_UNVERIFIED_CHANNEL_ID'),
     /** Default channel where giveaway announcements get posted. The
      *  giveaway row can override this; when neither is set the bot
      *  logs a warning and skips the announcement (giveaway stays

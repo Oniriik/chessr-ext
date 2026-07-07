@@ -130,7 +130,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
     prevGameOver.current = gameOver;
   }, [gameOver, autoOpenOnGameEnd]);
   const { updateRequired, checking, checkVersion } = useVersionStore();
-  const { fetchStatus: fetchDiscord, fetchMembership, linked: discordLinked, inGuild } = useDiscordStore();
+  const { fetchStatus: fetchDiscord, fetchMembership, initLink: initDiscordLink, linked: discordLinked, inGuild } = useDiscordStore();
   const pushWidget = useWidgetStore((s) => s.push);
   const { fetchAccounts, needsLinking, pendingProfile, setNeedsLinking, accounts, loading: accountsLoading } = useLinkedAccountsStore();
   const disableAnimations = useSettingsStore((s) => s.disableAnimations);
@@ -222,6 +222,36 @@ export default function App({ streamMode = false }: AppProps = {}) {
     const next = window.location.pathname + (params.toString() ? `?${params}` : '') + window.location.hash;
     window.history.replaceState(null, '', next);
   }, [user?.id, pushWidget]);
+
+  // Discord-bot deep link — the "Link my extension" button in the
+  // server's #unverified-chat opens chess.com with ?chessr_link_start=1.
+  // A logged-in user landing with it goes straight into the same OAuth
+  // flow as the Settings button. The param is stripped BEFORE the
+  // redirect so the OAuth returnUrl (current href) can't re-trigger the
+  // flow on the way back. Same logged-out convention as above: the
+  // param stays untouched until sign-in, then fires.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!user) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('chessr_link_start') !== '1') return;
+
+    params.delete('chessr_link_start');
+    const next = window.location.pathname + (params.toString() ? `?${params}` : '') + window.location.hash;
+    window.history.replaceState(null, '', next);
+
+    if (discordLinked) {
+      pushWidget({
+        id: 'discord-already-linked-' + Date.now(),
+        category: 'discord',
+        title: 'Discord already linked',
+        body: 'Your account is already connected — nothing to do. Your roles sync automatically on the server.',
+        ttl: 10000,
+      });
+      return;
+    }
+    initDiscordLink(user.id);
+  }, [user?.id, discordLinked, pushWidget, initDiscordLink]);
 
   // System-message widget login triggers. Fires once the auth and the
   // Discord state have both settled — `planLoading` covers
