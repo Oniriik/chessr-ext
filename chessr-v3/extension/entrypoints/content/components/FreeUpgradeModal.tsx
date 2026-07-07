@@ -137,9 +137,9 @@ export default function FreeUpgradeModal() {
             <h3 className="trial-modal-title">{t('upgrade.increase.title')}</h3>
             <p className="trial-modal-subtitle">{t('upgrade.increase.subtitle')}</p>
 
-            <div className="trial-modal-countdown">
-              <span className="trial-modal-countdown-label">{t('upgrade.increase.endsIn')}</span>
-              <span className="trial-modal-countdown-value">
+            <div className="trial-modal-price-countdown">
+              <span className="trial-modal-price-countdown-label">{t('upgrade.increase.endsIn')}</span>
+              <span className="trial-modal-price-countdown-value">
                 {formatCountdown(Date.parse(prices.priceChangeAt!) - nowMs)}
               </span>
             </div>

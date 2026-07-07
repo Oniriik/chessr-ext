@@ -303,7 +303,7 @@
 
 /* ── Price-increase pre-announce variant (grid 2026-07-12) ──────────── */
 
-.trial-modal-countdown {
+.trial-modal-price-countdown {
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -314,14 +314,14 @@
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.10), rgba(245, 158, 11, 0.06));
   border: 1px solid rgba(251, 191, 36, 0.35);
 }
-.trial-modal-countdown-label {
+.trial-modal-price-countdown-label {
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   color: #fbbf24;
 }
-.trial-modal-countdown-value {
+.trial-modal-price-countdown-value {
   font-size: 19px;
   font-weight: 800;
   color: #fbbf24;
