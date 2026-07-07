@@ -79,6 +79,77 @@ export interface AntiCheatCheck {
   detail: string
 }
 
+// ─── Fair Play v2 (categorized checks + single global score) ───
+
+export interface FairPlayCheck {
+  id: string
+  label: string
+  status: 'PASS' | 'WARN' | 'FAIL'
+  value: string
+  detail: string
+  tooltip?: string
+  /** Contribution to the category/global score. Strong signals 2–2.5,
+   *  weak/noisy signals 0.75. */
+  weight: number
+}
+
+export interface FairPlayCategory {
+  id: 'performance' | 'errors' | 'consistency' | 'timing' | 'strong'
+  label: string
+  description: string
+  checks: FairPlayCheck[]
+  earned: number
+  max: number
+}
+
+export interface GameDelta {
+  gameId: string
+  opponentName: string
+  accuracy: number | null
+  delta: number | null
+  result: string
+  outlier: boolean
+}
+
+export interface FairPlayReport {
+  /** 0–10. PASS=1 · WARN=0.4 · FAIL=−0.5, weighted, clamped ≥ 0. */
+  score: number
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH'
+  verdictTitle: string
+  verdict: string
+  confidence: 'low' | 'medium' | 'high'
+  confidenceDetail: string
+  categories: FairPlayCategory[]
+  gameDeltas: GameDelta[]
+  outlierNote: string | null
+  totalMoves: number
+}
+
+// ─── Learning ───
+
+export interface OpeningStat {
+  name: string
+  eco: string
+  games: number
+  winRate: number
+  avgAccuracy: number | null
+  worst: boolean
+}
+
+export interface FocusArea {
+  icon: string
+  title: string
+  detail: string
+}
+
+export interface GameKeyMoment {
+  ply: number
+  san: string | null
+  /** Eval swing in pawns (positive = how much was thrown away). */
+  swing: number
+  thinkTime: number | null
+}
+
 export interface CadenceProfile {
   tcType: TimeControlType
   tcLabel: string
@@ -136,7 +207,15 @@ export interface CadenceProfile {
     classifications: Record<string, number>
     totalMoves: number
     pieces: { piece: string; label: string; accuracy: number | null }[]
+    /** Player-perspective eval per ply (pawns, clamped ±6). Null on
+     *  pre-enrichment analyses that lack per-move evals. */
+    evalSeries: number[] | null
+    keyMoment: GameKeyMoment | null
+    openingName: string | null
   }>
+  fairPlay: FairPlayReport
+  openings: OpeningStat[]
+  focusAreas: FocusArea[]
 }
 
 export interface ProfileAnalysisResult {
@@ -595,18 +674,54 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
   let nonBookMoveCount = 0
   const INSTANT_THRESHOLD = tcType === 'bullet' || tcType === 'blitz' ? 0.15 : 0.3
 
+  // Clutch (low-clock) accuracy — needs per-move caps2, so only fed by
+  // post-enrichment analyses. Threshold = "in time pressure" per cadence.
+  const CLUTCH_CLOCK: Record<string, number> = { bullet: 10, blitz: 30, rapid: 60, classical: 120 }
+  const clutchThreshold = CLUTCH_CLOCK[tcType] ?? 30
+  const clutchCaps: number[] = []
+  const normalCaps: number[] = []
+
+  // Longest streak of engine-perfect moves (best/great/brilliant) out of
+  // book. Classification-based, so it works on legacy analyses too.
+  const STREAK_CLS = new Set(['best', 'great', 'brilliant'])
+  let maxStreak = 0
+  let maxStreakOpponent = ''
+
   for (const g of games) {
     const increment = parseInt((g.timeControl || '').split('+')[1] || '0')
+    const baseTime = parseInt((g.timeControl || '').split('+')[0] || '0') || 0
     const clocks = extractClockTimes(g.publicPgn)
     const playerClocks = g.playerColor === 'white' ? clocks.whiteTimes : clocks.blackTimes
     const thinkTimes = calcThinkTimes(playerClocks, increment)
     allThinkTimes.push(...thinkTimes)
 
+    let streak = 0
     let posIdx = 0
     for (const pos of g.positions) {
       if (pos.color !== g.playerColor) continue
-      const tt = thinkTimes[posIdx] ?? null
+      // playerClocks[i] is the clock AFTER the player's move i, so the
+      // time spent on move i is thinkTimes[i-1] and the first move has
+      // no measurable think time. (Was off by one before 2026-07.)
+      const tt = posIdx > 0 ? thinkTimes[posIdx - 1] ?? null : null
+      const clockBefore = posIdx > 0 ? playerClocks[posIdx - 1] ?? null : baseTime || null
       const cn = pos.classificationName
+
+      // Streak runs over non-book moves only
+      if (cn && cn !== 'book') {
+        if (STREAK_CLS.has(cn)) {
+          streak++
+          if (streak > maxStreak) { maxStreak = streak; maxStreakOpponent = g.opponentName }
+        } else {
+          streak = 0
+        }
+      }
+
+      // Clutch buckets (enriched analyses only)
+      if (cn && cn !== 'book' && pos.caps2 != null && clockBefore != null) {
+        if (clockBefore < clutchThreshold) clutchCaps.push(pos.caps2)
+        else normalCaps.push(pos.caps2)
+      }
+
       if (tt != null) {
         if (cn) {
           if (!thinkByClassMap[cn]) thinkByClassMap[cn] = []
@@ -804,6 +919,42 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
       accuracy: (playerCaps?.[p] as number | null) ?? null,
     }))
 
+    // Eval sparkline — player perspective, pawns, clamped ±6. Chess.com
+    // evals are white-perspective centipawns. Only built when the
+    // analysis carries per-move evals (post-enrichment rows).
+    const sign = g.playerColor === 'white' ? 1 : -1
+    const withCp = g.positions.filter(p => p.playedCp != null).length
+    let evalSeries: number[] | null = null
+    if (g.positions.length > 0 && withCp / g.positions.length >= 0.7) {
+      let last = 0
+      evalSeries = g.positions.map(p => {
+        if (p.playedCp != null) last = Math.max(-6, Math.min(6, (p.playedCp * sign) / 100))
+        else if (p.mateIn != null) last = last >= 0 ? 6 : -6
+        return last
+      })
+    }
+
+    // Key moment — the player's costliest move (biggest eval throw).
+    let keyMoment: GameKeyMoment | null = null
+    const increment = parseInt((g.timeControl || '').split('+')[1] || '0')
+    const clocks = extractClockTimes(g.publicPgn)
+    const playerClocks = g.playerColor === 'white' ? clocks.whiteTimes : clocks.blackTimes
+    const thinkTimes = calcThinkTimes(playerClocks, increment)
+    let pIdx = 0
+    for (const pos of g.positions) {
+      if (pos.color !== g.playerColor) { continue }
+      const diff = pos.difference ?? 0
+      if (diff >= 1 && diff > (keyMoment?.swing ?? 0)) {
+        keyMoment = {
+          ply: pos.ply ?? 0,
+          san: pos.san ?? null,
+          swing: Math.round(diff * 10) / 10,
+          thinkTime: pIdx > 0 ? thinkTimes[pIdx - 1] ?? null : null,
+        }
+      }
+      pIdx++
+    }
+
     return {
       gameId: g.gameId,
       accuracy: playerCaps?.all as number | null ?? null,
@@ -818,8 +969,96 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
       classifications: gameCls,
       totalMoves: gameMoves,
       pieces: gamePieces,
+      evalSeries,
+      keyMoment,
+      openingName: openingNameFromUrl(g.ecoUrl || '') || (g.eco || null),
     }
   })
+
+  // ── Openings repertoire (Learning) ──
+  const openingGroups = new Map<string, { eco: string; games: typeof gamesList }>()
+  gamesList.forEach((gl, i) => {
+    const name = gl.openingName
+    if (!name) return
+    if (!openingGroups.has(name)) openingGroups.set(name, { eco: games[i].eco || '', games: [] as typeof gamesList })
+    openingGroups.get(name)!.games.push(gl)
+  })
+  const openings: OpeningStat[] = [...openingGroups.entries()]
+    .map(([name, grp]) => {
+      const w = grp.games.filter(x => x.result === 'W').length
+      return {
+        name,
+        eco: grp.eco,
+        games: grp.games.length,
+        winRate: Math.round((w / grp.games.length) * 100),
+        avgAccuracy: mean(grp.games.map(x => x.accuracy).filter((a): a is number => a != null)),
+        worst: false,
+      }
+    })
+    .sort((a, b) => b.games - a.games)
+  const worstOpening = openings.filter(o => o.games >= 3).sort((a, b) => a.winRate - b.winRate)[0]
+  if (worstOpening && openings.length > 1 && worstOpening.winRate < 45) worstOpening.worst = true
+
+  // ── Fair Play v2 — categorized checks + one weighted global score ──
+  const fairPlayReport = buildFairPlayReport({
+    tcType, tcLabel, avgRat, delta, t, legacyChecks: checks, profileFlags,
+    gamesList, totalMoves, nonBookTotal, maxStreak, maxStreakOpponent,
+    clutchCaps, normalCaps, bestMoveRate, gamesCount: games.length,
+    cls,
+  })
+
+  // ── Focus areas (Learning) ──
+  const focusAreas: FocusArea[] = []
+  if (bestPhase && worstPhase && bestPhase.mean - worstPhase.mean >= 6) {
+    focusAreas.push({
+      icon: '🏰',
+      title: `${worstPhase.label} technique`,
+      detail: `−${(bestPhase.mean - worstPhase.mean).toFixed(1)} pts vs your ${bestPhase.label.toLowerCase()} — your biggest phase gap.`,
+    })
+  }
+  if (blunderPattern === 'blunders when rushing') {
+    const blunderTimesAll = [...(thinkByClassMap.blunder || []), ...(thinkByClassMap.miss || [])]
+    const rushed = blunderTimesAll.filter(x => x < 3).length
+    const pct = blunderTimesAll.length > 0 ? Math.round((rushed / blunderTimesAll.length) * 100) : 0
+    focusAreas.push({
+      icon: '⏳',
+      title: 'Stop rushing blunders',
+      detail: pct > 0
+        ? `${pct}% of your blunders are played in under 3s — you blunder when rushing, not when thinking.`
+        : 'Your blunders come on quick moves — slow down in sharp positions.',
+    })
+  } else if (blunderPattern === 'blunders when overthinking') {
+    focusAreas.push({
+      icon: '🌀',
+      title: 'Overthinking costs you',
+      detail: 'Your blunders come after long thinks — trust your first candidate more in familiar positions.',
+    })
+  }
+  if (worstOpening?.worst) {
+    focusAreas.push({
+      icon: '♟️',
+      title: `Fix the ${worstOpening.name}`,
+      detail: `${worstOpening.winRate}% wins over ${worstOpening.games} games${worstOpening.avgAccuracy != null ? ` at ${worstOpening.avgAccuracy.toFixed(1)}% accuracy` : ''} — your weakest opening.`,
+    })
+  }
+  if (focusAreas.length < 3 && strongestPiece && weakestPiece && strongestPiece.mean - weakestPiece.mean >= 6) {
+    focusAreas.push({
+      icon: '♞',
+      title: `${weakestPiece.label} play`,
+      detail: `Your ${weakestPiece.label.toLowerCase()} moves run ${(strongestPiece.mean - weakestPiece.mean).toFixed(0)} pts below your ${strongestPiece.label.toLowerCase()} — a piece-specific blind spot.`,
+    })
+  }
+  if (focusAreas.length < 3 && clutchCaps.length >= 12 && normalCaps.length >= 30) {
+    const drop = (mean(normalCaps) ?? 0) - (mean(clutchCaps) ?? 0)
+    if (drop >= 8) {
+      focusAreas.push({
+        icon: '⏱',
+        title: 'Clock management',
+        detail: `Your accuracy drops ${drop.toFixed(0)} pts under ${clutchThreshold}s — avoid getting there in equal positions.`,
+      })
+    }
+  }
+  focusAreas.splice(3)
 
   return {
     tcType, tcLabel, gamesCount: games.length, avgRating: Math.round(avgRat),
@@ -836,6 +1075,237 @@ function buildCadenceProfile(tcType: TimeControlType, games: GameRawData[], user
     flags: profileFlags,
     antiCheat: { checks, humanScore, riskLevel, passCount, warnCount, failCount, totalMoves },
     games: gamesList,
+    fairPlay: fairPlayReport,
+    openings,
+    focusAreas,
+  }
+}
+
+// ─── Fair Play v2 construction ───
+
+/** Family name from a chess.com ECOUrl, e.g.
+ *  ".../openings/Sicilian-Defense-Open-2.Nf3" → "Sicilian Defense". */
+function openingNameFromUrl(ecoUrl: string): string | null {
+  const slug = ecoUrl.split('/openings/')[1]
+  if (!slug) return null
+  const words = slug.split('-').filter(w => w && !/\d/.test(w))
+  if (words.length === 0) return null
+  const FAMILY = new Set(['Game', 'Defense', 'Opening', 'Attack', 'Gambit', 'System'])
+  const take = words.length >= 2 && FAMILY.has(words[1]) ? 2 : Math.min(3, words.length)
+  return words.slice(0, take).join(' ')
+}
+
+const FP_CHECK_PTS: Record<string, number> = { PASS: 1, WARN: 0.4, FAIL: -0.5 }
+const FLAG_TO_STATUS: Record<FlagStatus, 'PASS' | 'WARN' | 'FAIL'> = { clean: 'PASS', suspicious: 'WARN', flagged: 'FAIL' }
+
+function buildFairPlayReport(input: {
+  tcType: TimeControlType; tcLabel: string; avgRat: number; delta: number | null
+  t: ReturnType<typeof getThresholds>
+  legacyChecks: AntiCheatCheck[]
+  profileFlags: ProfileFlag[]
+  gamesList: Array<{ gameId: string; opponentName: string; accuracy: number | null; delta: number | null; result: string }>
+  totalMoves: number; nonBookTotal: number
+  maxStreak: number; maxStreakOpponent: string
+  clutchCaps: number[]; normalCaps: number[]
+  bestMoveRate: number; gamesCount: number
+  cls: Record<string, number>
+}): FairPlayReport {
+  const { tcLabel, avgRat, delta, t, legacyChecks, profileFlags, gamesList,
+          totalMoves, nonBookTotal, maxStreak, maxStreakOpponent,
+          clutchCaps, normalCaps, cls, gamesCount } = input
+
+  const legacy = (id: string) => legacyChecks.find(c => c.label === id)
+  const flag = (id: string) => profileFlags.find(f => f.id === id)
+
+  /** Lift a legacy check into a categorized, weighted one. */
+  const lift = (id: string, label: string, weight: number): FairPlayCheck | null => {
+    const c = legacy(id)
+    if (!c) return null
+    return { id, label, status: c.status, value: c.value, detail: c.detail, tooltip: c.tooltip, weight }
+  }
+  const liftFlag = (id: string, label: string, weight: number, tooltip?: string): FairPlayCheck | null => {
+    const f = flag(id)
+    if (!f) return null
+    return { id, label, status: FLAG_TO_STATUS[f.status], value: f.value, detail: f.detail, tooltip, weight }
+  }
+
+  // ── New: perfect-move streaks ──
+  // Longest-run theory: for n Bernoulli trials at rate p the expected
+  // longest run ≈ log_{1/p}(n(1−p)). Streaks well past that don't
+  // happen to humans by accident.
+  const STREAK_MIN_SAMPLE = 60
+  const perfectCount = (cls.best || 0) + (cls.great || 0) + (cls.brilliant || 0)
+  const p = nonBookTotal > 0 ? Math.min(0.9, Math.max(0.05, perfectCount / nonBookTotal)) : 0.3
+  const expectedMaxStreak = nonBookTotal >= STREAK_MIN_SAMPLE
+    ? Math.max(3, Math.log(nonBookTotal * (1 - p)) / Math.log(1 / p))
+    : null
+  let streakCheck: FairPlayCheck | null = null
+  if (expectedMaxStreak != null) {
+    const warnAt = expectedMaxStreak + 4
+    const failAt = expectedMaxStreak + 8
+    const status = maxStreak > failAt ? 'FAIL' : maxStreak > warnAt ? 'WARN' : 'PASS'
+    streakCheck = {
+      id: 'perfect_streak', label: 'Perfect-move streaks', status,
+      value: `max ${maxStreak} in a row`,
+      detail: status === 'PASS'
+        ? `out of book · typical ≤ ${Math.round(warnAt)} at this best-move rate`
+        : `expected ≤ ${Math.round(warnAt)} — longest run vs ${maxStreakOpponent}`,
+      tooltip: 'Longest chain of engine-top moves outside opening theory. Humans rarely sustain long perfect sequences in complex positions.',
+      weight: 2.5,
+    }
+  }
+
+  // ── New: clutch accuracy (needs enriched per-move caps2) ──
+  let clutchCheck: FairPlayCheck | null = null
+  if (clutchCaps.length >= 12 && normalCaps.length >= 30) {
+    const clutchAvg = mean(clutchCaps)!
+    const normalAvg = mean(normalCaps)!
+    const drop = normalAvg - clutchAvg
+    const status = drop < -2 ? 'FAIL' : drop < 1 ? 'WARN' : 'PASS'
+    clutchCheck = {
+      id: 'clutch_accuracy', label: 'Clutch accuracy', status,
+      value: `${clutchAvg.toFixed(1)}% in time pressure`,
+      detail: status === 'PASS'
+        ? `drops ${drop.toFixed(1)} pts under pressure — engines don't`
+        : status === 'WARN'
+          ? `barely drops (${drop >= 0 ? '−' : '+'}${Math.abs(drop).toFixed(1)} pts) under pressure`
+          : `improves ${Math.abs(drop).toFixed(1)} pts under pressure — humans collapse, engines don't`,
+      tooltip: 'Per-move accuracy when low on clock vs the rest of the game. Human accuracy degrades in time pressure; engine-assisted play stays flat.',
+      weight: 2.5,
+    }
+  }
+
+  // ── New: per-game outliers ──
+  const gameDeltas: GameDelta[] = gamesList.map(gl => ({
+    gameId: gl.gameId, opponentName: gl.opponentName,
+    accuracy: gl.accuracy, delta: gl.delta, result: gl.result, outlier: false,
+  }))
+  let outlierNote: string | null = null
+  let outlierCheck: FairPlayCheck | null = null
+  const withDelta = gameDeltas.filter(gd => gd.delta != null)
+  if (withDelta.length >= 6) {
+    for (const gd of withDelta) {
+      const others = withDelta.filter(x => x !== gd).map(x => x.delta!)
+      const m = mean(others)!
+      const sd = stddev(others) ?? 5
+      if (gd.delta! - m > Math.max(10, 2.2 * sd)) gd.outlier = true
+    }
+    const outliers = gameDeltas.filter(gd => gd.outlier)
+    const worst = outliers.sort((a, b) => (b.delta ?? 0) - (a.delta ?? 0))[0]
+    if (worst) {
+      outlierNote = `Game vs ${worst.opponentName}: ${worst.accuracy?.toFixed(1)}% accuracy (+${worst.delta!.toFixed(1)} vs expected) — isolated in an otherwise ${outliers.length > 1 ? 'mostly ' : ''}normal sample.`
+    }
+    outlierCheck = {
+      id: 'game_outlier', label: outliers.length === 1 ? 'Game outlier' : 'Game outliers',
+      status: outliers.length >= 2 ? 'FAIL' : outliers.length === 1 ? 'WARN' : 'PASS',
+      value: outliers.length === 0 ? 'none' : `${outliers.length} game${outliers.length > 1 ? 's' : ''}`,
+      detail: outliers.length === 0
+        ? 'no game stands apart from the rest'
+        : `spikes far above the other games — selective assistance pattern`,
+      tooltip: 'Flags single games played far above the rest of the sample. Averages hide selective cheating; per-game deltas expose it.',
+      weight: 2,
+    }
+  }
+
+  // ── Assemble categories ──
+  const allCategories: FairPlayCategory[] = [
+    {
+      id: 'performance', label: 'Performance',
+      description: `Accuracy, best-move rate & win rate vs what a ${Math.round(avgRat)} produces`,
+      checks: [
+        lift('accuracy_delta', 'Accuracy vs expected', 2),
+        lift('best_move_rate', 'Best-move rate', 1.5),
+        liftFlag('winRate', 'Win rate coherence', 1, 'Win rate should match accuracy. Winning far more than the play quality explains is suspicious.'),
+      ].filter((x): x is FairPlayCheck => x != null),
+      earned: 0, max: 0,
+    },
+    {
+      id: 'errors', label: 'Errors',
+      description: 'Humans blunder — too few mistakes for the rating is the red flag',
+      checks: [
+        lift('blunder_rate', 'Blunder rate', 1.5),
+        lift('has_mistakes', 'Mistake rate', 1.5),
+      ].filter((x): x is FairPlayCheck => x != null),
+      earned: 0, max: 0,
+    },
+    {
+      id: 'consistency', label: 'Consistency',
+      description: 'Game-to-game stability of accuracy, pieces and phases',
+      checks: [
+        lift('accuracy_consistency', 'Accuracy spread', 1),
+        lift('piece_uniformity', 'Piece balance', 0.75),
+        lift('phase_uniformity', 'Phase balance', 0.75),
+      ].filter((x): x is FairPlayCheck => x != null),
+      earned: 0, max: 0,
+    },
+    {
+      id: 'timing', label: 'Timing',
+      description: 'Move-time rhythm, instant moves, focus on critical positions',
+      checks: [
+        lift('time_rhythm', 'Time rhythm', 1),
+        lift('instant_moves', 'Instant moves', 1.5),
+        liftFlag('focus', 'Critical-position focus', 1, 'Humans think longer on hard positions. Flat timing between easy and critical moves is unusual.'),
+      ].filter((x): x is FairPlayCheck => x != null),
+      earned: 0, max: 0,
+    },
+    {
+      id: 'strong', label: 'Strong signals',
+      description: 'Weighted 2–2.5× in the score — the checks that matter most',
+      checks: [
+        streakCheck,
+        clutchCheck,
+        outlierCheck,
+        liftFlag('accountAge', 'Account age vs rating', 2, 'A brand-new account playing at a high level is a classic smurf/cheat pattern.'),
+      ].filter((x): x is FairPlayCheck => x != null),
+      earned: 0, max: 0,
+    },
+  ]
+  const categories = allCategories.filter(cat => cat.checks.length > 0)
+
+  let earnedTotal = 0
+  let maxTotal = 0
+  for (const cat of categories) {
+    cat.earned = Math.max(0, cat.checks.reduce((s, c) => s + (FP_CHECK_PTS[c.status] ?? 0) * c.weight, 0))
+    cat.earned = Math.round(cat.earned * 10) / 10
+    cat.max = Math.round(cat.checks.reduce((s, c) => s + c.weight, 0) * 10) / 10
+    earnedTotal += cat.earned
+    maxTotal += cat.max
+  }
+  const score = maxTotal > 0 ? Math.round(Math.max(0, (earnedTotal / maxTotal) * 10) * 10) / 10 : 0
+  const riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' = score >= 7 ? 'LOW' : score >= 4 ? 'MEDIUM' : 'HIGH'
+
+  // ── Confidence ──
+  const confidence: 'low' | 'medium' | 'high' =
+    totalMoves >= 350 && gamesCount >= 10 ? 'high'
+    : totalMoves >= 120 && gamesCount >= 4 ? 'medium'
+    : 'low'
+  const confidenceDetail = `${confidence[0].toUpperCase()}${confidence.slice(1)} confidence · ${totalMoves} moves across ${gamesCount} ${tcLabel.toLowerCase()} game${gamesCount > 1 ? 's' : ''}`
+
+  // ── Natural-language verdict ──
+  const verdictTitle = riskLevel === 'LOW'
+    ? `Plays like a genuine ~${Math.round(avgRat)}.`
+    : riskLevel === 'MEDIUM'
+      ? 'Some patterns stand out.'
+      : 'Multiple red flags.'
+
+  const parts: string[] = []
+  if (delta != null) {
+    const inRange = Math.abs(delta) <= t.deltaFlag
+    parts.push(`Accuracy sits ${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(1)} pts ${delta >= 0 ? 'above' : 'below'} the ${tcLabel.toLowerCase()} norm for this rating${inRange ? ' — within normal range' : ''}.`)
+  }
+  const rhythm = legacy('time_rhythm')
+  const timingBits: string[] = []
+  if (rhythm) timingBits.push(rhythm.status === 'PASS' ? 'Think time varies naturally' : 'move timing is unusually regular')
+  if (clutchCheck) timingBits.push(clutchCheck.status === 'PASS' ? 'accuracy drops under clock pressure like a human’s' : 'accuracy holds up under clock pressure')
+  if (streakCheck) timingBits.push(streakCheck.status === 'PASS' ? 'no perfect-move streak stands out' : `a ${maxStreak}-move perfect streak stands out`)
+  if (timingBits.length > 0) parts.push(timingBits.join(', ') + '.')
+  if (outlierNote) parts.push('One game shows an isolated spike worth a look.')
+  else if (riskLevel === 'LOW') parts.push('No strong signal was detected.')
+
+  return {
+    score, riskLevel, verdictTitle, verdict: parts.join(' '),
+    confidence, confidenceDetail,
+    categories, gameDeltas, outlierNote, totalMoves,
   }
 }
 
