@@ -77,7 +77,7 @@ function idxToSquare(idx: number): string {
   return String.fromCharCode(97 + (idx % 8)) + (Math.floor(idx / 8) + 1);
 }
 
-function decodeMoveListToPGN(moveList: string, headers: Record<string, string>): string {
+function decodeMoveListToPGN(moveList: string, headers: Record<string, string>): { pgn: string; sanMoves: string[] } {
   const uciMoves: string[] = [];
   for (let i = 0; i + 1 < moveList.length; i += 2) {
     const fi = charToSquareIdx(moveList[i]);
@@ -124,7 +124,10 @@ function decodeMoveListToPGN(moveList: string, headers: Record<string, string>):
     `[ECO "${headers.ECO || ''}"]`,
   ].join('\n');
 
-  return `${pgnHeaders}\n\n${lines.join(' ')} ${headers.Result || '*'}`;
+  return {
+    pgn: `${pgnHeaders}\n\n${lines.join(' ')} ${headers.Result || '*'}`,
+    sanMoves,
+  };
 }
 
 async function fetchGameData(gameId: string) {
@@ -155,7 +158,7 @@ async function getAnalysisToken(gameId: string, gameType: string): Promise<strin
 function fetchAnalysisFromChessCom(
   gameId: string, gameType: string, token: string, pgn: string,
   onProgress?: (progress: number) => void,
-): Promise<{ positions?: unknown[]; CAPS?: unknown; reportCard?: unknown; bookPly?: number }> {
+): Promise<{ positions?: unknown[]; CAPS?: unknown; reportCard?: unknown; bookPly?: number; gamePhases?: number[] }> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket('wss://analysis.chess.com:443/v1/legacy/game-analysis');
     const timeout = setTimeout(() => { ws.close(); reject(new Error('Timeout 60s')); }, 60_000);
@@ -216,6 +219,14 @@ interface GameRawData {
   bookPly: number;
   whiteName: string;
   blackName: string;
+  /** ECO code + chess.com opening URL, parsed from the pub-API PGN
+   *  headers. Power the Learning tab's repertoire section. Empty
+   *  string when the headers don't carry them (older games). */
+  eco: string;
+  ecoUrl: string;
+  /** Ply boundaries between opening/middlegame/endgame as computed by
+   *  chess.com's analysis (0, 1 or 2 entries). */
+  gamePhases: number[];
 }
 
 // ─── Main handler ───────────────────────────────────────────────────────
@@ -430,7 +441,7 @@ export async function handleProfileAnalysis(
 
       try {
         const gameData = await fetchGameData(id);
-        const pgn = decodeMoveListToPGN(gameData.moveList, gameData.headers);
+        const { pgn, sanMoves } = decodeMoveListToPGN(gameData.moveList, gameData.headers);
         const token = await getAnalysisToken(id, 'live');
 
         const analysis = await fetchAnalysisFromChessCom(id, 'live', token, pgn, (progress) => {
@@ -444,14 +455,34 @@ export async function handleProfileAnalysis(
           });
         });
 
+        // Per-position payload. Beyond the legacy fields (classification /
+        // critical / difference) we now keep the per-move accuracy and the
+        // evals of the played + best move — they power the v2 report
+        // (eval sparklines, perfect-streak & clutch checks) at ~6KB extra
+        // per game. FEN / PV lines / coach speech stay dropped.
         const positions = ((analysis.positions || []) as Array<{
-          color?: string; classificationName?: string; bestMove?: { isPositionCritical?: boolean }; difference?: number;
-        }>).map((pos) => ({
+          color?: string; classificationName?: string; difference?: number; caps2?: number;
+          bestMove?: { isPositionCritical?: boolean; moveLan?: string; eval?: { cp?: number | null }; mateIn?: number | null };
+          playedMove?: { moveLan?: string; eval?: { cp?: number | null }; mateIn?: number | null };
+        }>).map((pos, idx) => ({
           color: pos.color,
           classificationName: pos.classificationName,
           isPositionCritical: pos.bestMove?.isPositionCritical || false,
           difference: pos.difference,
+          ply: idx + 1,
+          san: sanMoves[idx] ?? null,
+          caps2: pos.caps2 ?? null,
+          playedCp: pos.playedMove?.eval?.cp ?? null,
+          bestCp: pos.bestMove?.eval?.cp ?? null,
+          mateIn: pos.playedMove?.mateIn ?? null,
         }));
+
+        // Opening identity from the pub-API PGN headers. The callback
+        // endpoint's headers only carry ECO; ECOUrl (which names the
+        // opening) lives in the public PGN.
+        const eco = (g.pgn || '').match(/\[ECO "([^"]+)"\]/)?.[1]
+          || gameData.headers.ECO || '';
+        const ecoUrl = (g.pgn || '').match(/\[ECOUrl "([^"]+)"\]/)?.[1] || '';
 
         gamesData.push({
           gameId: id,
@@ -464,6 +495,8 @@ export async function handleProfileAnalysis(
           positions,
           bookPly: analysis.bookPly || 0,
           whiteName, blackName,
+          eco, ecoUrl,
+          gamePhases: (analysis.gamePhases || []) as number[],
         });
       } catch (err) {
         console.error(`[profile-analysis] game ${id} failed:`, (err as Error).message || err);

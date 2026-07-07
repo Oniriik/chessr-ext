@@ -25,10 +25,22 @@ export interface GameRawData {
     classificationName: string
     isPositionCritical: boolean
     difference: number
+    // v2 enrichment — present on analyses run after 2026-07-07, absent
+    // (undefined) on older rows. Everything reading these must fallback.
+    ply?: number
+    san?: string | null
+    caps2?: number | null
+    playedCp?: number | null
+    bestCp?: number | null
+    mateIn?: number | null
   }>
   bookPly: number
   whiteName: string
   blackName: string
+  // v2 enrichment (same caveat as above)
+  eco?: string
+  ecoUrl?: string
+  gamePhases?: number[]
 }
 
 export type TimeControlType = 'bullet' | 'blitz' | 'rapid' | 'classical' | 'unknown'
