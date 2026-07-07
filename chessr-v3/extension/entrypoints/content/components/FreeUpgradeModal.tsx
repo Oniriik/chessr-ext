@@ -26,6 +26,7 @@ import { canOfferTrial } from '../lib/premium';
 import { openBillingPage } from '../lib/openBilling';
 import { sendWs } from '../lib/websocket';
 import { FEATURES } from './TrialModal';
+import PriceIncreasePlans from './PriceIncreasePlans';
 import { useTranslation } from '../lib/i18n';
 import { isPreannounceActive, formatCountdown, type PricesResponse } from '../lib/priceIncrease';
 import { SERVER_URL } from '../lib/config';
@@ -61,7 +62,8 @@ export default function FreeUpgradeModal() {
   const clearOpenRequest = usePriceAnnounceStore((s) => s.clearOpenRequest);
   const refreshAnnounce = usePriceAnnounceStore((s) => s.refresh);
   useEffect(() => {
-    if (!openRequested || !user) return;
+    // Freetrial users' header-icon clicks are handled by TrialExpiryModal.
+    if (!openRequested || !user || plan !== 'free') return;
     // clearOpenRequest() flips our own dependency back to false, which runs
     // this effect's cleanup immediately — so the open must NOT be guarded by
     // a cancelled flag (it would always win the race and abort the open).
@@ -73,7 +75,7 @@ export default function FreeUpgradeModal() {
       setOpen(true);
       sendWs({ type: 'free_upgrade_modal_shown', variant: isPreannounceActive(p) ? 'price-increase' : 'classic', source: 'header-icon' });
     });
-  }, [openRequested, user?.id]);
+  }, [openRequested, user?.id, plan]);
 
   useEffect(() => {
     if (open) return;
@@ -168,32 +170,7 @@ export default function FreeUpgradeModal() {
               </span>
             </div>
 
-            <div className="trial-modal-plans">
-              <div className="trial-modal-plan">
-                <span className="trial-modal-plan-name">{t('upgrade.increase.monthly')}</span>
-                <span className="trial-modal-plan-old">{prices.upcoming.monthly.price}</span>
-                <span className="trial-modal-plan-now">{prices.monthly?.price}</span>
-                <span className="trial-modal-plan-per">{t('upgrade.increase.perMonth')}</span>
-              </div>
-              <div className="trial-modal-plan">
-                <span className="trial-modal-plan-name">{t('upgrade.increase.yearly')}</span>
-                <span className="trial-modal-plan-old">{prices.upcoming.yearly.price}</span>
-                <span className="trial-modal-plan-now">{prices.yearly?.price}</span>
-                <span className="trial-modal-plan-per">{t('upgrade.increase.perYear')}</span>
-              </div>
-              <div className="trial-modal-plan trial-modal-plan--best">
-                <span className="trial-modal-plan-badge">{t('upgrade.increase.bestDeal')}</span>
-                <span className="trial-modal-plan-name">{t('upgrade.increase.lifetime')}</span>
-                <span className="trial-modal-plan-old">{prices.upcoming.lifetime.price}</span>
-                <span className="trial-modal-plan-now">{prices.lifetime?.price}</span>
-                <span className="trial-modal-plan-per">{t('upgrade.increase.oneTime')}</span>
-              </div>
-            </div>
-
-            <p className="trial-modal-lock-line">
-              <strong>{t('upgrade.increase.lock').split('. ')[0]}.</strong>{' '}
-              {t('upgrade.increase.lock').split('. ').slice(1).join('. ')}
-            </p>
+            <PriceIncreasePlans prices={prices} />
 
             <button className="trial-modal-cta trial-modal-cta--gold" onClick={handleCta}>
               {t('upgrade.increase.cta')}

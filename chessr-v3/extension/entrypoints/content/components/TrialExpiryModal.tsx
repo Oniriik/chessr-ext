@@ -22,11 +22,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
+import { usePriceAnnounceStore } from '../stores/priceAnnounceStore';
+import { isPreannounceActive } from '../lib/priceIncrease';
 import { openBillingPage } from '../lib/openBilling';
 import { sendWs } from '../lib/websocket';
 import { SERVER_URL } from '../lib/config';
 import { FEATURES } from './TrialModal';
 import { stampFreeUpgradeShown } from './FreeUpgradeModal';
+import PriceIncreasePlans from './PriceIncreasePlans';
 import { useTranslation } from '../lib/i18n';
 import './trial-modal.css';
 
@@ -53,10 +56,41 @@ export default function TrialExpiryModal() {
   // True when the modal was opened by the post-downgrade DB stamp rather
   // than the <24h countdown — renders the "trial just ended" content.
   const [endedMode, setEndedMode] = useState(false);
+  // True when opened via the header announce icon — no dismiss key written,
+  // survives a running game (explicit user intent).
+  const [manual, setManual] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const shownSent = useRef(false);
   const endedHandled = useRef(false);
   const expiryMs = planExpiry?.getTime() ?? null;
+
+  // Price-increase announce window (grid 2026-07-12): shared prices state,
+  // plus the manual-open request from the header icon for freetrial users
+  // (free users' clicks are consumed by FreeUpgradeModal).
+  const announcePrices = usePriceAnnounceStore((s) => s.prices);
+  const openRequested = usePriceAnnounceStore((s) => s.openRequested);
+  const clearOpenRequest = usePriceAnnounceStore((s) => s.clearOpenRequest);
+  const refreshAnnounce = usePriceAnnounceStore((s) => s.refresh);
+  const announce = isPreannounceActive(announcePrices);
+
+  useEffect(() => {
+    if (!openRequested || !user || plan !== 'freetrial') return;
+    // clearOpenRequest() flips our own dependency — no cancelled guard here
+    // (its cleanup would always abort the open; the component stays mounted).
+    clearOpenRequest();
+    refreshAnnounce(user.id).then(() => {
+      setManual(true);
+      setOpen(true);
+      sendWs({ type: 'trial_expiry_modal_shown', source: 'header-icon' });
+    });
+  }, [openRequested, user?.id, plan]);
+
+  // Keep the announce prices fresh while the modal is up (auto-opens can
+  // happen before PanelHeader's fetch resolves; refresh() dedupes via TTL).
+  useEffect(() => {
+    if (!open || !user) return;
+    refreshAnnounce(user.id);
+  }, [open, user?.id]);
 
   // Eligibility check — on mount, on state change, and every minute for
   // tabs left open. Only while no game is in progress.
@@ -113,10 +147,11 @@ export default function TrialExpiryModal() {
   }, [open, user?.id, plan, freetrialEndedAt?.getTime(), isPlaying]);
 
   // A game started while the modal was up → hide without dismissing;
-  // the check above brings it back after the game.
+  // the check above brings it back after the game. Manual opens are exempt:
+  // the user summoned the modal, possibly mid-game.
   useEffect(() => {
-    if (isPlaying && open) setOpen(false);
-  }, [isPlaying, open]);
+    if (isPlaying && open && !manual) setOpen(false);
+  }, [isPlaying, open, manual]);
 
   // 1s countdown tick — only while visible, and only in countdown mode.
   useEffect(() => {
@@ -128,6 +163,13 @@ export default function TrialExpiryModal() {
   }, [open, expiryMs]);
 
   const dismiss = () => {
+    // Manual opens never write the dismiss key — closing a summoned modal
+    // must not suppress the automatic <24h showing later.
+    if (user && manual) {
+      setManual(false);
+      setOpen(false);
+      return;
+    }
     if (user && !endedMode && expiryMs !== null) {
       browser.storage.local.set({ [dismissKey(user.id, new Date(expiryMs))]: Date.now() }).catch(() => {});
       // Dismissed the live "just ended" state (countdown reached zero) —
@@ -150,7 +192,7 @@ export default function TrialExpiryModal() {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') dismiss(); };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [open, user?.id, expiryMs]);
+  }, [open, user?.id, expiryMs, manual]);
 
   if (!open) return null;
   if (!endedMode && remaining === null) return null;
@@ -198,6 +240,13 @@ export default function TrialExpiryModal() {
             </li>
           ))}
         </ul>
+
+        {announce && announcePrices?.upcoming && (
+          <>
+            <p className="trial-modal-increase-note">{t('upgrade.increase.title')}</p>
+            <PriceIncreasePlans prices={announcePrices} />
+          </>
+        )}
 
         <button className="trial-modal-cta trial-modal-cta--gold" onClick={handleCta}>
           {t('game.review.upgrade')}
