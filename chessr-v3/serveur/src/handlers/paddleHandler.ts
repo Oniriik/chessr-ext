@@ -52,6 +52,34 @@ if (!PADDLE_ENABLED) {
   console.warn('[paddle] env vars missing — paddle endpoints disabled. Set PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, PADDLE_PRICE_MONTHLY/YEARLY/LIFETIME.');
 }
 
+// ─── Price switch (grid 2026-07-12) ─────────────────────────────────────────
+// When the _NEW price ids + switch timestamp are set, every price lookup
+// flips to the new ids at the timestamp — no redeploy at midnight. All
+// vars absent ⇒ behavior identical to before this feature.
+const PRICE_SWITCH_AT: number | null = process.env.PADDLE_PRICE_SWITCH_AT
+  ? Date.parse(process.env.PADDLE_PRICE_SWITCH_AT)
+  : null;
+
+const NEW_PRICES = {
+  monthly:  process.env.PADDLE_PRICE_MONTHLY_NEW,
+  yearly:   process.env.PADDLE_PRICE_YEARLY_NEW,
+  lifetime: process.env.PADDLE_PRICE_LIFETIME_NEW,
+};
+
+const PRICE_SWITCH_CONFIGURED =
+  PRICE_SWITCH_AT !== null && Number.isFinite(PRICE_SWITCH_AT) &&
+  !!NEW_PRICES.monthly && !!NEW_PRICES.yearly && !!NEW_PRICES.lifetime;
+
+/** True during the announce window (configured, switch still in the future). */
+function priceSwitchPending(): boolean {
+  return PRICE_SWITCH_CONFIGURED && Date.now() < PRICE_SWITCH_AT!;
+}
+
+/** True once the switch timestamp has passed. */
+function priceSwitchDone(): boolean {
+  return PRICE_SWITCH_CONFIGURED && Date.now() >= PRICE_SWITCH_AT!;
+}
+
 // Lazy-init Paddle SDK only when env vars are present. Avoids a hard crash
 // on `new Paddle(undefined!, ...)` when the var is missing.
 const paddle = PADDLE_ENABLED
@@ -75,6 +103,17 @@ const PRICE_PLAN_MAP: Record<string, { plan: 'premium' | 'lifetime' | 'unlocker'
         : {}),
       ...(process.env.PADDLE_PRICE_UNLOCKER_YEARLY
         ? { [process.env.PADDLE_PRICE_UNLOCKER_YEARLY]: { plan: 'unlocker' as const, interval: 'yearly' } }
+        : {}),
+      // Grid 2026-07-12 — new ids map to the same plans. Old ids above stay
+      // forever: grandfathered subscriptions keep renewing on them.
+      ...(process.env.PADDLE_PRICE_MONTHLY_NEW
+        ? { [process.env.PADDLE_PRICE_MONTHLY_NEW]: { plan: 'premium' as const, interval: 'monthly' } }
+        : {}),
+      ...(process.env.PADDLE_PRICE_YEARLY_NEW
+        ? { [process.env.PADDLE_PRICE_YEARLY_NEW]: { plan: 'premium' as const, interval: 'yearly' } }
+        : {}),
+      ...(process.env.PADDLE_PRICE_LIFETIME_NEW
+        ? { [process.env.PADDLE_PRICE_LIFETIME_NEW]: { plan: 'lifetime' as const } }
         : {}),
     }
   : {};
@@ -746,7 +785,7 @@ async function requireBearerUser(
   return { userId: data.user.id, email: data.user.email || '' };
 }
 
-const PADDLE_PRICES: Record<string, string | undefined> = {
+const CURRENT_PRICES: Record<string, string | undefined> = {
   monthly: process.env.PADDLE_PRICE_MONTHLY,
   yearly:  process.env.PADDLE_PRICE_YEARLY,
   lifetime: process.env.PADDLE_PRICE_LIFETIME,
@@ -756,6 +795,18 @@ const PADDLE_PRICES: Record<string, string | undefined> = {
   unlocker_monthly: process.env.PADDLE_PRICE_UNLOCKER_MONTHLY,
   unlocker_yearly:  process.env.PADDLE_PRICE_UNLOCKER_YEARLY,
 };
+
+/** Sellable price ids, resolved at request time: the premium trio flips to
+ *  the _NEW ids once PADDLE_PRICE_SWITCH_AT passes. Unlocker unaffected. */
+function getPaddlePrices(): Record<string, string | undefined> {
+  if (!priceSwitchDone()) return CURRENT_PRICES;
+  return {
+    ...CURRENT_PRICES,
+    monthly:  NEW_PRICES.monthly,
+    yearly:   NEW_PRICES.yearly,
+    lifetime: NEW_PRICES.lifetime,
+  };
+}
 
 // ─── POST /api/paddle/checkout ──────────────────────────────────────────────
 // Body: { plan: 'monthly' | 'yearly' | 'lifetime' }
@@ -769,7 +820,7 @@ export async function handlePaddleCheckout(c: Context): Promise<Response> {
   let body: { plan?: string };
   try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
   const plan = body.plan || '';
-  const priceId = PADDLE_PRICES[plan];
+  const priceId = getPaddlePrices()[plan];
   if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, lifetime, unlocker_monthly, or unlocker_yearly' }, 400);
 
   logPaddle(userEmail, 'checkout', `user=${userId}, plan=${plan}, priceId=${priceId}`, 'ok');
@@ -849,7 +900,7 @@ export async function handlePaddleCheckoutByToken(c: Context): Promise<Response>
   const verified = body.token ? verifyBillingToken(body.token) : null;
   if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
 
-  const priceId = PADDLE_PRICES[body.plan || ''];
+  const priceId = getPaddlePrices()[body.plan || ''];
   if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly, yearly, lifetime, unlocker_monthly, or unlocker_yearly' }, 400);
 
   const { userId, customerId } = verified;
@@ -940,7 +991,7 @@ export async function handleStatusByToken(c: Context): Promise<Response> {
 // Both flows share the same body { plan } / { token, plan } and same
 // response { ok: true, nextBilledAt }.
 async function switchSubscription(c: Context, userId: string, plan: string): Promise<Response> {
-  const priceId = PADDLE_PRICES[plan];
+  const priceId = getPaddlePrices()[plan];
   if (!priceId) return c.json({ error: 'Invalid plan. Use: monthly or yearly' }, 400);
 
   const { data: sub } = await supabase
@@ -1053,7 +1104,7 @@ async function previewUpgrade(
   plan: string,
   requestedCurrency: string | undefined,
 ): Promise<Response> {
-  const targetPriceId = PADDLE_PRICES[plan];
+  const targetPriceId = getPaddlePrices()[plan];
   // Allowed upgrade targets: Premium monthly/yearly + Lifetime. Monthly is
   // a valid target for `unlocker → premium-monthly` (smaller jump than to
   // yearly). 'unlocker_*' is NOT a target here — that's a same-plan
@@ -1188,7 +1239,7 @@ async function upgradeLifetime(
     await paddle.subscriptions.cancel(sub.paddle_subscription_id, { effectiveFrom: 'immediately' });
     logPaddle(null, 'lifetime-upgrade', `canceled sub ${sub.paddle_subscription_id}`, 'processed');
 
-    const priceId = PADDLE_PRICES['lifetime'];
+    const priceId = getPaddlePrices()['lifetime'];
     if (!priceId) return c.json({ error: 'Lifetime price not configured' }, 500);
 
     const transaction = await paddle.transactions.create({
@@ -1323,11 +1374,12 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
     const locationParam = buildLocationParam(signupIp, clientIp);
     const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
 
-    const monthly = PADDLE_PRICES['monthly']!;
-    const yearly = PADDLE_PRICES['yearly']!;
-    const lifetime = PADDLE_PRICES['lifetime']!;
-    const unlockerMonthly = PADDLE_PRICES['unlocker_monthly'];
-    const unlockerYearly  = PADDLE_PRICES['unlocker_yearly'];
+    const P = getPaddlePrices();
+    const monthly = P['monthly']!;
+    const yearly = P['yearly']!;
+    const lifetime = P['lifetime']!;
+    const unlockerMonthly = P['unlocker_monthly'];
+    const unlockerYearly  = P['unlocker_yearly'];
 
     logPaddle(null, 'prices', `userId=${userId || 'none'}, signupIp=${signupIp || 'none'}`, 'ok');
 
