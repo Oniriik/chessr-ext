@@ -37,6 +37,15 @@ type ConnectedUser = {
   lastAnalysis: EngineUsage;
   lastEval: EngineUsage;
 };
+type EngineLoad = {
+  engine: string;
+  activeUsers?: number;
+  avgResponseMs?: number | null;
+  sampleCount?: number;
+  loadPct?: number;
+  slots?: number;
+  error?: boolean;
+};
 type Counts = { active: number; waiting: number; completed: number; failed: number; delayed: number };
 type QueueData = { name: string; counts: Counts; failed: unknown[] };
 
@@ -317,6 +326,7 @@ function useNow(intervalMs = 1000): number {
 export default function LivePage() {
   const [sys, setSys] = useState<Sample | null>(null);
   const [users, setUsers] = useState<ConnectedUser[]>([]);
+  const [engineLoads, setEngineLoads] = useState<EngineLoad[]>([]);
   const [queues, setQueues] = useState<QueueData[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -331,16 +341,18 @@ export default function LivePage() {
         const { data } = await supabase.auth.getSession();
         const token = data.session?.access_token;
         if (!token) return;
-        const [m, u, q] = await Promise.all([
+        const [m, u, q, e] = await Promise.all([
           fetch(`/api/metrics?token=${encodeURIComponent(token)}`),
           fetch(`/api/users/connected?token=${encodeURIComponent(token)}`),
           fetch(`/api/queues?token=${encodeURIComponent(token)}`),
+          fetch(`/api/admin/engine-load?token=${encodeURIComponent(token)}`),
         ]);
         if (!m.ok || !u.ok || !q.ok) throw new Error(`HTTP ${m.status}/${u.status}/${q.status}`);
         if (cancelled) return;
         setSys(await m.json());
         setUsers((await u.json()).users || []);
         setQueues((await q.json()).queues || []);
+        if (e.ok) setEngineLoads((await e.json()).engines || []);
         setError(null);
         setLastUpdate(Date.now());
       } catch (err) {
@@ -427,6 +439,36 @@ export default function LivePage() {
               </div>
             ) : (
               <Card><CardContent className="py-6 text-sm text-muted-foreground">No metrics</CardContent></Card>
+            )}
+          </section>
+
+          {/* ─── Engine load ─────────────────────────────────────────── */}
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <Zap size={12} /> Engine load
+            </h2>
+            {!loaded ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 sm:h-32" />)}
+              </div>
+            ) : engineLoads.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {engineLoads.map((e) => (
+                  <ResourceCard
+                    key={e.engine}
+                    icon={ServerCog}
+                    label={e.engine}
+                    pct={e.error ? 0 : (e.loadPct ?? 0)}
+                    primary={e.error
+                      ? 'unreachable'
+                      : `${e.activeUsers ?? 0} active · ${e.avgResponseMs != null ? `~${e.avgResponseMs}ms` : 'no data'}`}
+                    secondary={e.error ? undefined : `${e.slots ?? '?'} slots · ${e.sampleCount ?? 0} samples`}
+                    hint="Smoothed pool occupancy (60s EWMA, queue wait included). Active = distinct users in the last 60s. Avg = last 100 server searches."
+                  />
+                ))}
+              </div>
+            ) : (
+              <Card><CardContent className="py-6 text-sm text-muted-foreground">No engine data</CardContent></Card>
             )}
           </section>
 
