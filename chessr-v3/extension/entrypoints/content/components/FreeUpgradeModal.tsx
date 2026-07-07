@@ -26,6 +26,8 @@ import { openBillingPage } from '../lib/openBilling';
 import { sendWs } from '../lib/websocket';
 import { FEATURES } from './TrialModal';
 import { useTranslation } from '../lib/i18n';
+import { isPreannounceActive, formatCountdown, type PricesResponse } from '../lib/priceIncrease';
+import { SERVER_URL } from '../lib/config';
 import './trial-modal.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -46,6 +48,8 @@ export default function FreeUpgradeModal() {
   const trialModalOpen = useTrialModalStore((s) => s.isOpen);
   const openTrialModal = useTrialModalStore((s) => s.open);
   const [open, setOpen] = useState(false);
+  const [prices, setPrices] = useState<PricesResponse | null>(null);
+  const preannounce = isPreannounceActive(prices);
 
   const trialOffer = canOfferTrial(plan, freetrialUsed, planLoading);
 
@@ -61,9 +65,19 @@ export default function FreeUpgradeModal() {
       const stored = await browser.storage.local.get(key).catch(() => ({} as Record<string, unknown>));
       const last = typeof stored[key] === 'number' ? (stored[key] as number) : 0;
       if (cancelled || Date.now() - last < DAY_MS) return;
+      // Announce window? Ask the server (presence of `upcoming` decides the
+      // variant — graceful fallback to the classic modal on any failure).
+      let p: PricesResponse | null = null;
+      try {
+        const res = await fetch(`${SERVER_URL}/api/paddle/prices?userId=${encodeURIComponent(user.id)}`);
+        const data = res.ok ? await res.json() : null;
+        p = data && !data.error ? (data as PricesResponse) : null;
+      } catch { /* classic variant */ }
+      if (cancelled) return;
+      setPrices(p);
       stampFreeUpgradeShown(user.id); // stamp at open — reloads don't re-show
       setOpen(true);
-      sendWs({ type: 'free_upgrade_modal_shown' });
+      sendWs({ type: 'free_upgrade_modal_shown', variant: isPreannounceActive(p) ? 'price-increase' : 'classic' });
     };
     check();
     const iv = setInterval(check, 10 * 60_000);
@@ -82,14 +96,26 @@ export default function FreeUpgradeModal() {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [open]);
 
+  // Cosmetic countdown — server presence of `upcoming` is the authority.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!open || !preannounce) return;
+    const iv = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [open, preannounce]);
+
   if (!open) return null;
 
   const close = () => setOpen(false);
 
   const handleCta = () => {
-    sendWs({ type: 'free_upgrade_modal_cta', mode: trialOffer ? 'trial' : 'upgrade' });
+    sendWs({
+      type: 'free_upgrade_modal_cta',
+      mode: !preannounce && trialOffer ? 'trial' : 'upgrade',
+      variant: preannounce ? 'price-increase' : 'classic',
+    });
     close();
-    if (trialOffer) {
+    if (!preannounce && trialOffer) {
       openTrialModal('free-upgrade-modal');
     } else {
       openBillingPage({ sameTab: true });
@@ -106,26 +132,73 @@ export default function FreeUpgradeModal() {
           <span className="trial-modal-brand-name">chessr<span className="trial-modal-brand-dot">.io</span></span>
         </div>
 
-        <h3 className="trial-modal-title">{t('upgrade.modal.title')}</h3>
-        <p className="trial-modal-subtitle">{t('upgrade.modal.subtitle')}</p>
+        {preannounce && prices?.upcoming ? (
+          <>
+            <h3 className="trial-modal-title">{t('upgrade.increase.title')}</h3>
+            <p className="trial-modal-subtitle">{t('upgrade.increase.subtitle')}</p>
 
-        <ul className="trial-modal-features">
-          {FEATURES.map((f) => (
-            <li key={f.key}>
-              <span className="trial-modal-feature-icon">{f.icon}</span>
-              <span>{t(f.key)}</span>
-            </li>
-          ))}
-        </ul>
+            <div className="trial-modal-countdown">
+              <span className="trial-modal-countdown-label">{t('upgrade.increase.endsIn')}</span>
+              <span className="trial-modal-countdown-value">
+                {formatCountdown(Date.parse(prices.priceChangeAt!) - nowMs)}
+              </span>
+            </div>
 
-        {trialOffer ? (
-          <button className="trial-modal-cta trial-modal-cta--blue" onClick={handleCta}>
-            🎁 {t('trial.cta.full')}
-          </button>
+            <div className="trial-modal-plans">
+              <div className="trial-modal-plan">
+                <span className="trial-modal-plan-name">{t('upgrade.increase.monthly')}</span>
+                <span className="trial-modal-plan-old">{prices.upcoming.monthly.price}</span>
+                <span className="trial-modal-plan-now">{prices.monthly?.price}</span>
+                <span className="trial-modal-plan-per">{t('upgrade.increase.perMonth')}</span>
+              </div>
+              <div className="trial-modal-plan">
+                <span className="trial-modal-plan-name">{t('upgrade.increase.yearly')}</span>
+                <span className="trial-modal-plan-old">{prices.upcoming.yearly.price}</span>
+                <span className="trial-modal-plan-now">{prices.yearly?.price}</span>
+                <span className="trial-modal-plan-per">{t('upgrade.increase.perYear')}</span>
+              </div>
+              <div className="trial-modal-plan trial-modal-plan--best">
+                <span className="trial-modal-plan-badge">{t('upgrade.increase.bestDeal')}</span>
+                <span className="trial-modal-plan-name">{t('upgrade.increase.lifetime')}</span>
+                <span className="trial-modal-plan-old">{prices.upcoming.lifetime.price}</span>
+                <span className="trial-modal-plan-now">{prices.lifetime?.price}</span>
+                <span className="trial-modal-plan-per">{t('upgrade.increase.oneTime')}</span>
+              </div>
+            </div>
+
+            <p className="trial-modal-lock-line">
+              <strong>{t('upgrade.increase.lock').split('. ')[0]}.</strong>{' '}
+              {t('upgrade.increase.lock').split('. ').slice(1).join('. ')}
+            </p>
+
+            <button className="trial-modal-cta trial-modal-cta--gold" onClick={handleCta}>
+              {t('upgrade.increase.cta')}
+            </button>
+          </>
         ) : (
-          <button className="trial-modal-cta trial-modal-cta--gold" onClick={handleCta}>
-            {t('game.review.upgrade')}
-          </button>
+          <>
+            <h3 className="trial-modal-title">{t('upgrade.modal.title')}</h3>
+            <p className="trial-modal-subtitle">{t('upgrade.modal.subtitle')}</p>
+
+            <ul className="trial-modal-features">
+              {FEATURES.map((f) => (
+                <li key={f.key}>
+                  <span className="trial-modal-feature-icon">{f.icon}</span>
+                  <span>{t(f.key)}</span>
+                </li>
+              ))}
+            </ul>
+
+            {trialOffer ? (
+              <button className="trial-modal-cta trial-modal-cta--blue" onClick={handleCta}>
+                🎁 {t('trial.cta.full')}
+              </button>
+            ) : (
+              <button className="trial-modal-cta trial-modal-cta--gold" onClick={handleCta}>
+                {t('game.review.upgrade')}
+              </button>
+            )}
+          </>
         )}
 
         <button className="trial-modal-alt" onClick={close}>
