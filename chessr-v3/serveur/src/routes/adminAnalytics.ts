@@ -252,6 +252,26 @@ adminAnalyticsRoutes.get('/admin/analytics/series', async (c) => {
     console.warn('[analytics] signups query failed:', err);
   }
 
+  // ─── Free trials started per bucket — freetrial_claimed events (local
+  // events table, covers both the Discord auto-claim and the direct
+  // /freetrial/claim path).
+  let freetrialsByBucket: Array<{ t: string; count: number }> = [];
+  try {
+    const rows = await dbQuery<{ t: string; count: string }>(
+      `SELECT ${bSql.replace(/created_at/g, 'created_at')} AS t, COUNT(*)::text AS count
+         FROM events
+        WHERE type = 'freetrial_claimed'
+          AND created_at >= $1
+          AND created_at <  $2
+        GROUP BY 1
+        ORDER BY 1`,
+      [fromIso, toIso],
+    );
+    freetrialsByBucket = rows.map((r) => ({ t: new Date(r.t).toISOString(), count: Number(r.count) }));
+  } catch (err) {
+    console.warn('[analytics] freetrials query failed:', err);
+  }
+
   // Pivot suggestionsRaw into one row per bucket with engines as cols.
   const engines = new Set<string>();
   for (const r of suggestionsRaw) engines.add(r.engine);
@@ -309,6 +329,7 @@ adminAnalyticsRoutes.get('/admin/analytics/series', async (c) => {
         count: Number(r.count),
       })),
       signups: signupsByBucket,
+      freetrials: freetrialsByBucket,
     },
   });
 });

@@ -82,6 +82,7 @@ interface SeriesPayload {
     engineSource:    Array<{ engine: string; server: number; wasm: number; unknown: number; total: number }>;
     eventMix:        Array<{ event_type: string; count: number }>;
     signups:         Array<{ t: string; count: number }>;
+    freetrials:      Array<{ t: string; count: number }>;
   };
 }
 
@@ -148,6 +149,7 @@ export default function AnalyticsPage() {
       gameReviews:    sum(data.series.gameReviews),
       profileAnalyses: sum(data.series.profileAnalyses),
       signups:        sum(data.series.signups),
+      freetrials:     sum(data.series.freetrials ?? []),
     };
   }, [data]);
 
@@ -245,12 +247,13 @@ export default function AnalyticsPage() {
 
         {/* ─── Totals row ─── */}
         {totals && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <Stat label="Suggestions"     value={totals.suggestions} />
             <Stat label="Active users"    value={totals.activeUsers}    note="bucket DAU sum" />
             <Stat label="Game reviews"    value={totals.gameReviews} />
             <Stat label="Profile analyses" value={totals.profileAnalyses} />
             <Stat label="New signups"     value={totals.signups} />
+            <Stat label="Trials started"  value={totals.freetrials} />
           </div>
         )}
 
@@ -307,6 +310,12 @@ export default function AnalyticsPage() {
                 series={data.series.signups}
                 bucket={data.bucket}
                 color="#a855f7"
+              />
+              <MiniLineChart
+                title="Trials started"
+                series={data.series.freetrials ?? []}
+                bucket={data.bucket}
+                color="#f59e0b"
               />
               <GameReviewsChart
                 series={data.series.gameReviews}
