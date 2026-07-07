@@ -77,6 +77,21 @@ function panelEmbed(): EmbedBuilder {
     );
 }
 
+/** Embed attached to each join greeting. The mention lives in the
+ *  message `content` (mentions inside embeds don't ping). */
+function greetingEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(COLOR_PANEL)
+    .setTitle('🔓 Unlock the full server')
+    .setDescription(
+      'You\'re in **unverified chat** for now — link your Chessr extension to unlock:\n\n' +
+      '🎁 Your **3-day free trial** of Premium\n' +
+      '💬 **All** the community channels\n' +
+      '🏆 Your ELO & plan roles\n\n' +
+      'It takes ~30 seconds — click the button below to get started.',
+    );
+}
+
 function linkButtonRow(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
@@ -91,15 +106,15 @@ function linkButtonRow(): ActionRowBuilder<ButtonBuilder> {
 function ephemeralLinkRow(): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setLabel('Open chess.com & link')
-      .setEmoji('🔗')
-      .setStyle(ButtonStyle.Link)
-      .setURL(LINK_URL),
-    new ButtonBuilder()
       .setLabel('Get the extension')
       .setEmoji('⬇️')
       .setStyle(ButtonStyle.Link)
       .setURL(DOWNLOAD_URL),
+    new ButtonBuilder()
+      .setLabel('Open chess.com & link')
+      .setEmoji('🔗')
+      .setStyle(ButtonStyle.Link)
+      .setURL(LINK_URL),
   );
 }
 
@@ -119,7 +134,7 @@ async function handleLinkClick(interaction: ButtonInteraction): Promise<void> {
   await interaction.reply({
     content:
       '**Here\'s how to unlock everything:**\n' +
-      '1. Install the Chessr extension (second button) if you haven\'t yet\n' +
+      '1. Install the Chessr extension (first button) if you haven\'t yet\n' +
       '2. Log in to Chessr\n' +
       '3. Click **Open chess.com & link** below — the extension takes over and ' +
       'walks you through the Discord link\n\n' +
@@ -147,9 +162,8 @@ async function greetMember(client: Client, member: GuildMember): Promise<void> {
   }
 
   await (channel as TextChannel).send({
-    content:
-      `👋 Welcome <@${member.id}>! Link your **Chessr extension** to unlock ` +
-      'your **3-day free trial** and get access to all the channels — click below.',
+    content: `👋 Hey <@${member.id}>, welcome to **Chessr.io**!`,
+    embeds: [greetingEmbed()],
     components: [linkButtonRow()],
   });
 }
