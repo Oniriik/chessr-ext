@@ -27,6 +27,7 @@ import { dbQuery } from '../lib/db.js';
 import { emitEvent, EVENTS_REDIS_CHANNEL } from '../lib/events.js';
 import { redis } from '../queue/connection.js';
 import { invalidatePlanCache } from '../lib/premium.js';
+import { minorUnitDivisor } from '../lib/currency.js';
 import {
   verifyBillingToken,
   getPaddlePrices,
@@ -201,7 +202,11 @@ export async function handleCryptoCheckoutByToken(c: Context): Promise<Response>
     return c.json({ error: 'Failed to compute price' }, 500);
   }
 
-  const amount = localized.amountCents / 100;
+  // `amountCents` is misnamed for zero-decimal currencies (JPY/KRW) —
+  // Paddle reports those already in whole units, not ×100 minor units — so
+  // dividing by 100 unconditionally would undercharge by 100x. Use the
+  // currency-aware divisor instead of a hardcoded /100.
+  const amount = localized.amountCents / minorUnitDivisor(localized.currency);
   const currency = localized.currency.toLowerCase();
   const orderId = buildOrderId(plan, flexMonths, userId);
   const description = plan === 'flex' ? `Chessr Premium — ${flexMonths} month(s)` : `Chessr ${plan === 'yearly' ? 'Premium Yearly' : 'Lifetime'}`;
@@ -392,6 +397,25 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
       const oldPlan = prevSettings?.plan ?? null;
       const oldExpiry = prevSettings?.plan_expiry ?? null;
 
+      // ─── Entitlement rules — a crypto grant must never clobber an
+      // existing entitlement the user already holds:
+      //   1. Already lifetime + this purchase isn't lifetime: the user is
+      //      strictly better off already — skip the grant entirely rather
+      //      than downgrade them to a dated 'premium' plan. The payment is
+      //      real (they paid), but there's nothing to grant; the claim row
+      //      inserted above IS the audit trail for it, so we just log and
+      //      return 200 without touching user_settings or emitting
+      //      plan_changed (no plan change happened).
+      //   2. flex/yearly on an existing (non-lifetime) premium: STACK, don't
+      //      reset — extend from max(now, oldExpiry) so remaining prepaid
+      //      time isn't thrown away by a top-up.
+      //   3. lifetime purchase: always grants lifetime, even over an active
+      //      premium — a strict upgrade, no stacking needed.
+      if (oldPlan === 'lifetime' && plan !== 'lifetime') {
+        logCrypto(null, 'ipn', `user ${userId} already lifetime, grant skipped, payment ${paymentId} recorded`, 'ok');
+        return c.json({ ok: true });
+      }
+
       let newPlan: 'premium' | 'lifetime';
       let newExpiry: string | null;
       if (plan === 'lifetime') {
@@ -399,7 +423,8 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
         newExpiry = null;
       } else {
         const n = plan === 'yearly' ? 12 : order.months; // yearly is always +12, not months*1
-        const expiry = new Date();
+        const base = oldPlan === 'premium' && oldExpiry ? new Date(Math.max(Date.now(), new Date(oldExpiry).getTime())) : new Date();
+        const expiry = base;
         expiry.setMonth(expiry.getMonth() + n);
         newPlan = 'premium';
         newExpiry = expiry.toISOString();
