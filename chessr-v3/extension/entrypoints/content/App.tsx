@@ -230,6 +230,13 @@ export default function App({ streamMode = false }: AppProps = {}) {
   // redirect so the OAuth returnUrl (current href) can't re-trigger the
   // flow on the way back. Same logged-out convention as above: the
   // param stays untouched until sign-in, then fires.
+  //
+  // The linked check re-fetches from the server instead of trusting the
+  // store: this effect can fire before the login-triggered fetchStatus
+  // resolves, and the store's default `linked: false` would push an
+  // already-linked user through OAuth again. On fetch failure `linked`
+  // stays false and we fall through to initLink — harmless, the
+  // callback re-links the same account without side effects.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!user) return;
@@ -240,18 +247,21 @@ export default function App({ streamMode = false }: AppProps = {}) {
     const next = window.location.pathname + (params.toString() ? `?${params}` : '') + window.location.hash;
     window.history.replaceState(null, '', next);
 
-    if (discordLinked) {
-      pushWidget({
-        id: 'discord-already-linked-' + Date.now(),
-        category: 'discord',
-        title: 'Discord already linked',
-        body: 'Your account is already connected — nothing to do. Your roles sync automatically on the server.',
-        ttl: 10000,
-      });
-      return;
-    }
-    initDiscordLink(user.id);
-  }, [user?.id, discordLinked, pushWidget, initDiscordLink]);
+    const userId = user.id;
+    useDiscordStore.getState().fetchStatus(userId).then(() => {
+      if (useDiscordStore.getState().linked) {
+        pushWidget({
+          id: 'discord-already-linked-' + Date.now(),
+          category: 'discord',
+          title: 'Discord already linked',
+          body: 'Your account is already connected — nothing to do. Your roles sync automatically on the server.',
+          ttl: 10000,
+        });
+        return;
+      }
+      initDiscordLink(userId);
+    });
+  }, [user?.id, pushWidget, initDiscordLink]);
 
   // System-message widget login triggers. Fires once the auth and the
   // Discord state have both settled — `planLoading` covers
