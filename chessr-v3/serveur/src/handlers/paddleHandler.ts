@@ -70,6 +70,12 @@ const PRICE_SWITCH_CONFIGURED =
   PRICE_SWITCH_AT !== null && Number.isFinite(PRICE_SWITCH_AT) &&
   !!NEW_PRICES.monthly && !!NEW_PRICES.yearly && !!NEW_PRICES.lifetime;
 
+const PRICE_SWITCH_VARS_PRESENT =
+  !!process.env.PADDLE_PRICE_SWITCH_AT || !!NEW_PRICES.monthly || !!NEW_PRICES.yearly || !!NEW_PRICES.lifetime;
+if (PRICE_SWITCH_VARS_PRESENT && !PRICE_SWITCH_CONFIGURED) {
+  console.warn('[paddle] price switch MISCONFIGURED — set PADDLE_PRICE_SWITCH_AT (valid ISO date) + PADDLE_PRICE_MONTHLY_NEW/YEARLY_NEW/LIFETIME_NEW together; the switch is currently DISABLED.');
+}
+
 /** True during the announce window (configured, switch still in the future). */
 function priceSwitchPending(): boolean {
   return PRICE_SWITCH_CONFIGURED && Date.now() < PRICE_SWITCH_AT!;
