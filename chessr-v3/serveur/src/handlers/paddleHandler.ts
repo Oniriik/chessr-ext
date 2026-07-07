@@ -1394,6 +1394,16 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
     if (unlockerMonthly) items.push({ priceId: unlockerMonthly, quantity: 1 });
     if (unlockerYearly)  items.push({ priceId: unlockerYearly,  quantity: 1 });
 
+    // Announce window: preview the upcoming (post-switch) premium prices in
+    // the same Paddle call so the frontends can show "new price struck
+    // through next to today's price", localized like everything else.
+    const announcing = priceSwitchPending();
+    if (announcing) {
+      items.push({ priceId: NEW_PRICES.monthly!,  quantity: 1 });
+      items.push({ priceId: NEW_PRICES.yearly!,   quantity: 1 });
+      items.push({ priceId: NEW_PRICES.lifetime!, quantity: 1 });
+    }
+
     const preview = await paddle.pricingPreview.preview({
       items,
       ...locationParam,
@@ -1410,6 +1420,9 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
       else if (priceId === lifetime) planKey = 'lifetime';
       else if (priceId === unlockerMonthly) planKey = 'unlocker_monthly';
       else if (priceId === unlockerYearly)  planKey = 'unlocker_yearly';
+      else if (announcing && priceId === NEW_PRICES.monthly)  planKey = 'upcoming_monthly';
+      else if (announcing && priceId === NEW_PRICES.yearly)   planKey = 'upcoming_yearly';
+      else if (announcing && priceId === NEW_PRICES.lifetime) planKey = 'upcoming_lifetime';
       if (!planKey) continue;
 
       const formatted = item.formattedTotals;
@@ -1428,7 +1441,17 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
       };
     }
 
-    return c.json(prices);
+    const { upcoming_monthly, upcoming_yearly, upcoming_lifetime, ...main } = prices;
+    const body: Record<string, unknown> = { ...main };
+    if (announcing && upcoming_monthly && upcoming_yearly && upcoming_lifetime) {
+      body.upcoming = {
+        monthly: upcoming_monthly,
+        yearly: upcoming_yearly,
+        lifetime: upcoming_lifetime,
+      };
+      body.priceChangeAt = new Date(PRICE_SWITCH_AT!).toISOString();
+    }
+    return c.json(body);
   } catch (err) {
     logPaddle(null, 'prices', String(err), 'error');
     return c.json({ error: 'Failed to fetch prices' }, 500);
