@@ -47,7 +47,7 @@ const COLOR_PANEL = 0x3b82f6;
 const ID_LINK = 'uv:link';
 
 const LINK_URL     = 'https://www.chess.com/play/computer?chessr_link_start=1';
-const DOWNLOAD_URL = 'https://chessr.io';
+const DOWNLOAD_URL = 'https://download.chessr.io/';
 
 /** True when the Discord account is already linked to a Chessr user.
  *  Fails open (false) on DB errors — worst case a linked user sees the
