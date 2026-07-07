@@ -77,6 +77,7 @@
 }
 
 .panel-header-btn {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -97,4 +98,43 @@
 
 .panel-header-btn--active {
   color: #a855f7;
+}
+
+/* Edit mode locks the other header actions — greyed out, non-interactive,
+   and pointer-events:none also suppresses their tooltips. */
+.panel-header-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Custom tooltip — replaces the native (ugly) title bubble. Anchored to
+   the button's right edge so it never overflows the panel, drops in below
+   on hover after a short delay. */
+.panel-header-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 2147483647;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-3px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.panel-header-btn[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.3s;
 }
