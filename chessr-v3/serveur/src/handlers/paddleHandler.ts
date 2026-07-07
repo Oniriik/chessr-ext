@@ -1416,7 +1416,7 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
       ...(discountId ? { discountId } : {}),
     });
 
-    const prices: Record<string, { price: string; original: string | null; currency: string }> = {};
+    const prices: Record<string, { price: string; original: string | null; currency: string; amount: number }> = {};
 
     for (const item of (preview as any).details?.lineItems || []) {
       const priceId = item.price?.id;
@@ -1444,6 +1444,9 @@ export async function handlePaddlePrices(c: Context): Promise<Response> {
         price: formatted?.total || (totalNum / 100).toFixed(2),
         original: originalFormatted,
         currency: currencyCode,
+        // Charged total in minor units — lets clients compute derived
+        // figures (per-month equivalents, save %) from localized amounts.
+        amount: totalNum,
       };
     }
 
