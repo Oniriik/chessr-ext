@@ -302,14 +302,19 @@ function CheckRow({ check }: { check: FairPlayCheck }) {
     : check.status === 'WARN'
       ? 'text-amber-400 bg-amber-500/10'
       : 'text-rose-400 bg-rose-500/10'
+  const valueColor = check.status === 'WARN' ? 'text-amber-400' : check.status === 'FAIL' ? 'text-rose-400' : ''
   return (
     <div className="py-2 border-b border-border/30 last:border-0" title={check.tooltip}>
-      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+      <div className="flex items-center gap-2.5">
         <span className={`text-[10px] font-extrabold tracking-wide rounded-md px-1.5 py-0.5 w-11 text-center shrink-0 ${badge}`}>{check.status}</span>
-        <span className="text-[13px] font-semibold">{check.label}</span>
-        <span className={`text-[13px] font-bold tabular-nums text-right ml-auto ${check.status === 'WARN' ? 'text-amber-400' : check.status === 'FAIL' ? 'text-rose-400' : ''}`}>{check.value}</span>
+        <span className="text-[13px] font-semibold flex-1 min-w-0">{check.label}</span>
+        {/* Desktop: value right of the label. Mobile: shown below instead. */}
+        <span className={`hidden sm:block text-[13px] font-bold tabular-nums text-right shrink-0 ${valueColor}`}>{check.value}</span>
       </div>
-      <div className="text-xs text-muted-foreground mt-0.5 pl-[54px]">{check.detail}</div>
+      <div className="pl-[54px] mt-0.5">
+        <div className={`sm:hidden text-[13px] font-bold tabular-nums ${valueColor}`}>{check.value}</div>
+        <div className="text-xs text-muted-foreground">{check.detail}</div>
+      </div>
     </div>
   )
 }
