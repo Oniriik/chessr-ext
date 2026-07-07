@@ -405,10 +405,17 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
         newExpiry = expiry.toISOString();
       }
 
-      await supabase
+      // supabase-js v2 never throws — failures come back as { error }. If
+      // we don't surface it, a Supabase blip here would leave the claimed
+      // marker in place with NO grant applied, permanently blocking every
+      // retry of this (paymentId, status): user paid, never granted. Throw
+      // so the catch below rolls the marker back and returns 500 (same
+      // updateErr-check precedent as jobs/planExpiry.ts).
+      const { error: updateErr } = await supabase
         .from('user_settings')
         .update({ plan: newPlan, plan_expiry: newExpiry, updated_at: new Date().toISOString() })
         .eq('user_id', userId);
+      if (updateErr) throw new Error(`user_settings update failed: ${updateErr.message}`);
 
       invalidatePlanCache(userId);
 
