@@ -119,8 +119,12 @@ export async function handleSuggestionRequest(
 
   const searchOptions: SuggestionJobData['searchOptions'] = { moves };
   if (effectiveLimit === false && searchMode) {
-    const maxDepth = puzzleMode ? 30 : 20;
-    const maxMovetime = puzzleMode ? 5000 : 3000;
+    // Rodent IV is an order of magnitude slower than Komodo/Stockfish per
+    // ply — a depth-20 Rodent search blows the 30s EngineManager timeout
+    // every time (the queue's historical failure #1). Cap it where it
+    // completes reliably.
+    const maxDepth = engineType === 'rodent' ? 14 : puzzleMode ? 30 : 20;
+    const maxMovetime = engineType === 'rodent' ? 10_000 : puzzleMode ? 5000 : 3000;
     if (searchMode === 'depth' && searchDepth) {
       searchOptions.depth = Math.max(1, Math.min(maxDepth, searchDepth));
     } else if (searchMode === 'movetime' && searchMovetime) {

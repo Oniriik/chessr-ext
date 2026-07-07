@@ -49,6 +49,7 @@ export interface SuggestionJobResult {
 }
 
 const QUEUE_NAME = 'komodo';
+const RODENT_QUEUE_NAME = 'rodent';
 
 /** Hard cap on one producer-side wait. Must be ≥ the engine's internal
  *  search timeout (30 s in EngineManager) plus a small queueing slack.
@@ -70,8 +71,23 @@ export const suggestionQueue = new Queue<SuggestionJobData, SuggestionJobResult>
   },
 });
 
+/** Rodent runs in its OWN queue since 2026-07: sharing the komodo queue
+ *  meant (a) rodent failures showed up as "komodo" in every dashboard,
+ *  and (b) rodent jobs waiting on the 2-instance rodent pool occupied
+ *  komodo worker slots — head-of-line blocking for komodo users. */
+export const rodentQueue = new Queue<SuggestionJobData, SuggestionJobResult>(RODENT_QUEUE_NAME, {
+  connection: redis,
+  defaultJobOptions: {
+    removeOnComplete: { count: 1000 },
+    removeOnFail: { count: 100 },
+    attempts: 1,
+  },
+});
+
 let queueEvents: QueueEvents | null = null;
+let rodentQueueEvents: QueueEvents | null = null;
 let worker: Worker<SuggestionJobData, SuggestionJobResult> | null = null;
+let rodentWorker: Worker<SuggestionJobData, SuggestionJobResult> | null = null;
 let pool: EnginePool | null = null;
 /** Separate pool for Rodent IV — same EnginePool class but spawns the
  *  Rodent binary (with cwd set to its dir for personalities/books). Sized
@@ -115,6 +131,24 @@ export async function initSuggestionWorker(maxInstances: number): Promise<void> 
   });
 
   console.log(`[SuggestionQueue] worker ready (concurrency=${maxInstances})`);
+
+  if (rodentPool) {
+    rodentQueueEvents = new QueueEvents(RODENT_QUEUE_NAME, { connection: redis });
+    await rodentQueueEvents.waitUntilReady();
+    rodentWorker = new Worker<SuggestionJobData, SuggestionJobResult>(
+      RODENT_QUEUE_NAME,
+      async (job) => processSuggestionJob(job),
+      {
+        connection: redis,
+        concurrency: rodentMax,
+        lockDuration: LOCK_DURATION_MS,
+      },
+    );
+    rodentWorker.on('failed', (job, err) => {
+      console.error(`[RodentQueue] job ${job?.id} failed:`, err.message);
+    });
+    console.log(`[RodentQueue] worker ready (concurrency=${rodentMax})`);
+  }
 }
 
 /** Errors thrown by EngineManager when the engine isn't responsive.
@@ -228,6 +262,11 @@ async function processSuggestionJob(
 export async function enqueueSuggestion(data: SuggestionJobData): Promise<SuggestionJobResult> {
   if (!queueEvents) throw new Error('SuggestionQueue not initialised');
   const jobId = `sug:${data.userId}:${data.requestId}`;
+  if (data.engineType === 'rodent') {
+    if (!rodentQueueEvents) throw new Error('Rodent queue not initialised (binary missing on server?)');
+    const job = await rodentQueue.add('process', data, { jobId });
+    return job.waitUntilFinished(rodentQueueEvents, PRODUCER_TIMEOUT_MS);
+  }
   const job = await suggestionQueue.add('process', data, { jobId });
   // waitUntilFinished(queueEvents, ttl) rejects with "Timed out after X ms"
   // after the cap. The underlying job keeps running but its result is
@@ -241,9 +280,12 @@ export async function enqueueSuggestion(data: SuggestionJobData): Promise<Sugges
  * requestId check discards the stale reply on its own.
  */
 export async function removePendingSuggestionsForUser(userId: string): Promise<number> {
-  const waiting = await suggestionQueue.getWaiting(0, 100);
+  const [waiting, rodentWaiting] = await Promise.all([
+    suggestionQueue.getWaiting(0, 100),
+    rodentQueue.getWaiting(0, 100).catch(() => []),
+  ]);
   let removed = 0;
-  for (const job of waiting) {
+  for (const job of [...waiting, ...rodentWaiting]) {
     if (job.data.userId === userId) {
       try { await job.remove(); removed++; } catch { /* race — already gone */ }
     }
@@ -254,10 +296,16 @@ export async function removePendingSuggestionsForUser(userId: string): Promise<n
 export async function shutdownSuggestionWorker(): Promise<void> {
   const tasks: Promise<unknown>[] = [];
   if (worker) tasks.push(worker.close());
+  if (rodentWorker) tasks.push(rodentWorker.close());
   if (queueEvents) tasks.push(queueEvents.close());
+  if (rodentQueueEvents) tasks.push(rodentQueueEvents.close());
   if (pool) tasks.push(pool.shutdown());
+  if (rodentPool) tasks.push(rodentPool.shutdown());
   await Promise.allSettled(tasks);
   worker = null;
+  rodentWorker = null;
   queueEvents = null;
+  rodentQueueEvents = null;
   pool = null;
+  rodentPool = null;
 }

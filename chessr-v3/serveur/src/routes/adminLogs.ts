@@ -6,7 +6,7 @@ import { getConnectedUsersDetailed } from './ws.js';
 import { supabase } from '../lib/supabase.js';
 import { suggestionQueue } from '../queue/suggestionQueue.js';
 import { analysisQueue } from '../queue/analysisQueue.js';
-import { maiaQueue } from '../queue/maiaQueue.js';
+import { rodentQueue } from '../queue/suggestionQueue.js';
 import { maia3Queue } from '../queue/maia3Queue.js';
 import type { Queue, JobType } from 'bullmq';
 
@@ -51,7 +51,7 @@ adminLogsRoutes.get('/admin/queues', async (c) => {
   const queues: Array<{ name: string; q: Queue }> = [
     { name: 'komodo',   q: suggestionQueue },
     { name: 'analysis', q: analysisQueue },
-    { name: 'maia-2',   q: maiaQueue },
+    { name: 'rodent',   q: rodentQueue },
     { name: 'maia-3',   q: maia3Queue },
   ];
 

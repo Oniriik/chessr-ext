@@ -29,9 +29,31 @@ type SendFn = (data: unknown) => void;
 
 function isValidFen(fen: string): boolean {
   if (typeof fen !== 'string') return false;
-  const parts = fen.split(' ');
+  const parts = fen.trim().split(/\s+/);
   if (parts.length < 4) return false;
-  return parts[0].split('/').length === 8;
+  const ranks = parts[0].split('/');
+  if (ranks.length !== 8) return false;
+  // Each rank must describe exactly 8 squares, pieces must be legal chars.
+  let whiteKings = 0;
+  let blackKings = 0;
+  for (const rank of ranks) {
+    let squares = 0;
+    for (const ch of rank) {
+      if (/[1-8]/.test(ch)) squares += Number(ch);
+      else if (/[prnbqkPRNBQK]/.test(ch)) {
+        squares += 1;
+        if (ch === 'K') whiteKings++;
+        if (ch === 'k') blackKings++;
+      } else return false;
+    }
+    if (squares !== 8) return false;
+  }
+  // Empty boards / king-less positions crash the Maia tokenizer with an
+  // ONNX dimension error (observed in the failed-jobs queue) — reject
+  // them upfront with a clean 'Invalid FEN' instead.
+  if (whiteKings !== 1 || blackKings !== 1) return false;
+  if (parts[1] !== 'w' && parts[1] !== 'b') return false;
+  return true;
 }
 
 function clampElo(e: number | undefined): number {
