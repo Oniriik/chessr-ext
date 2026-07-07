@@ -16,6 +16,11 @@ interface AuthState {
    *  shows the one-shot "trial ended" modal then acks it (server nulls
    *  the column). Null = nothing pending. */
   freetrialEndedAt: Date | null;
+  /** Stamp written (one-shot) when the user accepts the onboarding
+   *  "how to stay undetected" guidelines modal. Null = never accepted →
+   *  the modal shows once. Lives in the DB (not local storage) so it
+   *  survives reinstalls and fresh Chrome profiles. */
+  guidelinesAcceptedAt: Date | null;
   /** Whether the 3-day free trial has ever been claimed for this user.
    *  Drives the "claim your free trial" CTA in the system-message
    *  widget — we hide it once burned, even if the user is back to
@@ -53,6 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   plan: 'free',
   planExpiry: null,
   freetrialEndedAt: null,
+  guidelinesAcceptedAt: null,
   freetrialUsed: false,
   planLoading: true,
   initializing: true,
@@ -110,7 +116,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data, error } = await supabase
         .from('user_settings')
-        .select('plan, plan_expiry, freetrial_used, freetrial_ended_at')
+        .select('plan, plan_expiry, freetrial_used, freetrial_ended_at, guidelines_accepted_at')
         .eq('user_id', userId)
         .single();
 
@@ -130,6 +136,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         plan: effectivePlan,
         planExpiry: effectivePlan === rawPlan ? rawExpiry : null,
         freetrialEndedAt: (data as any)?.freetrial_ended_at ? new Date((data as any).freetrial_ended_at) : null,
+        guidelinesAcceptedAt: (data as any)?.guidelines_accepted_at ? new Date((data as any).guidelines_accepted_at) : null,
         freetrialUsed: !!data?.freetrial_used,
         planLoading: false,
       });
@@ -307,7 +314,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ loading: true });
     try {
       await supabase.auth.signOut();
-      set({ user: null, session: null, plan: 'free', planExpiry: null, freetrialEndedAt: null, freetrialUsed: false, loading: false });
+      set({ user: null, session: null, plan: 'free', planExpiry: null, freetrialEndedAt: null, guidelinesAcceptedAt: null, freetrialUsed: false, loading: false });
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Sign out failed';
       set({ loading: false, error: message });

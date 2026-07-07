@@ -22,6 +22,7 @@ import FloatingWidget from './components/FloatingWidget';
 import TrialModal from './components/TrialModal';
 import TrialExpiryModal from './components/TrialExpiryModal';
 import FreeUpgradeModal from './components/FreeUpgradeModal';
+import GuidelinesModal from './components/GuidelinesModal';
 import { SystemMessageWidget } from './components/SystemMessageWidget';
 import HotkeyMoveButtons from './components/HotkeyMoveButtons';
 import ReviewScreen from './components/ReviewScreen';
@@ -509,6 +510,7 @@ export default function App({ streamMode = false }: AppProps = {}) {
       {!streamMode && <TrialModal />}
       {!streamMode && <TrialExpiryModal />}
       {!streamMode && <FreeUpgradeModal />}
+      {!streamMode && <GuidelinesModal />}
       <HotkeyMoveButtons />
       {/* The system-message widget hides on the host page (chess.com /
           lichess / worldchess) whenever the dedicated Stream Mode tab

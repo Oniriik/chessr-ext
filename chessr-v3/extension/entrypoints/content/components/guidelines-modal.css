@@ -1,0 +1,230 @@
+.guidelines-backdrop {
+  position: fixed;
+  inset: 0;
+  /* Same top layer as the trial modals — must cover the whole page,
+     chessr panel included. */
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--background) / 0.78);
+  backdrop-filter: blur(3px);
+  animation: guidelines-backdrop-in 0.18s ease-out;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+@keyframes guidelines-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.guidelines-modal {
+  position: relative;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 26px 24px 20px;
+  border-radius: calc(var(--radius) * 1.5);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  color: hsl(var(--card-foreground));
+  animation: guidelines-modal-in 0.22s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@keyframes guidelines-modal-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.guidelines-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.guidelines-brand-name {
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 800;
+  color: hsl(var(--foreground));
+}
+
+.guidelines-brand-dot {
+  color: #3b82f6;
+}
+
+.guidelines-title {
+  margin: 0 0 6px;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+}
+
+.guidelines-subtitle {
+  margin: 0 0 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.guidelines-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.guidelines-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  border: 1px solid hsl(var(--border));
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+.guidelines-card:hover {
+  border-color: hsl(var(--muted-foreground) / 0.5);
+  transform: translateY(-1px);
+}
+.guidelines-card--checked {
+  border-color: hsl(217 91% 60% / 0.55);
+  background: hsl(217 91% 60% / 0.09);
+}
+
+/* Custom checkbox — native control reset, styled as a rounded square with
+   a CSS checkmark that pops in on select. */
+.guidelines-card-check {
+  appearance: none;
+  -webkit-appearance: none;
+  align-self: center;
+  margin: 0;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1.5px solid hsl(var(--muted-foreground) / 0.45);
+  background: hsl(var(--background) / 0.4);
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.guidelines-card-check:hover {
+  border-color: #3b82f6;
+}
+.guidelines-card-check:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
+}
+.guidelines-card-check:checked {
+  border-color: transparent;
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4);
+}
+.guidelines-card-check::after {
+  content: '';
+  position: absolute;
+  left: 6.5px;
+  top: 2.5px;
+  width: 4px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transform-origin: center;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.guidelines-card-check:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+
+.guidelines-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 8px;
+  background: hsl(var(--background) / 0.55);
+  border: 1px solid hsl(var(--border));
+}
+
+.guidelines-card-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.guidelines-card-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: hsl(var(--foreground));
+}
+
+.guidelines-card-body {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
+.guidelines-card-link {
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #3b82f6;
+  text-decoration: none;
+  width: fit-content;
+}
+.guidelines-card-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.guidelines-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, #60a5fa, #3b82f6);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: background 0.15s, transform 0.1s;
+}
+.guidelines-cta:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7ab5fb, #4b8ef7);
+  transform: translateY(-1px);
+}
+.guidelines-cta:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+
+.guidelines-hint {
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: hsl(var(--muted-foreground));
+}
