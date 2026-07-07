@@ -44,6 +44,10 @@ import {
   handlePaddlePrices,
   handleExtendPaddleSubscription,
 } from './handlers/paddleHandler.js';
+import {
+  handleCryptoCheckoutByToken,
+  handleCryptoIpn,
+} from './handlers/cryptoHandler.js';
 import { installConsoleCapture } from './lib/logBuffer.js';
 import { startSysMetrics } from './lib/sysMetrics.js';
 import { initSuggestionWorker, shutdownSuggestionWorker } from './queue/suggestionQueue.js';
@@ -110,6 +114,12 @@ app.post('/api/paddle/upgrade-lifetime', handlePaddleUpgradeLifetime);
 app.post('/api/paddle/upgrade-lifetime-by-token', handleUpgradeLifetimeByToken);
 app.get ('/api/paddle/prices', handlePaddlePrices);
 app.post('/admin/paddle/extend', handleExtendPaddleSubscription);
+
+// NOWPayments crypto rail — one-time payments only (flex/yearly/lifetime).
+// checkout-by-token mirrors paddle's token flow; ipn is NOWPayments → us,
+// signed with x-nowpayments-sig.
+app.post('/api/crypto/checkout-by-token', handleCryptoCheckoutByToken);
+app.post('/api/crypto/ipn', handleCryptoIpn);
 
 registerWsRoute({ app, upgradeWebSocket });
 

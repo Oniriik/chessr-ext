@@ -167,6 +167,17 @@ export const EVENT_KINDS = [
   // RETURNING). `variant` picks one of 5 cosmetic message templates
   // baked into the bot.
   'wheel_drop_requested',
+  // payload: { paymentId, orderId, plan, months, status, rawStatus,
+  //            priceAmount?, priceCurrency?, payAmount?, payCurrency?,
+  //            actuallyPaid?, outcomeAmount?, outcomeCurrency?, error? }
+  // Emitted by the NOWPayments IPN handler on EVERY status transition it
+  // processes (not just terminal-paid ones) — this is the audit trail for
+  // crypto checkouts AND the idempotence marker: the handler looks up
+  // (payload->>'paymentId', payload->>'status') before doing any grant so
+  // a duplicate IPN delivery for the same transition is a no-op. Distinct
+  // statuses for the same paymentId (e.g. partially_paid → paid) are NOT
+  // deduped against each other, so a late top-up can still grant.
+  'crypto_payment',
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];

@@ -24,6 +24,12 @@
  *   - POST /api/paddle/upgrade-lifetime         — auth, cancel + lifetime checkout
  *   - POST /api/paddle/upgrade-lifetime-by-token — token version
  *   - GET  /api/paddle/prices                   — public, localized pricing
+ *
+ * A handful of internals (`paddle`, `PADDLE_ENABLED`, `getPaddlePrices`,
+ * `getSignupIp`, `buildLocationParam`, `getClientIpFromCtx`, plus
+ * `verifyBillingToken`) are exported for reuse by cryptoHandler.ts, which
+ * needs the exact same localized-pricing flow to price NOWPayments
+ * checkouts server-side.
  */
 
 import type { Context } from 'hono';
@@ -40,8 +46,10 @@ const PADDLE_ENVIRONMENT = (process.env.PADDLE_ENVIRONMENT || 'sandbox') as 'san
 
 /** Boot-time defensive flag. If any required Paddle env var is missing the
  *  handlers stay disabled and return 503 — keeps the rest of the server
- *  alive instead of crashing the whole process at module load. */
-const PADDLE_ENABLED =
+ *  alive instead of crashing the whole process at module load. Exported —
+ *  cryptoHandler.ts gates its own endpoints on this too, since localized
+ *  crypto pricing is computed via the same Paddle pricingPreview call. */
+export const PADDLE_ENABLED =
   !!PADDLE_API_KEY &&
   !!PADDLE_WEBHOOK_SECRET &&
   !!process.env.PADDLE_PRICE_MONTHLY &&
@@ -87,8 +95,11 @@ function priceSwitchDone(): boolean {
 }
 
 // Lazy-init Paddle SDK only when env vars are present. Avoids a hard crash
-// on `new Paddle(undefined!, ...)` when the var is missing.
-const paddle = PADDLE_ENABLED
+// on `new Paddle(undefined!, ...)` when the var is missing. Exported so
+// cryptoHandler.ts can reuse the exact same pricingPreview flow to compute
+// localized amounts for NOWPayments checkouts instead of duplicating the
+// price-switch-aware price ID resolution.
+export const paddle = PADDLE_ENABLED
   ? new Paddle(PADDLE_API_KEY!, {
       environment: PADDLE_ENVIRONMENT === 'sandbox' ? Environment.sandbox : Environment.production,
     })
@@ -720,8 +731,9 @@ export async function handlePaddleBillingLink(c: Context): Promise<Response> {
 
 /** First IP we recorded for this user at signup — used to pin Paddle's
  *  pricing localisation to the country the user signed up from rather
- *  than letting it follow VPN / travel. Falls back to null silently. */
-async function getSignupIp(userId: string): Promise<string | null> {
+ *  than letting it follow VPN / travel. Falls back to null silently.
+ *  Exported for cryptoHandler.ts's localized-amount computation. */
+export async function getSignupIp(userId: string): Promise<string | null> {
   try {
     const { data } = await supabase
       .from('signup_ips')
@@ -738,8 +750,9 @@ async function getSignupIp(userId: string): Promise<string | null> {
 
 /** Builds the `customerIpAddress` param for Paddle pricingPreview. Prefers
  *  the user's signup IP, falls back to the current request IP, drops
- *  loopback addresses (Paddle returns "invalid IP" on those). */
-function buildLocationParam(
+ *  loopback addresses (Paddle returns "invalid IP" on those). Exported for
+ *  cryptoHandler.ts. */
+export function buildLocationParam(
   signupIp: string | null,
   clientIp: string | undefined,
 ): Record<string, unknown> {
@@ -750,7 +763,7 @@ function buildLocationParam(
   return {};
 }
 
-function getClientIpFromCtx(c: Context): string | undefined {
+export function getClientIpFromCtx(c: Context): string | undefined {
   const xff = c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip');
   if (!xff) return undefined;
   return xff.split(',')[0]?.trim() || undefined;
@@ -803,8 +816,11 @@ const CURRENT_PRICES: Record<string, string | undefined> = {
 };
 
 /** Sellable price ids, resolved at request time: the premium trio flips to
- *  the _NEW ids once PADDLE_PRICE_SWITCH_AT passes. Unlocker unaffected. */
-function getPaddlePrices(): Record<string, string | undefined> {
+ *  the _NEW ids once PADDLE_PRICE_SWITCH_AT passes. Unlocker unaffected.
+ *  Exported so cryptoHandler.ts resolves the exact same price IDs Paddle
+ *  checkout uses — the crypto grid is "N × current Paddle monthly price",
+ *  so this is what makes it naturally follow the 2026-07-12 switch. */
+export function getPaddlePrices(): Record<string, string | undefined> {
   if (!priceSwitchDone()) return CURRENT_PRICES;
   return {
     ...CURRENT_PRICES,
