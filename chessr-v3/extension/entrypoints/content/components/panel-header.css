@@ -138,3 +138,63 @@
   transform: translateY(0);
   transition-delay: 0.3s;
 }
+
+/* ── Price-increase announce icon (grid 2026-07-12) ─────────────────────
+   Amber pulsing dot next to the Upgrade pill, only while the server
+   reports an upcoming price change. Opens the pre-announce modal. */
+.plan-badge-announce {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(251, 146, 60, 0.18);
+  color: #fb923c;
+  cursor: pointer;
+  transition: background 0.15s;
+  animation: announce-pulse 2s ease-in-out infinite;
+}
+.plan-badge-announce:hover {
+  background: rgba(251, 146, 60, 0.32);
+}
+@keyframes announce-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 146, 60, 0.4); }
+  70%      { box-shadow: 0 0 0 5px rgba(251, 146, 60, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-badge-announce { animation: none; }
+}
+
+/* Same custom tooltip as .panel-header-btn, but anchored LEFT — the icon
+   sits on the left side of the header, a right-anchored bubble would
+   overflow the panel edge. */
+.plan-badge-announce[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2147483647;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(-3px);
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.plan-badge-announce[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.3s;
+}

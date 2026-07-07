@@ -21,6 +21,7 @@ import { useEffect, useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { useGameStore } from '../stores/gameStore';
 import { useTrialModalStore } from '../stores/trialModalStore';
+import { usePriceAnnounceStore } from '../stores/priceAnnounceStore';
 import { canOfferTrial } from '../lib/premium';
 import { openBillingPage } from '../lib/openBilling';
 import { sendWs } from '../lib/websocket';
@@ -48,10 +49,30 @@ export default function FreeUpgradeModal() {
   const trialModalOpen = useTrialModalStore((s) => s.isOpen);
   const openTrialModal = useTrialModalStore((s) => s.open);
   const [open, setOpen] = useState(false);
+  const [manual, setManual] = useState(false);
   const [prices, setPrices] = useState<PricesResponse | null>(null);
   const preannounce = isPreannounceActive(prices);
 
   const trialOffer = canOfferTrial(plan, freetrialUsed, planLoading);
+
+  // Manual open from the header announce icon — explicit user intent, so it
+  // bypasses the 24h stamp (and doesn't write it) and survives a running game.
+  const openRequested = usePriceAnnounceStore((s) => s.openRequested);
+  const clearOpenRequest = usePriceAnnounceStore((s) => s.clearOpenRequest);
+  const refreshAnnounce = usePriceAnnounceStore((s) => s.refresh);
+  useEffect(() => {
+    if (!openRequested || !user) return;
+    clearOpenRequest();
+    let cancelled = false;
+    refreshAnnounce(user.id).then((p) => {
+      if (cancelled) return;
+      setPrices(p);
+      setManual(true);
+      setOpen(true);
+      sendWs({ type: 'free_upgrade_modal_shown', variant: isPreannounceActive(p) ? 'price-increase' : 'classic', source: 'header-icon' });
+    });
+    return () => { cancelled = true; };
+  }, [openRequested, user?.id]);
 
   useEffect(() => {
     if (open) return;
@@ -76,8 +97,9 @@ export default function FreeUpgradeModal() {
       if (cancelled) return;
       setPrices(p);
       stampFreeUpgradeShown(user.id); // stamp at open — reloads don't re-show
+      setManual(false);
       setOpen(true);
-      sendWs({ type: 'free_upgrade_modal_shown', variant: isPreannounceActive(p) ? 'price-increase' : 'classic' });
+      sendWs({ type: 'free_upgrade_modal_shown', variant: isPreannounceActive(p) ? 'price-increase' : 'classic', source: 'auto' });
     };
     check();
     const iv = setInterval(check, 10 * 60_000);
@@ -85,13 +107,14 @@ export default function FreeUpgradeModal() {
   }, [open, user?.id, plan, planLoading, isPlaying, freetrialEndedAt, trialModalOpen]);
 
   // Hide if a game starts — already stamped, so it won't chase the user.
+  // Manual opens are exempt: the user summoned the modal, possibly mid-game.
   useEffect(() => {
-    if (isPlaying && open) setOpen(false);
-  }, [isPlaying, open]);
+    if (isPlaying && open && !manual) setOpen(false);
+  }, [isPlaying, open, manual]);
 
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); setManual(false); } };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
   }, [open]);
@@ -106,7 +129,7 @@ export default function FreeUpgradeModal() {
 
   if (!open) return null;
 
-  const close = () => setOpen(false);
+  const close = () => { setOpen(false); setManual(false); };
 
   const handleCta = () => {
     sendWs({

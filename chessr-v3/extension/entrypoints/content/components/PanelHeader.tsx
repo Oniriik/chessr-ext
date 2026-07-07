@@ -1,6 +1,9 @@
+import { useEffect } from 'react';
 import { useAuthStore, type Plan } from '../stores/authStore';
 import { useLayoutStore } from '../stores/layoutStore';
 import { useTrialModalStore } from '../stores/trialModalStore';
+import { usePriceAnnounceStore } from '../stores/priceAnnounceStore';
+import { isPreannounceActive } from '../lib/priceIncrease';
 import { openBillingPage } from '../lib/openBilling';
 import { canOfferTrial } from '../lib/premium';
 import { useTranslation } from '../lib/i18n';
@@ -23,11 +26,24 @@ interface PanelHeaderProps {
 
 export default function PanelHeader({ showSettings, onToggleSettings, hideActions }: PanelHeaderProps) {
   const { t } = useTranslation();
-  const { plan, planLoading, freetrialUsed, signOut } = useAuthStore();
+  const { user, plan, planLoading, freetrialUsed, signOut } = useAuthStore();
   const { editMode, setEditMode } = useLayoutStore();
   const openTrialModal = useTrialModalStore((s) => s.open);
   const trialOffer = canOfferTrial(plan, freetrialUsed, planLoading);
   const config = planConfig[plan];
+
+  // Price-increase announce window: amber icon next to the Upgrade pill,
+  // visible only while the server reports an upcoming price change. Click
+  // force-opens the pre-announce modal (FreeUpgradeModal consumes the
+  // request from the shared store).
+  const announcePrices = usePriceAnnounceStore((s) => s.prices);
+  const refreshAnnounce = usePriceAnnounceStore((s) => s.refresh);
+  const requestAnnounceOpen = usePriceAnnounceStore((s) => s.requestOpen);
+  const announceActive = isPreannounceActive(announcePrices);
+  useEffect(() => {
+    if (!user || planLoading || plan !== 'free') return;
+    refreshAnnounce(user.id);
+  }, [user?.id, plan, planLoading]);
 
   return (
     <div className="panel-header">
@@ -50,12 +66,27 @@ export default function PanelHeader({ showSettings, onToggleSettings, hideAction
               // Same "Upgrade" pill as always — but while the free trial is
               // still claimable it opens the trial modal instead of the
               // checkout (the modal keeps a direct "upgrade now" link).
-              <button
-                className="plan-badge-upgrade"
-                onClick={() => trialOffer ? openTrialModal('panel-header') : openBillingPage()}
-              >
-                {t('panel.upgrade')}
-              </button>
+              <>
+                <button
+                  className="plan-badge-upgrade"
+                  onClick={() => trialOffer ? openTrialModal('panel-header') : openBillingPage()}
+                >
+                  {t('panel.upgrade')}
+                </button>
+                {announceActive && (
+                  <button
+                    className="plan-badge-announce"
+                    onClick={requestAnnounceOpen}
+                    data-tooltip={t('upgrade.increase.title')}
+                    aria-label={t('upgrade.increase.title')}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                  </button>
+                )}
+              </>
             ) : (
               <span className="plan-badge" style={{ background: config.bg, color: config.color }}>
                 {config.label}
