@@ -695,10 +695,13 @@ function EloSection() {
             )}
             {engine.searchMode === 'depth' && (
               <>
-                <Slider min={1} max={30} step={1} value={engine.searchDepth} onChange={engine.setSearchDepth} disabled={!premium}
+                {/* Rodent: depth is capped at 14 — with personalities loaded
+                    anything deeper blows the server's 30s search timeout
+                    (measured: d14 ≈ 4s, d20 > 60s). Server clamps too. */}
+                <Slider min={1} max={engine.engineId === 'rodent' ? 14 : 30} step={1} value={Math.min(engine.searchDepth, engine.engineId === 'rodent' ? 14 : 30)} onChange={engine.setSearchDepth} disabled={!premium}
                   trackColor="linear-gradient(90deg, #3b82f6 0%, #3b82f6 40%, #a855f7 65%, #ef4444 100%)"
                   thumbColorFn={(pct) => pct < 40 ? '#3b82f6' : pct < 65 ? lerpColor('#3b82f6', '#a855f7', (pct - 40) / 25) : lerpColor('#a855f7', '#ef4444', (pct - 65) / 35)} />
-                <span className="engine-hint">{engine.searchDepth}</span>
+                <span className="engine-hint">{Math.min(engine.searchDepth, engine.engineId === 'rodent' ? 14 : 30)}</span>
               </>
             )}
             {engine.searchMode === 'movetime' && (
