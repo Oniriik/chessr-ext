@@ -24,7 +24,8 @@ import type { Context } from 'hono';
 import { NowPaymentsSDK, type Payment } from '@nowpaymentsio/nowpayments-sdk-nodejs';
 import { supabase } from '../lib/supabase.js';
 import { dbQuery } from '../lib/db.js';
-import { emitEvent } from '../lib/events.js';
+import { emitEvent, EVENTS_REDIS_CHANNEL } from '../lib/events.js';
+import { redis } from '../queue/connection.js';
 import { invalidatePlanCache } from '../lib/premium.js';
 import {
   verifyBillingToken,
@@ -66,6 +67,26 @@ const nowPayments: NowPaymentsSDK | null = CRYPTO_ENABLED
       ipnCallbackUrl: IPN_CALLBACK_URL,
     })
   : null;
+
+// ─── Idempotence index (module-load ensure) ─────────────────────────────────
+// migrations/db/*.sql only run via docker-entrypoint-initdb.d on a FRESH
+// Postgres volume (see docker-compose.beta.yml) — they never touch an
+// already-initialized database. The claim-first INSERT ... ON CONFLICT in
+// handleCryptoIpn below needs this partial unique index to exist on the
+// already-running beta DB too, so we ensure it here at module load in
+// addition to shipping it as migrations/db/00011_crypto_payment_dedup.sql
+// for future fresh installs. IF NOT EXISTS makes this safe on every boot;
+// fire-and-forget with logging since a startup DDL hiccup shouldn't crash
+// process boot (same defensive posture as the rest of this file's init).
+if (CRYPTO_ENABLED) {
+  dbQuery(
+    `CREATE UNIQUE INDEX IF NOT EXISTS events_crypto_payment_dedup
+       ON events (type, (payload->>'paymentId'), (payload->>'status'))
+       WHERE type = 'crypto_payment'`,
+  ).catch((err) => {
+    console.error('[crypto] failed to ensure events_crypto_payment_dedup index:', err instanceof Error ? err.message : err);
+  });
+}
 
 function logCrypto(actor: string | null, op: string, msg: string, kind: 'ok' | 'error' | 'processed' = 'ok'): void {
   const tag = kind === 'error' ? '[crypto][error]' : kind === 'processed' ? '[crypto][processed]' : '[crypto]';
@@ -215,6 +236,58 @@ export async function handleCryptoCheckoutByToken(c: Context): Promise<Response>
   }
 }
 
+// ─── Claim-first idempotence ─────────────────────────────────────────────────
+// Atomically claims the (paymentId, status) marker row in the local `events`
+// table BEFORE any grant happens — this INSERT is the entire idempotence
+// mechanism, not a side-effect of auditing. Two concurrent or retried IPN
+// deliveries for the same transition race on the events_crypto_payment_dedup
+// partial unique index (ensured above); only one INSERT can ever return a
+// row, so only one caller can ever proceed to grant.
+//
+// This intentionally does NOT go through emitEvent() from lib/events.ts:
+// emitEvent() always inserts unconditionally (no ON CONFLICT hook), so
+// reusing it here would just move the check-then-act race from "SELECT then
+// emitEvent" to "claim then emitEvent" — no better than the bug being fixed.
+// emitEvent() also has no Supabase mirror for any event kind (it only writes
+// the local Postgres `events` table + publishes to Redis — see
+// lib/events.ts), so this direct insert loses no downstream sync; we just
+// replicate its Redis publish below for real-time fanout parity with every
+// other event kind emitted through emitEvent().
+async function claimCryptoPaymentMarker(
+  userId: string | null,
+  payload: Record<string, unknown>,
+): Promise<string | null> {
+  const rows = await dbQuery<{ id: string }>(
+    `INSERT INTO events (type, user_id, actor_id, payload)
+     VALUES ('crypto_payment', $1, NULL, $2::jsonb)
+     ON CONFLICT (type, (payload->>'paymentId'), (payload->>'status'))
+       WHERE type = 'crypto_payment'
+     DO NOTHING
+     RETURNING id`,
+    [userId, payload],
+  );
+  if (rows.length === 0) return null;
+
+  const id = rows[0].id;
+  redis
+    .publish(EVENTS_REDIS_CHANNEL, JSON.stringify({ type: 'crypto_payment', user_id: userId, actor_id: null, payload }))
+    .catch((err) => console.error('[events] redis publish failed:', err instanceof Error ? err.message : err));
+  return id;
+}
+
+// Rolls back a claimed marker row when the grant that followed it throws.
+// Without this, a transient failure (Supabase blip, etc.) after a
+// successful claim would permanently block every future retry of the SAME
+// (paymentId, status) from NOWPayments — the unique index would keep
+// rejecting the retry's claim attempt forever, even though the user never
+// actually got their grant. Deleting on failure lets the next redelivery
+// claim clean and try again.
+async function deleteCryptoPaymentMarker(id: string): Promise<void> {
+  await dbQuery(`DELETE FROM events WHERE id = $1`, [id]).catch((err) => {
+    console.error('[crypto] failed to roll back claimed marker row', id, err instanceof Error ? err.message : err);
+  });
+}
+
 // ─── POST /api/crypto/ipn ─────────────────────────────────────────────────────
 // NOWPayments → us. Signed with `x-nowpayments-sig` (HMAC-SHA512 over the
 // deep-key-sorted JSON body — see the SDK's ipn.js). We still read the raw
@@ -255,25 +328,10 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
     return c.json({ error: 'Malformed payload' }, 400);
   }
 
-  // ─── Idempotence FIRST ──────────────────────────────────────────────────
-  // Keyed on (paymentId, status) rather than paymentId alone. NOWPayments
-  // fires one IPN per status transition (waiting -> confirming -> finished,
-  // or -> partially_paid / expired / failed), and each transition is
-  // audited exactly once. Keying on paymentId alone would mean an early
-  // `partially_paid` audit row permanently blocks a later `finished`/`paid`
-  // grant for the SAME payment (e.g. customer tops up an underpaid
-  // invoice) — which is exactly the case we must NOT dedupe away. Keying
-  // on (paymentId, status) still fully dedupes true retries (NOWPayments
-  // redelivering the identical IPN after a timeout/5xx).
-  const existing = await dbQuery<{ ok: boolean }>(
-    `SELECT 1 AS ok FROM events WHERE type = 'crypto_payment' AND payload->>'paymentId' = $1 AND payload->>'status' = $2 LIMIT 1`,
-    [String(paymentId), status],
-  );
-  if (existing.length > 0) {
-    logCrypto(null, 'ipn', `duplicate IPN for payment=${paymentId} status=${status} — already processed`, 'ok');
-    return c.json({ ok: true });
-  }
-
+  // order parsing is pure/synchronous, so we can resolve it — and fold any
+  // parse failure into the audit payload — before the claim below, keeping
+  // the claim-first INSERT a single write for every branch (paid,
+  // non-granting terminal, pending, or unparseable).
   const order = parseOrderId(String(orderId));
   const auditPayload: Record<string, unknown> = {
     paymentId: String(paymentId),
@@ -289,11 +347,31 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
     actuallyPaid: payment.actually_paid ?? null,
     outcomeAmount: payment.outcome_amount ?? null,
     outcomeCurrency: payment.outcome_currency ?? null,
+    ...(order ? {} : { error: 'unparseable_order_id' }),
   };
+
+  // ─── Idempotence FIRST — atomic claim, not check-then-act ───────────────
+  // Keyed on (paymentId, status) rather than paymentId alone. NOWPayments
+  // fires one IPN per status transition (waiting -> confirming -> finished,
+  // or -> partially_paid / expired / failed), and each transition should be
+  // processed exactly once. Keying on paymentId alone would mean an early
+  // `partially_paid` claim permanently blocks a later `finished`/`paid`
+  // grant for the SAME payment (e.g. customer tops up an underpaid
+  // invoice) — which is exactly the case we must NOT dedupe away. Keying
+  // on (paymentId, status) still fully dedupes true retries (NOWPayments
+  // redelivering the identical IPN after a timeout/5xx) — and, unlike the
+  // previous SELECT-then-emitEvent flow, this INSERT ... ON CONFLICT is
+  // atomic: two concurrent deliveries of the same transition can't both
+  // pass a check and both grant, because only one of them can ever win the
+  // row back from Postgres.
+  const markerId = await claimCryptoPaymentMarker(order?.userId ?? null, auditPayload);
+  if (!markerId) {
+    logCrypto(null, 'ipn', `duplicate IPN for payment=${paymentId} status=${status} — already processed`, 'ok');
+    return c.json({ ok: true });
+  }
 
   if (!order) {
     logCrypto(null, 'ipn', `unparseable orderId=${orderId} for payment=${paymentId} — no grant possible`, 'error');
-    await emitEvent({ type: 'crypto_payment', payload: { ...auditPayload, error: 'unparseable_order_id' } });
     return c.json({ ok: true });
   }
 
@@ -305,63 +383,68 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
   if (isPaid) {
     const { userId, plan } = order;
 
-    const { data: prevSettings } = await supabase
-      .from('user_settings')
-      .select('plan, plan_expiry')
-      .eq('user_id', userId)
-      .single();
-    const oldPlan = prevSettings?.plan ?? null;
-    const oldExpiry = prevSettings?.plan_expiry ?? null;
+    try {
+      const { data: prevSettings } = await supabase
+        .from('user_settings')
+        .select('plan, plan_expiry')
+        .eq('user_id', userId)
+        .single();
+      const oldPlan = prevSettings?.plan ?? null;
+      const oldExpiry = prevSettings?.plan_expiry ?? null;
 
-    let newPlan: 'premium' | 'lifetime';
-    let newExpiry: string | null;
-    if (plan === 'lifetime') {
-      newPlan = 'lifetime';
-      newExpiry = null;
-    } else {
-      const n = plan === 'yearly' ? 12 : order.months; // yearly is always +12, not months*1
-      const expiry = new Date();
-      expiry.setMonth(expiry.getMonth() + n);
-      newPlan = 'premium';
-      newExpiry = expiry.toISOString();
+      let newPlan: 'premium' | 'lifetime';
+      let newExpiry: string | null;
+      if (plan === 'lifetime') {
+        newPlan = 'lifetime';
+        newExpiry = null;
+      } else {
+        const n = plan === 'yearly' ? 12 : order.months; // yearly is always +12, not months*1
+        const expiry = new Date();
+        expiry.setMonth(expiry.getMonth() + n);
+        newPlan = 'premium';
+        newExpiry = expiry.toISOString();
+      }
+
+      await supabase
+        .from('user_settings')
+        .update({ plan: newPlan, plan_expiry: newExpiry, updated_at: new Date().toISOString() })
+        .eq('user_id', userId);
+
+      invalidatePlanCache(userId);
+
+      await emitEvent({
+        type: 'plan_changed',
+        user_id: userId,
+        payload: {
+          oldPlan,
+          newPlan,
+          oldExpiry,
+          newExpiry,
+          reason: 'crypto_payment',
+          source: 'crypto',
+          paymentId: String(paymentId),
+        },
+      });
+
+      logCrypto(null, 'ipn', `${userId} -> plan=${newPlan}, expiry=${newExpiry}, payment=${paymentId}`, 'processed');
+    } catch (err) {
+      // The claim already succeeded, but the grant itself blew up (Supabase
+      // blip, etc.) — roll back the claimed marker row so a NOWPayments
+      // retry of this SAME (paymentId, status) can claim again and actually
+      // grant, instead of being permanently deduped against a transition
+      // that never completed.
+      logCrypto(null, 'ipn', `grant failed for payment=${paymentId} user=${userId} status=${status}: ${err instanceof Error ? err.message : err}`, 'error');
+      await deleteCryptoPaymentMarker(markerId);
+      return c.json({ error: 'Grant failed' }, 500);
     }
-
-    await supabase
-      .from('user_settings')
-      .update({ plan: newPlan, plan_expiry: newExpiry, updated_at: new Date().toISOString() })
-      .eq('user_id', userId);
-
-    invalidatePlanCache(userId);
-
-    await emitEvent({
-      type: 'plan_changed',
-      user_id: userId,
-      payload: {
-        oldPlan,
-        newPlan,
-        oldExpiry,
-        newExpiry,
-        reason: 'crypto_payment',
-        source: 'crypto',
-        paymentId: String(paymentId),
-      },
-    });
-
-    logCrypto(null, 'ipn', `${userId} -> plan=${newPlan}, expiry=${newExpiry}, payment=${paymentId}`, 'processed');
   } else if (isNonGrantingTerminal) {
+    // Nothing to grant/roll back — the claim above is the only write this
+    // branch needs.
     logCrypto(null, 'ipn', `payment=${paymentId} (user=${order.userId}) terminal status=${status} — no grant`, 'ok');
   } else {
     // Non-terminal (pending/processing/unknown) — just audit, nothing to do yet.
     logCrypto(null, 'ipn', `payment=${paymentId} (user=${order.userId}) status=${status}`, 'ok');
   }
-
-  // Audit event — doubles as the idempotence marker for this (paymentId,
-  // status) pair (see the dedup query above).
-  await emitEvent({
-    type: 'crypto_payment',
-    user_id: order.userId,
-    payload: auditPayload,
-  });
 
   return c.json({ ok: true });
 }
