@@ -62,16 +62,17 @@ export default function FreeUpgradeModal() {
   const refreshAnnounce = usePriceAnnounceStore((s) => s.refresh);
   useEffect(() => {
     if (!openRequested || !user) return;
+    // clearOpenRequest() flips our own dependency back to false, which runs
+    // this effect's cleanup immediately — so the open must NOT be guarded by
+    // a cancelled flag (it would always win the race and abort the open).
+    // The component stays mounted app-wide, so the late setState is safe.
     clearOpenRequest();
-    let cancelled = false;
     refreshAnnounce(user.id).then((p) => {
-      if (cancelled) return;
       setPrices(p);
       setManual(true);
       setOpen(true);
       sendWs({ type: 'free_upgrade_modal_shown', variant: isPreannounceActive(p) ? 'price-increase' : 'classic', source: 'header-icon' });
     });
-    return () => { cancelled = true; };
   }, [openRequested, user?.id]);
 
   useEffect(() => {
