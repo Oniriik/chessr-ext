@@ -135,7 +135,7 @@ function HeroCard({ result, profile, anonymous, cadence, cadences, tcType, onTcC
         </div>
 
         {/* Quick stats for the active cadence */}
-        <div className="flex items-center gap-5 sm:gap-7 shrink-0">
+        <div className="flex items-center justify-between md:justify-start gap-4 sm:gap-7 shrink-0">
           <QuickStat value={`${cadence.gamesCount}`} label="games" />
           <QuickStat value={`${winRate}%`} label="win rate" color="text-emerald-400" />
           <QuickStat value={cadence.avgAccuracy != null ? cadence.avgAccuracy.toFixed(1) : '-'} label="accuracy" color="text-sky-400" />
@@ -161,16 +161,16 @@ function HeroCard({ result, profile, anonymous, cadence, cadences, tcType, onTcC
             </button>
           ))}
         </div>
-        <div className="ml-auto flex gap-1 bg-muted/40 border border-border/40 rounded-xl p-1">
+        <div className="w-full sm:w-auto sm:ml-auto flex gap-1 bg-muted/40 border border-border/40 rounded-xl p-1">
           <button
             onClick={() => onTabChange('fairplay')}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${tab === 'fairplay' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${tab === 'fairplay' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <ShieldCheck className="w-4 h-4" /> Fair Play
           </button>
           <button
             onClick={() => onTabChange('learning')}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${tab === 'learning' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-bold transition-colors ${tab === 'learning' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             <GraduationCap className="w-4 h-4" /> Learning
           </button>
@@ -303,11 +303,13 @@ function CheckRow({ check }: { check: FairPlayCheck }) {
       ? 'text-amber-400 bg-amber-500/10'
       : 'text-rose-400 bg-rose-500/10'
   return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 border-b border-border/30 last:border-0" title={check.tooltip}>
-      <span className={`text-[10px] font-extrabold tracking-wide rounded-md px-1.5 py-0.5 w-11 text-center shrink-0 ${badge}`}>{check.status}</span>
-      <span className="text-[13px] font-semibold min-w-[140px]">{check.label}</span>
-      <span className={`text-[13px] font-bold tabular-nums ${check.status === 'WARN' ? 'text-amber-400' : check.status === 'FAIL' ? 'text-rose-400' : ''}`}>{check.value}</span>
-      <span className="text-xs text-muted-foreground ml-auto text-right">{check.detail}</span>
+    <div className="py-2 border-b border-border/30 last:border-0" title={check.tooltip}>
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+        <span className={`text-[10px] font-extrabold tracking-wide rounded-md px-1.5 py-0.5 w-11 text-center shrink-0 ${badge}`}>{check.status}</span>
+        <span className="text-[13px] font-semibold">{check.label}</span>
+        <span className={`text-[13px] font-bold tabular-nums text-right ml-auto ${check.status === 'WARN' ? 'text-amber-400' : check.status === 'FAIL' ? 'text-rose-400' : ''}`}>{check.value}</span>
+      </div>
+      <div className="text-xs text-muted-foreground mt-0.5 pl-[54px]">{check.detail}</div>
     </div>
   )
 }
@@ -473,26 +475,26 @@ function LearningTab({ cadence, opponentAvatars, anonymous }: {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  <th className="text-left font-bold pb-2">Opening</th>
-                  <th className="text-right font-bold pb-2">Games</th>
-                  <th className="text-right font-bold pb-2">Accuracy</th>
-                  <th className="text-right font-bold pb-2 pl-4">Win rate</th>
+                  <th className="text-left font-bold pb-2 pr-3">Opening</th>
+                  <th className="text-right font-bold pb-2 px-2">Games</th>
+                  <th className="text-right font-bold pb-2 px-2">Acc.</th>
+                  <th className="text-right font-bold pb-2 pl-3">Win rate</th>
                 </tr>
               </thead>
               <tbody>
                 {c.openings.map(o => (
                   <tr key={o.name} className={`border-t border-border/30 ${o.worst ? 'bg-rose-500/5' : ''}`}>
-                    <td className="py-2.5 font-semibold">
+                    <td className="py-2.5 pr-3 font-semibold whitespace-nowrap">
                       {o.name}
-                      {o.eco && <span className="text-[10px] text-muted-foreground font-medium ml-2">{o.eco}</span>}
+                      {o.eco && <span className="hidden sm:inline text-[10px] text-muted-foreground font-medium ml-2">{o.eco}</span>}
                       {o.worst && <span className="text-[9px] font-bold text-rose-400 bg-rose-400/10 rounded-full px-1.5 py-0.5 ml-2 align-[2px]">WEAKEST</span>}
                     </td>
-                    <td className="py-2.5 text-right tabular-nums">{o.games}</td>
-                    <td className="py-2.5 text-right tabular-nums">{o.avgAccuracy != null ? o.avgAccuracy.toFixed(1) : '-'}</td>
-                    <td className="py-2.5 text-right tabular-nums pl-4">
+                    <td className="py-2.5 px-2 text-right tabular-nums">{o.games}</td>
+                    <td className="py-2.5 px-2 text-right tabular-nums">{o.avgAccuracy != null ? o.avgAccuracy.toFixed(1) : '-'}</td>
+                    <td className="py-2.5 pl-3 text-right tabular-nums whitespace-nowrap">
                       <span className="inline-flex items-center gap-2">
                         {o.winRate}%
-                        <span className="w-14 h-1.5 rounded-full bg-muted/60 overflow-hidden inline-block">
+                        <span className="w-10 sm:w-14 h-1.5 rounded-full bg-muted/60 overflow-hidden inline-block">
                           <span className={`block h-full rounded-full ${o.worst ? 'bg-rose-400' : 'bg-emerald-400'}`} style={{ width: `${o.winRate}%` }} />
                         </span>
                       </span>
@@ -555,33 +557,37 @@ function GameRow({ game: g, index, avatar, anonymous }: {
     : g.accuracy >= 60 ? 'text-amber-400'
     : 'text-rose-400'
 
+  const hasSubline = !!g.openingName || (g.keyMoment != null && g.keyMoment.swing >= 1.5)
+
   return (
     <div className="rounded-xl border border-border/50 bg-muted/20 px-3.5 py-2.5">
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2.5 sm:gap-3">
         <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-extrabold shrink-0 ${resStyle}`}>{g.result}</span>
-        {!anonymous && avatar && <img src={avatar} alt="" className="w-6 h-6 rounded-md shrink-0" />}
+        {!anonymous && avatar && <img src={avatar} alt="" className="hidden sm:block w-6 h-6 rounded-md shrink-0" />}
         <a
           href={`https://www.chess.com/game/live/${g.gameId}`}
           target="_blank" rel="noopener noreferrer"
-          className="text-sm font-semibold hover:text-primary truncate"
+          className="text-sm font-semibold hover:text-primary truncate flex-1 min-w-0"
         >
           vs {anonymous ? `Opponent ${index + 1}` : g.opponentName}
           <span className="text-muted-foreground font-medium"> ({g.opponentRating})</span>
         </a>
-        {g.openingName && (
-          <span className="text-[10px] font-medium text-muted-foreground border border-border/40 rounded-md px-1.5 py-0.5 truncate max-w-[160px]">{g.openingName}</span>
-        )}
-        <span className="ml-auto flex items-center gap-3">
-          {g.evalSeries && <EvalSparkline series={g.evalSeries} result={g.result} />}
-          <span className={`text-sm font-extrabold tabular-nums w-11 text-right ${accColor}`}>{g.accuracy != null ? g.accuracy.toFixed(1) : '-'}</span>
-        </span>
+        {g.evalSeries && <EvalSparkline series={g.evalSeries} result={g.result} />}
+        <span className={`text-sm font-extrabold tabular-nums w-11 text-right shrink-0 ${accColor}`}>{g.accuracy != null ? g.accuracy.toFixed(1) : '-'}</span>
       </div>
-      {g.keyMoment && g.keyMoment.swing >= 1.5 && (
-        <div className="text-[11px] text-muted-foreground mt-1.5 pl-10">
-          Key moment: <span className="text-amber-400 font-semibold">
-            move {Math.ceil(g.keyMoment.ply / 2)}{g.keyMoment.san ? ` ${g.keyMoment.san}` : ''} (−{g.keyMoment.swing.toFixed(1)})
-          </span>
-          {g.keyMoment.thinkTime != null && <span> — played in {g.keyMoment.thinkTime.toFixed(1)}s</span>}
+      {hasSubline && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 pl-[38px] sm:pl-10">
+          {g.openingName && (
+            <span className="text-[10px] font-medium text-muted-foreground border border-border/40 rounded-md px-1.5 py-0.5 truncate max-w-[180px]">{g.openingName}</span>
+          )}
+          {g.keyMoment && g.keyMoment.swing >= 1.5 && (
+            <span className="text-[11px] text-muted-foreground">
+              Key moment: <span className="text-amber-400 font-semibold">
+                move {Math.ceil(g.keyMoment.ply / 2)}{g.keyMoment.san ? ` ${g.keyMoment.san}` : ''} (−{g.keyMoment.swing.toFixed(1)})
+              </span>
+              {g.keyMoment.thinkTime != null && <span> — in {g.keyMoment.thinkTime.toFixed(1)}s</span>}
+            </span>
+          )}
         </div>
       )}
     </div>
