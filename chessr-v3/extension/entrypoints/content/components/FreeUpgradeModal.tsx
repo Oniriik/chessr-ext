@@ -27,6 +27,7 @@ import { openBillingPage } from '../lib/openBilling';
 import { sendWs } from '../lib/websocket';
 import { FEATURES } from './TrialModal';
 import PriceIncreasePlans from './PriceIncreasePlans';
+import PaymentMethodsRow from './PaymentMethodsRow';
 import { useTranslation } from '../lib/i18n';
 import { isPreannounceActive, formatCountdown, type PricesResponse } from '../lib/priceIncrease';
 import { SERVER_URL } from '../lib/config';
@@ -175,6 +176,8 @@ export default function FreeUpgradeModal() {
             <button className="trial-modal-cta trial-modal-cta--gold" onClick={handleCta}>
               {t('upgrade.increase.cta')}
             </button>
+
+            <PaymentMethodsRow />
           </>
         ) : (
           <>

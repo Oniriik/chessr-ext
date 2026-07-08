@@ -411,3 +411,42 @@
   text-transform: uppercase;
   color: #fbbf24;
 }
+
+/* Payment-methods reassurance row — bottom of the price-increase modal. */
+.trial-modal-paymethods {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+.trial-modal-paychip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+.trial-modal-paychip--apple {
+  background: #000;
+  border-color: #2c2c2c;
+}
+.trial-modal-paychip svg { display: block; }
+.trial-modal-pay-more {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+}
+.trial-modal-pay-sep {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.6;
+}
+.trial-modal-pay-crypto {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #f7931a;
+}
