@@ -133,12 +133,27 @@ async function onNewCustomer(client: Client, e: IncomingEvent) {
   const plan = String(e.payload.plan ?? '');
   const interval = (e.payload.interval as string | null) ?? null;
   const newExpiry = e.payload.newExpiry as string | null;
+  const isCrypto = e.payload.source === 'crypto';
 
   const embed = new EmbedBuilder()
     .setColor(plan === 'lifetime' ? COLOR.amber : COLOR.success)
     .setTimestamp(new Date());
 
-  if (plan === 'lifetime') {
+  if (isCrypto) {
+    // Crypto sale (via NOWPayments) — one-time, no recurring interval.
+    const months = e.payload.months as number | null;
+    const amountCents = Number(e.payload.amountCents ?? 0);
+    const amount = amountCents ? `${(amountCents / 100).toFixed(2)} ${String(e.payload.currency ?? 'EUR')}` : null;
+    const duration = plan === 'lifetime' ? 'Lifetime' : months ? `${months} month${months > 1 ? 's' : ''} of Premium` : 'Premium';
+    embed
+      .setTitle('₿ Crypto payment')
+      .setDescription(
+        `${m} paid with **crypto** for **${duration}**` +
+        (amount ? `\nAmount: **${amount}**` : '') +
+        (plan !== 'lifetime' && newExpiry ? `\nAccess until: ${formatDate(newExpiry)}` : ''),
+      )
+      .setFooter({ text: 'via NOWPayments · one-time, no auto-renewal' });
+  } else if (plan === 'lifetime') {
     embed
       .setTitle('🌟 New Lifetime customer')
       .setDescription(`${m} purchased **Lifetime** — welcome to the family.`);

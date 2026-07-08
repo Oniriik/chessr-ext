@@ -453,6 +453,26 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
         },
       });
 
+      // Sale notification for the #subscriptions mod channel — Paddle sales
+      // emit `new_customer`; mirror that for crypto so a crypto purchase
+      // shows up there too, tagged source='crypto' so the bot renders a
+      // crypto-specific embed (amount, plan, duration, via NOWPayments).
+      await emitEvent({
+        type: 'new_customer',
+        user_id: userId,
+        payload: {
+          plan: newPlan,
+          newExpiry,
+          interval: null,
+          source: 'crypto',
+          cryptoPlan: plan, // quarter | yearly | lifetime
+          months: plan === 'lifetime' ? null : planGrantMonths(plan),
+          amountCents: cryptoPriceCents(plan).amountCents,
+          currency: 'EUR',
+          paymentId: String(paymentId),
+        },
+      });
+
       logCrypto(null, 'ipn', `${userId} -> plan=${newPlan}, expiry=${newExpiry}, payment=${paymentId}`, 'processed');
     } catch (err) {
       // The claim already succeeded, but the grant itself blew up (Supabase
