@@ -1,23 +1,29 @@
 /**
  * NOWPayments crypto billing handlers (Hono).
  *
- * ONE-TIME payments only — no crypto subscriptions. Three plan shapes,
- * all priced off the exact same Paddle pricingPreview flow paddleHandler
- * uses (never a client-sent amount):
- *   - flex     — N months (1-11) of Premium at N × current localized
- *                monthly price. Grants plan_expiry = now + N months.
- *   - yearly   — current localized yearly price. Grants plan_expiry =
- *                now + 12 months (hardcoded, not months × monthly).
- *   - lifetime — current localized lifetime price. Grants plan='lifetime',
- *                plan_expiry=null.
+ * ONE-TIME payments only — no crypto subscriptions. Three FIXED flat-EUR
+ * plans, same price worldwide, no PPP/localization and no stepper:
+ *   - quarter  — 11.99€ flat. Grants plan_expiry = now + 3 months.
+ *   - yearly   — 34.99€ flat. Grants plan_expiry = now + 12 months.
+ *   - lifetime — 59.99€ flat, 79.99€ once the Paddle price-grid switch
+ *                (PADDLE_PRICE_SWITCH_AT) has passed. Grants
+ *                plan='lifetime', plan_expiry=null.
+ *
+ * Flat rather than localized/PPP: NOWPayments charges a flat ~10.19€
+ * minimum per invoice (the account payout currency is BTC), so a PPP price
+ * like 2.99€ would fall below what NOWPayments can even process. Prices
+ * here are hardcoded constants, NOT derived from Paddle's pricingPreview —
+ * only the lifetime price's pre/post-switch state is shared with Paddle
+ * (via the imported `priceSwitchDone`), so both rails flip at the same
+ * instant.
  *
  * Endpoints:
- *   - POST /api/crypto/checkout-by-token — token, body: { token, plan, months? }
- *   - POST /api/crypto/ipn               — NOWPayments → us, signed status updates
+ *   - GET  /api/crypto/prices             — public, flat-EUR price list
+ *   - POST /api/crypto/checkout-by-token  — token, body: { token, plan }
+ *   - POST /api/crypto/ipn                — NOWPayments → us, signed status updates
  *
- * Both endpoints 503 when NOWPAYMENTS_API_KEY / NOWPAYMENTS_IPN_SECRET are
- * unset (crypto rail not configured) or when Paddle itself is disabled
- * (pricing can't be computed without it).
+ * All endpoints 503 when NOWPAYMENTS_API_KEY / NOWPAYMENTS_IPN_SECRET are
+ * unset (crypto rail not configured).
  */
 
 import type { Context } from 'hono';
@@ -27,16 +33,7 @@ import { dbQuery } from '../lib/db.js';
 import { emitEvent, EVENTS_REDIS_CHANNEL } from '../lib/events.js';
 import { redis } from '../queue/connection.js';
 import { invalidatePlanCache } from '../lib/premium.js';
-import { minorUnitDivisor } from '../lib/currency.js';
-import {
-  verifyBillingToken,
-  getPaddlePrices,
-  getSignupIp,
-  buildLocationParam,
-  getClientIpFromCtx,
-  paddle,
-  PADDLE_ENABLED,
-} from './paddleHandler.js';
+import { verifyBillingToken, priceSwitchDone } from './paddleHandler.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -95,64 +92,46 @@ function logCrypto(actor: string | null, op: string, msg: string, kind: 'ok' | '
   else console.log(`${tag} ${op} ${msg}`);
 }
 
-type CryptoPlan = 'flex' | 'yearly' | 'lifetime';
+type CryptoPlan = 'quarter' | 'yearly' | 'lifetime';
 
-// ─── Localized pricing (never trust a client-sent amount) ───────────────────
+// ─── Flat-EUR pricing (constants, NOT derived from Paddle) ──────────────────
+// NOWPayments has a flat ~10.19€ minimum per invoice (payout is in BTC), so
+// PPP-localized prices (e.g. 2.99€) can fall below what it will even accept.
+// Crypto pricing is therefore three fixed EUR amounts, same worldwide, no
+// stepper/localization. Only `lifetime` is switch-aware, reusing paddleHandler's
+// exported `priceSwitchDone()` so both rails flip together at
+// PADDLE_PRICE_SWITCH_AT.
 
-/** Resolves the amount to charge in minor units (cents) + ISO currency
- *  code, using the SAME Paddle pricingPreview call paddleHandler uses for
- *  /api/paddle/prices — so this naturally follows the 2026-07-12 price
- *  grid switch and per-country localization (pinned to the user's signup
- *  IP, same as Paddle). `flexMonths` only applies to the 'flex' plan. */
-async function computeLocalizedAmountCents(
-  c: Context,
-  userId: string,
-  plan: CryptoPlan,
-  flexMonths: number,
-): Promise<{ amountCents: number; currency: string } | null> {
-  if (!PADDLE_ENABLED) return null;
+const CRYPTO_QUARTER_CENTS = 1199; // 11.99€ — 3 months of Premium, fixed always
+const CRYPTO_YEARLY_CENTS = 3499;  // 34.99€ — 1 year of Premium, fixed always (post-increase price)
 
-  const priceKey = plan === 'flex' ? 'monthly' : plan; // yearly/lifetime map 1:1
-  const priceId = getPaddlePrices()[priceKey];
-  if (!priceId) return null;
-
-  try {
-    const clientIp = getClientIpFromCtx(c);
-    const signupIp = await getSignupIp(userId);
-    const locationParam = buildLocationParam(signupIp, clientIp);
-
-    const preview = await paddle.pricingPreview.preview({
-      items: [{ priceId, quantity: 1 }],
-      ...locationParam,
-    });
-
-    const line = (preview as any).details?.lineItems?.[0];
-    const unitTotalCents = Number(line?.totals?.total || 0);
-    const currency = (preview as any).currencyCode || 'USD';
-    if (!(unitTotalCents > 0)) return null;
-
-    const multiplier = plan === 'flex' ? flexMonths : 1;
-    return { amountCents: unitTotalCents * multiplier, currency };
-  } catch (err) {
-    logCrypto(null, 'pricing', String(err), 'error');
-    return null;
-  }
+/** Resolves the flat EUR amount (in cents) to charge for a crypto plan.
+ *  Always EUR, always 2-decimal — no pricingPreview, no location, no PPP. */
+function cryptoPriceCents(plan: CryptoPlan): { amountCents: number; currency: 'EUR' } {
+  const amountCents =
+    plan === 'quarter' ? CRYPTO_QUARTER_CENTS
+    : plan === 'yearly' ? CRYPTO_YEARLY_CENTS
+    : (priceSwitchDone() ? 7999 : 5999); // lifetime: 59.99€ pre-switch, 79.99€ post-switch
+  return { amountCents, currency: 'EUR' };
 }
 
 // ─── orderId encoding/decoding ───────────────────────────────────────────────
-// Format: crypto:<plan>:<months|0>:<userId>:<Date.now()>
-// `months` is the flex month count (1-11) for plan='flex'; it's 0 (unused
-// placeholder) for 'yearly'/'lifetime' — those grant a fixed duration
-// (12 months / forever) regardless of what's encoded here.
+// Format: crypto:<plan>:<months>:<userId>:<Date.now()>
+// `months` is the grant duration in months derived from `plan`: quarter→3,
+// yearly→12, lifetime→0 (unused placeholder — lifetime grants forever
+// regardless of what's encoded here).
 
-function buildOrderId(plan: CryptoPlan, flexMonths: number, userId: string): string {
-  const monthsField = plan === 'flex' ? flexMonths : 0;
-  return `crypto:${plan}:${monthsField}:${userId}:${Date.now()}`;
+function planGrantMonths(plan: CryptoPlan): number {
+  return plan === 'quarter' ? 3 : plan === 'yearly' ? 12 : 0;
+}
+
+function buildOrderId(plan: CryptoPlan, userId: string): string {
+  return `crypto:${plan}:${planGrantMonths(plan)}:${userId}:${Date.now()}`;
 }
 
 interface ParsedOrder {
   plan: CryptoPlan;
-  months: number; // meaningful only for 'flex'
+  months: number; // meaningful only for 'quarter'/'yearly'
   userId: string;
 }
 
@@ -160,56 +139,42 @@ function parseOrderId(orderId: string): ParsedOrder | null {
   const parts = orderId.split(':');
   if (parts.length !== 5 || parts[0] !== 'crypto') return null;
   const [, planRaw, monthsRaw, userId] = parts;
-  if (planRaw !== 'flex' && planRaw !== 'yearly' && planRaw !== 'lifetime') return null;
+  if (planRaw !== 'quarter' && planRaw !== 'yearly' && planRaw !== 'lifetime') return null;
   const months = Number(monthsRaw);
   if (!Number.isInteger(months)) return null;
-  if (planRaw === 'flex' && (months < 1 || months > 11)) return null;
+  if (planRaw === 'quarter' && months !== 3) return null;
+  if (planRaw === 'yearly' && months !== 12) return null;
   if (!userId) return null;
   return { plan: planRaw, months, userId };
 }
 
 // ─── POST /api/crypto/checkout-by-token ──────────────────────────────────────
-// Body: { token, plan: 'flex' | 'yearly' | 'lifetime', months? }
-// months required + integer 1-11 iff plan === 'flex'.
+// Body: { token, plan: 'quarter' | 'yearly' | 'lifetime' }
 // Returns: { invoiceUrl }
 export async function handleCryptoCheckoutByToken(c: Context): Promise<Response> {
-  if (!CRYPTO_ENABLED || !PADDLE_ENABLED) return c.json({ error: 'Crypto payments not configured' }, 503);
+  if (!CRYPTO_ENABLED) return c.json({ error: 'Crypto payments not configured' }, 503);
 
-  let body: { token?: string; plan?: string; months?: number };
+  let body: { token?: string; plan?: string };
   try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
 
   const verified = body.token ? verifyBillingToken(body.token) : null;
   if (!verified) return c.json({ error: 'Invalid or expired billing token' }, 401);
 
   const plan = body.plan;
-  if (plan !== 'flex' && plan !== 'yearly' && plan !== 'lifetime') {
-    return c.json({ error: 'Invalid plan. Use: flex, yearly, or lifetime' }, 400);
-  }
-
-  let flexMonths = 0;
-  if (plan === 'flex') {
-    flexMonths = Number(body.months);
-    if (!Number.isInteger(flexMonths) || flexMonths < 1 || flexMonths > 11) {
-      return c.json({ error: 'months is required and must be an integer between 1 and 11 for plan=flex' }, 400);
-    }
+  if (plan !== 'quarter' && plan !== 'yearly' && plan !== 'lifetime') {
+    return c.json({ error: 'Invalid plan. Use: quarter, yearly, or lifetime' }, 400);
   }
 
   const { userId } = verified;
 
-  const localized = await computeLocalizedAmountCents(c, userId, plan, flexMonths);
-  if (!localized) {
-    logCrypto(null, 'checkout', `failed to compute localized amount for user=${userId}, plan=${plan}`, 'error');
-    return c.json({ error: 'Failed to compute price' }, 500);
-  }
-
-  // `amountCents` is misnamed for zero-decimal currencies (JPY/KRW) —
-  // Paddle reports those already in whole units, not ×100 minor units — so
-  // dividing by 100 unconditionally would undercharge by 100x. Use the
-  // currency-aware divisor instead of a hardcoded /100.
-  const amount = localized.amountCents / minorUnitDivisor(localized.currency);
-  const currency = localized.currency.toLowerCase();
-  const orderId = buildOrderId(plan, flexMonths, userId);
-  const description = plan === 'flex' ? `Chessr Premium — ${flexMonths} month(s)` : `Chessr ${plan === 'yearly' ? 'Premium Yearly' : 'Lifetime'}`;
+  const { amountCents, currency: currencyCode } = cryptoPriceCents(plan);
+  const amount = amountCents / 100; // EUR is always 2-decimal
+  const currency = currencyCode.toLowerCase();
+  const orderId = buildOrderId(plan, userId);
+  const description =
+    plan === 'quarter' ? 'Chessr Premium — 3 months'
+    : plan === 'yearly' ? 'Chessr Premium — 1 year'
+    : 'Chessr Lifetime';
 
   // Carry the billing token back so chessr.io/checkout can resume the
   // same session + poll /api/paddle/status-by-token for the grant to land.
@@ -233,12 +198,28 @@ export async function handleCryptoCheckoutByToken(c: Context): Promise<Response>
       return c.json({ error: 'Failed to create crypto checkout' }, 500);
     }
 
-    logCrypto(null, 'checkout', `user=${userId}, plan=${plan}, months=${flexMonths}, amount=${amount} ${currency}, orderId=${orderId}, invoice=${checkout.id}`, 'processed');
+    logCrypto(null, 'checkout', `user=${userId}, plan=${plan}, amount=${amount} ${currency}, orderId=${orderId}, invoice=${checkout.id}`, 'processed');
     return c.json({ invoiceUrl: checkout.invoiceUrl });
   } catch (err) {
     logCrypto(null, 'checkout', String(err), 'error');
     return c.json({ error: 'Failed to create crypto checkout' }, 500);
   }
+}
+
+// ─── GET /api/crypto/prices ──────────────────────────────────────────────────
+// Public. Flat-EUR price list, same amounts the checkout endpoint charges.
+// Returns: { quarter: {amount, currency}, yearly: {...}, lifetime: {...} }
+export async function handleCryptoPrices(c: Context): Promise<Response> {
+  if (!CRYPTO_ENABLED) return c.json({ error: 'Crypto payments not configured' }, 503);
+
+  const plans: CryptoPlan[] = ['quarter', 'yearly', 'lifetime'];
+  const prices = Object.fromEntries(
+    plans.map((plan) => {
+      const { amountCents, currency } = cryptoPriceCents(plan);
+      return [plan, { amount: amountCents, currency }];
+    }),
+  );
+  return c.json(prices);
 }
 
 // ─── Claim-first idempotence ─────────────────────────────────────────────────
@@ -342,7 +323,7 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
     paymentId: String(paymentId),
     orderId: String(orderId),
     plan: order?.plan ?? null,
-    months: order ? (order.plan === 'yearly' ? 12 : order.plan === 'lifetime' ? null : order.months) : null,
+    months: order ? (order.plan === 'lifetime' ? null : planGrantMonths(order.plan)) : null,
     status,
     rawStatus: payment.payment_status ?? payment.rawStatus ?? null,
     priceAmount: payment.price_amount ?? null,
@@ -406,9 +387,9 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
       //      inserted above IS the audit trail for it, so we just log and
       //      return 200 without touching user_settings or emitting
       //      plan_changed (no plan change happened).
-      //   2. flex/yearly on an existing (non-lifetime) premium: STACK, don't
-      //      reset — extend from max(now, oldExpiry) so remaining prepaid
-      //      time isn't thrown away by a top-up.
+      //   2. quarter/yearly on an existing (non-lifetime) premium: STACK,
+      //      don't reset — extend from max(now, oldExpiry) so remaining
+      //      prepaid time isn't thrown away by a top-up.
       //   3. lifetime purchase: always grants lifetime, even over an active
       //      premium — a strict upgrade, no stacking needed.
       if (oldPlan === 'lifetime' && plan !== 'lifetime') {
@@ -422,7 +403,7 @@ export async function handleCryptoIpn(c: Context): Promise<Response> {
         newPlan = 'lifetime';
         newExpiry = null;
       } else {
-        const n = plan === 'yearly' ? 12 : order.months; // yearly is always +12, not months*1
+        const n = planGrantMonths(plan); // quarter -> 3, yearly -> 12
         const base = oldPlan === 'premium' && oldExpiry ? new Date(Math.max(Date.now(), new Date(oldExpiry).getTime())) : new Date();
         const expiry = base;
         expiry.setMonth(expiry.getMonth() + n);

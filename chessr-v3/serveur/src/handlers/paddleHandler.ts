@@ -89,8 +89,11 @@ function priceSwitchPending(): boolean {
   return PRICE_SWITCH_CONFIGURED && Date.now() < PRICE_SWITCH_AT!;
 }
 
-/** True once the switch timestamp has passed. */
-function priceSwitchDone(): boolean {
+/** True once the switch timestamp has passed. Exported — cryptoHandler.ts
+ *  reuses this same switch state for the flat-EUR lifetime price
+ *  (5999 pre-switch / 7999 post-switch), so the two rails never disagree
+ *  about which side of PADDLE_PRICE_SWITCH_AT we're on. */
+export function priceSwitchDone(): boolean {
   return PRICE_SWITCH_CONFIGURED && Date.now() >= PRICE_SWITCH_AT!;
 }
 
