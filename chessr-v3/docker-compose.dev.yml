@@ -44,6 +44,29 @@ services:
       timeout: 3s
       retries: 5
 
+  # Postgres analytics — holds the events table the crypto IPN idempotence
+  # claim writes to (and the rest of the local-pg analytics). Migrations in
+  # migrations/db/ run once on a fresh volume, so the events schema + the
+  # 00011 crypto-dedup unique index are created on first boot.
+  postgres:
+    image: postgres:17-alpine
+    container_name: chessr-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: chessr_analytics
+      POSTGRES_USER: chessr
+      POSTGRES_PASSWORD: chessr_dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./serveur/migrations/db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "chessr", "-d", "chessr_analytics"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   serveur:
     build:
       context: ./serveur
@@ -62,6 +85,9 @@ services:
       - PORT=8081
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - LOCAL_DATABASE_URL=postgres://chessr:chessr_dev@postgres:5432/chessr_analytics
+      # Crypto success/cancel redirect → local landing during dev.
+      - CHECKOUT_ORIGIN=http://localhost:3000
       - LOG_DIR=/app/logs
       - MAX_KOMODO_INSTANCES=${MAX_KOMODO_INSTANCES:-2}
       - MAX_STOCKFISH_INSTANCES=${MAX_STOCKFISH_INSTANCES:-1}
@@ -82,6 +108,9 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
 
 volumes:
   redis_dev_data:
+  postgres_dev_data:

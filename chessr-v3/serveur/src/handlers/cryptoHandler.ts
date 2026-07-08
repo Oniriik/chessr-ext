@@ -41,6 +41,10 @@ const NOWPAYMENTS_API_KEY = process.env.NOWPAYMENTS_API_KEY;
 const NOWPAYMENTS_IPN_SECRET = process.env.NOWPAYMENTS_IPN_SECRET;
 const PUBLIC_SERVER_URL = process.env.PUBLIC_SERVER_URL || 'https://beta.chessr.io';
 const IPN_CALLBACK_URL = `${PUBLIC_SERVER_URL}/api/crypto/ipn`;
+// Origin the NOWPayments invoice returns the buyer to. Defaults to prod;
+// a dev run overrides it (CHECKOUT_ORIGIN=http://localhost:3000) so the
+// crypto success/cancel redirect lands on the local landing, not chessr.io.
+const CHECKOUT_ORIGIN = process.env.CHECKOUT_ORIGIN || 'https://chessr.io';
 
 /** Boot-time defensive flag, mirrors PADDLE_ENABLED's role: if either
  *  NOWPayments env var is missing the endpoints stay disabled and return
@@ -179,8 +183,8 @@ export async function handleCryptoCheckoutByToken(c: Context): Promise<Response>
   // Carry the billing token back so chessr.io/checkout can resume the
   // same session + poll /api/paddle/status-by-token for the grant to land.
   const tokenParam = encodeURIComponent(body.token!);
-  const successUrl = `https://chessr.io/checkout?token=${tokenParam}&crypto=1`;
-  const cancelUrl = `https://chessr.io/checkout?token=${tokenParam}&crypto=0`;
+  const successUrl = `${CHECKOUT_ORIGIN}/checkout?token=${tokenParam}&crypto=1`;
+  const cancelUrl = `${CHECKOUT_ORIGIN}/checkout?token=${tokenParam}&crypto=0`;
 
   try {
     const checkout = await nowPayments!.createCheckout({
