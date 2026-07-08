@@ -33,7 +33,7 @@ import { dbQuery } from '../lib/db.js';
 import { emitEvent, EVENTS_REDIS_CHANNEL } from '../lib/events.js';
 import { redis } from '../queue/connection.js';
 import { invalidatePlanCache } from '../lib/premium.js';
-import { verifyBillingToken, priceSwitchDone } from './paddleHandler.js';
+import { verifyBillingToken, priceSwitchDone, priceSwitchPending, priceSwitchAtISO } from './paddleHandler.js';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -106,16 +106,19 @@ type CryptoPlan = 'quarter' | 'yearly' | 'lifetime';
 // exported `priceSwitchDone()` so both rails flip together at
 // PADDLE_PRICE_SWITCH_AT.
 
-const CRYPTO_QUARTER_CENTS = 1199; // 11.99€ — 3 months of Premium, fixed always
-const CRYPTO_YEARLY_CENTS = 3499;  // 34.99€ — 1 year of Premium, fixed always (post-increase price)
+const CRYPTO_QUARTER_CENTS = 1199;       // 11.99€ — 3 months of Premium, fixed always
+const CRYPTO_YEARLY_CENTS = 3499;        // 34.99€ — 1 year of Premium, fixed always (post-increase price)
+const CRYPTO_LIFETIME_CENTS = 5999;      // 59.99€ — lifetime pre-switch (until July 12)
+const CRYPTO_LIFETIME_NEW_CENTS = 7999;  // 79.99€ — lifetime post-switch
 
 /** Resolves the flat EUR amount (in cents) to charge for a crypto plan.
- *  Always EUR, always 2-decimal — no pricingPreview, no location, no PPP. */
+ *  Always EUR, always 2-decimal — no pricingPreview, no location, no PPP.
+ *  Only lifetime moves on the switch date; quarter/yearly are fixed. */
 function cryptoPriceCents(plan: CryptoPlan): { amountCents: number; currency: 'EUR' } {
   const amountCents =
     plan === 'quarter' ? CRYPTO_QUARTER_CENTS
     : plan === 'yearly' ? CRYPTO_YEARLY_CENTS
-    : (priceSwitchDone() ? 7999 : 5999); // lifetime: 59.99€ pre-switch, 79.99€ post-switch
+    : (priceSwitchDone() ? CRYPTO_LIFETIME_NEW_CENTS : CRYPTO_LIFETIME_CENTS);
   return { amountCents, currency: 'EUR' };
 }
 
@@ -220,10 +223,17 @@ export async function handleCryptoPrices(c: Context): Promise<Response> {
   const prices = Object.fromEntries(
     plans.map((plan) => {
       const { amountCents, currency } = cryptoPriceCents(plan);
-      return [plan, { amount: amountCents, currency }];
+      const entry: { amount: number; currency: string; upcomingAmount?: number } = { amount: amountCents, currency };
+      // Only lifetime rises on July 12 (quarter/yearly are fixed). During the
+      // announce window, surface its post-switch price so the card can show
+      // the increase (struck-through), same story as the fiat side.
+      if (plan === 'lifetime' && priceSwitchPending()) entry.upcomingAmount = CRYPTO_LIFETIME_NEW_CENTS;
+      return [plan, entry];
     }),
   );
-  return c.json(prices);
+  const body: Record<string, unknown> = { ...prices };
+  if (priceSwitchPending()) body.priceChangeAt = priceSwitchAtISO();
+  return c.json(body);
 }
 
 // ─── Claim-first idempotence ─────────────────────────────────────────────────

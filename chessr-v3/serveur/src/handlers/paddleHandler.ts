@@ -84,9 +84,17 @@ if (PRICE_SWITCH_VARS_PRESENT && !PRICE_SWITCH_CONFIGURED) {
   console.warn('[paddle] price switch MISCONFIGURED — set PADDLE_PRICE_SWITCH_AT (valid ISO date) + PADDLE_PRICE_MONTHLY_NEW/YEARLY_NEW/LIFETIME_NEW together; the switch is currently DISABLED.');
 }
 
-/** True during the announce window (configured, switch still in the future). */
-function priceSwitchPending(): boolean {
+/** True during the announce window (configured, switch still in the future).
+ *  Exported — cryptoHandler.ts uses it to surface the lifetime "upcoming"
+ *  price on the crypto card before July 12. */
+export function priceSwitchPending(): boolean {
   return PRICE_SWITCH_CONFIGURED && Date.now() < PRICE_SWITCH_AT!;
+}
+
+/** The switch instant as an ISO string (null when not configured) — lets
+ *  the crypto prices endpoint tell the landing when the lifetime price rises. */
+export function priceSwitchAtISO(): string | null {
+  return PRICE_SWITCH_CONFIGURED ? new Date(PRICE_SWITCH_AT!).toISOString() : null;
 }
 
 /** True once the switch timestamp has passed. Exported — cryptoHandler.ts
