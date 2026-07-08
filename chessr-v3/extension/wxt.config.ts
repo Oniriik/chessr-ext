@@ -14,6 +14,13 @@ const zipName = isProd ? "chessr" : displayName;
 
 export default defineConfig({
   modules: ["@wxt-dev/module-react"],
+  // WXT's own dev server (extension reload) — pin it off 3000 so it never
+  // collides with the Next landing running on 3000 during a local billing test.
+  dev: {
+    server: {
+      port: 3701,
+    },
+  },
   vite: () => ({
     server: {
       port: 3700,

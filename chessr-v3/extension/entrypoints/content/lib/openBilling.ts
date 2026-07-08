@@ -17,6 +17,11 @@
 import { supabase } from './supabase';
 import { SERVER_URL } from './config';
 
+// Origin of the checkout / pricing pages. Defaults to production; a dev
+// build can point the whole billing flow at a local landing via
+// VITE_CHECKOUT_ORIGIN=http://localhost:3000 (see the `dev:local` script).
+const CHECKOUT_ORIGIN = import.meta.env.VITE_CHECKOUT_ORIGIN || 'https://chessr.io';
+
 export interface OpenBillingOptions {
   /** Navigate the current tab instead of opening a new one. Used by the
    *  full-screen modals (trial expiry) where the takeover context makes a
@@ -40,7 +45,7 @@ export async function openBillingPage(options: OpenBillingOptions = {}): Promise
     if (!token) {
       console.error('[Chessr][billing] no auth session');
       // Fall through to public pricing page so the user sees something.
-      navigate('https://chessr.io/#pricing');
+      navigate(`${CHECKOUT_ORIGIN}/#pricing`);
       return;
     }
 
@@ -55,14 +60,14 @@ export async function openBillingPage(options: OpenBillingOptions = {}): Promise
     if (!res.ok) {
       console.error('[Chessr][billing] billing-link failed:', res.status);
       // Fall back to public pricing.
-      navigate('https://chessr.io/#pricing');
+      navigate(`${CHECKOUT_ORIGIN}/#pricing`);
       return;
     }
 
     const { token: billingToken } = await res.json() as { token?: string };
     if (!billingToken) {
       console.error('[Chessr][billing] no token in billing-link response');
-      navigate('https://chessr.io/#pricing');
+      navigate(`${CHECKOUT_ORIGIN}/#pricing`);
       return;
     }
 
@@ -74,7 +79,7 @@ export async function openBillingPage(options: OpenBillingOptions = {}): Promise
     // appending `&discount=<code>` here. To restore Early Access:
     //   `&discount=earlyaccess`
     const checkoutUrl =
-      `https://chessr.io/checkout?t=${encodeURIComponent(billingToken)}` +
+      `${CHECKOUT_ORIGIN}/checkout?t=${encodeURIComponent(billingToken)}` +
       `&uid=${encodeURIComponent(userId)}` +
       `&return=${encodeURIComponent(returnUrl)}`;
 
@@ -83,6 +88,6 @@ export async function openBillingPage(options: OpenBillingOptions = {}): Promise
   } catch (err) {
     console.error('[Chessr][billing] error:', err);
     // Last-ditch fallback so the click never feels dead.
-    navigate('https://chessr.io/#pricing');
+    navigate(`${CHECKOUT_ORIGIN}/#pricing`);
   }
 }

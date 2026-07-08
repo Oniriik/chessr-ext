@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "wxt",
+    "dev:local": "VITE_WS_URL=ws://localhost:8081 VITE_ENV=dev VITE_CHECKOUT_ORIGIN=http://localhost:3000 wxt",
     "dev:prod": "VITE_WS_URL=wss://api.chessr.io VITE_ENV=prod wxt",
     "dev:beta": "VITE_WS_URL=wss://beta.chessr.io VITE_ENV=beta wxt --mode beta",
     "dev:firefox": "wxt --browser firefox",
