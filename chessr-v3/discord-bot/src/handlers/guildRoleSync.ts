@@ -45,35 +45,56 @@ interface LinkedUser {
   highestElo: number;
 }
 
-async function fetchLinkedUsers(): Promise<Map<string, LinkedUser>> {
+// PostgREST caps a single select at 1000 rows. Without paging, linked users
+// beyond the first 1000 are absent from the map → the sweep treats them as
+// "unlinked" and STRIPS all their plan/ELO roles every tick (then the
+// event-driven sync re-adds them → premium users flip-flop). Page through.
+const PAGE = 1000;
+
+// Returns null when the full linked-users picture couldn't be fetched — the
+// caller MUST skip the sweep then, because a partial map makes real linked
+// users look "unlinked" and strips their roles.
+async function fetchLinkedUsers(): Promise<Map<string, LinkedUser> | null> {
   const map = new Map<string, LinkedUser>();
-  // 1) pull user_settings rows that have a discord_id
-  const { data: settings, error } = await supabase
-    .from('user_settings')
-    .select('user_id, discord_id, plan')
-    .not('discord_id', 'is', null);
-  if (error || !settings) {
-    log.warn('[guild-sync] user_settings fetch failed:', error?.message);
-    return map;
+
+  // 1) pull ALL user_settings rows that have a discord_id, paged.
+  const settings: Array<{ user_id: string; discord_id: string; plan: string }> = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('user_id, discord_id, plan')
+      .not('discord_id', 'is', null)
+      .range(from, from + PAGE - 1);
+    if (error) {
+      log.warn('[guild-sync] user_settings fetch failed:', error.message);
+      return null; // abort: never strip roles on an incomplete picture
+    }
+    if (!data || data.length === 0) break;
+    settings.push(...(data as Array<{ user_id: string; discord_id: string; plan: string }>));
+    if (data.length < PAGE) break;
   }
+  if (settings.length === 0) return map;
 
-  // 2) pull ratings for those users
-  const userIds = settings.map((s) => s.user_id as string);
-  if (userIds.length === 0) return map;
-  const { data: accounts } = await supabase
-    .from('linked_accounts')
-    .select('user_id, rating_bullet, rating_blitz, rating_rapid')
-    .in('user_id', userIds)
-    .is('unlinked_at', null);
-
+  // 2) pull ratings for those users — same 1000-row cap. Chunk the id list
+  // (small enough that even a few accounts per user stays under the cap).
+  const CHUNK = 300;
+  const userIds = settings.map((s) => s.user_id);
   const eloByUser = new Map<string, number>();
-  for (const a of (accounts ?? []) as Array<{ user_id: string; rating_bullet: number | null; rating_blitz: number | null; rating_rapid: number | null }>) {
-    const high = Math.max(a.rating_bullet ?? 0, a.rating_blitz ?? 0, a.rating_rapid ?? 0);
-    const prev = eloByUser.get(a.user_id) ?? 0;
-    if (high > prev) eloByUser.set(a.user_id, high);
+  for (let i = 0; i < userIds.length; i += CHUNK) {
+    const chunk = userIds.slice(i, i + CHUNK);
+    const { data: accounts } = await supabase
+      .from('linked_accounts')
+      .select('user_id, rating_bullet, rating_blitz, rating_rapid')
+      .in('user_id', chunk)
+      .is('unlinked_at', null);
+    for (const a of (accounts ?? []) as Array<{ user_id: string; rating_bullet: number | null; rating_blitz: number | null; rating_rapid: number | null }>) {
+      const high = Math.max(a.rating_bullet ?? 0, a.rating_blitz ?? 0, a.rating_rapid ?? 0);
+      const prev = eloByUser.get(a.user_id) ?? 0;
+      if (high > prev) eloByUser.set(a.user_id, high);
+    }
   }
 
-  for (const s of settings as Array<{ user_id: string; discord_id: string; plan: string }>) {
+  for (const s of settings) {
     map.set(s.discord_id, {
       user_id: s.user_id,
       discord_id: s.discord_id,
@@ -152,6 +173,10 @@ async function tick(client: Client): Promise<void> {
   }
 
   const linked = await fetchLinkedUsers();
+  if (!linked) {
+    log.warn('[guild-sync] linked-users fetch incomplete, skipping sweep (no roles touched)');
+    return;
+  }
   log.info(`[guild-sync] sweeping ${members.size} members against ${linked.size} linked users`);
 
   let touched = 0;
