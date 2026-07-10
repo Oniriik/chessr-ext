@@ -518,6 +518,23 @@ async function handleTransactionCompleted(event: any): Promise<void> {
 
       logPaddle(null, 'webhook', `${userId} → lifetime (transaction ${transaction.id})`, 'processed');
 
+      // Lifetime upgrade: the old sub is only canceled now that the payment
+      // is confirmed (the checkout already carried the proration discount,
+      // so end-of-period — not 'immediately' — avoids double compensation).
+      // The subscriptions row above already points at this transaction, so
+      // the stale-event guard swallows the old sub's cancel webhooks.
+      const upgradeFromSubscriptionId = transaction.custom_data?.upgradeFromSubscriptionId;
+      if (upgradeFromSubscriptionId) {
+        try {
+          await paddle.subscriptions.cancel(upgradeFromSubscriptionId, { effectiveFrom: 'next_billing_period' });
+          logPaddle(null, 'webhook', `${userId} → canceled old sub ${upgradeFromSubscriptionId} after lifetime payment`, 'processed');
+        } catch (err) {
+          // Already canceled / not found — nothing to roll back, the
+          // lifetime grant stands either way.
+          logPaddle(null, 'webhook', `cancel of old sub ${upgradeFromSubscriptionId} failed: ${String(err)}`, 'error');
+        }
+      }
+
       // Bot needs to swap the Lifetime role; activity feed needs the
       // entry; the emitted event is the audit trail (Supabase's
       // plan_activity_logs is retired in v3). Skip if it's a duplicate
@@ -1128,6 +1145,70 @@ export async function handleCancelByToken(c: Context): Promise<Response> {
   return cancelSubscription(c, verified.userId, body.reason, body.details);
 }
 
+// ─── Upgrade quote (shared by preview + lifetime upgrade) ───────────────────
+// Computes the localized target price and the prorated value of the unused
+// remainder of the user's current subscription. All amounts in minor units,
+// in the same (localized) currency.
+async function computeUpgradeQuote(
+  c: Context,
+  userId: string,
+  paddleSubscriptionId: string,
+  targetPriceId: string,
+  requestedCurrency: string | undefined,
+): Promise<{ targetTotal: number; targetDiscount: number; targetOriginal: number; prorate: number; currencyCode: string }> {
+  const clientIp = getClientIpFromCtx(c);
+  const signupIp = await getSignupIp(userId);
+  const locationParam = buildLocationParam(signupIp, clientIp);
+  const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
+  // SDK 3.x types currencyCode as a CurrencyCode enum, but the front
+  // forwards arbitrary strings. Cast through any — Paddle validates
+  // server-side and returns a clear error for unknown codes.
+  const currencyParam = requestedCurrency ? ({ currencyCode: requestedCurrency } as any) : {};
+
+  const targetPreview = await paddle.pricingPreview.preview({
+    items: [{ priceId: targetPriceId, quantity: 1 }],
+    ...locationParam,
+    ...currencyParam,
+    ...(discountId ? { discountId } : {}),
+  });
+
+  const targetLine = (targetPreview as any).details?.lineItems?.[0];
+  const targetTotals = targetLine?.totals;
+  const currencyCode = (targetPreview as any).currencyCode || 'USD';
+
+  const targetTotal = Number(targetTotals?.total || 0);
+  const targetDiscount = Number(targetTotals?.discount || 0);
+  const targetOriginal = targetTotal + targetDiscount;
+
+  const subscription = await paddle.subscriptions.get(paddleSubscriptionId);
+  const currentItem = subscription.items?.[0];
+  const billingStart = subscription.currentBillingPeriod?.startsAt;
+  const billingEnd = subscription.currentBillingPeriod?.endsAt;
+
+  let localizedSubPrice = 0;
+  if (currentItem?.price?.id) {
+    const subPreview = await paddle.pricingPreview.preview({
+      items: [{ priceId: currentItem.price.id, quantity: 1 }],
+      ...locationParam,
+      ...currencyParam,
+    });
+    const subLine = (subPreview as any).details?.lineItems?.[0];
+    localizedSubPrice = Number(subLine?.totals?.total || 0);
+  }
+
+  let prorate = 0;
+  if (billingStart && billingEnd && localizedSubPrice > 0) {
+    const start = new Date(billingStart).getTime();
+    const end = new Date(billingEnd).getTime();
+    const now = Date.now();
+    const totalDays = (end - start) / (1000 * 60 * 60 * 24);
+    const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
+    prorate = Math.round((remainingDays / totalDays) * localizedSubPrice);
+  }
+
+  return { targetTotal, targetDiscount, targetOriginal, prorate, currencyCode };
+}
+
 // ─── Preview upgrade (auth + token) ─────────────────────────────────────────
 // Body: { plan: 'yearly' | 'lifetime', currency? }
 // Returns: { planLabel, planPrice, discount, prorate, total, nextBilledAt }
@@ -1155,56 +1236,9 @@ async function previewUpgrade(
   if (!sub?.paddle_subscription_id) return c.json({ error: 'No active subscription' }, 400);
 
   try {
-    const clientIp = getClientIpFromCtx(c);
-    const signupIp = await getSignupIp(userId);
-    const locationParam = buildLocationParam(signupIp, clientIp);
-    const discountId = process.env.PADDLE_DISCOUNT_ID || undefined;
-    // SDK 3.x types currencyCode as a CurrencyCode enum, but the front
-    // forwards arbitrary strings. Cast through any — Paddle validates
-    // server-side and returns a clear error for unknown codes.
-    const currencyParam = requestedCurrency ? ({ currencyCode: requestedCurrency } as any) : {};
-
-    const targetPreview = await paddle.pricingPreview.preview({
-      items: [{ priceId: targetPriceId, quantity: 1 }],
-      ...locationParam,
-      ...currencyParam,
-      ...(discountId ? { discountId } : {}),
-    });
-
-    const targetLine = (targetPreview as any).details?.lineItems?.[0];
-    const targetTotals = targetLine?.totals;
-    const currencyCode = (targetPreview as any).currencyCode || 'USD';
+    const { targetTotal, targetDiscount, targetOriginal, prorate, currencyCode } =
+      await computeUpgradeQuote(c, userId, sub.paddle_subscription_id, targetPriceId, requestedCurrency);
     const fmt = (amount: number) => formatAmount(amount, currencyCode);
-
-    const targetTotal = Number(targetTotals?.total || 0);
-    const targetDiscount = Number(targetTotals?.discount || 0);
-    const targetOriginal = targetTotal + targetDiscount;
-
-    const subscription = await paddle.subscriptions.get(sub.paddle_subscription_id);
-    const currentItem = subscription.items?.[0];
-    const billingStart = subscription.currentBillingPeriod?.startsAt;
-    const billingEnd = subscription.currentBillingPeriod?.endsAt;
-
-    let localizedSubPrice = 0;
-    if (currentItem?.price?.id) {
-      const subPreview = await paddle.pricingPreview.preview({
-        items: [{ priceId: currentItem.price.id, quantity: 1 }],
-        ...locationParam,
-        ...currencyParam,
-      });
-      const subLine = (subPreview as any).details?.lineItems?.[0];
-      localizedSubPrice = Number(subLine?.totals?.total || 0);
-    }
-
-    let prorate = 0;
-    if (billingStart && billingEnd && localizedSubPrice > 0) {
-      const start = new Date(billingStart).getTime();
-      const end = new Date(billingEnd).getTime();
-      const now = Date.now();
-      const totalDays = (end - start) / (1000 * 60 * 60 * 24);
-      const remainingDays = Math.max(0, (end - now) / (1000 * 60 * 60 * 24));
-      prorate = Math.round((remainingDays / totalDays) * localizedSubPrice);
-    }
 
     const finalTotal = Math.max(0, targetTotal - prorate);
 
@@ -1253,7 +1287,11 @@ export async function handlePreviewUpgradeByToken(c: Context): Promise<Response>
 }
 
 // ─── Upgrade lifetime (auth + token) ────────────────────────────────────────
-// Cancels current sub immediately, then opens a lifetime checkout.
+// Opens a lifetime checkout with a one-off discount matching the prorated
+// unused remainder of the current sub. The current sub is NOT touched here —
+// it gets canceled by the webhook once transaction.completed confirms the
+// lifetime payment (see handleTransactionCompleted). An abandoned checkout
+// therefore leaves the user's plan exactly as it was.
 // Returns: { transactionId } — same as /checkout.
 async function upgradeLifetime(
   c: Context,
@@ -1269,16 +1307,41 @@ async function upgradeLifetime(
   if (!sub?.paddle_subscription_id) return c.json({ error: 'No active subscription' }, 400);
 
   try {
-    await paddle.subscriptions.cancel(sub.paddle_subscription_id, { effectiveFrom: 'immediately' });
-    logPaddle(null, 'lifetime-upgrade', `canceled sub ${sub.paddle_subscription_id}`, 'processed');
-
     const priceId = getPaddlePrices()['lifetime'];
     if (!priceId) return c.json({ error: 'Lifetime price not configured' }, 500);
+
+    // Best-effort proration discount. Percentage (not flat) so it applies
+    // whatever currency the checkout settles in. Covers the global promo
+    // discount too (a transaction can only carry one discount id), so the
+    // charged total matches what previewUpgrade displayed. On any failure
+    // we still open the checkout — full price beats a broken upgrade.
+    let discountId: string | undefined;
+    try {
+      const { targetDiscount, targetOriginal, prorate } =
+        await computeUpgradeQuote(c, userId, sub.paddle_subscription_id, priceId, undefined);
+      const offAmount = targetDiscount + prorate;
+      if (targetOriginal > 0 && offAmount > 0) {
+        const pct = Math.min(99.99, Math.max(0.01, Math.round((offAmount / targetOriginal) * 10000) / 100));
+        const discount = await paddle.discounts.create({
+          description: `Lifetime upgrade proration (${userId})`,
+          type: 'percentage',
+          amount: String(pct),
+          usageLimit: 1,
+          enabledForCheckout: false,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        });
+        discountId = discount.id;
+        logPaddle(null, 'lifetime-upgrade', `proration discount ${discount.id} (${pct}%) for user=${userId}`, 'processed');
+      }
+    } catch (err) {
+      logPaddle(null, 'lifetime-upgrade', `proration discount failed, full price: ${String(err)}`, 'error');
+    }
 
     const transaction = await paddle.transactions.create({
       items: [{ priceId, quantity: 1 }],
       customerId: sub.paddle_customer_id || fallbackCustomerId!,
-      customData: { userId },
+      ...(discountId ? { discountId } : {}),
+      customData: { userId, upgradeFromSubscriptionId: sub.paddle_subscription_id },
     });
     logPaddle(null, 'lifetime-upgrade', `user=${userId}, txn=${transaction.id}`, 'processed');
     return c.json({ transactionId: transaction.id });
